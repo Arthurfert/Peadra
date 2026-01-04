@@ -76,7 +76,7 @@ class TransactionModal:
         
         # Catégorie
         category_options = [
-            ft.dropdown.Option(str(cat["id"]), f"{cat['icon']} {cat['name']}")
+            ft.dropdown.Option(str(cat["id"]), cat['name'])
             for cat in self.categories
         ]
         self.category_dropdown = ft.Dropdown(
@@ -130,7 +130,7 @@ class TransactionModal:
                 if sub.get("category_id") == category_id
             ]
             self.subcategory_dropdown.options = [
-                ft.dropdown.Option(str(sub["id"]), f"{sub['icon']} {sub['name']}")
+                ft.dropdown.Option(str(sub["id"]), sub['name'])
                 for sub in filtered_subcategories
             ]
         else:
@@ -213,7 +213,7 @@ class TransactionModal:
                     if sub.get("category_id") == transaction_data["category_id"]
                 ]
                 self.subcategory_dropdown.options = [
-                    ft.dropdown.Option(str(sub["id"]), f"{sub['icon']} {sub['name']}")
+                    ft.dropdown.Option(str(sub["id"]), sub['name'])
                     for sub in filtered_subcategories
                 ]
                 if transaction_data.get("subcategory_id"):
@@ -300,7 +300,7 @@ class AssetModal:
         
         # Catégorie
         category_options = [
-            ft.dropdown.Option(str(cat["id"]), f"{cat['icon']} {cat['name']}")
+            ft.dropdown.Option(str(cat["id"]), cat['name'])
             for cat in self.categories
         ]
         self.category_dropdown = ft.Dropdown(

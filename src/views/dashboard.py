@@ -119,7 +119,7 @@ class DashboardView:
             content=ft.Column(
                 controls=[
                     ft.Text(
-                        "📊 Résumé du mois",
+                        "Résumé du mois",
                         size=18,
                         weight=ft.FontWeight.BOLD,
                         color=text_color,
@@ -206,9 +206,10 @@ class DashboardView:
                     content=ft.Row(
                         controls=[
                             ft.Container(
-                                content=ft.Text(
-                                    tx.get("category_icon", "💰"),
+                                content=ft.Icon(
+                                    ft.icons.RECEIPT_LONG,
                                     size=20,
+                                    color=PeadraTheme.ACCENT,
                                 ),
                                 bgcolor="rgba(119, 141, 169, 0.1)",
                                 border_radius=8,
@@ -250,7 +251,7 @@ class DashboardView:
                     ft.Row(
                         controls=[
                             ft.Text(
-                                "📋 Transactions récentes",
+                                "Transactions récentes",
                                 size=18,
                                 weight=ft.FontWeight.BOLD,
                                 color=text_color,
@@ -298,9 +299,10 @@ class DashboardView:
                     content=ft.Row(
                         controls=[
                             ft.Container(
-                                content=ft.Text(
-                                    asset.get("category_icon", "📊"),
+                                content=ft.Icon(
+                                    ft.icons.ACCOUNT_BALANCE_WALLET,
                                     size=20,
+                                    color=asset.get("category_color", "#778DA9"),
                                 ),
                                 bgcolor=asset.get("category_color", "#778DA9") + "20",
                                 border_radius=8,
@@ -342,7 +344,7 @@ class DashboardView:
                     ft.Row(
                         controls=[
                             ft.Text(
-                                "🏦 Mes actifs",
+                                "Mes actifs",
                                 size=18,
                                 weight=ft.FontWeight.BOLD,
                                 color=text_color,
@@ -374,7 +376,7 @@ class DashboardView:
                 content=ft.Column(
                     controls=[
                         ft.Text(
-                            "📊 Répartition du patrimoine",
+                            "Répartition du patrimoine",
                             size=18,
                             weight=ft.FontWeight.BOLD,
                             color=text_color,
@@ -424,7 +426,7 @@ class DashboardView:
                                 border_radius=2,
                             ),
                             ft.Text(
-                                f"{cat['icon']} {cat['name']}",
+                                cat['name'],
                                 size=13,
                                 color=text_color,
                             ),
@@ -445,7 +447,7 @@ class DashboardView:
             content=ft.Column(
                 controls=[
                     ft.Text(
-                        "📊 Répartition du patrimoine",
+                        "Répartition du patrimoine",
                         size=18,
                         weight=ft.FontWeight.BOLD,
                         color=text_color,

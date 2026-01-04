@@ -34,7 +34,7 @@ class DatabaseManager:
             CREATE TABLE IF NOT EXISTS categories (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL UNIQUE,
-                icon TEXT DEFAULT '💰',
+                icon TEXT DEFAULT '',
                 color TEXT DEFAULT '#1976D2',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -46,7 +46,7 @@ class DatabaseManager:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 category_id INTEGER NOT NULL,
-                icon TEXT DEFAULT '📁',
+                icon TEXT DEFAULT '',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
             )
@@ -105,15 +105,15 @@ class DatabaseManager:
     def _insert_default_categories(self):
         """Insère les catégories par défaut."""
         default_categories = [
-            ("Cash", "💵", "#4CAF50"),
-            ("Immobilier", "🏠", "#FF9800"),
-            ("Bourse", "📈", "#2196F3"),
+            ("Cash", "", "#4CAF50"),
+            ("Immobilier", "", "#FF9800"),
+            ("Bourse", "", "#2196F3"),
         ]
         
         default_subcategories = {
-            "Cash": [("Compte courant", "🏦"), ("Livret A", "📗"), ("Livret Épargne", "💰"), ("Espèces", "💵")],
-            "Immobilier": [("Résidence principale", "🏡"), ("Investissement locatif", "🏢"), ("SCPI", "📊")],
-            "Bourse": [("Actions", "📈"), ("ETF", "📊"), ("Obligations", "📋"), ("Crypto", "₿"), ("PEA", "🇫🇷")],
+            "Cash": [("Compte courant", ""), ("Livret A", ""), ("Livret Épargne", ""), ("Espèces", "")],
+            "Immobilier": [("Résidence principale", ""), ("Investissement locatif", ""), ("SCPI", "")],
+            "Bourse": [("Actions", ""), ("ETF", ""), ("Obligations", ""), ("Crypto", ""), ("PEA", "")],
         }
         
         conn = self._get_connection()

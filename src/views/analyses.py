@@ -42,7 +42,7 @@ class AnalysesView:
                 if cat_name not in expenses_by_cat:
                     expenses_by_cat[cat_name] = {
                         "total": 0,
-                        "icon": tx.get("category_icon", "📁"),
+                        "icon": "",
                         "color": "#778DA9",
                     }
                 expenses_by_cat[cat_name]["total"] += tx["amount"]
@@ -146,7 +146,7 @@ class AnalysesView:
                                 border_radius=4,
                             ),
                             ft.Text(
-                                f"{cat['icon']} {cat['name']}",
+                                cat['name'],
                                 size=14,
                                 color=text_color,
                             ),
@@ -174,7 +174,7 @@ class AnalysesView:
             content=ft.Column(
                 controls=[
                     ft.Text(
-                        "📊 Répartition du patrimoine",
+                        "Répartition du patrimoine",
                         size=18,
                         weight=ft.FontWeight.BOLD,
                         color=text_color,
@@ -405,7 +405,7 @@ class AnalysesView:
             content=ft.Column(
                 controls=[
                     ft.Text(
-                        "📈 Évolution du patrimoine",
+                        "Évolution du patrimoine",
                         size=18,
                         weight=ft.FontWeight.BOLD,
                         color=text_color,
@@ -535,7 +535,7 @@ class AnalysesView:
             content=ft.Column(
                 controls=[
                     ft.Text(
-                        "💰 Revenus vs Dépenses",
+                        "Revenus vs Dépenses",
                         size=18,
                         weight=ft.FontWeight.BOLD,
                         color=text_color,

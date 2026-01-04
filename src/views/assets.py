@@ -249,7 +249,7 @@ class AssetsView:
         category_options = [ft.dropdown.Option("all", "Toutes les catégories")]
         for cat in self.categories:
             category_options.append(
-                ft.dropdown.Option(str(cat["id"]), f"{cat['icon']} {cat['name']}")
+                ft.dropdown.Option(str(cat["id"]), cat['name'])
             )
         
         return ft.Container(
@@ -329,9 +329,10 @@ class AssetsView:
                     ft.Row(
                         controls=[
                             ft.Container(
-                                content=ft.Text(
-                                    asset.get("category_icon", "📊"),
+                                content=ft.Icon(
+                                    ft.icons.ACCOUNT_BALANCE_WALLET,
                                     size=24,
+                                    color=asset.get("category_color", "#778DA9"),
                                 ),
                                 bgcolor=asset.get("category_color", "#778DA9") + "20",
                                 border_radius=8,

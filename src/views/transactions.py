@@ -271,15 +271,9 @@ class TransactionsView:
                         )
                     ),
                     ft.DataCell(
-                        ft.Row(
-                            controls=[
-                                ft.Text(tx.get("category_icon", ""), size=16),
-                                ft.Text(
-                                    tx.get("category_name", "-"),
-                                    color=text_color,
-                                ),
-                            ],
-                            spacing=4,
+                        ft.Text(
+                            tx.get("category_name", "-"),
+                            color=text_color,
                         )
                     ),
                     ft.DataCell(

@@ -4,7 +4,7 @@ Graphiques détaillés du patrimoine et des transactions.
 """
 import flet as ft
 from typing import Callable
-from datetime import datetime, timedelta
+from datetime import datetime
 from ..components.theme import PeadraTheme
 from ..database.db_manager import db
 
@@ -112,7 +112,6 @@ class AnalysesView:
     def _build_patrimony_pie_chart(self) -> ft.Container:
         """Construit le graphique circulaire du patrimoine."""
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
-        secondary_color = PeadraTheme.DARK_TEXT_SECONDARY if self.is_dark else PeadraTheme.LIGHT_TEXT_SECONDARY
         
         if self.total_patrimony <= 0:
             return self._build_empty_chart("Répartition du patrimoine", "Aucun actif enregistré")

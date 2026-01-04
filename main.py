@@ -5,7 +5,6 @@ Point d'entrée principal de l'application.
 import flet as ft
 from src.components.theme import PeadraTheme
 from src.components.navigation import NavigationRailComponent
-from src.components.modals import TransactionModal, AssetModal
 from src.database.db_manager import db
 from src.views.dashboard import DashboardView
 from src.views.transactions import TransactionsView
@@ -255,7 +254,7 @@ class PeadraApp:
 
 def main(page: ft.Page):
     """Point d'entrée de l'application Flet."""
-    app = PeadraApp(page)
+    PeadraApp(page)
 
 
 if __name__ == "__main__":

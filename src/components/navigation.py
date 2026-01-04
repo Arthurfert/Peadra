@@ -3,7 +3,7 @@ Module de navigation pour Peadra.
 Barre latérale NavigationRail.
 """
 import flet as ft
-from typing import Callable, Optional
+from typing import Callable
 from .theme import PeadraTheme
 
 

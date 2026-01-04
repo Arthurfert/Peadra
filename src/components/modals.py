@@ -28,7 +28,6 @@ class TransactionModal:
     
     def _build_controls(self):
         """Construit les contrôles du formulaire."""
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
         
         # Date picker
         self.date_picker = ft.TextField(

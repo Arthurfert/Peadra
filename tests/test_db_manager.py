@@ -1,5 +1,6 @@
 # Tests pour le gestionnaire de base de données
 
+
 def test_database_initialization(db_manager):
     """Test que la base de données est correctement initialisée."""
     conn = db_manager._get_connection()

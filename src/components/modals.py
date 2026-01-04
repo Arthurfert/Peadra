@@ -1,6 +1,7 @@
 """
 Modal de saisie rapide pour les transactions.
 """
+
 import flet as ft
 from datetime import datetime
 from typing import Callable, List, Dict, Any, Optional
@@ -9,7 +10,7 @@ from .theme import PeadraTheme
 
 class TransactionModal:
     """Modal pour ajouter/éditer une transaction."""
-    
+
     def __init__(
         self,
         page: ft.Page,
@@ -25,10 +26,10 @@ class TransactionModal:
         self.is_dark = is_dark
         self.dialog = None
         self._build_controls()
-    
+
     def _build_controls(self):
         """Construit les contrôles du formulaire."""
-        
+
         # Date picker
         self.date_picker = ft.TextField(
             label="Date",
@@ -40,7 +41,7 @@ class TransactionModal:
                 on_click=self._open_date_picker,
             ),
         )
-        
+
         # Description
         self.description_field = ft.TextField(
             label="Description",
@@ -48,7 +49,7 @@ class TransactionModal:
             width=350,
             autofocus=True,
         )
-        
+
         # Montant
         self.amount_field = ft.TextField(
             label="Montant (€)",
@@ -60,7 +61,7 @@ class TransactionModal:
                 allow=True,
             ),
         )
-        
+
         # Type de transaction
         self.type_dropdown = ft.Dropdown(
             label="Type",
@@ -72,11 +73,10 @@ class TransactionModal:
                 ft.dropdown.Option("transfer", "Transfert"),
             ],
         )
-        
+
         # Catégorie
         category_options = [
-            ft.dropdown.Option(str(cat["id"]), cat['name'])
-            for cat in self.categories
+            ft.dropdown.Option(str(cat["id"]), cat["name"]) for cat in self.categories
         ]
         self.category_dropdown = ft.Dropdown(
             label="Catégorie",
@@ -84,14 +84,14 @@ class TransactionModal:
             options=category_options,
             on_change=self._on_category_change,
         )
-        
+
         # Sous-catégorie
         self.subcategory_dropdown = ft.Dropdown(
             label="Sous-catégorie",
             width=200,
             options=[],
         )
-        
+
         # Notes
         self.notes_field = ft.TextField(
             label="Notes (optionnel)",
@@ -101,7 +101,7 @@ class TransactionModal:
             min_lines=2,
             max_lines=4,
         )
-    
+
     def _open_date_picker(self, e):
         """Ouvre le sélecteur de date."""
         date_picker = ft.DatePicker(
@@ -112,42 +112,43 @@ class TransactionModal:
         self.page.overlay.append(date_picker)
         date_picker.open = True
         self.page.update()
-    
+
     def _on_date_change(self, e):
         """Gère le changement de date."""
         if e.control.value:
             self.date_picker.value = e.control.value.strftime("%Y-%m-%d")
             self.page.update()
-    
+
     def _on_category_change(self, e):
         """Met à jour les sous-catégories lors du changement de catégorie."""
         category_id = int(e.control.value) if e.control.value else None
-        
+
         if category_id:
             filtered_subcategories = [
-                sub for sub in self.subcategories
+                sub
+                for sub in self.subcategories
                 if sub.get("category_id") == category_id
             ]
             self.subcategory_dropdown.options = [
-                ft.dropdown.Option(str(sub["id"]), sub['name'])
+                ft.dropdown.Option(str(sub["id"]), sub["name"])
                 for sub in filtered_subcategories
             ]
         else:
             self.subcategory_dropdown.options = []
-        
+
         self.subcategory_dropdown.value = None
         self.page.update()
-    
+
     def _validate_form(self) -> bool:
         """Valide le formulaire."""
         errors = []
-        
+
         if not self.description_field.value or not self.description_field.value.strip():
             errors.append("La description est requise")
             self.description_field.error_text = "Requis"
         else:
             self.description_field.error_text = None
-        
+
         if not self.amount_field.value:
             errors.append("Le montant est requis")
             self.amount_field.error_text = "Requis"
@@ -162,65 +163,82 @@ class TransactionModal:
             except ValueError:
                 errors.append("Montant invalide")
                 self.amount_field.error_text = "Invalide"
-        
+
         self.page.update()
         return len(errors) == 0
-    
+
     def _on_save_click(self, e):
         """Gère le clic sur le bouton Enregistrer."""
         if not self._validate_form():
             return
-        
+
         description = self.description_field.value or ""
         amount_str = self.amount_field.value or "0"
-        
+
         transaction_data = {
             "date": self.date_picker.value,
             "description": description.strip(),
             "amount": float(amount_str),
             "transaction_type": self.type_dropdown.value,
-            "category_id": int(self.category_dropdown.value) if self.category_dropdown.value else None,
-            "subcategory_id": int(self.subcategory_dropdown.value) if self.subcategory_dropdown.value else None,
+            "category_id": (
+                int(self.category_dropdown.value)
+                if self.category_dropdown.value
+                else None
+            ),
+            "subcategory_id": (
+                int(self.subcategory_dropdown.value)
+                if self.subcategory_dropdown.value
+                else None
+            ),
             "notes": self.notes_field.value.strip() if self.notes_field.value else None,
         }
-        
+
         self.close()
-        
+
         if self.on_save:
             self.on_save(transaction_data)
-    
+
     def _on_cancel_click(self, e):
         """Gère le clic sur le bouton Annuler."""
         self.close()
-    
+
     def show(self, transaction_data: Optional[Dict[str, Any]] = None):
         """Affiche le modal."""
         # Réinitialiser les champs
         self._build_controls()
-        
+
         # Pré-remplir si édition
         if transaction_data:
-            self.date_picker.value = transaction_data.get("date", datetime.now().strftime("%Y-%m-%d"))
+            self.date_picker.value = transaction_data.get(
+                "date", datetime.now().strftime("%Y-%m-%d")
+            )
             self.description_field.value = transaction_data.get("description", "")
             self.amount_field.value = str(transaction_data.get("amount", ""))
-            self.type_dropdown.value = transaction_data.get("transaction_type", "expense")
+            self.type_dropdown.value = transaction_data.get(
+                "transaction_type", "expense"
+            )
             if transaction_data.get("category_id"):
                 self.category_dropdown.value = str(transaction_data["category_id"])
                 # Mettre à jour les sous-catégories
                 filtered_subcategories = [
-                    sub for sub in self.subcategories
+                    sub
+                    for sub in self.subcategories
                     if sub.get("category_id") == transaction_data["category_id"]
                 ]
                 self.subcategory_dropdown.options = [
-                    ft.dropdown.Option(str(sub["id"]), sub['name'])
+                    ft.dropdown.Option(str(sub["id"]), sub["name"])
                     for sub in filtered_subcategories
                 ]
                 if transaction_data.get("subcategory_id"):
-                    self.subcategory_dropdown.value = str(transaction_data["subcategory_id"])
+                    self.subcategory_dropdown.value = str(
+                        transaction_data["subcategory_id"]
+                    )
             self.notes_field.value = transaction_data.get("notes", "")
-        
-        title = "Modifier la transaction" if transaction_data else "Nouvelle transaction"
-        
+
+        title = (
+            "Modifier la transaction" if transaction_data else "Nouvelle transaction"
+        )
+
         self.dialog = ft.AlertDialog(
             modal=True,
             title=ft.Text(title, weight=ft.FontWeight.BOLD),
@@ -257,11 +275,11 @@ class TransactionModal:
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
-        
+
         self.page.overlay.append(self.dialog)
         self.dialog.open = True
         self.page.update()
-    
+
     def close(self):
         """Ferme le modal."""
         if self.dialog:
@@ -271,7 +289,7 @@ class TransactionModal:
 
 class AssetModal:
     """Modal pour ajouter/éditer un actif."""
-    
+
     def __init__(
         self,
         page: ft.Page,
@@ -286,7 +304,7 @@ class AssetModal:
         self.dialog = None
         self.editing_asset_id = None
         self._build_controls()
-    
+
     def _build_controls(self):
         """Construit les contrôles du formulaire."""
         # Nom de l'actif
@@ -296,18 +314,17 @@ class AssetModal:
             width=350,
             autofocus=True,
         )
-        
+
         # Catégorie
         category_options = [
-            ft.dropdown.Option(str(cat["id"]), cat['name'])
-            for cat in self.categories
+            ft.dropdown.Option(str(cat["id"]), cat["name"]) for cat in self.categories
         ]
         self.category_dropdown = ft.Dropdown(
             label="Catégorie",
             width=350,
             options=category_options,
         )
-        
+
         # Valeur actuelle
         self.current_value_field = ft.TextField(
             label="Valeur actuelle (€)",
@@ -319,7 +336,7 @@ class AssetModal:
                 allow=True,
             ),
         )
-        
+
         # Valeur d'achat
         self.purchase_value_field = ft.TextField(
             label="Valeur d'achat (€)",
@@ -331,7 +348,7 @@ class AssetModal:
                 allow=True,
             ),
         )
-        
+
         # Date d'achat
         self.purchase_date_field = ft.TextField(
             label="Date d'achat",
@@ -343,7 +360,7 @@ class AssetModal:
                 on_click=self._open_date_picker,
             ),
         )
-        
+
         # Notes
         self.notes_field = ft.TextField(
             label="Notes (optionnel)",
@@ -353,7 +370,7 @@ class AssetModal:
             min_lines=2,
             max_lines=4,
         )
-    
+
     def _open_date_picker(self, e):
         """Ouvre le sélecteur de date."""
         date_picker = ft.DatePicker(
@@ -364,29 +381,29 @@ class AssetModal:
         self.page.overlay.append(date_picker)
         date_picker.open = True
         self.page.update()
-    
+
     def _on_date_change(self, e):
         """Gère le changement de date."""
         if e.control.value:
             self.purchase_date_field.value = e.control.value.strftime("%Y-%m-%d")
             self.page.update()
-    
+
     def _validate_form(self) -> bool:
         """Valide le formulaire."""
         errors = []
-        
+
         if not self.name_field.value or not self.name_field.value.strip():
             self.name_field.error_text = "Requis"
             errors.append("Nom requis")
         else:
             self.name_field.error_text = None
-        
+
         if not self.category_dropdown.value:
             self.category_dropdown.error_text = "Requis"
             errors.append("Catégorie requise")
         else:
             self.category_dropdown.error_text = None
-        
+
         if not self.current_value_field.value:
             self.current_value_field.error_text = "Requis"
             errors.append("Valeur requise")
@@ -397,45 +414,53 @@ class AssetModal:
             except ValueError:
                 self.current_value_field.error_text = "Invalide"
                 errors.append("Valeur invalide")
-        
+
         self.page.update()
         return len(errors) == 0
-    
+
     def _on_save_click(self, e):
         """Gère le clic sur le bouton Enregistrer."""
         if not self._validate_form():
             return
-        
+
         name = self.name_field.value or ""
         category_value = self.category_dropdown.value or "0"
         current_value_str = self.current_value_field.value or "0"
-        
+
         asset_data = {
             "name": name.strip(),
             "category_id": int(category_value),
             "current_value": float(current_value_str),
-            "purchase_value": float(self.purchase_value_field.value) if self.purchase_value_field.value else None,
-            "purchase_date": self.purchase_date_field.value if self.purchase_date_field.value else None,
+            "purchase_value": (
+                float(self.purchase_value_field.value)
+                if self.purchase_value_field.value
+                else None
+            ),
+            "purchase_date": (
+                self.purchase_date_field.value
+                if self.purchase_date_field.value
+                else None
+            ),
             "notes": self.notes_field.value.strip() if self.notes_field.value else None,
         }
-        
+
         if self.editing_asset_id:
             asset_data["id"] = self.editing_asset_id
-        
+
         self.close()
-        
+
         if self.on_save:
             self.on_save(asset_data)
-    
+
     def _on_cancel_click(self, e):
         """Gère le clic sur le bouton Annuler."""
         self.close()
-    
+
     def show(self, asset_data: Optional[Dict[str, Any]] = None):
         """Affiche le modal."""
         self._build_controls()
         self.editing_asset_id = None
-        
+
         if asset_data:
             self.editing_asset_id = asset_data.get("id")
             self.name_field.value = asset_data.get("name", "")
@@ -447,9 +472,9 @@ class AssetModal:
             if asset_data.get("purchase_date"):
                 self.purchase_date_field.value = asset_data["purchase_date"]
             self.notes_field.value = asset_data.get("notes", "")
-        
+
         title = "Modifier l'actif" if asset_data else "Nouvel actif"
-        
+
         self.dialog = ft.AlertDialog(
             modal=True,
             title=ft.Text(title, weight=ft.FontWeight.BOLD),
@@ -459,7 +484,10 @@ class AssetModal:
                         self.name_field,
                         self.category_dropdown,
                         ft.Row(
-                            controls=[self.current_value_field, self.purchase_value_field],
+                            controls=[
+                                self.current_value_field,
+                                self.purchase_value_field,
+                            ],
                             spacing=16,
                         ),
                         self.purchase_date_field,
@@ -483,11 +511,11 @@ class AssetModal:
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
-        
+
         self.page.overlay.append(self.dialog)
         self.dialog.open = True
         self.page.update()
-    
+
     def close(self):
         """Ferme le modal."""
         if self.dialog:

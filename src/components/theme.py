@@ -2,48 +2,49 @@
 Module de gestion des thèmes pour Peadra.
 Design Glassmorphism avec palette Armorique (bleus profonds et gris ardoise).
 """
+
 import flet as ft
 from typing import Optional
 
 
 class PeadraTheme:
     """Gestionnaire de thèmes pour l'application Peadra."""
-    
+
     # Couleurs principales - Palette Armorique
-    PRIMARY_DARK = "#0D1B2A"      # Bleu nuit profond
-    PRIMARY_MEDIUM = "#1B263B"    # Bleu marine
-    PRIMARY_LIGHT = "#415A77"     # Bleu gris
-    ACCENT = "#778DA9"            # Bleu ardoise
-    SURFACE = "#E0E1DD"           # Gris clair
-    
+    PRIMARY_DARK = "#0D1B2A"  # Bleu nuit profond
+    PRIMARY_MEDIUM = "#1B263B"  # Bleu marine
+    PRIMARY_LIGHT = "#415A77"  # Bleu gris
+    ACCENT = "#778DA9"  # Bleu ardoise
+    SURFACE = "#E0E1DD"  # Gris clair
+
     # Couleurs pour le mode clair
     LIGHT_BG = "#F5F7FA"
     LIGHT_SURFACE = "#FFFFFF"
     LIGHT_TEXT = "#1B263B"
     LIGHT_TEXT_SECONDARY = "#415A77"
-    
+
     # Couleurs pour le mode sombre
     DARK_BG = "#0D1B2A"
     DARK_SURFACE = "#1B263B"
     DARK_TEXT = "#E0E1DD"
     DARK_TEXT_SECONDARY = "#778DA9"
-    
+
     # Couleurs d'accent pour les catégories
-    CASH_COLOR = "#4CAF50"        # Vert
-    IMMO_COLOR = "#FF9800"        # Orange
-    BOURSE_COLOR = "#2196F3"      # Bleu
-    
+    CASH_COLOR = "#4CAF50"  # Vert
+    IMMO_COLOR = "#FF9800"  # Orange
+    BOURSE_COLOR = "#2196F3"  # Bleu
+
     # Couleurs fonctionnelles
     SUCCESS = "#4CAF50"
     WARNING = "#FFC107"
     ERROR = "#F44336"
     INFO = "#2196F3"
-    
+
     # Glassmorphism properties
     GLASS_BLUR = 10
     GLASS_OPACITY_LIGHT = 0.7
     GLASS_OPACITY_DARK = 0.3
-    
+
     @staticmethod
     def get_light_theme() -> ft.Theme:
         """Retourne le thème clair."""
@@ -62,7 +63,7 @@ class PeadraTheme:
             font_family="Segoe UI",
             use_material3=True,
         )
-    
+
     @staticmethod
     def get_dark_theme() -> ft.Theme:
         """Retourne le thème sombre."""
@@ -81,7 +82,7 @@ class PeadraTheme:
             font_family="Segoe UI",
             use_material3=True,
         )
-    
+
     @staticmethod
     def glass_container(
         content: ft.Control,
@@ -98,7 +99,7 @@ class PeadraTheme:
         else:
             bg_color = f"rgba(255, 255, 255, {PeadraTheme.GLASS_OPACITY_LIGHT})"
             border_color = "rgba(27, 38, 59, 0.1)"
-        
+
         return ft.Container(
             content=content,
             padding=padding,
@@ -113,9 +114,11 @@ class PeadraTheme:
                 color="rgba(0, 0, 0, 0.1)",
                 offset=ft.Offset(0, 4),
             ),
-            blur=ft.Blur(PeadraTheme.GLASS_BLUR, PeadraTheme.GLASS_BLUR, ft.BlurTileMode.CLAMP),
+            blur=ft.Blur(
+                PeadraTheme.GLASS_BLUR, PeadraTheme.GLASS_BLUR, ft.BlurTileMode.CLAMP
+            ),
         )
-    
+
     @staticmethod
     def card(
         content: ft.Control,
@@ -132,7 +135,7 @@ class PeadraTheme:
         else:
             bg_color = PeadraTheme.LIGHT_SURFACE
             border_color = "rgba(27, 38, 59, 0.1)"
-        
+
         return ft.Container(
             content=content,
             padding=padding,
@@ -148,7 +151,7 @@ class PeadraTheme:
                 offset=ft.Offset(0, 2),
             ),
         )
-    
+
     @staticmethod
     def stat_card(
         title: str,
@@ -161,8 +164,12 @@ class PeadraTheme:
     ) -> ft.Container:
         """Crée une carte de statistique."""
         text_color = PeadraTheme.DARK_TEXT if is_dark else PeadraTheme.LIGHT_TEXT
-        secondary_color = PeadraTheme.DARK_TEXT_SECONDARY if is_dark else PeadraTheme.LIGHT_TEXT_SECONDARY
-        
+        secondary_color = (
+            PeadraTheme.DARK_TEXT_SECONDARY
+            if is_dark
+            else PeadraTheme.LIGHT_TEXT_SECONDARY
+        )
+
         trend_content = []
         if trend:
             trend_color = PeadraTheme.SUCCESS if trend_positive else PeadraTheme.ERROR
@@ -171,12 +178,17 @@ class PeadraTheme:
                 ft.Row(
                     controls=[
                         ft.Icon(trend_icon, size=14, color=trend_color),
-                        ft.Text(trend, size=12, color=trend_color, weight=ft.FontWeight.W_500),
+                        ft.Text(
+                            trend,
+                            size=12,
+                            color=trend_color,
+                            weight=ft.FontWeight.W_500,
+                        ),
                     ],
                     spacing=4,
                 )
             ]
-        
+
         return PeadraTheme.card(
             content=ft.Column(
                 controls=[
@@ -188,19 +200,27 @@ class PeadraTheme:
                                 border_radius=8,
                                 padding=8,
                             ),
-                            ft.Text(title, size=14, color=secondary_color, weight=ft.FontWeight.W_500),
+                            ft.Text(
+                                title,
+                                size=14,
+                                color=secondary_color,
+                                weight=ft.FontWeight.W_500,
+                            ),
                         ],
                         alignment=ft.MainAxisAlignment.START,
                         spacing=12,
                     ),
-                    ft.Text(value, size=28, color=text_color, weight=ft.FontWeight.BOLD),
-                ] + trend_content,
+                    ft.Text(
+                        value, size=28, color=text_color, weight=ft.FontWeight.BOLD
+                    ),
+                ]
+                + trend_content,
                 spacing=8,
             ),
             is_dark=is_dark,
             padding=20,
         )
-    
+
     @staticmethod
     def format_currency(amount: float, currency: str = "€") -> str:
         """Formate un montant en devise."""
@@ -208,7 +228,7 @@ class PeadraTheme:
             return f"{amount:,.2f} {currency}".replace(",", " ").replace(".", ",")
         else:
             return f"-{abs(amount):,.2f} {currency}".replace(",", " ").replace(".", ",")
-    
+
     @staticmethod
     def gradient_background(is_dark: bool = True) -> ft.LinearGradient:
         """Retourne un dégradé pour le fond."""

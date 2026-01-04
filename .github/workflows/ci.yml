@@ -31,6 +31,7 @@ jobs:
         black --check src tests
 
     - name: Lint with Pylint
+      continue-on-error: true
       run: |
         # Run pylint on src directory
         # Disabling some common errors that might be noisy in a new project

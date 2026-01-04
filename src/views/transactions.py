@@ -2,6 +2,7 @@
 Vue Transactions pour Peadra.
 Interface type tableur pour la saisie des transactions.
 """
+
 import flet as ft
 from typing import Callable, Optional
 from ..components.theme import PeadraTheme
@@ -11,7 +12,7 @@ from ..database.db_manager import db
 
 class TransactionsView:
     """Vue des transactions avec DataTable interactif."""
-    
+
     def __init__(self, page: ft.Page, is_dark: bool, on_data_change: Callable):
         self.page = page
         self.is_dark = is_dark
@@ -20,21 +21,21 @@ class TransactionsView:
         self.filter_type = "all"
         self.search_query = ""
         self._load_data()
-    
+
     def _load_data(self):
         """Charge les données des transactions."""
         self.transactions = db.get_all_transactions()
         self.categories = db.get_all_categories()
         self.subcategories = db.get_all_subcategories()
-    
+
     def update_theme(self, is_dark: bool):
         """Met à jour le thème."""
         self.is_dark = is_dark
-    
+
     def refresh(self):
         """Rafraîchit les données."""
         self._load_data()
-    
+
     def _on_add_transaction(self, e):
         """Ouvre le modal pour ajouter une transaction."""
         modal = TransactionModal(
@@ -45,7 +46,7 @@ class TransactionsView:
             is_dark=self.is_dark,
         )
         modal.show()
-    
+
     def _on_edit_transaction(self, transaction: dict):
         """Ouvre le modal pour éditer une transaction."""
         modal = TransactionModal(
@@ -56,7 +57,7 @@ class TransactionsView:
             is_dark=self.is_dark,
         )
         modal.show(transaction)
-    
+
     def _save_transaction(self, data: dict):
         """Enregistre une nouvelle transaction."""
         db.add_transaction(
@@ -70,7 +71,7 @@ class TransactionsView:
         )
         self._show_snackbar("Transaction ajoutée avec succès")
         self.on_data_change()
-    
+
     def _update_transaction(self, transaction_id: int, data: dict):
         """Met à jour une transaction existante."""
         db.update_transaction(
@@ -85,20 +86,21 @@ class TransactionsView:
         )
         self._show_snackbar("Transaction mise à jour")
         self.on_data_change()
-    
+
     def _on_delete_transaction(self, transaction_id: int):
         """Supprime une transaction après confirmation."""
+
         def confirm_delete(e):
             dialog.open = False
             self.page.update()
             db.delete_transaction(transaction_id)
             self._show_snackbar("Transaction supprimée")
             self.on_data_change()
-        
+
         def cancel_delete(e):
             dialog.open = False
             self.page.update()
-        
+
         dialog = ft.AlertDialog(
             modal=True,
             title=ft.Text("Confirmer la suppression"),
@@ -114,11 +116,11 @@ class TransactionsView:
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
-        
+
         self.page.overlay.append(dialog)
         dialog.open = True
         self.page.update()
-    
+
     def _show_snackbar(self, message: str, success: bool = True):
         """Affiche une notification."""
         color = PeadraTheme.SUCCESS if success else PeadraTheme.ERROR
@@ -130,40 +132,43 @@ class TransactionsView:
         self.page.overlay.append(snackbar)
         snackbar.open = True
         self.page.update()
-    
+
     def _filter_transactions(self) -> list:
         """Filtre les transactions selon les critères."""
         filtered = self.transactions
-        
+
         # Filtre par type
         if self.filter_type != "all":
-            filtered = [t for t in filtered if t["transaction_type"] == self.filter_type]
-        
+            filtered = [
+                t for t in filtered if t["transaction_type"] == self.filter_type
+            ]
+
         # Filtre par recherche
         if self.search_query:
             query = self.search_query.lower()
             filtered = [
-                t for t in filtered
+                t
+                for t in filtered
                 if query in t["description"].lower()
                 or (t.get("category_name") and query in t["category_name"].lower())
                 or (t.get("notes") and query in t["notes"].lower())
             ]
-        
+
         return filtered
-    
+
     def _on_filter_change(self, e):
         """Gère le changement de filtre."""
         self.filter_type = e.control.value
         self.on_data_change()
-    
+
     def _on_search_change(self, e):
         """Gère le changement de recherche."""
         self.search_query = e.control.value
         self.on_data_change()
-    
+
     def _build_toolbar(self) -> ft.Container:
         """Construit la barre d'outils."""
-        
+
         return ft.Container(
             content=ft.Row(
                 controls=[
@@ -207,45 +212,57 @@ class TransactionsView:
             ),
             margin=ft.margin.only(bottom=20),
         )
-    
+
     def _build_data_table(self) -> ft.Container:
         """Construit le DataTable des transactions."""
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
-        secondary_color = PeadraTheme.DARK_TEXT_SECONDARY if self.is_dark else PeadraTheme.LIGHT_TEXT_SECONDARY
+        secondary_color = (
+            PeadraTheme.DARK_TEXT_SECONDARY
+            if self.is_dark
+            else PeadraTheme.LIGHT_TEXT_SECONDARY
+        )
         header_bg = "rgba(119, 141, 169, 0.1)"
-        
+
         filtered_transactions = self._filter_transactions()
-        
+
         # Colonnes
         columns = [
             ft.DataColumn(ft.Text("Date", weight=ft.FontWeight.BOLD, color=text_color)),
-            ft.DataColumn(ft.Text("Description", weight=ft.FontWeight.BOLD, color=text_color)),
-            ft.DataColumn(ft.Text("Catégorie", weight=ft.FontWeight.BOLD, color=text_color)),
+            ft.DataColumn(
+                ft.Text("Description", weight=ft.FontWeight.BOLD, color=text_color)
+            ),
+            ft.DataColumn(
+                ft.Text("Catégorie", weight=ft.FontWeight.BOLD, color=text_color)
+            ),
             ft.DataColumn(ft.Text("Type", weight=ft.FontWeight.BOLD, color=text_color)),
             ft.DataColumn(
                 ft.Text("Montant", weight=ft.FontWeight.BOLD, color=text_color),
                 numeric=True,
             ),
-            ft.DataColumn(ft.Text("Actions", weight=ft.FontWeight.BOLD, color=text_color)),
+            ft.DataColumn(
+                ft.Text("Actions", weight=ft.FontWeight.BOLD, color=text_color)
+            ),
         ]
-        
+
         # Lignes
         rows = []
         for idx, tx in enumerate(filtered_transactions):
             is_expense = tx["transaction_type"] == "expense"
             amount_color = PeadraTheme.ERROR if is_expense else PeadraTheme.SUCCESS
             amount_prefix = "-" if is_expense else "+"
-            
+
             type_labels = {
                 "income": ("Revenu", PeadraTheme.SUCCESS),
                 "expense": ("Dépense", PeadraTheme.ERROR),
                 "transfer": ("Transfert", PeadraTheme.INFO),
             }
-            type_label, type_color = type_labels.get(tx["transaction_type"], ("", text_color))
-            
+            type_label, type_color = type_labels.get(
+                tx["transaction_type"], ("", text_color)
+            )
+
             # Couleur de fond alternée
             row_color = "rgba(119, 141, 169, 0.05)" if idx % 2 == 0 else None
-            
+
             row = ft.DataRow(
                 cells=[
                     ft.DataCell(ft.Text(tx["date"], color=text_color)),
@@ -257,13 +274,17 @@ class TransactionsView:
                                     weight=ft.FontWeight.W_500,
                                     color=text_color,
                                 ),
-                                ft.Text(
-                                    tx.get("notes", "") or "",
-                                    size=11,
-                                    color=secondary_color,
-                                    max_lines=1,
-                                    overflow=ft.TextOverflow.ELLIPSIS,
-                                ) if tx.get("notes") else ft.Container(),
+                                (
+                                    ft.Text(
+                                        tx.get("notes", "") or "",
+                                        size=11,
+                                        color=secondary_color,
+                                        max_lines=1,
+                                        overflow=ft.TextOverflow.ELLIPSIS,
+                                    )
+                                    if tx.get("notes")
+                                    else ft.Container()
+                                ),
                             ],
                             spacing=2,
                         )
@@ -301,14 +322,18 @@ class TransactionsView:
                                     icon=ft.icons.EDIT_OUTLINED,
                                     icon_size=18,
                                     tooltip="Modifier",
-                                    on_click=lambda e, t=tx: self._on_edit_transaction(t),
+                                    on_click=lambda e, t=tx: self._on_edit_transaction(
+                                        t
+                                    ),
                                 ),
                                 ft.IconButton(
                                     icon=ft.icons.DELETE_OUTLINE,
                                     icon_size=18,
                                     icon_color=PeadraTheme.ERROR,
                                     tooltip="Supprimer",
-                                    on_click=lambda e, id=tx["id"]: self._on_delete_transaction(id),
+                                    on_click=lambda e, id=tx[
+                                        "id"
+                                    ]: self._on_delete_transaction(id),
                                 ),
                             ],
                             spacing=0,
@@ -318,7 +343,7 @@ class TransactionsView:
                 color=row_color,
             )
             rows.append(row)
-        
+
         if not rows:
             return PeadraTheme.card(
                 content=ft.Container(
@@ -348,7 +373,7 @@ class TransactionsView:
                 ),
                 is_dark=self.is_dark,
             )
-        
+
         data_table = ft.DataTable(
             columns=columns,
             rows=rows,
@@ -362,7 +387,7 @@ class TransactionsView:
             data_row_max_height=70,
             column_spacing=20,
         )
-        
+
         return PeadraTheme.card(
             content=ft.Column(
                 controls=[
@@ -386,15 +411,19 @@ class TransactionsView:
             is_dark=self.is_dark,
             padding=16,
         )
-    
+
     def _build_summary_row(self) -> ft.Container:
         """Construit la ligne de résumé."""
-        
+
         filtered = self._filter_transactions()
-        total_income = sum(t["amount"] for t in filtered if t["transaction_type"] == "income")
-        total_expense = sum(t["amount"] for t in filtered if t["transaction_type"] == "expense")
+        total_income = sum(
+            t["amount"] for t in filtered if t["transaction_type"] == "income"
+        )
+        total_expense = sum(
+            t["amount"] for t in filtered if t["transaction_type"] == "expense"
+        )
         balance = total_income - total_expense
-        
+
         return ft.Container(
             content=ft.Row(
                 controls=[
@@ -416,7 +445,9 @@ class TransactionsView:
                         title="Solde",
                         value=PeadraTheme.format_currency(balance),
                         icon=ft.icons.ACCOUNT_BALANCE_WALLET,
-                        color=PeadraTheme.SUCCESS if balance >= 0 else PeadraTheme.ERROR,
+                        color=(
+                            PeadraTheme.SUCCESS if balance >= 0 else PeadraTheme.ERROR
+                        ),
                         is_dark=self.is_dark,
                     ),
                 ],
@@ -425,11 +456,11 @@ class TransactionsView:
             ),
             margin=ft.margin.only(bottom=20),
         )
-    
+
     def build(self) -> ft.Container:
         """Construit la vue complète des transactions."""
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
-        
+
         return ft.Container(
             content=ft.Column(
                 controls=[

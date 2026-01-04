@@ -31,6 +31,14 @@ jobs:
         # Check formatting without modifying files
         black --check src tests
 
+    - name: Lint with Pylint
+      run: |
+        # Run pylint on src directory
+        # Disabling some common errors that might be noisy in a new project
+        # C0111: Missing docstring (optional enforcement)
+        # C0301: Line too long
+        pylint src --disable=C0111,C0301
+
     - name: Test with pytest
       run: |
         # Run tests and generate coverage report

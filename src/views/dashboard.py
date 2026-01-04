@@ -2,6 +2,7 @@
 Vue Tableau de bord pour Peadra.
 Affiche un résumé visuel du patrimoine total.
 """
+
 import flet as ft
 from typing import Callable
 from ..components.theme import PeadraTheme
@@ -10,13 +11,13 @@ from ..database.db_manager import db
 
 class DashboardView:
     """Vue du tableau de bord."""
-    
+
     def __init__(self, page: ft.Page, is_dark: bool, on_data_change: Callable):
         self.page = page
         self.is_dark = is_dark
         self.on_data_change = on_data_change
         self._load_data()
-    
+
     def _load_data(self):
         """Charge les données du tableau de bord."""
         self.total_patrimony = db.get_total_patrimony()
@@ -24,19 +25,19 @@ class DashboardView:
         self.monthly_summary = db.get_monthly_summary()
         self.recent_transactions = db.get_all_transactions(limit=5)
         self.assets = db.get_all_assets()
-    
+
     def update_theme(self, is_dark: bool):
         """Met à jour le thème."""
         self.is_dark = is_dark
-    
+
     def refresh(self):
         """Rafraîchit les données."""
         self._load_data()
-    
+
     def _build_patrimony_card(self) -> ft.Container:
         """Construit la carte du patrimoine total."""
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
-        
+
         return PeadraTheme.glass_container(
             content=ft.Column(
                 controls=[
@@ -52,10 +53,16 @@ class DashboardView:
                                     ft.Text(
                                         "Patrimoine Total",
                                         size=16,
-                                        color=PeadraTheme.DARK_TEXT_SECONDARY if self.is_dark else PeadraTheme.LIGHT_TEXT_SECONDARY,
+                                        color=(
+                                            PeadraTheme.DARK_TEXT_SECONDARY
+                                            if self.is_dark
+                                            else PeadraTheme.LIGHT_TEXT_SECONDARY
+                                        ),
                                     ),
                                     ft.Text(
-                                        PeadraTheme.format_currency(self.total_patrimony),
+                                        PeadraTheme.format_currency(
+                                            self.total_patrimony
+                                        ),
                                         size=36,
                                         weight=ft.FontWeight.BOLD,
                                         color=text_color,
@@ -72,23 +79,27 @@ class DashboardView:
             is_dark=self.is_dark,
             padding=24,
         )
-    
+
     def _build_category_cards(self) -> ft.Row:
         """Construit les cartes par catégorie."""
         cards = []
-        
+
         icons_map = {
             "Cash": ft.icons.ACCOUNT_BALANCE,
             "Immobilier": ft.icons.HOME,
             "Bourse": ft.icons.TRENDING_UP,
         }
-        
+
         for cat in self.patrimony_by_category:
             icon = icons_map.get(cat["name"], ft.icons.CATEGORY)
-            
+
             # Calcul du pourcentage
-            percentage = (cat["total"] / self.total_patrimony * 100) if self.total_patrimony > 0 else 0
-            
+            percentage = (
+                (cat["total"] / self.total_patrimony * 100)
+                if self.total_patrimony > 0
+                else 0
+            )
+
             card = PeadraTheme.stat_card(
                 title=cat["name"],
                 value=PeadraTheme.format_currency(cat["total"]),
@@ -99,22 +110,26 @@ class DashboardView:
                 trend_positive=True,
             )
             cards.append(card)
-        
+
         return ft.Row(
             controls=cards,
             spacing=16,
             wrap=True,
         )
-    
+
     def _build_monthly_summary_card(self) -> ft.Container:
         """Construit la carte du résumé mensuel."""
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
-        secondary_color = PeadraTheme.DARK_TEXT_SECONDARY if self.is_dark else PeadraTheme.LIGHT_TEXT_SECONDARY
-        
+        secondary_color = (
+            PeadraTheme.DARK_TEXT_SECONDARY
+            if self.is_dark
+            else PeadraTheme.LIGHT_TEXT_SECONDARY
+        )
+
         income = self.monthly_summary.get("income", 0)
         expenses = self.monthly_summary.get("expenses", 0)
         balance = self.monthly_summary.get("balance", 0)
-        
+
         return PeadraTheme.card(
             content=ft.Column(
                 controls=[
@@ -162,7 +177,11 @@ class DashboardView:
                                         PeadraTheme.format_currency(balance),
                                         size=20,
                                         weight=ft.FontWeight.BOLD,
-                                        color=PeadraTheme.SUCCESS if balance >= 0 else PeadraTheme.ERROR,
+                                        color=(
+                                            PeadraTheme.SUCCESS
+                                            if balance >= 0
+                                            else PeadraTheme.ERROR
+                                        ),
                                     ),
                                 ],
                                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -176,14 +195,18 @@ class DashboardView:
             is_dark=self.is_dark,
             padding=20,
         )
-    
+
     def _build_recent_transactions(self) -> ft.Container:
         """Construit la liste des transactions récentes."""
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
-        secondary_color = PeadraTheme.DARK_TEXT_SECONDARY if self.is_dark else PeadraTheme.LIGHT_TEXT_SECONDARY
-        
+        secondary_color = (
+            PeadraTheme.DARK_TEXT_SECONDARY
+            if self.is_dark
+            else PeadraTheme.LIGHT_TEXT_SECONDARY
+        )
+
         transaction_rows = []
-        
+
         if not self.recent_transactions:
             transaction_rows.append(
                 ft.Container(
@@ -201,7 +224,7 @@ class DashboardView:
                 is_expense = tx["transaction_type"] == "expense"
                 amount_color = PeadraTheme.ERROR if is_expense else PeadraTheme.SUCCESS
                 amount_prefix = "-" if is_expense else "+"
-                
+
                 row = ft.Container(
                     content=ft.Row(
                         controls=[
@@ -244,7 +267,7 @@ class DashboardView:
                     padding=ft.padding.symmetric(vertical=8),
                 )
                 transaction_rows.append(row)
-        
+
         return PeadraTheme.card(
             content=ft.Column(
                 controls=[
@@ -273,14 +296,18 @@ class DashboardView:
             is_dark=self.is_dark,
             padding=20,
         )
-    
+
     def _build_assets_summary(self) -> ft.Container:
         """Construit le résumé des actifs."""
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
-        secondary_color = PeadraTheme.DARK_TEXT_SECONDARY if self.is_dark else PeadraTheme.LIGHT_TEXT_SECONDARY
-        
+        secondary_color = (
+            PeadraTheme.DARK_TEXT_SECONDARY
+            if self.is_dark
+            else PeadraTheme.LIGHT_TEXT_SECONDARY
+        )
+
         asset_rows = []
-        
+
         if not self.assets:
             asset_rows.append(
                 ft.Container(
@@ -337,7 +364,7 @@ class DashboardView:
                     padding=ft.padding.symmetric(vertical=8),
                 )
                 asset_rows.append(row)
-        
+
         return PeadraTheme.card(
             content=ft.Column(
                 controls=[
@@ -366,11 +393,11 @@ class DashboardView:
             is_dark=self.is_dark,
             padding=20,
         )
-    
+
     def _build_pie_chart(self) -> ft.Container:
         """Construit le graphique en camembert de la répartition."""
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
-        
+
         if self.total_patrimony <= 0:
             return PeadraTheme.card(
                 content=ft.Column(
@@ -384,7 +411,11 @@ class DashboardView:
                         ft.Container(
                             content=ft.Text(
                                 "Ajoutez des actifs pour voir la répartition",
-                                color=PeadraTheme.DARK_TEXT_SECONDARY if self.is_dark else PeadraTheme.LIGHT_TEXT_SECONDARY,
+                                color=(
+                                    PeadraTheme.DARK_TEXT_SECONDARY
+                                    if self.is_dark
+                                    else PeadraTheme.LIGHT_TEXT_SECONDARY
+                                ),
                                 italic=True,
                             ),
                             padding=40,
@@ -395,11 +426,11 @@ class DashboardView:
                 is_dark=self.is_dark,
                 padding=20,
             )
-        
+
         # Créer les sections du pie chart
         sections = []
         legend_items = []
-        
+
         for cat in self.patrimony_by_category:
             if cat["total"] > 0:
                 percentage = cat["total"] / self.total_patrimony * 100
@@ -426,7 +457,7 @@ class DashboardView:
                                 border_radius=2,
                             ),
                             ft.Text(
-                                cat['name'],
+                                cat["name"],
                                 size=13,
                                 color=text_color,
                             ),
@@ -434,7 +465,7 @@ class DashboardView:
                         spacing=8,
                     )
                 )
-        
+
         pie_chart = ft.PieChart(
             sections=sections,
             sections_space=2,
@@ -442,7 +473,7 @@ class DashboardView:
             width=200,
             height=200,
         )
-        
+
         return PeadraTheme.card(
             content=ft.Column(
                 controls=[
@@ -469,7 +500,7 @@ class DashboardView:
             is_dark=self.is_dark,
             padding=20,
         )
-    
+
     def build(self) -> ft.Container:
         """Construit la vue complète du tableau de bord."""
         return ft.Container(
@@ -480,7 +511,11 @@ class DashboardView:
                         "Tableau de bord",
                         size=28,
                         weight=ft.FontWeight.BOLD,
-                        color=PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT,
+                        color=(
+                            PeadraTheme.DARK_TEXT
+                            if self.is_dark
+                            else PeadraTheme.LIGHT_TEXT
+                        ),
                     ),
                     ft.Divider(height=24, color="transparent"),
                     # Carte patrimoine total

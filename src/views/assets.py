@@ -3,7 +3,7 @@ Vue Actifs pour Peadra.
 Gestion des actifs du patrimoine.
 """
 import flet as ft
-from typing import Callable, Optional
+from typing import Callable
 from ..components.theme import PeadraTheme
 from ..components.modals import AssetModal
 from ..database.db_manager import db

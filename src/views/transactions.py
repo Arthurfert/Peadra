@@ -4,7 +4,6 @@ Interface type tableur pour la saisie des transactions.
 """
 import flet as ft
 from typing import Callable, Optional
-from datetime import datetime
 from ..components.theme import PeadraTheme
 from ..components.modals import TransactionModal
 from ..database.db_manager import db
@@ -164,7 +163,6 @@ class TransactionsView:
     
     def _build_toolbar(self) -> ft.Container:
         """Construit la barre d'outils."""
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
         
         return ft.Container(
             content=ft.Row(
@@ -391,7 +389,6 @@ class TransactionsView:
     
     def _build_summary_row(self) -> ft.Container:
         """Construit la ligne de résumé."""
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
         
         filtered = self._filter_transactions()
         total_income = sum(t["amount"] for t in filtered if t["transaction_type"] == "income")

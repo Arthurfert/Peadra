@@ -1,1 +1,5 @@
 flet==0.24.1
+pytest
+pytest-cov
+black
+

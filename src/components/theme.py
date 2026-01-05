@@ -94,11 +94,11 @@ class PeadraTheme:
     ) -> ft.Container:
         """Crée un conteneur avec effet Glassmorphism."""
         if is_dark:
-            bg_color = f"rgba(27, 38, 59, {PeadraTheme.GLASS_OPACITY_DARK})"
-            border_color = "rgba(119, 141, 169, 0.3)"
+            bg_color = ft.colors.with_opacity(PeadraTheme.GLASS_OPACITY_DARK, "#1B263B")
+            border_color = ft.colors.with_opacity(0.3, "#778DA9")
         else:
-            bg_color = f"rgba(255, 255, 255, {PeadraTheme.GLASS_OPACITY_LIGHT})"
-            border_color = "rgba(27, 38, 59, 0.1)"
+            bg_color = ft.colors.with_opacity(PeadraTheme.GLASS_OPACITY_LIGHT, "#FFFFFF")
+            border_color = ft.colors.with_opacity(0.1, "#1B263B")
 
         return ft.Container(
             content=content,
@@ -111,12 +111,9 @@ class PeadraTheme:
             shadow=ft.BoxShadow(
                 spread_radius=0,
                 blur_radius=20,
-                color="rgba(0, 0, 0, 0.1)",
+                color=ft.colors.with_opacity(0.1, "#000000"),
                 offset=ft.Offset(0, 4),
             ),
-            # blur=ft.Blur(
-            #     PeadraTheme.GLASS_BLUR, PeadraTheme.GLASS_BLUR, ft.BlurTileMode.CLAMP
-            # ),
         )
 
     @staticmethod

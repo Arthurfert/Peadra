@@ -11,17 +11,17 @@ class PeadraTheme:
     """Gestionnaire de thèmes pour l'application Peadra."""
 
     # Couleurs principales - Palette Armorique
-    PRIMARY_DARK = "#0D1B2A"  # Bleu nuit profond
-    PRIMARY_MEDIUM = "#1B263B"  # Bleu marine
-    PRIMARY_LIGHT = "#415A77"  # Bleu gris
+    PRIMARY_DARK = "#081019"  # Bleu nuit profond
+    PRIMARY_MEDIUM = "#161F31"  # Bleu marine
+    PRIMARY_LIGHT = "#54687E"  # Bleu gris
     ACCENT = "#778DA9"  # Bleu ardoise
     SURFACE = "#E0E1DD"  # Gris clair
 
     # Couleurs pour le mode clair
-    LIGHT_BG = "#F5F7FA"
-    LIGHT_SURFACE = "#FFFFFF"
-    LIGHT_TEXT = "#1B263B"
-    LIGHT_TEXT_SECONDARY = "#415A77"
+    LIGHT_BG = "#E9EED8"
+    LIGHT_SURFACE = "#FDFDE2"
+    LIGHT_TEXT = "#181F2D"
+    LIGHT_TEXT_SECONDARY = "#2D4056"
 
     # Couleurs pour le mode sombre
     DARK_BG = "#0D1B2A"
@@ -114,9 +114,9 @@ class PeadraTheme:
                 color="rgba(0, 0, 0, 0.1)",
                 offset=ft.Offset(0, 4),
             ),
-            blur=ft.Blur(
-                PeadraTheme.GLASS_BLUR, PeadraTheme.GLASS_BLUR, ft.BlurTileMode.CLAMP
-            ),
+            # blur=ft.Blur(
+            #     PeadraTheme.GLASS_BLUR, PeadraTheme.GLASS_BLUR, ft.BlurTileMode.CLAMP
+            # ),
         )
 
     @staticmethod

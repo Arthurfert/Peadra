@@ -25,6 +25,7 @@ class DashboardView:
         self.monthly_summary = db.get_monthly_summary()
         self.recent_transactions = db.get_all_transactions(limit=5)
         self.assets = db.get_all_assets()
+        self.patrimony_evolution = db.get_patrimony_evolution()
 
     def update_theme(self, is_dark: bool):
         """Met à jour le thème."""
@@ -34,20 +35,75 @@ class DashboardView:
         """Rafraîchit les données."""
         self._load_data()
 
+    def _build_evolution_chart(self) -> ft.Control:
+        """Construit le graphique d'évolution du patrimoine."""
+        if not self.patrimony_evolution:
+            return ft.Container()
+
+        data_points = []
+        min_y = float("inf")
+        max_y = float("-inf")
+
+        for i, point in enumerate(self.patrimony_evolution):
+            value = point["total_value"]
+            data_points.append(
+                ft.LineChartDataPoint(i, value, tooltip=f"{point['month']}: {value}€")
+            )
+            min_y = min(min_y, value)
+            max_y = max(max_y, value)
+
+        # Add some padding to Y axis
+        y_range = max_y - min_y if max_y != min_y else (max_y * 0.1 if max_y != 0 else 100)
+        min_y = max(0, min_y - y_range * 0.1)
+        max_y = max_y + y_range * 0.1
+
+        line_color = PeadraTheme.ACCENT if self.is_dark else PeadraTheme.PRIMARY_MEDIUM
+
+        return ft.LineChart(
+            data_series=[
+                ft.LineChartData(
+                    data_points=data_points,
+                    stroke_width=3,
+                    color=line_color,
+                    curved=True,
+                    stroke_cap_round=True,
+                    below_line_bgcolor=ft.colors.with_opacity(0.2, line_color),
+                )
+            ],
+            border=ft.border.all(0, ft.colors.TRANSPARENT),
+            horizontal_grid_lines=ft.ChartGridLines(
+                interval=(max_y - min_y) / 4 if (max_y - min_y) > 0 else 1,
+                color=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE),
+                width=1,
+            ),
+            vertical_grid_lines=ft.ChartGridLines(
+                interval=1, color=ft.colors.TRANSPARENT, width=1
+            ),
+            left_axis=ft.ChartAxis(
+                labels_size=0,
+                show_labels=False,
+            ),
+            bottom_axis=ft.ChartAxis(
+                labels_size=0,
+                show_labels=False,
+            ),
+            tooltip_bgcolor=PeadraTheme.SURFACE,
+            min_y=min_y,
+            max_y=max_y,
+            expand=True,
+        )
+
     def _build_patrimony_card(self) -> ft.Container:
         """Construit la carte du patrimoine total."""
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+
+        chart = self._build_evolution_chart()
 
         return PeadraTheme.glass_container(
             content=ft.Column(
                 controls=[
                     ft.Row(
                         controls=[
-                            ft.Icon(
-                                ft.icons.ACCOUNT_BALANCE_WALLET,
-                                size=40,
-                                color=PeadraTheme.ACCENT,
-                            ),
                             ft.Column(
                                 controls=[
                                     ft.Text(
@@ -71,8 +127,12 @@ class DashboardView:
                                 spacing=4,
                             ),
                         ],
-                        spacing=20,
                         alignment=ft.MainAxisAlignment.START,
+                    ),
+                    ft.Container(
+                        content=chart,
+                        height=200,
+                        padding=ft.padding.only(top=20),
                     ),
                 ],
             ),
@@ -90,31 +150,57 @@ class DashboardView:
             "Bourse": ft.icons.TRENDING_UP,
         }
 
-        for cat in self.patrimony_by_category:
-            icon = icons_map.get(cat["name"], ft.icons.CATEGORY)
+        display_map = {
+            "Cash": "Banque",
+            "Bourse": "Bourse",
+            "Immobilier": "Autres",
+        }
+
+        # Ordre spécifique : Banque (Cash), Bourse, Autres (Immobilier)
+        target_categories = ["Cash", "Bourse", "Immobilier"]
+
+        for target_name in target_categories:
+            # Find data for this category
+            cat_data = next(
+                (c for c in self.patrimony_by_category if c["name"] == target_name),
+                None,
+            )
+
+            if cat_data:
+                total = cat_data["total"]
+                color = cat_data["color"]
+                icon = icons_map.get(target_name, ft.icons.CATEGORY)
+            else:
+                total = 0
+                color = PeadraTheme.ACCENT
+                icon = icons_map.get(target_name, ft.icons.CATEGORY)
 
             # Calcul du pourcentage
             percentage = (
-                (cat["total"] / self.total_patrimony * 100)
+                (total / self.total_patrimony * 100)
                 if self.total_patrimony > 0
                 else 0
             )
 
-            card = PeadraTheme.stat_card(
-                title=cat["name"],
-                value=PeadraTheme.format_currency(cat["total"]),
-                icon=icon,
-                color=cat["color"],
-                is_dark=self.is_dark,
-                trend=f"{percentage:.1f}%",
-                trend_positive=True,
+            display_name = display_map.get(target_name, target_name)
+
+            card = ft.Container(
+                content=PeadraTheme.stat_card(
+                    title=display_name,
+                    value=PeadraTheme.format_currency(total),
+                    icon=icon,
+                    color=color,
+                    is_dark=self.is_dark,
+                    trend=f"{percentage:.1f}%",
+                    trend_positive=True,
+                ),
+                expand=1,
             )
             cards.append(card)
 
         return ft.Row(
             controls=cards,
             spacing=16,
-            wrap=True,
         )
 
     def _build_monthly_summary_card(self) -> ft.Container:

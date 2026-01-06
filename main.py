@@ -68,6 +68,10 @@ class PeadraApp:
     def _on_navigation_change(self, index: int):
         """Gère le changement de vue via la navigation."""
         self.current_view_index = index
+        # Mettre à jour la navigation pour refléter la sélection
+        if hasattr(self, 'nav_container'):
+            self.nav_container.content = self.navigation.build()
+            self.nav_container.update()
         self._update_content()
 
     def _toggle_theme(self, e):
@@ -87,6 +91,12 @@ class PeadraApp:
         """Rafraîchit toutes les vues (appelé après une modification de données)."""
         for view in self.views.values():
             view.refresh()
+            
+        # Rafraîchir la navigation (pour le solde)
+        if hasattr(self, 'nav_container'):
+            self.nav_container.content = self.navigation.build()
+            self.nav_container.update()
+            
         self._update_content()
 
     def _export_data(self, e, format_type: str):
@@ -224,12 +234,15 @@ class PeadraApp:
             padding=0,  # Let individual views handle padding
             bgcolor=bg_color,
         )
+        
+        # Conteneur de navigation pour permettre les mises à jour
+        self.nav_container = ft.Container(content=self.navigation.build())
 
         # Layout principal
         main_layout = ft.Row(
             controls=[
                 # Navigation latérale
-                self.navigation.build(),
+                self.nav_container,
                 # Contenu principal
                 self.content_area,
             ],

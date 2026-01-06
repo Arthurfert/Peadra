@@ -55,17 +55,16 @@ def test_get_transactions_by_period(db_manager):
     assert "T3" not in descriptions
 
 
-
 def test_statistics(db_manager):
     """Test statistics calculation."""
     # Setup data using transactions (income adds, expense subtracts)
-    
+
     # 1. Income: +1000
     db_manager.add_transaction("2023-01-01", "Salary", 1000.0, "income")
-    
+
     # 2. Expense: -200
     db_manager.add_transaction("2023-01-02", "Groceries", 200.0, "expense")
-    
+
     # 3. Income: +500
     db_manager.add_transaction("2023-01-03", "Bonus", 500.0, "income")
 

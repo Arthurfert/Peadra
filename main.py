@@ -221,7 +221,7 @@ class PeadraApp:
         self.content_area = ft.Container(
             content=self.views[self.current_view_index].build(),
             expand=True,
-            padding=0, # Let individual views handle padding
+            padding=0,  # Let individual views handle padding
             bgcolor=bg_color,
         )
 

@@ -4,7 +4,7 @@ Interface simplifiée : Liste des transactions et gestion des actifs.
 """
 
 import flet as ft
-from typing import Callable, Optional
+from typing import Callable
 from datetime import datetime
 from ..components.theme import PeadraTheme
 from ..components.modals import TransactionModal
@@ -39,13 +39,15 @@ class TransactionsView:
         if self.search_query:
             q = self.search_query.lower()
             self.transactions = [
-                t for t in self.transactions 
-                if q in t['description'].lower() or q in (t.get('category_name') or '').lower()
+                t
+                for t in self.transactions
+                if q in t["description"].lower()
+                or q in (t.get("category_name") or "").lower()
             ]
 
     def _open_type_selector(self, e):
         """Ouvre le dialogue de sélection du type de transaction."""
-        
+
         def close_dlg(e):
             if isinstance(self.page.dialog, ft.AlertDialog):
                 self.page.dialog.open = False
@@ -61,37 +63,58 @@ class TransactionsView:
 
         dlg = ft.AlertDialog(
             title=ft.Text("Nouveau mouvement"),
-            content=ft.Column([
-                ft.Text("Quel type d'opération souhaitez-vous ajouter ?"),
-                ft.Container(height=20),
-                ft.Row([
-                    ft.Container(
-                        content=ft.Column([
-                            ft.Icon(ft.icons.ACCOUNT_BALANCE, size=30, color=PeadraTheme.PRIMARY_MEDIUM),
-                            ft.Text("Banque", weight=ft.FontWeight.BOLD)
-                        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                        padding=20,
-                        bgcolor=ft.colors.BLUE_50,
-                        border_radius=10,
-                        on_click=select_bank,
-                        expand=True
+            content=ft.Column(
+                [
+                    ft.Text("Quel type d'opération souhaitez-vous ajouter ?"),
+                    ft.Container(height=20),
+                    ft.Row(
+                        [
+                            ft.Container(
+                                content=ft.Column(
+                                    [
+                                        ft.Icon(
+                                            ft.icons.ACCOUNT_BALANCE,
+                                            size=30,
+                                            color=PeadraTheme.PRIMARY_MEDIUM,
+                                        ),
+                                        ft.Text("Banque", weight=ft.FontWeight.BOLD),
+                                    ],
+                                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                                ),
+                                padding=20,
+                                bgcolor=ft.colors.BLUE_50,
+                                border_radius=10,
+                                on_click=select_bank,
+                                expand=True,
+                            ),
+                            ft.Container(
+                                content=ft.Column(
+                                    [
+                                        ft.Icon(
+                                            ft.icons.SHOW_CHART,
+                                            size=30,
+                                            color=PeadraTheme.IMMO_COLOR,
+                                        ),
+                                        ft.Text(
+                                            "Action / Actif", weight=ft.FontWeight.BOLD
+                                        ),
+                                    ],
+                                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                                ),
+                                padding=20,
+                                bgcolor=ft.colors.ORANGE_50,
+                                border_radius=10,
+                                on_click=select_asset,
+                                expand=True,
+                            ),
+                        ],
+                        spacing=20,
                     ),
-                    ft.Container(
-                        content=ft.Column([
-                            ft.Icon(ft.icons.SHOW_CHART, size=30, color=PeadraTheme.IMMO_COLOR),
-                            ft.Text("Action / Actif", weight=ft.FontWeight.BOLD)
-                        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                        padding=20,
-                        bgcolor=ft.colors.ORANGE_50,
-                        border_radius=10,
-                        on_click=select_asset,
-                        expand=True
-                    ),
-                ], spacing=20)
-            ], tight=True, width=400),
-            actions=[
-                ft.TextButton("Annuler", on_click=close_dlg)
-            ],
+                ],
+                tight=True,
+                width=400,
+            ),
+            actions=[ft.TextButton("Annuler", on_click=close_dlg)],
             actions_alignment=ft.MainAxisAlignment.END,
         )
         self.page.dialog = dlg
@@ -109,7 +132,7 @@ class TransactionsView:
             subcategories=self.subcategories,
             on_save=self._save_transaction,
             is_dark=self.is_dark,
-            filter_type=type_
+            filter_type=type_,
         )
         modal.show()
 
@@ -124,99 +147,19 @@ class TransactionsView:
             subcategory_id=data.get("subcategory_id"),
             notes=data.get("notes"),
         )
-        
+
         # Si c'était un 'asset' (logique simplifiée ici), on pourrait aussi ajouter une entrée dans 'assets'
         # Mais pour respecter "simplifier", on reste sur le flux transactionnel.
-        
+
         self.page.snack_bar = ft.SnackBar(ft.Text("Transaction ajoutée"))
         self.page.snack_bar.open = True
         self.on_data_change()
 
-    def _on_search_change(self, e):
-        """Gère la recherche."""
-        self.search_query = e.control.value
-        self.on_data_change() # Trigger reload via main app which calls refresh() -> _load_data
-
-    def _get_category_color(self, cat_name: str) -> str:
-        """Retourne une couleur pastel basée sur le nom de la catégorie."""
-        if not cat_name: return ft.colors.GREY_200
-        cat = cat_name.lower()
-        if "income" in cat or "revenu" in cat or "salaire" in cat: return ft.colors.GREEN_100
-        if "food" in cat or "course" in cat or "restaurant" in cat: return ft.colors.ORANGE_100
-        if "bill" in cat or "facture" in cat: return ft.colors.BLUE_100
-        if "shop" in cat or "achat" in cat: return ft.colors.PURPLE_100
-        if "transport" in cat: return ft.colors.YELLOW_100
-        if "entertain" in cat or "loisir" in cat: return ft.colors.PINK_100
-        return ft.colors.GREY_100
-
-    def _get_category_text_color(self, cat_name: str) -> str:
-        # Simple contrast: darker version of pastel
-        if not cat_name: return ft.colors.GREY_800
-        return ft.colors.GREY_900
-
-    def build(self) -> ft.Container:
+    def _generate_rows(self):
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
-        surface_color = PeadraTheme.DARK_SURFACE if self.is_dark else ft.colors.WHITE
-        
-        # Header
-        header = ft.Row(
-            [
-                ft.Column([
-                    ft.Text("Transactions", size=32, weight=ft.FontWeight.BOLD, color=text_color),
-                    ft.Text("View and manage your recent transactions.", size=16, color=ft.colors.GREY),
-                ]),
-                ft.ElevatedButton(
-                    "Add Transaction",
-                    icon=ft.icons.ADD,
-                    bgcolor=PeadraTheme.ACCENT,
-                    color=ft.colors.WHITE,
-                    on_click=self._open_type_selector
-                )
-            ],
-            alignment=ft.MainAxisAlignment.SPACE_BETWEEN
-        )
-
-        # Search Bar
-        search_bar = ft.Row(
-            [
-                ft.TextField(
-                    hint_text="Search transactions...",
-                    prefix_icon=ft.icons.SEARCH,
-                    border_radius=8,
-                    bgcolor=ft.colors.with_opacity(0.05, text_color),
-                    border_color=ft.colors.TRANSPARENT,
-                    expand=True,
-                    on_change=self._on_search_change
-                ),
-                ft.Container(width=10),
-                ft.OutlinedButton(
-                    "Filter",
-                    icon=ft.icons.FILTER_LIST,
-                    style=ft.ButtonStyle(
-                        shape=ft.RoundedRectangleBorder(radius=8),
-                    )
-                )
-            ]
-        )
-
-        # Transaction List - Table Header
-        table_header = ft.Container(
-            content=ft.Row(
-                [
-                    ft.Container(ft.Text("Description", weight=ft.FontWeight.BOLD, color=ft.colors.GREY_700), expand=3),
-                    ft.Container(ft.Text("Category", weight=ft.FontWeight.BOLD, color=ft.colors.GREY_700), expand=2),
-                    ft.Container(ft.Text("Date", weight=ft.FontWeight.BOLD, color=ft.colors.GREY_700), expand=2),
-                    ft.Container(ft.Text("Amount", weight=ft.FontWeight.BOLD, color=ft.colors.GREY_700, text_align=ft.TextAlign.RIGHT), expand=1),
-                ],
-            ),
-            padding=ft.padding.symmetric(horizontal=16, vertical=12),
-            border=ft.border.only(bottom=ft.border.BorderSide(1, ft.colors.GREY_200)),
-        )
-
-        # Transaction Rows
         rows = []
         for t in self.transactions:
-            is_income = t['transaction_type'] == 'income'
+            is_income = t["transaction_type"] == "income"
             amount_color = ft.colors.GREEN if is_income else text_color
             amount_prefix = "+" if is_income else ""
             
@@ -226,20 +169,15 @@ class TransactionsView:
             if self.is_dark:
                  icon_bg = ft.colors.with_opacity(0.1, icon_color)
 
-            cat_name = t['subcategory_name'] or ""
+            cat_name = t["subcategory_name"] or ""
             cat_bg = self._get_category_color(cat_name)
             cat_text_col = self._get_category_text_color(cat_name)
-            
-            if self.is_dark:
-                # Adjust pastel colors for dark mode visibility or keep them with opacity?
-                # Simple fix: Use opacity on the container
-                pass # Already handled by specific color choices usually, but let's stick to light mode visuals as base logic
 
             try:
-                date_obj = datetime.strptime(t['date'], "%Y-%m-%d")
+                date_obj = datetime.strptime(t["date"], "%Y-%m-%d")
                 date_str = date_obj.strftime("%b %d, %Y")
             except:
-                date_str = t['date']
+                date_str = t["date"]
 
             row = ft.Container(
                 content=ft.Row(
@@ -253,7 +191,7 @@ class TransactionsView:
                                     padding=8,
                                     border_radius=8,
                                 ),
-                                ft.Text(t['description'], weight=ft.FontWeight.W_500, color=text_color)
+                                ft.Text(t["description"], weight=ft.FontWeight.W_500, color=text_color)
                             ], spacing=12),
                             expand=3
                         ),
@@ -288,17 +226,157 @@ class TransactionsView:
 
         if not rows:
              rows.append(ft.Container(content=ft.Text("No recent transactions", color=ft.colors.GREY), padding=20, alignment=ft.alignment.center))
+        
+        return rows
+
+    def _on_search_change(self, e):
+        """Gère la recherche."""
+        self.search_query = e.control.value
+        self._load_data()
+        
+        if hasattr(self, 'content_column') and hasattr(self, 'table_header'):
+             self.content_column.controls = [self.table_header] + self._generate_rows()
+             self.content_column.update()
+
+    def _get_category_color(self, cat_name: str) -> str:
+        """Retourne une couleur pastel basée sur le nom de la catégorie."""
+        if not cat_name:
+            return ft.colors.GREY_200
+        cat = cat_name.lower()
+        if "income" in cat or "revenu" in cat or "salaire" in cat:
+            return ft.colors.GREEN_100
+        if "food" in cat or "course" in cat or "restaurant" in cat:
+            return ft.colors.ORANGE_100
+        if "bill" in cat or "facture" in cat:
+            return ft.colors.BLUE_100
+        if "shop" in cat or "achat" in cat:
+            return ft.colors.PURPLE_100
+        if "transport" in cat:
+            return ft.colors.YELLOW_100
+        if "entertain" in cat or "loisir" in cat:
+            return ft.colors.PINK_100
+        return ft.colors.GREY_100
+
+    def _get_category_text_color(self, cat_name: str) -> str:
+        # Simple contrast: darker version of pastel
+        if not cat_name:
+            return ft.colors.GREY_800
+        return ft.colors.GREY_900
+
+    def build(self) -> ft.Container:
+        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        surface_color = PeadraTheme.DARK_SURFACE if self.is_dark else ft.colors.WHITE
+
+        # Header
+        header = ft.Row(
+            [
+                ft.Column(
+                    [
+                        ft.Text(
+                            "Transactions",
+                            size=32,
+                            weight=ft.FontWeight.BOLD,
+                            color=text_color,
+                        ),
+                        ft.Text(
+                            "View and manage your recent transactions.",
+                            size=16,
+                            color=ft.colors.GREY,
+                        ),
+                    ]
+                ),
+                ft.ElevatedButton(
+                    "Add Transaction",
+                    icon=ft.icons.ADD,
+                    bgcolor=PeadraTheme.ACCENT,
+                    color=ft.colors.WHITE,
+                    on_click=self._open_type_selector,
+                ),
+            ],
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+        )
+
+        # Search Bar
+        search_bar = ft.Row(
+            [
+                ft.TextField(
+                    hint_text="Search transactions...",
+                    value=self.search_query,
+                    prefix_icon=ft.icons.SEARCH,
+                    border_radius=8,
+                    bgcolor=ft.colors.with_opacity(0.05, text_color),
+                    border_color=ft.colors.TRANSPARENT,
+                    expand=True,
+                    on_change=self._on_search_change,
+                ),
+                ft.Container(width=10),
+                ft.OutlinedButton(
+                    "Filter",
+                    icon=ft.icons.FILTER_LIST,
+                    style=ft.ButtonStyle(
+                        shape=ft.RoundedRectangleBorder(radius=8),
+                    ),
+                ),
+            ]
+        )
+
+        # Transaction List - Table Header
+        self.table_header = ft.Container(
+            content=ft.Row(
+                [
+                    ft.Container(
+                        ft.Text(
+                            "Description",
+                            weight=ft.FontWeight.BOLD,
+                            color=ft.colors.GREY_700,
+                        ),
+                        expand=3,
+                    ),
+                    ft.Container(
+                        ft.Text(
+                            "Category",
+                            weight=ft.FontWeight.BOLD,
+                            color=ft.colors.GREY_700,
+                        ),
+                        expand=2,
+                    ),
+                    ft.Container(
+                        ft.Text(
+                            "Date", weight=ft.FontWeight.BOLD, color=ft.colors.GREY_700
+                        ),
+                        expand=2,
+                    ),
+                    ft.Container(
+                        ft.Text(
+                            "Amount",
+                            weight=ft.FontWeight.BOLD,
+                            color=ft.colors.GREY_700,
+                            text_align=ft.TextAlign.RIGHT,
+                        ),
+                        expand=1,
+                    ),
+                ],
+            ),
+            padding=ft.padding.symmetric(horizontal=16, vertical=12),
+            border=ft.border.only(bottom=ft.border.BorderSide(1, ft.colors.GREY_200)),
+        )
+
+        rows = self._generate_rows()
+
+        self.content_column = ft.Column(
+            [self.table_header] + rows, scroll=ft.ScrollMode.AUTO, spacing=0
+        )
 
         list_container = ft.Container(
-            content=ft.Column(
-                [table_header] + rows,
-                scroll=ft.ScrollMode.AUTO,
-                spacing=0
-            ),
+            content=self.content_column,
             bgcolor=surface_color,
             border_radius=12,
-            border=ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.GREY)) if not self.is_dark else None,
-            expand=True
+            border=(
+                ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.GREY))
+                if not self.is_dark
+                else None
+            ),
+            expand=True,
         )
 
         return ft.Container(
@@ -308,10 +386,10 @@ class TransactionsView:
                     ft.Container(height=20),
                     search_bar,
                     ft.Container(height=20),
-                    list_container
+                    list_container,
                 ],
-                expand=True
+                expand=True,
             ),
             padding=30,
-            expand=True
+            expand=True,
         )

@@ -30,7 +30,7 @@ class DashboardView:
 
     def _load_data(self):
         self.total_patrimony = db.get_total_patrimony()
-        
+
         # Get current month summary
         now = datetime.now()
         current_summary = db.get_monthly_summary(now.year, now.month)
@@ -54,7 +54,7 @@ class DashboardView:
         self.income_trend = calc_trend(self.monthly_income, prev_income)
         self.expenses_trend = calc_trend(self.monthly_expenses, prev_expenses)
         self.savings_trend = calc_trend(self.monthly_savings, prev_savings)
-        self.balance_trend = 12.5 # Mock as asset history logic is complex
+        self.balance_trend = 12.5  # Mock as asset history logic is complex
 
         # Chart Data (Income vs Expenses) - Last 6 months
         self.chart_data = []
@@ -66,14 +66,16 @@ class DashboardView:
             while month <= 0:
                 month += 12
                 year -= 1
-            
+
             s = db.get_monthly_summary(year, month)
             month_abbr = calendar.month_abbr[month]
-            self.chart_data.append({
-                "month": month_abbr, 
-                "income": s.get("income", 0) or 0, 
-                "expenses": s.get("expenses", 0) or 0
-            })
+            self.chart_data.append(
+                {
+                    "month": month_abbr,
+                    "income": s.get("income", 0) or 0,
+                    "expenses": s.get("expenses", 0) or 0,
+                }
+            )
 
         # Category Data (Expenses) - Grouped by Description (Type of expense)
         start_date = now.strftime("%Y-%m-01")
@@ -81,35 +83,37 @@ class DashboardView:
             end_date = f"{now.year + 1}-01-01"
         else:
             end_date = f"{now.year}-{now.month + 1:02d}-01"
-            
+
         txs = db.get_transactions_by_period(start_date, end_date)
         self.category_expenses = {}
         for t in txs:
             if t["transaction_type"] == "expense":
-                # Use description as category (grouped by uppercased description to merge slightly different inputs if needed, 
+                # Use description as category (grouped by uppercased description to merge slightly different inputs if needed,
                 # strictly asked to be "Champ libre")
                 desc = (t["description"] or "Autre").strip()
-                self.category_expenses[desc] = self.category_expenses.get(desc, 0) + t["amount"]
+                self.category_expenses[desc] = (
+                    self.category_expenses.get(desc, 0) + t["amount"]
+                )
 
     def _build_stat_card(
-        self, 
-        title: str, 
-        value: float, 
-        trend: float, 
-        icon: str, 
-        icon_bg: str, 
+        self,
+        title: str,
+        value: float,
+        trend: float,
+        icon: str,
+        icon_bg: str,
         icon_color: str,
-        trend_semantic: str = "normal"
+        trend_semantic: str = "normal",
     ) -> ft.Container:
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
         bg_card = PeadraTheme.DARK_SURFACE if self.is_dark else ft.colors.WHITE
-        
+
         is_positive = trend >= 0
         if trend_semantic == "reverse":
             is_good = not is_positive
         else:
             is_good = is_positive
-            
+
         trend_color = PeadraTheme.SUCCESS if is_good else PeadraTheme.ERROR
         trend_icon = ft.icons.NORTH_EAST if is_positive else ft.icons.SOUTH_EAST
         trend_text = f"{'+' if is_positive else ''}{trend:.1f}%"
@@ -128,7 +132,12 @@ class DashboardView:
                             ft.Row(
                                 [
                                     ft.Icon(trend_icon, color=trend_color, size=16),
-                                    ft.Text(trend_text, color=trend_color, size=12, weight=ft.FontWeight.BOLD),
+                                    ft.Text(
+                                        trend_text,
+                                        color=trend_color,
+                                        size=12,
+                                        weight=ft.FontWeight.BOLD,
+                                    ),
                                 ],
                                 spacing=4,
                             ),
@@ -139,23 +148,32 @@ class DashboardView:
                     ft.Column(
                         [
                             ft.Text(title, size=14, color=ft.colors.GREY_500),
-                            ft.Text(f"${value:,.2f}", size=24, weight=ft.FontWeight.BOLD, color=text_color),
+                            ft.Text(
+                                f"${value:,.2f}",
+                                size=24,
+                                weight=ft.FontWeight.BOLD,
+                                color=text_color,
+                            ),
                         ],
                         spacing=4,
-                    )
+                    ),
                 ]
             ),
             padding=20,
             bgcolor=bg_card,
             border_radius=20,
-            expand=True, 
-            border=ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.GREY)) if not self.is_dark else None
+            expand=True,
+            border=(
+                ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.GREY))
+                if not self.is_dark
+                else None
+            ),
         )
 
     def _build_income_expense_chart(self) -> ft.Container:
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
         bg_card = PeadraTheme.DARK_SURFACE if self.is_dark else ft.colors.WHITE
-        
+
         dates = [d["month"] for d in self.chart_data]
         incomes = [d["income"] for d in self.chart_data]
         expenses = [d["expenses"] for d in self.chart_data]
@@ -164,48 +182,70 @@ class DashboardView:
             return ft.Container()
 
         max_val = max(max(incomes + [0]), max(expenses + [0])) * 1.2
-        if max_val == 0: max_val = 100
+        if max_val == 0:
+            max_val = 100
 
         def create_data_points(values):
-            return [ft.LineChartDataPoint(i, v, tooltip=f"{v:,.0f}") for i, v in enumerate(values)]
+            return [
+                ft.LineChartDataPoint(i, v, tooltip=f"{v:,.0f}")
+                for i, v in enumerate(values)
+            ]
 
         return ft.Container(
             content=ft.Column(
                 [
-                    ft.Text("Income vs Expenses", size=18, weight=ft.FontWeight.BOLD, color=text_color),
+                    ft.Text(
+                        "Income vs Expenses",
+                        size=18,
+                        weight=ft.FontWeight.BOLD,
+                        color=text_color,
+                    ),
                     ft.Container(height=20),
                     ft.LineChart(
                         data_series=[
                             ft.LineChartData(
                                 data_points=create_data_points(incomes),
                                 stroke_width=3,
-                                color="#4CAF50", # Income Green
+                                color="#4CAF50",  # Income Green
                                 curved=True,
                                 stroke_cap_round=True,
-                                below_line_bgcolor=ft.colors.with_opacity(0.1, "#4CAF50"),
+                                below_line_bgcolor=ft.colors.with_opacity(
+                                    0.1, "#4CAF50"
+                                ),
                             ),
                             ft.LineChartData(
                                 data_points=create_data_points(expenses),
                                 stroke_width=3,
-                                color="#E53935", # Expenses Red
+                                color="#E53935",  # Expenses Red
                                 curved=True,
                                 stroke_cap_round=True,
-                                below_line_bgcolor=ft.colors.with_opacity(0.1, "#E53935"),
+                                below_line_bgcolor=ft.colors.with_opacity(
+                                    0.1, "#E53935"
+                                ),
                             ),
                         ],
                         border=ft.border.all(0, ft.colors.TRANSPARENT),
                         horizontal_grid_lines=ft.ChartGridLines(
-                            interval=max_val / 4, color=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE), width=1
+                            interval=max_val / 4,
+                            color=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE),
+                            width=1,
                         ),
                         vertical_grid_lines=ft.ChartGridLines(
                             interval=1, color=ft.colors.TRANSPARENT
                         ),
-                        left_axis=ft.ChartAxis(labels_size=40, title_size=0, show_labels=True),
+                        left_axis=ft.ChartAxis(
+                            labels_size=40, title_size=0, show_labels=True
+                        ),
                         bottom_axis=ft.ChartAxis(
                             labels=[
                                 ft.ChartAxisLabel(
                                     value=i,
-                                    label=ft.Container(ft.Text(dates[i], size=10, color=ft.colors.GREY), padding=10)
+                                    label=ft.Container(
+                                        ft.Text(
+                                            dates[i], size=10, color=ft.colors.GREY
+                                        ),
+                                        padding=10,
+                                    ),
                                 )
                                 for i in range(len(dates))
                             ],
@@ -218,45 +258,86 @@ class DashboardView:
                     ),
                     ft.Row(
                         [
-                            ft.Row([ft.Container(width=10, height=10, bgcolor="#4CAF50", border_radius=5), ft.Text("Income", color=ft.colors.GREY, size=12)]),
-                            ft.Row([ft.Container(width=10, height=10, bgcolor="#E53935", border_radius=5), ft.Text("Expenses", color=ft.colors.GREY, size=12)]),
+                            ft.Row(
+                                [
+                                    ft.Container(
+                                        width=10,
+                                        height=10,
+                                        bgcolor="#4CAF50",
+                                        border_radius=5,
+                                    ),
+                                    ft.Text("Income", color=ft.colors.GREY, size=12),
+                                ]
+                            ),
+                            ft.Row(
+                                [
+                                    ft.Container(
+                                        width=10,
+                                        height=10,
+                                        bgcolor="#E53935",
+                                        border_radius=5,
+                                    ),
+                                    ft.Text("Expenses", color=ft.colors.GREY, size=12),
+                                ]
+                            ),
                         ],
                         alignment=ft.MainAxisAlignment.CENTER,
-                        spacing=20
-                    )
+                        spacing=20,
+                    ),
                 ],
             ),
             padding=24,
             bgcolor=bg_card,
             border_radius=20,
             expand=True,
-            border=ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.GREY)) if not self.is_dark else None
+            border=(
+                ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.GREY))
+                if not self.is_dark
+                else None
+            ),
         )
 
     def _build_category_chart(self) -> ft.Container:
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
         bg_card = PeadraTheme.DARK_SURFACE if self.is_dark else ft.colors.WHITE
-        
-        sorted_cats = sorted(self.category_expenses.items(), key=lambda x: x[1], reverse=True)[:5]
-        
+
+        sorted_cats = sorted(
+            self.category_expenses.items(), key=lambda x: x[1], reverse=True
+        )[:5]
+
         if not sorted_cats:
             return ft.Container(
                 content=ft.Column(
                     [
-                        ft.Text("Expenses by Category", size=18, weight=ft.FontWeight.BOLD, color=text_color),
+                        ft.Text(
+                            "Expenses by Category",
+                            size=18,
+                            weight=ft.FontWeight.BOLD,
+                            color=text_color,
+                        ),
                         ft.Container(
-                             content=ft.Text("No expenses this month", color=ft.colors.GREY),
-                             alignment=ft.alignment.center,
-                             expand=True
-                        )
+                            content=ft.Text(
+                                "No expenses this month", color=ft.colors.GREY
+                            ),
+                            alignment=ft.alignment.center,
+                            expand=True,
+                        ),
                     ]
                 ),
-                bgcolor=bg_card, padding=24, border_radius=20, expand=True,
-                border=ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.GREY)) if not self.is_dark else None
+                bgcolor=bg_card,
+                padding=24,
+                border_radius=20,
+                expand=True,
+                border=(
+                    ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.GREY))
+                    if not self.is_dark
+                    else None
+                ),
             )
 
         max_val = max([v for k, v in sorted_cats]) * 1.2
-        if max_val == 0: max_val = 100
+        if max_val == 0:
+            max_val = 100
 
         rod_groups = []
         for i, (cat, val) in enumerate(sorted_cats):
@@ -270,7 +351,7 @@ class DashboardView:
                             width=30,
                             color="#2979FF",
                             border_radius=ft.border_radius.vertical(top=6),
-                            tooltip=f"{cat}: ${val:,.0f}"
+                            tooltip=f"{cat}: ${val:,.0f}",
                         )
                     ],
                 )
@@ -279,7 +360,12 @@ class DashboardView:
         return ft.Container(
             content=ft.Column(
                 [
-                    ft.Text("Expenses by Category", size=18, weight=ft.FontWeight.BOLD, color=text_color),
+                    ft.Text(
+                        "Expenses by Category",
+                        size=18,
+                        weight=ft.FontWeight.BOLD,
+                        color=text_color,
+                    ),
                     ft.Container(height=20),
                     ft.BarChart(
                         bar_groups=rod_groups,
@@ -289,14 +375,19 @@ class DashboardView:
                             labels=[
                                 ft.ChartAxisLabel(
                                     value=i,
-                                    label=ft.Container(ft.Text(cat, size=10, color=ft.colors.GREY), padding=5)
+                                    label=ft.Container(
+                                        ft.Text(cat, size=10, color=ft.colors.GREY),
+                                        padding=5,
+                                    ),
                                 )
                                 for i, (cat, val) in enumerate(sorted_cats)
                             ],
                             labels_size=40,
                         ),
                         horizontal_grid_lines=ft.ChartGridLines(
-                            interval=max_val/5, color=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE), width=1
+                            interval=max_val / 5,
+                            color=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE),
+                            width=1,
                         ),
                         max_y=max_val,
                         expand=True,
@@ -308,12 +399,16 @@ class DashboardView:
             bgcolor=bg_card,
             border_radius=20,
             expand=True,
-            border=ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.GREY)) if not self.is_dark else None
+            border=(
+                ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.GREY))
+                if not self.is_dark
+                else None
+            ),
         )
 
     def build(self) -> ft.Container:
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
-        
+
         # Colors for cards
         if self.is_dark:
             blue_bg = ft.colors.with_opacity(0.2, "blue")
@@ -328,10 +423,42 @@ class DashboardView:
 
         card_row = ft.Row(
             [
-                self._build_stat_card("Total Balance", self.total_patrimony, self.balance_trend, ft.icons.ACCOUNT_BALANCE_WALLET, blue_bg, "blue", "normal"),
-                self._build_stat_card("Income", self.monthly_income, self.income_trend, ft.icons.TRENDING_UP, green_bg, "green", "normal"),
-                self._build_stat_card("Expenses", self.monthly_expenses, self.expenses_trend, ft.icons.TRENDING_DOWN, red_bg, "red", "reverse"),
-                self._build_stat_card("Savings", self.monthly_savings, self.savings_trend, ft.icons.SAVINGS, purple_bg, "purple", "normal"),
+                self._build_stat_card(
+                    "Total Balance",
+                    self.total_patrimony,
+                    self.balance_trend,
+                    ft.icons.ACCOUNT_BALANCE_WALLET,
+                    blue_bg,
+                    "blue",
+                    "normal",
+                ),
+                self._build_stat_card(
+                    "Income",
+                    self.monthly_income,
+                    self.income_trend,
+                    ft.icons.TRENDING_UP,
+                    green_bg,
+                    "green",
+                    "normal",
+                ),
+                self._build_stat_card(
+                    "Expenses",
+                    self.monthly_expenses,
+                    self.expenses_trend,
+                    ft.icons.TRENDING_DOWN,
+                    red_bg,
+                    "red",
+                    "reverse",
+                ),
+                self._build_stat_card(
+                    "Savings",
+                    self.monthly_savings,
+                    self.savings_trend,
+                    ft.icons.SAVINGS,
+                    purple_bg,
+                    "purple",
+                    "normal",
+                ),
             ],
             spacing=20,
         )
@@ -344,7 +471,7 @@ class DashboardView:
                 ],
                 spacing=20,
             ),
-            height=400
+            height=400,
         )
 
         content = ft.Column(
@@ -352,24 +479,29 @@ class DashboardView:
                 ft.Container(
                     content=ft.Column(
                         [
-                            ft.Text("Dashboard", size=32, weight=ft.FontWeight.BOLD, color=text_color),
-                            ft.Text("Welcome back! Here's your financial overview.", size=16, color=ft.colors.GREY),
+                            ft.Text(
+                                "Dashboard",
+                                size=32,
+                                weight=ft.FontWeight.BOLD,
+                                color=text_color,
+                            ),
+                            ft.Text(
+                                "Welcome back! Here's your financial overview.",
+                                size=16,
+                                color=ft.colors.GREY,
+                            ),
                         ],
-                        spacing=4
+                        spacing=4,
                     ),
-                    margin=ft.margin.only(bottom=20)
+                    margin=ft.margin.only(bottom=20),
                 ),
                 card_row,
                 ft.Container(height=20),
-                charts_row
+                charts_row,
             ],
             scroll=ft.ScrollMode.AUTO,
             expand=True,
             spacing=0,
         )
 
-        return ft.Container(
-            content=content,
-            padding=30,
-            expand=True
-        )
+        return ft.Container(content=content, padding=30, expand=True)

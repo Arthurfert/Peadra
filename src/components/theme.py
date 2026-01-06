@@ -97,7 +97,9 @@ class PeadraTheme:
             bg_color = ft.colors.with_opacity(PeadraTheme.GLASS_OPACITY_DARK, "#1B263B")
             border_color = ft.colors.with_opacity(0.3, "#778DA9")
         else:
-            bg_color = ft.colors.with_opacity(PeadraTheme.GLASS_OPACITY_LIGHT, "#FFFFFF")
+            bg_color = ft.colors.with_opacity(
+                PeadraTheme.GLASS_OPACITY_LIGHT, "#FFFFFF"
+            )
             border_color = ft.colors.with_opacity(0.1, "#1B263B")
 
         return ft.Container(

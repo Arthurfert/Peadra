@@ -18,7 +18,7 @@ class TransactionModal:
         subcategories: List[Dict[str, Any]],
         on_save: Callable,
         is_dark: bool = True,
-        filter_type: Optional[str] = None # 'bank' or 'asset'
+        filter_type: Optional[str] = None,  # 'bank' or 'asset'
     ):
         self.page = page
         self.categories = categories
@@ -78,19 +78,28 @@ class TransactionModal:
 
         # Sous-catégorie (Compte / Actif)
         filtered_subcats = []
-        if self.filter_type == 'bank':
-             filtered_subcats = [s for s in self.subcategories if s.get('category_name') == 'Cash']
-        elif self.filter_type == 'asset':
-             filtered_subcats = [s for s in self.subcategories if s.get('category_name') in ['Bourse', 'Immobilier']]
+        if self.filter_type == "bank":
+            filtered_subcats = [
+                s for s in self.subcategories if s.get("category_name") == "Cash"
+            ]
+        elif self.filter_type == "asset":
+            filtered_subcats = [
+                s
+                for s in self.subcategories
+                if s.get("category_name") in ["Bourse", "Immobilier"]
+            ]
         else:
-             filtered_subcats = self.subcategories
+            filtered_subcats = self.subcategories
 
-        filtered_subcats.sort(key=lambda x: x['name'])
+        filtered_subcats.sort(key=lambda x: x["name"])
 
         self.subcategory_dropdown = ft.Dropdown(
             label="Compte / Actif",
             width=350,
-            options=[ft.dropdown.Option(str(sub["id"]), sub["name"]) for sub in filtered_subcats],
+            options=[
+                ft.dropdown.Option(str(sub["id"]), sub["name"])
+                for sub in filtered_subcats
+            ],
         )
         if filtered_subcats:
             self.subcategory_dropdown.value = str(filtered_subcats[0]["id"])
@@ -163,7 +172,7 @@ class TransactionModal:
             "description": description.strip(),
             "amount": float(amount_str),
             "transaction_type": self.type_dropdown.value,
-            "category_id": None, 
+            "category_id": None,
             "subcategory_id": (
                 int(self.subcategory_dropdown.value)
                 if self.subcategory_dropdown.value
@@ -184,14 +193,20 @@ class TransactionModal:
     def show(self, transaction_data: Optional[Dict[str, Any]] = None):
         """Affiche le modal."""
         self._build_controls()
-        
+
         if transaction_data:
-            self.date_picker.value = transaction_data.get("date", datetime.now().strftime("%Y-%m-%d"))
+            self.date_picker.value = transaction_data.get(
+                "date", datetime.now().strftime("%Y-%m-%d")
+            )
             self.description_field.value = transaction_data.get("description", "")
             self.amount_field.value = str(transaction_data.get("amount", ""))
-            self.type_dropdown.value = transaction_data.get("transaction_type", "expense")
+            self.type_dropdown.value = transaction_data.get(
+                "transaction_type", "expense"
+            )
             if transaction_data.get("subcategory_id"):
-                self.subcategory_dropdown.value = str(transaction_data["subcategory_id"])
+                self.subcategory_dropdown.value = str(
+                    transaction_data["subcategory_id"]
+                )
             self.notes_field.value = transaction_data.get("notes", "")
 
         title = "Modifier" if transaction_data else "Nouveau mouvement"
@@ -205,7 +220,9 @@ class TransactionModal:
                         self.date_picker,
                         self.type_dropdown,
                         self.description_field,
-                        ft.Row([self.amount_field, self.subcategory_dropdown], spacing=16),
+                        ft.Row(
+                            [self.amount_field, self.subcategory_dropdown], spacing=16
+                        ),
                         self.notes_field,
                     ],
                     spacing=16,

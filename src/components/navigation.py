@@ -32,22 +32,22 @@ class NavigationRailComponent:
         bg_color = (
             PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
         )
-        text_color = (
-            PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
-        )
+        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
         accent_color = (
             PeadraTheme.ACCENT if self.is_dark else PeadraTheme.PRIMARY_MEDIUM
         )
-        
+
         # Récupérer le solde actuel
         balance = db.get_total_patrimony()
 
         def nav_item(icon_off, icon_on, label, index):
             is_selected = self.selected_index == index
-            
+
             # Couleurs
             if self.is_dark:
-                item_bg = PeadraTheme.PRIMARY_MEDIUM if is_selected else ft.colors.TRANSPARENT
+                item_bg = (
+                    PeadraTheme.PRIMARY_MEDIUM if is_selected else ft.colors.TRANSPARENT
+                )
                 item_icon = ft.colors.WHITE if is_selected else text_color
                 item_text = ft.colors.WHITE if is_selected else text_color
             else:
@@ -59,18 +59,22 @@ class NavigationRailComponent:
                 content=ft.Row(
                     [
                         ft.Icon(
-                            icon_on if is_selected else icon_off, 
-                            color=item_icon, 
-                            size=24
+                            icon_on if is_selected else icon_off,
+                            color=item_icon,
+                            size=24,
                         ),
                         ft.Text(
-                            label, 
-                            color=item_text, 
-                            weight=ft.FontWeight.W_600 if is_selected else ft.FontWeight.NORMAL,
-                            size=16
-                        )
+                            label,
+                            color=item_text,
+                            weight=(
+                                ft.FontWeight.W_600
+                                if is_selected
+                                else ft.FontWeight.NORMAL
+                            ),
+                            size=16,
+                        ),
                     ],
-                    spacing=12
+                    spacing=12,
                 ),
                 padding=ft.padding.symmetric(horizontal=16, vertical=12),
                 border_radius=8,
@@ -90,54 +94,67 @@ class NavigationRailComponent:
                         content=ft.Row(
                             [
                                 ft.Container(
-                                    content=ft.Icon(ft.icons.ACCOUNT_BALANCE_WALLET, color=ft.colors.WHITE, size=24),
+                                    content=ft.Icon(
+                                        ft.icons.ACCOUNT_BALANCE_WALLET,
+                                        color=ft.colors.WHITE,
+                                        size=24,
+                                    ),
                                     bgcolor="#1976D2",
                                     padding=8,
                                     border_radius=8,
                                 ),
                                 ft.Text(
-                                    "Peadra", 
-                                    size=24, 
-                                    weight=ft.FontWeight.BOLD, 
-                                    color=text_color
-                                )
+                                    "Peadra",
+                                    size=24,
+                                    weight=ft.FontWeight.BOLD,
+                                    color=text_color,
+                                ),
                             ],
                             spacing=12,
                             alignment=ft.MainAxisAlignment.START,
                         ),
-                        margin=ft.margin.only(bottom=40)
+                        margin=ft.margin.only(bottom=40),
                     ),
-                    
                     # Navigation Items
                     ft.Column(
                         [
-                            nav_item(ft.icons.GRID_VIEW, ft.icons.GRID_VIEW_ROUNDED, "Dashboard", 0),
-                            nav_item(ft.icons.RECEIPT_LONG_OUTLINED, ft.icons.RECEIPT_LONG, "Transactions", 1),
+                            nav_item(
+                                ft.icons.GRID_VIEW,
+                                ft.icons.GRID_VIEW_ROUNDED,
+                                "Dashboard",
+                                0,
+                            ),
+                            nav_item(
+                                ft.icons.RECEIPT_LONG_OUTLINED,
+                                ft.icons.RECEIPT_LONG,
+                                "Transactions",
+                                1,
+                            ),
                         ],
-                        spacing=8
+                        spacing=8,
                     ),
-                    
                     ft.Container(expand=True),
-                    
                     # Current Balance Card
                     ft.Container(
                         content=ft.Column(
                             [
-                                ft.Text("Current Balance", size=14, color=ft.colors.GREY_500),
                                 ft.Text(
-                                    f"${balance:,.2f}", 
-                                    size=24, 
-                                    weight=ft.FontWeight.BOLD, 
-                                    color=text_color
-                                )
+                                    "Current Balance", size=14, color=ft.colors.GREY_500
+                                ),
+                                ft.Text(
+                                    f"${balance:,.2f}",
+                                    size=24,
+                                    weight=ft.FontWeight.BOLD,
+                                    color=text_color,
+                                ),
                             ],
-                            spacing=4
+                            spacing=4,
                         ),
                         bgcolor=ft.colors.with_opacity(0.05, text_color),
                         padding=20,
                         border_radius=16,
-                    )
+                    ),
                 ],
                 spacing=0,
-            )
+            ),
         )

@@ -168,15 +168,17 @@ class DatabaseManager:
                         )
 
         # Cleanup potential duplicates from previous versions
-        cursor.execute("""
+        cursor.execute(
+            """
             DELETE FROM subcategories 
             WHERE rowid NOT IN (
                 SELECT min(rowid) 
                 FROM subcategories 
                 GROUP BY name, category_id
             )
-        """)
-        
+        """
+        )
+
         conn.commit()
 
     # ==================== CATÉGORIES ====================

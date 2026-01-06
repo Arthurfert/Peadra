@@ -327,17 +327,36 @@ class DatabaseManager:
 
     # ==================== STATISTIQUES ====================
 
-    def get_total_patrimony(self) -> float:
-        """Calcule le patrimoine total (somme des transactions)."""
+    def get_savings_total(self) -> float:
+        """Calcule le total de l'épargne (Actifs + Livrets, hors Compte Courant)."""
         conn = self._get_connection()
         cursor = conn.cursor()
         cursor.execute(
             """
             SELECT 
-                COALESCE(SUM(CASE WHEN transaction_type = 'income' THEN amount 
-                                  WHEN transaction_type = 'expense' THEN -amount 
+                COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount 
+                                  WHEN t.transaction_type = 'expense' THEN -t.amount 
                                   ELSE 0 END), 0)
-            FROM transactions
+            FROM transactions t
+            LEFT JOIN subcategories s ON t.subcategory_id = s.id
+            WHERE s.name != 'Compte courant'
+        """
+        )
+        return cursor.fetchone()[0]
+
+    def get_total_patrimony(self) -> float:
+        """Calcule le patrimoine total (Basé sur le Compte Courant, car les mouvements d'actifs sont des transferts)."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT 
+                COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount 
+                                  WHEN t.transaction_type = 'expense' THEN -t.amount 
+                                  ELSE 0 END), 0)
+            FROM transactions t
+            LEFT JOIN subcategories s ON t.subcategory_id = s.id
+            WHERE s.name = 'Compte courant' OR t.subcategory_id IS NULL
         """
         )
         return cursor.fetchone()[0]
@@ -345,7 +364,7 @@ class DatabaseManager:
     def get_monthly_summary(
         self, year: Optional[int] = None, month: Optional[int] = None
     ) -> Dict[str, float]:
-        """Récupère le résumé mensuel des transactions."""
+        """Récupère le résumé mensuel des transactions (Uniquement flux Compte Courant)."""
         if year is None:
             year = datetime.now().year
         if month is None:
@@ -363,10 +382,11 @@ class DatabaseManager:
         cursor.execute(
             """
             SELECT 
-                COALESCE(SUM(CASE WHEN transaction_type = 'income' THEN amount ELSE 0 END), 0) as income,
-                COALESCE(SUM(CASE WHEN transaction_type = 'expense' THEN amount ELSE 0 END), 0) as expenses
-            FROM transactions
-            WHERE date >= ? AND date < ?
+                COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount ELSE 0 END), 0) as income,
+                COALESCE(SUM(CASE WHEN t.transaction_type = 'expense' THEN t.amount ELSE 0 END), 0) as expenses
+            FROM transactions t
+            LEFT JOIN subcategories s ON t.subcategory_id = s.id
+            WHERE (t.date >= ? AND t.date < ?) AND (s.name = 'Compte courant' OR t.subcategory_id IS NULL)
         """,
             (start_date, end_date),
         )

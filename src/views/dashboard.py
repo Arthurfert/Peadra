@@ -36,14 +36,13 @@ class DashboardView:
         current_summary = db.get_monthly_summary(now.year, now.month)
         self.monthly_income = current_summary.get("income", 0) or 0
         self.monthly_expenses = current_summary.get("expenses", 0) or 0
-        self.monthly_savings = self.monthly_income - self.monthly_expenses
+        self.monthly_savings = db.get_savings_total()
 
         # Previous month for trends
         prev_month = now.replace(day=1) - timedelta(days=1)
         prev_summary = db.get_monthly_summary(prev_month.year, prev_month.month)
         prev_income = prev_summary.get("income", 0) or 0
         prev_expenses = prev_summary.get("expenses", 0) or 0
-        prev_savings = prev_income - prev_expenses
 
         # Calculate trends
         def calc_trend(curr, prev):
@@ -53,7 +52,7 @@ class DashboardView:
 
         self.income_trend = calc_trend(self.monthly_income, prev_income)
         self.expenses_trend = calc_trend(self.monthly_expenses, prev_expenses)
-        self.savings_trend = calc_trend(self.monthly_savings, prev_savings)
+        self.savings_trend = 0.0  # Disabled as we switched from flow to stock
         self.balance_trend = 12.5  # Mock as asset history logic is complex
 
         # Chart Data (Income vs Expenses) - Last 6 months
@@ -87,9 +86,12 @@ class DashboardView:
         txs = db.get_transactions_by_period(start_date, end_date)
         self.category_expenses = {}
         for t in txs:
-            if t["transaction_type"] == "expense":
-                # Use description as category (grouped by uppercased description to merge slightly different inputs if needed,
-                # strictly asked to be "Champ libre")
+            # We filter for expenses on 'Compte courant' only, to avoid showing asset transfers as expenses
+            subcategory_name = t.get("subcategory_name")
+            if t["transaction_type"] == "expense" and (
+                subcategory_name == "Compte courant" or subcategory_name is None
+            ):
+                # Use description as category
                 desc = (t["description"] or "Autre").strip()
                 self.category_expenses[desc] = (
                     self.category_expenses.get(desc, 0) + t["amount"]

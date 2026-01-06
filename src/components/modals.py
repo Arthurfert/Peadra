@@ -46,8 +46,8 @@ class TransactionModal:
 
         # Description
         self.description_field = ft.TextField(
-            label="Description (Type de dépense)",
-            hint_text="Ex: Courses, Bar, Loyer...",
+            label="Description",
+            hint_text="Ex: Courses, Achat Bitcoin, Loyer...",
             width=350,
             autofocus=True,
         )
@@ -65,15 +65,29 @@ class TransactionModal:
         )
 
         # Type de transaction
+        if self.filter_type == "asset":
+            label_text = "Opération"
+            default_value = "income"
+            width = 250
+            options = [
+                ft.dropdown.Option("income", "Investissement (Achat / Apport)"),
+                ft.dropdown.Option("expense", "Désinvestissement (Vente / Retrait)"),
+            ]
+        else:
+            label_text = "Sens"
+            default_value = "expense"
+            width = 150
+            options = [
+                ft.dropdown.Option("income", "Revenu / Entrée"),
+                ft.dropdown.Option("expense", "Dépense / Sortie"),
+                ft.dropdown.Option("transfer", "Virement Interne"),
+            ]
+
         self.type_dropdown = ft.Dropdown(
-            label="Sens",
-            width=150,
-            value="expense",
-            options=[
-                ft.dropdown.Option("income", "Revenu"),
-                ft.dropdown.Option("expense", "Dépense"),
-                ft.dropdown.Option("transfer", "Transfert"),
-            ],
+            label=label_text,
+            width=width,
+            value=default_value,
+            options=options,
         )
 
         # Sous-catégorie (Compte / Actif)

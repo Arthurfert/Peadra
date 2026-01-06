@@ -142,7 +142,7 @@ class NavigationRailComponent:
                                     "Current Balance", size=14, color=ft.colors.GREY_500
                                 ),
                                 ft.Text(
-                                    f"${balance:,.2f}",
+                                    f"€{balance:,.2f}",
                                     size=24,
                                     weight=ft.FontWeight.BOLD,
                                     color=text_color,

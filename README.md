@@ -79,8 +79,6 @@ Peadra/
         ├── __init__.py
         ├── dashboard.py   # Dashboard view
         ├── transactions.py # Transactions management view
-        ├── analyses.py    # Analytics and charts view
-        └── assets.py      # Assets management view
 ```
 
 ## Technologies
@@ -88,38 +86,6 @@ Peadra/
 - **Python 3.8+** - Programming language
 - **Flet 0.24.1** - Cross-platform UI framework based on Flutter
 - **SQLite** - Local database for data persistence
-
-## Usage
-
-### Adding a Transaction
-1. Navigate to the "Transactions" tab
-2. Click "Nouvelle transaction" (New transaction)
-3. Fill in the date, description, amount, type, and category
-4. Click "Enregistrer" (Save)
-
-### Adding an Asset
-1. Navigate to the "Actifs" (Assets) tab
-2. Click "Nouvel actif" (New asset)
-3. Enter the asset name, category, current value, and optional purchase information
-4. Click "Enregistrer" (Save)
-
-### Viewing Analytics
-1. Navigate to the "Analyses" tab
-2. Select the desired time period from the dropdown
-3. View patrimony distribution, evolution, and expense breakdowns
-
-### Exporting Data
-1. Click the download icon in the header
-2. Choose between JSON or CSV export format
-3. Files are saved to the "exports" folder
-
-## Configuration
-
-### Default Categories
-The application comes with three default categories:
-- **Cash** - Bank accounts, savings, cash
-- **Immobilier** (Real Estate) - Properties, REITs
-- **Bourse** (Stocks) - Stocks, ETFs, bonds, crypto
 
 ## License
 

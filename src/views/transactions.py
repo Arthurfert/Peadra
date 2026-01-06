@@ -337,23 +337,30 @@ class TransactionsView:
             self.content_column.update()
 
     def _get_category_color(self, cat_name: str) -> str:
-        """Retourne une couleur pastel basée sur le nom de la catégorie."""
+        """Retourne une couleur distinctive basée sur le nom de la sous-catégorie."""
         if not cat_name:
-            return ft.colors.GREY_200
+            return ft.colors.GREY_300
+        
         cat = cat_name.lower()
-        if "income" in cat or "revenu" in cat or "salaire" in cat:
-            return ft.colors.GREEN_100
-        if "food" in cat or "course" in cat or "restaurant" in cat:
-            return ft.colors.ORANGE_100
-        if "bill" in cat or "facture" in cat:
-            return ft.colors.BLUE_100
-        if "shop" in cat or "achat" in cat:
-            return ft.colors.PURPLE_100
-        if "transport" in cat:
-            return ft.colors.YELLOW_100
-        if "entertain" in cat or "loisir" in cat:
-            return ft.colors.PINK_100
-        return ft.colors.GREY_100
+        
+        # Cash / Banque
+        if "compte courant" in cat: return ft.colors.BLUE_300
+        if "livret" in cat or "épargne" in cat: return ft.colors.YELLOW_300
+        if "espèces" in cat or "cash" in cat: return ft.colors.GREEN_300
+        
+        # Investissements
+        if "crypto" in cat or "bitcoin" in cat: return ft.colors.ORANGE_400
+        if "action" in cat or "etf" in cat or "pea" in cat or "bourse" in cat: return ft.colors.INDIGO_300
+        if "obligation" in cat: return ft.colors.CYAN_300
+        
+        # Immobilier
+        if "immobilier" in cat or "maison" in cat or "appart" in cat or "scpi" in cat: return ft.colors.BROWN_300
+        
+        # Fallback sur les mot-clés descriptions si la sous-catégorie ne matche pas
+        if "salaire" in cat: return ft.colors.TEAL_300
+        if "course" in cat: return ft.colors.AMBER_300
+        
+        return ft.colors.GREY_300
 
     def _get_category_text_color(self, cat_name: str) -> str:
         # Simple contrast: darker version of pastel

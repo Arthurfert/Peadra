@@ -426,7 +426,7 @@ class DashboardView:
         card_row = ft.Row(
             [
                 self._build_stat_card(
-                    "Total Balance",
+                    "Bank Balance",
                     self.total_patrimony,
                     self.balance_trend,
                     ft.icons.ACCOUNT_BALANCE_WALLET,
@@ -453,7 +453,7 @@ class DashboardView:
                     "reverse",
                 ),
                 self._build_stat_card(
-                    "Savings",
+                    "Savings & Investments",
                     self.monthly_savings,
                     self.savings_trend,
                     ft.icons.SAVINGS,

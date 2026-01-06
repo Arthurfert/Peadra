@@ -15,39 +15,17 @@ It provides a comprehensive view of your patrimony across different asset catego
 ## Features
 
 ### Dashboard
-- Overview of total patrimony
-- Asset distribution by category with visual charts
-- Monthly income/expense summary
-- Recent transactions list
-- Quick access to all asset categories
+- **Financial overview**: Instantly view your *Bank Balance* (Checking Account), your *Total Assets*, and your *Savings* (everything that is not in your checking account).
+- **Flow vs. Stock Logic**: 
+    - The income/expense graph focuses on your daily budget (excludes savings transfers so as not to skew the stats).
+    - The “Savings” card represents accumulated stock (savings accounts, stock market, real estate, crypto).
+- **Interactive graphs**: Monthly tracking of income and expenses.
 
 ### Transaction Management
-- Record income, expenses, and transfers
-- Categorize transactions with customizable categories and subcategories
-- Search and filter transactions by type, category, or description
-- Edit and delete existing transactions
-- View transaction history with detailed information
-
-### Asset Tracking
-- Track assets across multiple categories (Cash, Real Estate, Stocks)
-- Record purchase value and date for gain/loss calculations
-- Update asset values over time with history tracking
-- Filter assets by category
-- View performance metrics and trends
-
-### Analytics
-- Patrimony distribution pie charts
-- Patrimony evolution over time (line charts)
-- Income vs. Expenses comparison (bar charts)
-- Expense breakdown by category
-- Customizable time period selection (3, 6, 12, 24 months)
-
-### Additional Features
-- Dark and light theme support
-- Export data to JSON or CSV formats
-- Glassmorphism-inspired modern UI design
-- SQLite database for local data storage
-- Responsive layout with navigation rail
+- **Unified view**: A single list to manage all your transactions, whether daily expenses or investments.
+- **Advanced filters**: Quickly filter by asset category (checking account, savings accounts, stocks, crypto, real estate) using dedicated dialog boxes.
+- **Instant Search**: Find any transaction by description, amount, or category.
+- **Visual Color Coding**: Each asset type has its own visual identity (pastel palette) for quick reading.
 
 ## Installation
 

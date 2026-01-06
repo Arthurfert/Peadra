@@ -225,28 +225,17 @@ class PeadraApp:
         self.content_area = ft.Container(
             content=self.views[self.current_view_index].build(),
             expand=True,
-            padding=24,
+            padding=0, # Let individual views handle padding
             bgcolor=bg_color,
         )
 
         # Layout principal
-        main_layout = ft.Column(
+        main_layout = ft.Row(
             controls=[
-                # Header
-                self._build_header(),
-                # Corps de l'application
-                ft.Row(
-                    controls=[
-                        # Navigation latérale
-                        self.navigation.build(),
-                        # Séparateur vertical
-                        ft.VerticalDivider(width=1, color="rgba(119, 141, 169, 0.2)"),
-                        # Contenu principal
-                        self.content_area,
-                    ],
-                    expand=True,
-                    spacing=0,
-                ),
+                # Navigation latérale
+                self.navigation.build(),
+                # Contenu principal
+                self.content_area,
             ],
             spacing=0,
             expand=True,

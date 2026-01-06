@@ -149,7 +149,7 @@ class DashboardView:
                         [
                             ft.Text(title, size=14, color=ft.colors.GREY_500),
                             ft.Text(
-                                f"${value:,.2f}",
+                                f"€{value:,.2f}",
                                 size=24,
                                 weight=ft.FontWeight.BOLD,
                                 color=text_color,

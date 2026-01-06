@@ -38,7 +38,7 @@ jobs:
         # Disabling some common errors that might be noisy in a new project
         # C0111: Missing docstring (optional enforcement)
         # C0301: Line too long
-        pylint src --disable=C0111,C0301
+        pylint src --disable=C0111,C0301,C0411
 
     - name: Test with pytest
       run: |

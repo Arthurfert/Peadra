@@ -9,8 +9,6 @@ from src.components.navigation import NavigationRailComponent
 from src.database.db_manager import db
 from src.views.dashboard import DashboardView
 from src.views.transactions import TransactionsView
-from src.views.analyses import AnalysesView
-from src.views.assets import AssetsView
 
 
 class PeadraApp:
@@ -65,13 +63,15 @@ class PeadraApp:
         self.views = {
             0: DashboardView(self.page, self.is_dark, self._refresh_all_views),
             1: TransactionsView(self.page, self.is_dark, self._refresh_all_views),
-            2: AnalysesView(self.page, self.is_dark, self._refresh_all_views),
-            3: AssetsView(self.page, self.is_dark, self._refresh_all_views),
         }
 
     def _on_navigation_change(self, index: int):
         """Gère le changement de vue via la navigation."""
         self.current_view_index = index
+        # Mettre à jour la navigation pour refléter la sélection
+        if hasattr(self, 'nav_container'):
+            self.nav_container.content = self.navigation.build()
+            self.nav_container.update()
         self._update_content()
 
     def _toggle_theme(self, e):
@@ -91,6 +91,12 @@ class PeadraApp:
         """Rafraîchit toutes les vues (appelé après une modification de données)."""
         for view in self.views.values():
             view.refresh()
+            
+        # Rafraîchir la navigation (pour le solde)
+        if hasattr(self, 'nav_container'):
+            self.nav_container.content = self.navigation.build()
+            self.nav_container.update()
+            
         self._update_content()
 
     def _export_data(self, e, format_type: str):
@@ -225,28 +231,20 @@ class PeadraApp:
         self.content_area = ft.Container(
             content=self.views[self.current_view_index].build(),
             expand=True,
-            padding=24,
+            padding=0,  # Let individual views handle padding
             bgcolor=bg_color,
         )
+        
+        # Conteneur de navigation pour permettre les mises à jour
+        self.nav_container = ft.Container(content=self.navigation.build())
 
         # Layout principal
-        main_layout = ft.Column(
+        main_layout = ft.Row(
             controls=[
-                # Header
-                self._build_header(),
-                # Corps de l'application
-                ft.Row(
-                    controls=[
-                        # Navigation latérale
-                        self.navigation.build(),
-                        # Séparateur vertical
-                        ft.VerticalDivider(width=1, color="rgba(119, 141, 169, 0.2)"),
-                        # Contenu principal
-                        self.content_area,
-                    ],
-                    expand=True,
-                    spacing=0,
-                ),
+                # Navigation latérale
+                self.nav_container,
+                # Contenu principal
+                self.content_area,
             ],
             spacing=0,
             expand=True,

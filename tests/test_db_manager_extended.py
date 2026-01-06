@@ -55,67 +55,22 @@ def test_get_transactions_by_period(db_manager):
     assert "T3" not in descriptions
 
 
-def test_asset_crud(db_manager):
-    """Test CRUD operations for assets."""
-    # 1. Create
-    asset_id = db_manager.add_asset(
-        name="Test Asset",
-        category_id=1,
-        current_value=1000.0,
-        purchase_value=900.0,
-        purchase_date="2022-01-01",
-    )
-    assert asset_id > 0
-
-    # 2. Read
-    assets = db_manager.get_all_assets()
-    assert len(assets) == 1
-    assert assets[0]["name"] == "Test Asset"
-    assert assets[0]["current_value"] == 1000.0
-
-    # Check history was created
-    history = db_manager.get_asset_history(asset_id)
-    assert len(history) == 1
-    assert history[0]["value"] == 1000.0
-
-    # 3. Update Value
-    success = db_manager.update_asset_value(asset_id, 1100.0)
-    assert success is True
-
-    assets = db_manager.get_all_assets()
-    assert assets[0]["current_value"] == 1100.0
-
-    # Check history was updated
-    history = db_manager.get_asset_history(asset_id)
-    assert len(history) == 2
-    assert history[1]["value"] == 1100.0
-
-    # 4. Delete
-    success = db_manager.delete_asset(asset_id)
-    assert success is True
-
-    assets = db_manager.get_all_assets()
-    assert len(assets) == 0
-
-
 def test_statistics(db_manager):
     """Test statistics calculation."""
-    # Setup data
-    # Asset 1: 1000
-    db_manager.add_asset("Asset 1", 1, 1000.0)
-    # Asset 2: 2000
-    db_manager.add_asset("Asset 2", 1, 2000.0)
+    # Setup data using transactions (income adds, expense subtracts)
 
-    # Total Patrimony
+    # 1. Income: +1000
+    db_manager.add_transaction("2023-01-01", "Salary", 1000.0, "income")
+
+    # 2. Expense: -200
+    db_manager.add_transaction("2023-01-02", "Groceries", 200.0, "expense")
+
+    # 3. Income: +500
+    db_manager.add_transaction("2023-01-03", "Bonus", 500.0, "income")
+
+    # Total Patrimony calculation: 1000 - 200 + 500 = 1300
     total = db_manager.get_total_patrimony()
-    assert total == 3000.0
-
-    # Patrimony by Category
-    by_cat = db_manager.get_patrimony_by_category()
-    # Find the category with id 1 (Cash usually)
-    cat_stat = next((c for c in by_cat if c["id"] == 1), None)
-    assert cat_stat is not None
-    assert cat_stat["total"] == 3000.0
+    assert total == 1300.0
 
 
 def test_categories_and_subcategories(db_manager):

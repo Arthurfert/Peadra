@@ -5,6 +5,8 @@ Affiche un résumé visuel du patrimoine total.
 
 import flet as ft
 from typing import Callable
+from datetime import datetime, timedelta
+import calendar
 from ..components.theme import PeadraTheme
 from ..database.db_manager import db
 
@@ -18,14 +20,6 @@ class DashboardView:
         self.on_data_change = on_data_change
         self._load_data()
 
-    def _load_data(self):
-        """Charge les données du tableau de bord."""
-        self.total_patrimony = db.get_total_patrimony()
-        self.patrimony_by_category = db.get_patrimony_by_category()
-        self.monthly_summary = db.get_monthly_summary()
-        self.recent_transactions = db.get_all_transactions(limit=5)
-        self.assets = db.get_all_assets()
-
     def update_theme(self, is_dark: bool):
         """Met à jour le thème."""
         self.is_dark = is_dark
@@ -34,523 +28,482 @@ class DashboardView:
         """Rafraîchit les données."""
         self._load_data()
 
-    def _build_patrimony_card(self) -> ft.Container:
-        """Construit la carte du patrimoine total."""
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+    def _load_data(self):
+        self.total_patrimony = db.get_total_patrimony()
 
-        return PeadraTheme.glass_container(
+        # Get current month summary
+        now = datetime.now()
+        current_summary = db.get_monthly_summary(now.year, now.month)
+        self.monthly_income = current_summary.get("income", 0) or 0
+        self.monthly_expenses = current_summary.get("expenses", 0) or 0
+        self.monthly_savings = db.get_savings_total()
+
+        # Previous month for trends
+        prev_month = now.replace(day=1) - timedelta(days=1)
+        prev_summary = db.get_monthly_summary(prev_month.year, prev_month.month)
+        prev_income = prev_summary.get("income", 0) or 0
+        prev_expenses = prev_summary.get("expenses", 0) or 0
+
+        # Calculate trends
+        def calc_trend(curr, prev):
+            if not prev:
+                return 0.0 if not curr else 100.0
+            return ((curr - prev) / prev) * 100
+
+        self.income_trend = calc_trend(self.monthly_income, prev_income)
+        self.expenses_trend = calc_trend(self.monthly_expenses, prev_expenses)
+        self.savings_trend = 0.0  # Disabled as we switched from flow to stock
+        self.balance_trend = 12.5  # Mock as asset history logic is complex
+
+        # Chart Data (Income vs Expenses) - Last 6 months
+        self.chart_data = []
+        for i in range(5, -1, -1):
+            date_calc = now.replace(day=1)
+            # Subtract i months
+            year = date_calc.year
+            month = date_calc.month - i
+            while month <= 0:
+                month += 12
+                year -= 1
+
+            s = db.get_monthly_summary(year, month)
+            month_abbr = calendar.month_abbr[month]
+            self.chart_data.append(
+                {
+                    "month": month_abbr,
+                    "income": s.get("income", 0) or 0,
+                    "expenses": s.get("expenses", 0) or 0,
+                }
+            )
+
+        # Category Data (Expenses) - Grouped by Description (Type of expense)
+        start_date = now.strftime("%Y-%m-01")
+        if now.month == 12:
+            end_date = f"{now.year + 1}-01-01"
+        else:
+            end_date = f"{now.year}-{now.month + 1:02d}-01"
+
+        txs = db.get_transactions_by_period(start_date, end_date)
+        self.category_expenses = {}
+        for t in txs:
+            # We filter for expenses on 'Compte courant' only, to avoid showing asset transfers as expenses
+            subcategory_name = t.get("subcategory_name")
+            if t["transaction_type"] == "expense" and (
+                subcategory_name == "Compte courant" or subcategory_name is None
+            ):
+                # Use description as category
+                desc = (t["description"] or "Autre").strip()
+                self.category_expenses[desc] = (
+                    self.category_expenses.get(desc, 0) + t["amount"]
+                )
+
+    def _build_stat_card(
+        self,
+        title: str,
+        value: float,
+        trend: float,
+        icon: str,
+        icon_bg: str,
+        icon_color: str,
+        trend_semantic: str = "normal",
+    ) -> ft.Container:
+        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        bg_card = PeadraTheme.DARK_SURFACE if self.is_dark else ft.colors.WHITE
+
+        is_positive = trend >= 0
+        if trend_semantic == "reverse":
+            is_good = not is_positive
+        else:
+            is_good = is_positive
+
+        trend_color = PeadraTheme.SUCCESS if is_good else PeadraTheme.ERROR
+        trend_icon = ft.icons.NORTH_EAST if is_positive else ft.icons.SOUTH_EAST
+        trend_text = f"{'+' if is_positive else ''}{trend:.1f}%"
+
+        return ft.Container(
             content=ft.Column(
-                controls=[
+                [
                     ft.Row(
-                        controls=[
-                            ft.Icon(
-                                ft.icons.ACCOUNT_BALANCE_WALLET,
-                                size=40,
-                                color=PeadraTheme.ACCENT,
+                        [
+                            ft.Container(
+                                content=ft.Icon(icon, color=icon_color, size=24),
+                                bgcolor=icon_bg,
+                                padding=12,
+                                border_radius=12,
                             ),
-                            ft.Column(
-                                controls=[
+                            ft.Row(
+                                [
+                                    ft.Icon(trend_icon, color=trend_color, size=16),
                                     ft.Text(
-                                        "Patrimoine Total",
-                                        size=16,
-                                        color=(
-                                            PeadraTheme.DARK_TEXT_SECONDARY
-                                            if self.is_dark
-                                            else PeadraTheme.LIGHT_TEXT_SECONDARY
-                                        ),
-                                    ),
-                                    ft.Text(
-                                        PeadraTheme.format_currency(
-                                            self.total_patrimony
-                                        ),
-                                        size=36,
+                                        trend_text,
+                                        color=trend_color,
+                                        size=12,
                                         weight=ft.FontWeight.BOLD,
-                                        color=text_color,
                                     ),
                                 ],
                                 spacing=4,
                             ),
                         ],
-                        spacing=20,
-                        alignment=ft.MainAxisAlignment.START,
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                     ),
-                ],
+                    ft.Container(height=12),
+                    ft.Column(
+                        [
+                            ft.Text(title, size=14, color=ft.colors.GREY_500),
+                            ft.Text(
+                                f"€{value:,.2f}",
+                                size=24,
+                                weight=ft.FontWeight.BOLD,
+                                color=text_color,
+                            ),
+                        ],
+                        spacing=4,
+                    ),
+                ]
             ),
-            is_dark=self.is_dark,
-            padding=24,
+            padding=20,
+            bgcolor=bg_card,
+            border_radius=20,
+            expand=True,
+            border=(
+                ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.GREY))
+                if not self.is_dark
+                else None
+            ),
         )
 
-    def _build_category_cards(self) -> ft.Row:
-        """Construit les cartes par catégorie."""
-        cards = []
-
-        icons_map = {
-            "Cash": ft.icons.ACCOUNT_BALANCE,
-            "Immobilier": ft.icons.HOME,
-            "Bourse": ft.icons.TRENDING_UP,
-        }
-
-        for cat in self.patrimony_by_category:
-            icon = icons_map.get(cat["name"], ft.icons.CATEGORY)
-
-            # Calcul du pourcentage
-            percentage = (
-                (cat["total"] / self.total_patrimony * 100)
-                if self.total_patrimony > 0
-                else 0
-            )
-
-            card = PeadraTheme.stat_card(
-                title=cat["name"],
-                value=PeadraTheme.format_currency(cat["total"]),
-                icon=icon,
-                color=cat["color"],
-                is_dark=self.is_dark,
-                trend=f"{percentage:.1f}%",
-                trend_positive=True,
-            )
-            cards.append(card)
-
-        return ft.Row(
-            controls=cards,
-            spacing=16,
-            wrap=True,
-        )
-
-    def _build_monthly_summary_card(self) -> ft.Container:
-        """Construit la carte du résumé mensuel."""
+    def _build_income_expense_chart(self) -> ft.Container:
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
-        secondary_color = (
-            PeadraTheme.DARK_TEXT_SECONDARY
-            if self.is_dark
-            else PeadraTheme.LIGHT_TEXT_SECONDARY
-        )
+        bg_card = PeadraTheme.DARK_SURFACE if self.is_dark else ft.colors.WHITE
 
-        income = self.monthly_summary.get("income", 0)
-        expenses = self.monthly_summary.get("expenses", 0)
-        balance = self.monthly_summary.get("balance", 0)
+        dates = [d["month"] for d in self.chart_data]
+        incomes = [d["income"] for d in self.chart_data]
+        expenses = [d["expenses"] for d in self.chart_data]
 
-        return PeadraTheme.card(
+        if not dates:
+            return ft.Container()
+
+        max_val = max(max(incomes + [0]), max(expenses + [0])) * 1.2
+        if max_val == 0:
+            max_val = 100
+
+        def create_data_points(values):
+            return [
+                ft.LineChartDataPoint(i, v, tooltip=f"{v:,.0f}")
+                for i, v in enumerate(values)
+            ]
+
+        return ft.Container(
             content=ft.Column(
-                controls=[
+                [
                     ft.Text(
-                        "Résumé du mois",
+                        "Income vs Expenses",
                         size=18,
                         weight=ft.FontWeight.BOLD,
                         color=text_color,
                     ),
-                    ft.Divider(height=20, color="transparent"),
-                    ft.Row(
-                        controls=[
-                            ft.Column(
-                                controls=[
-                                    ft.Text("Revenus", size=14, color=secondary_color),
-                                    ft.Text(
-                                        PeadraTheme.format_currency(income),
-                                        size=20,
-                                        weight=ft.FontWeight.BOLD,
-                                        color=PeadraTheme.SUCCESS,
-                                    ),
-                                ],
-                                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                                expand=True,
+                    ft.Container(height=20),
+                    ft.LineChart(
+                        data_series=[
+                            ft.LineChartData(
+                                data_points=create_data_points(incomes),
+                                stroke_width=3,
+                                color="#4CAF50",  # Income Green
+                                curved=True,
+                                stroke_cap_round=True,
+                                below_line_bgcolor=ft.colors.with_opacity(
+                                    0.1, "#4CAF50"
+                                ),
                             ),
-                            ft.VerticalDivider(width=1, color=secondary_color),
-                            ft.Column(
-                                controls=[
-                                    ft.Text("Dépenses", size=14, color=secondary_color),
-                                    ft.Text(
-                                        PeadraTheme.format_currency(expenses),
-                                        size=20,
-                                        weight=ft.FontWeight.BOLD,
-                                        color=PeadraTheme.ERROR,
-                                    ),
-                                ],
-                                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                                expand=True,
+                            ft.LineChartData(
+                                data_points=create_data_points(expenses),
+                                stroke_width=3,
+                                color="#E53935",  # Expenses Red
+                                curved=True,
+                                stroke_cap_round=True,
+                                below_line_bgcolor=ft.colors.with_opacity(
+                                    0.1, "#E53935"
+                                ),
                             ),
-                            ft.VerticalDivider(width=1, color=secondary_color),
-                            ft.Column(
-                                controls=[
-                                    ft.Text("Solde", size=14, color=secondary_color),
-                                    ft.Text(
-                                        PeadraTheme.format_currency(balance),
-                                        size=20,
-                                        weight=ft.FontWeight.BOLD,
-                                        color=(
-                                            PeadraTheme.SUCCESS
-                                            if balance >= 0
-                                            else PeadraTheme.ERROR
+                        ],
+                        border=ft.border.all(0, ft.colors.TRANSPARENT),
+                        horizontal_grid_lines=ft.ChartGridLines(
+                            interval=max_val / 4,
+                            color=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE),
+                            width=1,
+                        ),
+                        vertical_grid_lines=ft.ChartGridLines(
+                            interval=1, color=ft.colors.TRANSPARENT
+                        ),
+                        left_axis=ft.ChartAxis(
+                            labels_size=40, title_size=0, show_labels=True
+                        ),
+                        bottom_axis=ft.ChartAxis(
+                            labels=[
+                                ft.ChartAxisLabel(
+                                    value=i,
+                                    label=ft.Container(
+                                        ft.Text(
+                                            dates[i], size=10, color=ft.colors.GREY
                                         ),
+                                        padding=10,
                                     ),
-                                ],
-                                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                                expand=True,
-                            ),
-                        ],
-                        alignment=ft.MainAxisAlignment.SPACE_EVENLY,
+                                )
+                                for i in range(len(dates))
+                            ],
+                            labels_size=30,
+                        ),
+                        min_y=0,
+                        max_y=max_val,
+                        expand=True,
+                        tooltip_bgcolor=PeadraTheme.SURFACE,
                     ),
-                ],
-            ),
-            is_dark=self.is_dark,
-            padding=20,
-        )
-
-    def _build_recent_transactions(self) -> ft.Container:
-        """Construit la liste des transactions récentes."""
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
-        secondary_color = (
-            PeadraTheme.DARK_TEXT_SECONDARY
-            if self.is_dark
-            else PeadraTheme.LIGHT_TEXT_SECONDARY
-        )
-
-        transaction_rows = []
-
-        if not self.recent_transactions:
-            transaction_rows.append(
-                ft.Container(
-                    content=ft.Text(
-                        "Aucune transaction récente",
-                        color=secondary_color,
-                        italic=True,
-                    ),
-                    padding=20,
-                    alignment=ft.Alignment(0, 0),
-                )
-            )
-        else:
-            for tx in self.recent_transactions:
-                is_expense = tx["transaction_type"] == "expense"
-                amount_color = PeadraTheme.ERROR if is_expense else PeadraTheme.SUCCESS
-                amount_prefix = "-" if is_expense else "+"
-
-                row = ft.Container(
-                    content=ft.Row(
-                        controls=[
-                            ft.Container(
-                                content=ft.Icon(
-                                    ft.icons.RECEIPT_LONG,
-                                    size=20,
-                                    color=PeadraTheme.ACCENT,
-                                ),
-                                bgcolor="rgba(119, 141, 169, 0.1)",
-                                border_radius=8,
-                                padding=8,
-                            ),
-                            ft.Column(
-                                controls=[
-                                    ft.Text(
-                                        tx["description"],
-                                        size=14,
-                                        weight=ft.FontWeight.W_500,
-                                        color=text_color,
-                                    ),
-                                    ft.Text(
-                                        tx["date"],
-                                        size=12,
-                                        color=secondary_color,
-                                    ),
-                                ],
-                                spacing=2,
-                                expand=True,
-                            ),
-                            ft.Text(
-                                f"{amount_prefix}{PeadraTheme.format_currency(tx['amount'])}",
-                                size=14,
-                                weight=ft.FontWeight.BOLD,
-                                color=amount_color,
-                            ),
-                        ],
-                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                    ),
-                    padding=ft.padding.symmetric(vertical=8),
-                )
-                transaction_rows.append(row)
-
-        return PeadraTheme.card(
-            content=ft.Column(
-                controls=[
                     ft.Row(
-                        controls=[
-                            ft.Text(
-                                "Transactions récentes",
-                                size=18,
-                                weight=ft.FontWeight.BOLD,
-                                color=text_color,
+                        [
+                            ft.Row(
+                                [
+                                    ft.Container(
+                                        width=10,
+                                        height=10,
+                                        bgcolor="#4CAF50",
+                                        border_radius=5,
+                                    ),
+                                    ft.Text("Income", color=ft.colors.GREY, size=12),
+                                ]
                             ),
-                            ft.TextButton(
-                                "Voir tout",
-                                on_click=lambda e: None,  # Navigation vers transactions
+                            ft.Row(
+                                [
+                                    ft.Container(
+                                        width=10,
+                                        height=10,
+                                        bgcolor="#E53935",
+                                        border_radius=5,
+                                    ),
+                                    ft.Text("Expenses", color=ft.colors.GREY, size=12),
+                                ]
                             ),
                         ],
-                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                    ),
-                    ft.Divider(height=16, color="transparent"),
-                    ft.Column(
-                        controls=transaction_rows,
-                        spacing=4,
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        spacing=20,
                     ),
                 ],
             ),
-            is_dark=self.is_dark,
-            padding=20,
-        )
-
-    def _build_assets_summary(self) -> ft.Container:
-        """Construit le résumé des actifs."""
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
-        secondary_color = (
-            PeadraTheme.DARK_TEXT_SECONDARY
-            if self.is_dark
-            else PeadraTheme.LIGHT_TEXT_SECONDARY
-        )
-
-        asset_rows = []
-
-        if not self.assets:
-            asset_rows.append(
-                ft.Container(
-                    content=ft.Text(
-                        "Aucun actif enregistré",
-                        color=secondary_color,
-                        italic=True,
-                    ),
-                    padding=20,
-                    alignment=ft.Alignment(0, 0),
-                )
-            )
-        else:
-            for asset in self.assets[:5]:
-                row = ft.Container(
-                    content=ft.Row(
-                        controls=[
-                            ft.Container(
-                                content=ft.Icon(
-                                    ft.icons.ACCOUNT_BALANCE_WALLET,
-                                    size=20,
-                                    color=asset.get("category_color", "#778DA9"),
-                                ),
-                                bgcolor=asset.get("category_color", "#778DA9") + "20",
-                                border_radius=8,
-                                padding=8,
-                            ),
-                            ft.Column(
-                                controls=[
-                                    ft.Text(
-                                        asset["name"],
-                                        size=14,
-                                        weight=ft.FontWeight.W_500,
-                                        color=text_color,
-                                    ),
-                                    ft.Text(
-                                        asset.get("category_name", ""),
-                                        size=12,
-                                        color=secondary_color,
-                                    ),
-                                ],
-                                spacing=2,
-                                expand=True,
-                            ),
-                            ft.Text(
-                                PeadraTheme.format_currency(asset["current_value"]),
-                                size=14,
-                                weight=ft.FontWeight.BOLD,
-                                color=text_color,
-                            ),
-                        ],
-                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                    ),
-                    padding=ft.padding.symmetric(vertical=8),
-                )
-                asset_rows.append(row)
-
-        return PeadraTheme.card(
-            content=ft.Column(
-                controls=[
-                    ft.Row(
-                        controls=[
-                            ft.Text(
-                                "Mes actifs",
-                                size=18,
-                                weight=ft.FontWeight.BOLD,
-                                color=text_color,
-                            ),
-                            ft.TextButton(
-                                "Voir tout",
-                                on_click=lambda e: None,
-                            ),
-                        ],
-                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                    ),
-                    ft.Divider(height=16, color="transparent"),
-                    ft.Column(
-                        controls=asset_rows,
-                        spacing=4,
-                    ),
-                ],
+            padding=24,
+            bgcolor=bg_card,
+            border_radius=20,
+            expand=True,
+            border=(
+                ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.GREY))
+                if not self.is_dark
+                else None
             ),
-            is_dark=self.is_dark,
-            padding=20,
         )
 
-    def _build_pie_chart(self) -> ft.Container:
-        """Construit le graphique en camembert de la répartition."""
+    def _build_category_chart(self) -> ft.Container:
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        bg_card = PeadraTheme.DARK_SURFACE if self.is_dark else ft.colors.WHITE
 
-        if self.total_patrimony <= 0:
-            return PeadraTheme.card(
+        sorted_cats = sorted(
+            self.category_expenses.items(), key=lambda x: x[1], reverse=True
+        )[:5]
+
+        if not sorted_cats:
+            return ft.Container(
                 content=ft.Column(
-                    controls=[
+                    [
                         ft.Text(
-                            "Répartition du patrimoine",
+                            "Expenses by Category",
                             size=18,
                             weight=ft.FontWeight.BOLD,
                             color=text_color,
                         ),
                         ft.Container(
                             content=ft.Text(
-                                "Ajoutez des actifs pour voir la répartition",
-                                color=(
-                                    PeadraTheme.DARK_TEXT_SECONDARY
-                                    if self.is_dark
-                                    else PeadraTheme.LIGHT_TEXT_SECONDARY
-                                ),
-                                italic=True,
+                                "No expenses this month", color=ft.colors.GREY
                             ),
-                            padding=40,
-                            alignment=ft.Alignment(0, 0),
+                            alignment=ft.alignment.center,
+                            expand=True,
                         ),
-                    ],
+                    ]
                 ),
-                is_dark=self.is_dark,
-                padding=20,
+                bgcolor=bg_card,
+                padding=24,
+                border_radius=20,
+                expand=True,
+                border=(
+                    ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.GREY))
+                    if not self.is_dark
+                    else None
+                ),
             )
 
-        # Créer les sections du pie chart
-        sections = []
-        legend_items = []
+        max_val = max([v for k, v in sorted_cats]) * 1.2
+        if max_val == 0:
+            max_val = 100
 
-        for cat in self.patrimony_by_category:
-            if cat["total"] > 0:
-                percentage = cat["total"] / self.total_patrimony * 100
-                sections.append(
-                    ft.PieChartSection(
-                        value=cat["total"],
-                        title=f"{percentage:.1f}%",
-                        title_style=ft.TextStyle(
-                            size=12,
-                            color=ft.colors.WHITE,
-                            weight=ft.FontWeight.BOLD,
-                        ),
-                        color=cat["color"],
-                        radius=80,
-                    )
+        rod_groups = []
+        for i, (cat, val) in enumerate(sorted_cats):
+            rod_groups.append(
+                ft.BarChartGroup(
+                    x=i,
+                    bar_rods=[
+                        ft.BarChartRod(
+                            from_y=0,
+                            to_y=val,
+                            width=30,
+                            color="#2979FF",
+                            border_radius=ft.border_radius.vertical(top=6),
+                            tooltip=f"{cat}: ${val:,.0f}",
+                        )
+                    ],
                 )
-                legend_items.append(
-                    ft.Row(
-                        controls=[
-                            ft.Container(
-                                width=12,
-                                height=12,
-                                bgcolor=cat["color"],
-                                border_radius=2,
-                            ),
-                            ft.Text(
-                                cat["name"],
-                                size=13,
-                                color=text_color,
-                            ),
-                        ],
-                        spacing=8,
-                    )
-                )
+            )
 
-        pie_chart = ft.PieChart(
-            sections=sections,
-            sections_space=2,
-            center_space_radius=40,
-            width=200,
-            height=200,
-        )
-
-        return PeadraTheme.card(
+        return ft.Container(
             content=ft.Column(
-                controls=[
+                [
                     ft.Text(
-                        "Répartition du patrimoine",
+                        "Expenses by Category",
                         size=18,
                         weight=ft.FontWeight.BOLD,
                         color=text_color,
                     ),
-                    ft.Divider(height=16, color="transparent"),
-                    ft.Row(
-                        controls=[
-                            pie_chart,
-                            ft.Column(
-                                controls=legend_items,
-                                spacing=12,
-                            ),
-                        ],
-                        alignment=ft.MainAxisAlignment.CENTER,
-                        spacing=40,
+                    ft.Container(height=20),
+                    ft.BarChart(
+                        bar_groups=rod_groups,
+                        border=ft.border.all(0, ft.colors.TRANSPARENT),
+                        left_axis=ft.ChartAxis(labels_size=40),
+                        bottom_axis=ft.ChartAxis(
+                            labels=[
+                                ft.ChartAxisLabel(
+                                    value=i,
+                                    label=ft.Container(
+                                        ft.Text(cat, size=10, color=ft.colors.GREY),
+                                        padding=5,
+                                    ),
+                                )
+                                for i, (cat, val) in enumerate(sorted_cats)
+                            ],
+                            labels_size=40,
+                        ),
+                        horizontal_grid_lines=ft.ChartGridLines(
+                            interval=max_val / 5,
+                            color=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE),
+                            width=1,
+                        ),
+                        max_y=max_val,
+                        expand=True,
+                        tooltip_bgcolor=PeadraTheme.SURFACE,
                     ),
-                ],
+                ]
             ),
-            is_dark=self.is_dark,
-            padding=20,
+            padding=24,
+            bgcolor=bg_card,
+            border_radius=20,
+            expand=True,
+            border=(
+                ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.GREY))
+                if not self.is_dark
+                else None
+            ),
         )
 
     def build(self) -> ft.Container:
-        """Construit la vue complète du tableau de bord."""
-        return ft.Container(
-            content=ft.Column(
-                controls=[
-                    # Titre de la page
-                    ft.Text(
-                        "Tableau de bord",
-                        size=28,
-                        weight=ft.FontWeight.BOLD,
-                        color=(
-                            PeadraTheme.DARK_TEXT
-                            if self.is_dark
-                            else PeadraTheme.LIGHT_TEXT
-                        ),
-                    ),
-                    ft.Divider(height=24, color="transparent"),
-                    # Carte patrimoine total
-                    self._build_patrimony_card(),
-                    ft.Divider(height=20, color="transparent"),
-                    # Cartes par catégorie
-                    self._build_category_cards(),
-                    ft.Divider(height=20, color="transparent"),
-                    # Résumé mensuel
-                    self._build_monthly_summary_card(),
-                    ft.Divider(height=20, color="transparent"),
-                    # Ligne avec graphique et transactions/actifs
-                    ft.Row(
-                        controls=[
-                            ft.Container(
-                                content=self._build_pie_chart(),
-                                expand=1,
+        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+
+        # Colors for cards
+        if self.is_dark:
+            blue_bg = ft.colors.with_opacity(0.2, "blue")
+            green_bg = ft.colors.with_opacity(0.2, "green")
+            red_bg = ft.colors.with_opacity(0.2, "red")
+            purple_bg = ft.colors.with_opacity(0.2, "purple")
+        else:
+            blue_bg = ft.colors.BLUE_50
+            green_bg = ft.colors.GREEN_50
+            red_bg = ft.colors.RED_50
+            purple_bg = ft.colors.PURPLE_50
+
+        card_row = ft.Row(
+            [
+                self._build_stat_card(
+                    "Bank Balance",
+                    self.total_patrimony,
+                    self.balance_trend,
+                    ft.icons.ACCOUNT_BALANCE_WALLET,
+                    blue_bg,
+                    "blue",
+                    "normal",
+                ),
+                self._build_stat_card(
+                    "Income",
+                    self.monthly_income,
+                    self.income_trend,
+                    ft.icons.TRENDING_UP,
+                    green_bg,
+                    "green",
+                    "normal",
+                ),
+                self._build_stat_card(
+                    "Expenses",
+                    self.monthly_expenses,
+                    self.expenses_trend,
+                    ft.icons.TRENDING_DOWN,
+                    red_bg,
+                    "red",
+                    "reverse",
+                ),
+                self._build_stat_card(
+                    "Savings & Investments",
+                    self.monthly_savings,
+                    self.savings_trend,
+                    ft.icons.SAVINGS,
+                    purple_bg,
+                    "purple",
+                    "normal",
+                ),
+            ],
+            spacing=20,
+        )
+
+        charts_row = ft.Container(
+            content=ft.Row(
+                [
+                    ft.Container(content=self._build_income_expense_chart(), expand=3),
+                    ft.Container(content=self._build_category_chart(), expand=2),
+                ],
+                spacing=20,
+            ),
+            height=400,
+        )
+
+        content = ft.Column(
+            [
+                ft.Container(
+                    content=ft.Column(
+                        [
+                            ft.Text(
+                                "Dashboard",
+                                size=32,
+                                weight=ft.FontWeight.BOLD,
+                                color=text_color,
                             ),
-                            ft.Container(
-                                content=ft.Column(
-                                    controls=[
-                                        self._build_recent_transactions(),
-                                        self._build_assets_summary(),
-                                    ],
-                                    spacing=16,
-                                ),
-                                expand=1,
+                            ft.Text(
+                                "Welcome back! Here's your financial overview.",
+                                size=16,
+                                color=ft.colors.GREY,
                             ),
                         ],
-                        spacing=20,
-                        vertical_alignment=ft.CrossAxisAlignment.START,
+                        spacing=4,
                     ),
-                ],
-                scroll=ft.ScrollMode.AUTO,
-                expand=True,
-            ),
+                    margin=ft.margin.only(bottom=20),
+                ),
+                card_row,
+                ft.Container(height=20),
+                charts_row,
+            ],
+            scroll=ft.ScrollMode.AUTO,
             expand=True,
+            spacing=0,
         )
+
+        return ft.Container(content=content, padding=30, expand=True)

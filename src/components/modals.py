@@ -18,12 +18,14 @@ class TransactionModal:
         subcategories: List[Dict[str, Any]],
         on_save: Callable,
         is_dark: bool = True,
+        filter_type: Optional[str] = None # 'bank' or 'asset'
     ):
         self.page = page
         self.categories = categories
         self.subcategories = subcategories
         self.on_save = on_save
         self.is_dark = is_dark
+        self.filter_type = filter_type
         self.dialog = None
         self._build_controls()
 
@@ -44,8 +46,8 @@ class TransactionModal:
 
         # Description
         self.description_field = ft.TextField(
-            label="Description",
-            hint_text="Ex: Salaire, Loyer, Courses...",
+            label="Description (Type de dépense)",
+            hint_text="Ex: Courses, Bar, Loyer...",
             width=350,
             autofocus=True,
         )
@@ -64,7 +66,7 @@ class TransactionModal:
 
         # Type de transaction
         self.type_dropdown = ft.Dropdown(
-            label="Type",
+            label="Sens",
             width=150,
             value="expense",
             options=[
@@ -74,23 +76,24 @@ class TransactionModal:
             ],
         )
 
-        # Catégorie
-        category_options = [
-            ft.dropdown.Option(str(cat["id"]), cat["name"]) for cat in self.categories
-        ]
-        self.category_dropdown = ft.Dropdown(
-            label="Catégorie",
-            width=200,
-            options=category_options,
-            on_change=self._on_category_change,
-        )
+        # Sous-catégorie (Compte / Actif)
+        filtered_subcats = []
+        if self.filter_type == 'bank':
+             filtered_subcats = [s for s in self.subcategories if s.get('category_name') == 'Cash']
+        elif self.filter_type == 'asset':
+             filtered_subcats = [s for s in self.subcategories if s.get('category_name') in ['Bourse', 'Immobilier']]
+        else:
+             filtered_subcats = self.subcategories
 
-        # Sous-catégorie
+        filtered_subcats.sort(key=lambda x: x['name'])
+
         self.subcategory_dropdown = ft.Dropdown(
-            label="Sous-catégorie",
-            width=200,
-            options=[],
+            label="Compte / Actif",
+            width=350,
+            options=[ft.dropdown.Option(str(sub["id"]), sub["name"]) for sub in filtered_subcats],
         )
+        if filtered_subcats:
+            self.subcategory_dropdown.value = str(filtered_subcats[0]["id"])
 
         # Notes
         self.notes_field = ft.TextField(
@@ -118,26 +121,6 @@ class TransactionModal:
         if e.control.value:
             self.date_picker.value = e.control.value.strftime("%Y-%m-%d")
             self.page.update()
-
-    def _on_category_change(self, e):
-        """Met à jour les sous-catégories lors du changement de catégorie."""
-        category_id = int(e.control.value) if e.control.value else None
-
-        if category_id:
-            filtered_subcategories = [
-                sub
-                for sub in self.subcategories
-                if sub.get("category_id") == category_id
-            ]
-            self.subcategory_dropdown.options = [
-                ft.dropdown.Option(str(sub["id"]), sub["name"])
-                for sub in filtered_subcategories
-            ]
-        else:
-            self.subcategory_dropdown.options = []
-
-        self.subcategory_dropdown.value = None
-        self.page.update()
 
     def _validate_form(self) -> bool:
         """Valide le formulaire."""
@@ -180,11 +163,7 @@ class TransactionModal:
             "description": description.strip(),
             "amount": float(amount_str),
             "transaction_type": self.type_dropdown.value,
-            "category_id": (
-                int(self.category_dropdown.value)
-                if self.category_dropdown.value
-                else None
-            ),
+            "category_id": None, 
             "subcategory_id": (
                 int(self.subcategory_dropdown.value)
                 if self.subcategory_dropdown.value
@@ -204,40 +183,18 @@ class TransactionModal:
 
     def show(self, transaction_data: Optional[Dict[str, Any]] = None):
         """Affiche le modal."""
-        # Réinitialiser les champs
         self._build_controls()
-
-        # Pré-remplir si édition
+        
         if transaction_data:
-            self.date_picker.value = transaction_data.get(
-                "date", datetime.now().strftime("%Y-%m-%d")
-            )
+            self.date_picker.value = transaction_data.get("date", datetime.now().strftime("%Y-%m-%d"))
             self.description_field.value = transaction_data.get("description", "")
             self.amount_field.value = str(transaction_data.get("amount", ""))
-            self.type_dropdown.value = transaction_data.get(
-                "transaction_type", "expense"
-            )
-            if transaction_data.get("category_id"):
-                self.category_dropdown.value = str(transaction_data["category_id"])
-                # Mettre à jour les sous-catégories
-                filtered_subcategories = [
-                    sub
-                    for sub in self.subcategories
-                    if sub.get("category_id") == transaction_data["category_id"]
-                ]
-                self.subcategory_dropdown.options = [
-                    ft.dropdown.Option(str(sub["id"]), sub["name"])
-                    for sub in filtered_subcategories
-                ]
-                if transaction_data.get("subcategory_id"):
-                    self.subcategory_dropdown.value = str(
-                        transaction_data["subcategory_id"]
-                    )
+            self.type_dropdown.value = transaction_data.get("transaction_type", "expense")
+            if transaction_data.get("subcategory_id"):
+                self.subcategory_dropdown.value = str(transaction_data["subcategory_id"])
             self.notes_field.value = transaction_data.get("notes", "")
 
-        title = (
-            "Modifier la transaction" if transaction_data else "Nouvelle transaction"
-        )
+        title = "Modifier" if transaction_data else "Nouveau mouvement"
 
         self.dialog = ft.AlertDialog(
             modal=True,
@@ -245,22 +202,16 @@ class TransactionModal:
             content=ft.Container(
                 content=ft.Column(
                     controls=[
-                        ft.Row(
-                            controls=[self.date_picker, self.type_dropdown],
-                            spacing=16,
-                        ),
+                        self.date_picker,
+                        self.type_dropdown,
                         self.description_field,
-                        ft.Row(
-                            controls=[self.amount_field, self.category_dropdown],
-                            spacing=16,
-                        ),
-                        self.subcategory_dropdown,
+                        ft.Row([self.amount_field, self.subcategory_dropdown], spacing=16),
                         self.notes_field,
                     ],
                     spacing=16,
                     tight=True,
                 ),
-                width=400,
+                width=500,
                 padding=ft.padding.only(top=10),
             ),
             actions=[

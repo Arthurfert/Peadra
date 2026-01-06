@@ -75,7 +75,7 @@ class DashboardView:
                 "expenses": s.get("expenses", 0) or 0
             })
 
-        # Category Data (Expenses) - Current Month
+        # Category Data (Expenses) - Grouped by Description (Type of expense)
         start_date = now.strftime("%Y-%m-01")
         if now.month == 12:
             end_date = f"{now.year + 1}-01-01"
@@ -86,8 +86,10 @@ class DashboardView:
         self.category_expenses = {}
         for t in txs:
             if t["transaction_type"] == "expense":
-                cat = t["category_name"] or "Autre"
-                self.category_expenses[cat] = self.category_expenses.get(cat, 0) + t["amount"]
+                # Use description as category (grouped by uppercased description to merge slightly different inputs if needed, 
+                # strictly asked to be "Champ libre")
+                desc = (t["description"] or "Autre").strip()
+                self.category_expenses[desc] = self.category_expenses.get(desc, 0) + t["amount"]
 
     def _build_stat_card(
         self, 

@@ -109,6 +109,7 @@ class TransactionsView:
             subcategories=self.subcategories,
             on_save=self._save_transaction,
             is_dark=self.is_dark,
+            filter_type=type_
         )
         modal.show()
 
@@ -225,7 +226,7 @@ class TransactionsView:
             if self.is_dark:
                  icon_bg = ft.colors.with_opacity(0.1, icon_color)
 
-            cat_name = t['category_name'] or "General"
+            cat_name = t['subcategory_name'] or ""
             cat_bg = self._get_category_color(cat_name)
             cat_text_col = self._get_category_text_color(cat_name)
             

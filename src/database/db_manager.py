@@ -156,11 +156,27 @@ class DatabaseManager:
             if row:
                 category_id = row[0]
                 for sub_name, sub_icon in default_subcategories.get(name, []):
+                    # Check if exists first to avoid duplicates (schema has no unique constraint)
                     cursor.execute(
-                        "INSERT OR IGNORE INTO subcategories (name, category_id, icon) VALUES (?, ?, ?)",
-                        (sub_name, category_id, sub_icon),
+                        "SELECT 1 FROM subcategories WHERE name = ? AND category_id = ?",
+                        (sub_name, category_id),
                     )
+                    if not cursor.fetchone():
+                        cursor.execute(
+                            "INSERT INTO subcategories (name, category_id, icon) VALUES (?, ?, ?)",
+                            (sub_name, category_id, sub_icon),
+                        )
 
+        # Cleanup potential duplicates from previous versions
+        cursor.execute("""
+            DELETE FROM subcategories 
+            WHERE rowid NOT IN (
+                SELECT min(rowid) 
+                FROM subcategories 
+                GROUP BY name, category_id
+            )
+        """)
+        
         conn.commit()
 
     # ==================== CATÉGORIES ====================

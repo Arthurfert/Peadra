@@ -307,127 +307,22 @@ class DatabaseManager:
         )
         return [dict(row) for row in cursor.fetchall()]
 
-    # ==================== ACTIFS ====================
-
-    def add_asset(
-        self,
-        name: str,
-        category_id: int,
-        current_value: float,
-        purchase_value: Optional[float] = None,
-        purchase_date: Optional[str] = None,
-        notes: Optional[str] = None,
-    ) -> int:
-        """Ajoute un nouvel actif."""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            INSERT INTO assets (name, category_id, current_value, purchase_value,
-                               purchase_date, notes)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """,
-            (name, category_id, current_value, purchase_value, purchase_date, notes),
-        )
-
-        asset_id = cursor.lastrowid or 0
-
-        # Enregistrer la valeur initiale dans l'historique
-        cursor.execute(
-            """
-            INSERT INTO asset_history (asset_id, value, recorded_at)
-            VALUES (?, ?, ?)
-        """,
-            (asset_id, current_value, datetime.now().date().isoformat()),
-        )
-
-        conn.commit()
-        return asset_id
-
-    def update_asset_value(self, asset_id: int, new_value: float) -> bool:
-        """Met à jour la valeur d'un actif et enregistre dans l'historique."""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-
-        cursor.execute(
-            """
-            UPDATE assets SET current_value = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        """,
-            (new_value, asset_id),
-        )
-
-        cursor.execute(
-            """
-            INSERT INTO asset_history (asset_id, value, recorded_at)
-            VALUES (?, ?, ?)
-        """,
-            (asset_id, new_value, datetime.now().date().isoformat()),
-        )
-
-        conn.commit()
-        return cursor.rowcount > 0
-
-    def delete_asset(self, asset_id: int) -> bool:
-        """Supprime un actif."""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM assets WHERE id = ?", (asset_id,))
-        conn.commit()
-        return cursor.rowcount > 0
-
-    def get_all_assets(self) -> List[Dict[str, Any]]:
-        """Récupère tous les actifs."""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT a.*, c.name as category_name, c.icon as category_icon, c.color as category_color
-            FROM assets a
-            JOIN categories c ON a.category_id = c.id
-            ORDER BY c.name, a.name
-        """
-        )
-        return [dict(row) for row in cursor.fetchall()]
-
-    def get_asset_history(self, asset_id: int) -> List[Dict[str, Any]]:
-        """Récupère l'historique de valeur d'un actif."""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT * FROM asset_history
-            WHERE asset_id = ?
-            ORDER BY recorded_at ASC
-        """,
-            (asset_id,),
-        )
-        return [dict(row) for row in cursor.fetchall()]
-
     # ==================== STATISTIQUES ====================
 
     def get_total_patrimony(self) -> float:
-        """Calcule le patrimoine total."""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT COALESCE(SUM(current_value), 0) FROM assets")
-        return cursor.fetchone()[0]
-
-    def get_patrimony_by_category(self) -> List[Dict[str, Any]]:
-        """Récupère le patrimoine groupé par catégorie."""
+        """Calcule le patrimoine total (somme des transactions)."""
         conn = self._get_connection()
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT c.id, c.name, c.icon, c.color,
-                   COALESCE(SUM(a.current_value), 0) as total
-            FROM categories c
-            LEFT JOIN assets a ON c.id = a.category_id
-            GROUP BY c.id, c.name, c.icon, c.color
-            ORDER BY total DESC
+            SELECT 
+                COALESCE(SUM(CASE WHEN transaction_type = 'income' THEN amount 
+                                  WHEN transaction_type = 'expense' THEN -amount 
+                                  ELSE 0 END), 0)
+            FROM transactions
         """
         )
-        return [dict(row) for row in cursor.fetchall()]
+        return cursor.fetchone()[0]
 
     def get_monthly_summary(
         self, year: Optional[int] = None, month: Optional[int] = None
@@ -461,29 +356,6 @@ class DatabaseManager:
         row = cursor.fetchone()
         return {"income": row[0], "expenses": row[1], "balance": row[0] - row[1]}
 
-    def get_patrimony_evolution(self, months: int = 12) -> List[Dict[str, Any]]:
-        """Récupère l'évolution du patrimoine sur les derniers mois."""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT 
-                strftime('%Y-%m', recorded_at) as month,
-                SUM(value) as total_value
-            FROM asset_history ah
-            INNER JOIN (
-                SELECT asset_id, MAX(recorded_at) as max_date
-                FROM asset_history
-                WHERE recorded_at >= date('now', ? || ' months')
-                GROUP BY asset_id, strftime('%Y-%m', recorded_at)
-            ) latest ON ah.asset_id = latest.asset_id AND ah.recorded_at = latest.max_date
-            GROUP BY strftime('%Y-%m', recorded_at)
-            ORDER BY month ASC
-        """,
-            (f"-{months}",),
-        )
-        return [dict(row) for row in cursor.fetchall()]
-
     # ==================== EXPORT ====================
 
     def export_to_json(self, filepath: str) -> bool:
@@ -493,7 +365,6 @@ class DatabaseManager:
                 "categories": self.get_all_categories(),
                 "subcategories": self.get_all_subcategories(),
                 "transactions": self.get_all_transactions(),
-                "assets": self.get_all_assets(),
                 "exported_at": datetime.now().isoformat(),
             }
 
@@ -509,8 +380,6 @@ class DatabaseManager:
         try:
             if data_type == "transactions":
                 data = self.get_all_transactions()
-            elif data_type == "assets":
-                data = self.get_all_assets()
             else:
                 return False
 

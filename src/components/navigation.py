@@ -113,8 +113,6 @@ class NavigationRailComponent:
                         [
                             nav_item(ft.icons.GRID_VIEW, ft.icons.GRID_VIEW_ROUNDED, "Dashboard", 0),
                             nav_item(ft.icons.RECEIPT_LONG_OUTLINED, ft.icons.RECEIPT_LONG, "Transactions", 1),
-                            nav_item(ft.icons.ANALYTICS_OUTLINED, ft.icons.ANALYTICS, "Analyses", 2),
-                            nav_item(ft.icons.ACCOUNT_BALANCE_WALLET_OUTLINED, ft.icons.ACCOUNT_BALANCE_WALLET, "Actifs", 3),
                         ],
                         spacing=8
                     ),

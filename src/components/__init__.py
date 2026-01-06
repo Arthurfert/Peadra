@@ -2,11 +2,10 @@
 
 from .theme import PeadraTheme
 from .navigation import NavigationRailComponent
-from .modals import TransactionModal, AssetModal
+from .modals import TransactionModal
 
 __all__ = [
     "PeadraTheme",
     "NavigationRailComponent",
     "TransactionModal",
-    "AssetModal",
 ]

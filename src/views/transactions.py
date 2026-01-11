@@ -226,10 +226,24 @@ class TransactionsView:
         self.page.update()
 
     def _save_transaction(self, data: dict):
-        """Enregistre la transaction."""
+        """Enregistre ou met à jour la transaction."""
         
-        if data["transaction_type"] == "transfer":
-            # Creates two transactions: one expense from source, one income to dest
+        if data.get("id"):
+            # Mise à jour
+            db.update_transaction(
+                data["id"],
+                date=data["date"],
+                description=data["description"],
+                amount=data["amount"],
+                transaction_type=data["transaction_type"],
+                category_id=data.get("category_id"),
+                subcategory_id=data.get("subcategory_id"),
+                notes=data.get("notes"),
+            )
+            msg = "Transaction modifiée"
+
+        elif data["transaction_type"] == "transfer":
+            # Création - Transfert (2 transactions)
             
             # 1. Expense from source
             db.add_transaction(
@@ -256,7 +270,7 @@ class TransactionsView:
             msg = "Virement effectué avec succès"
             
         else:
-            # Standard transaction
+            # Création - Standard
             db.add_transaction(
                 date=data["date"],
                 description=data["description"],
@@ -271,6 +285,45 @@ class TransactionsView:
         self.page.snack_bar = ft.SnackBar(ft.Text(msg))
         self.page.snack_bar.open = True
         self.on_data_change()
+
+    def _edit_transaction(self, transaction):
+        """Ouvre le modal d'édition."""
+        modal = TransactionModal(
+            page=self.page,
+            categories=self.categories,
+            subcategories=self.subcategories,
+            on_save=self._save_transaction,
+            is_dark=self.is_dark,
+            transaction_type=transaction["transaction_type"],
+        )
+        modal.show(transaction)
+
+    def _confirm_delete(self, transaction_id):
+        """Demande confirmation avant suppression."""
+        def close_dlg(e):
+            if isinstance(self.page.dialog, ft.AlertDialog):
+                self.page.dialog.open = False
+                self.page.update()
+
+        def delete(e):
+            db.delete_transaction(transaction_id)
+            close_dlg(e)
+            self.on_data_change()
+            self.page.snack_bar = ft.SnackBar(ft.Text("Transaction supprimée"))
+            self.page.snack_bar.open = True
+
+        dlg = ft.AlertDialog(
+            title=ft.Text("Confirmer la suppression"),
+            content=ft.Text("Voulez-vous vraiment supprimer cette transaction ?"),
+            actions=[
+                ft.TextButton("Annuler", on_click=close_dlg),
+                ft.TextButton("Supprimer", on_click=delete, style=ft.ButtonStyle(color=ft.colors.RED)),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        self.page.dialog = dlg
+        dlg.open = True
+        self.page.update()
 
     def _generate_rows(self):
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
@@ -348,6 +401,27 @@ class TransactionsView:
                                 text_align=ft.TextAlign.RIGHT,
                             ),
                             expand=1,
+                            alignment=ft.alignment.center_right,
+                        ),
+                        # Actions
+                        ft.Container(
+                            ft.PopupMenuButton(
+                                icon=ft.icons.MORE_VERT,
+                                items=[
+                                    ft.PopupMenuItem(
+                                        text="Modify", 
+                                        icon=ft.icons.EDIT, 
+                                        on_click=lambda e, t=t: self._edit_transaction(t)
+                                    ),
+                                    ft.PopupMenuItem(
+                                        text="Delete", 
+                                        icon=ft.icons.DELETE, 
+                                        on_click=lambda e, id=t["id"]: self._confirm_delete(id)
+                                    ),
+                                ],
+                                tooltip="Actions",
+                            ),
+                            width=50,
                             alignment=ft.alignment.center_right,
                         ),
                     ]
@@ -500,6 +574,7 @@ class TransactionsView:
                         ),
                         expand=1,
                     ),
+                    ft.Container(width=50), # Spacer for actions column
                 ],
             ),
             padding=ft.padding.symmetric(horizontal=16, vertical=12),

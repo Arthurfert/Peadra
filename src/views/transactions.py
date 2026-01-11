@@ -57,18 +57,22 @@ class TransactionsView:
     def _open_type_selector(self, e):
         """Ouvre le dialogue de sélection du type de transaction."""
 
-        # Colors based on theme for better readability
+        # Theme colors
         if self.is_dark:
-            bank_bg = ft.colors.with_opacity(0.15, ft.colors.BLUE)
-            asset_bg = ft.colors.with_opacity(0.15, ft.colors.ORANGE)
-            bank_icon_col = ft.colors.BLUE_200
-            asset_icon_col = ft.colors.ORANGE_200
+            expense_bg = ft.colors.with_opacity(0.15, ft.colors.RED)
+            income_bg = ft.colors.with_opacity(0.15, ft.colors.GREEN)
+            transfer_bg = ft.colors.with_opacity(0.15, ft.colors.BLUE)
+            expense_icon_col = ft.colors.RED_200
+            income_icon_col = ft.colors.GREEN_200
+            transfer_icon_col = ft.colors.BLUE_200
             text_col = ft.colors.WHITE
         else:
-            bank_bg = ft.colors.BLUE_50
-            asset_bg = ft.colors.ORANGE_50
-            bank_icon_col = ft.colors.BLUE_700
-            asset_icon_col = ft.colors.ORANGE_700
+            expense_bg = ft.colors.RED_50
+            income_bg = ft.colors.GREEN_50
+            transfer_bg = ft.colors.BLUE_50
+            expense_icon_col = ft.colors.RED_700
+            income_icon_col = ft.colors.GREEN_700
+            transfer_icon_col = ft.colors.BLUE_700
             text_col = ft.colors.BLACK
 
         def close_dlg(e):
@@ -76,66 +80,68 @@ class TransactionsView:
                 self.page.dialog.open = False
                 self.page.update()
 
-        def select_bank(e):
+        def select_expense(e):
             close_dlg(e)
-            self._open_transaction_modal("bank")
+            self._open_transaction_modal("expense")
+        
+        def select_income(e):
+            close_dlg(e)
+            self._open_transaction_modal("income")
 
-        def select_asset(e):
+        def select_transfer(e):
             close_dlg(e)
-            self._open_transaction_modal("asset")
+            self._open_transaction_modal("transfer")
+
+        def create_option_card(icon, label, color, bg_color, on_click):
+            return ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Icon(icon, size=30, color=color),
+                        ft.Text(label, weight=ft.FontWeight.BOLD, color=text_col),
+                    ],
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                ),
+                padding=20,
+                bgcolor=bg_color,
+                border_radius=10,
+                on_click=on_click,
+                expand=True,
+            )
 
         dlg = ft.AlertDialog(
-            title=ft.Text("New transaction"),
-            content=ft.Column(
-                [
-                    ft.Text("What type of transaction would you like to add?"),
-                    ft.Container(height=20),
-                    ft.Row(
-                        [
-                            ft.Container(
-                                content=ft.Column(
-                                    [
-                                        ft.Icon(
-                                            ft.icons.ACCOUNT_BALANCE,
-                                            size=30,
-                                            color=bank_icon_col,
-                                        ),
-                                        ft.Text("Bank", weight=ft.FontWeight.BOLD, color=text_col),
-                                    ],
-                                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                                ),
-                                padding=20,
-                                bgcolor=bank_bg,
-                                border_radius=10,
-                                on_click=select_bank,
-                                expand=True,
-                            ),
-                            ft.Container(
-                                content=ft.Column(
-                                    [
-                                        ft.Icon(
-                                            ft.icons.SHOW_CHART,
-                                            size=30,
-                                            color=asset_icon_col,
-                                        ),
-                                        ft.Text(
-                                            "Stock / Asset", weight=ft.FontWeight.BOLD, color=text_col
-                                        ),
-                                    ],
-                                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                                ),
-                                padding=20,
-                                bgcolor=asset_bg,
-                                border_radius=10,
-                                on_click=select_asset,
-                                expand=True,
-                            ),
-                        ],
-                        spacing=20,
-                    ),
-                ],
-                tight=True,
-                width=400,
+            title=ft.Text("New Transaction", color=text_col),
+            content=ft.Container(
+                content=ft.Row(
+                    [
+                        create_option_card(
+                            ft.icons.CREDIT_CARD,
+                            "Expense",
+                            expense_icon_col,
+                            expense_bg,
+                            select_expense
+                        ),
+                        create_option_card(
+                            ft.icons.MONETIZATION_ON,
+                            "Income",
+                            income_icon_col,
+                            income_bg,
+                            select_income
+                        ),
+                        create_option_card(
+                            ft.icons.SWAP_HORIZ,
+                            "Transfer",
+                            transfer_icon_col,
+                            transfer_bg,
+                            select_transfer
+                        ),
+                    ],
+                    spacing=15,
+                    vertical_alignment=ft.CrossAxisAlignment.STRETCH,
+                ),
+                width=500,
+                height=140, 
+                padding=10
             ),
             actions=[ft.TextButton("Cancel", on_click=close_dlg)],
             actions_alignment=ft.MainAxisAlignment.END,
@@ -146,16 +152,13 @@ class TransactionsView:
 
     def _open_transaction_modal(self, type_: str):
         """Ouvre le modal de transaction."""
-        # Note: Dans une version future, on pourrait avoir un modal spécifique pour "asset"
-        # Pour l'instant on utilise le même modal, mais on pourrait pré-sélectionner une catégorie "Investissement"
-        # si elle existe.
         modal = TransactionModal(
             page=self.page,
             categories=self.categories,
             subcategories=self.subcategories,
             on_save=self._save_transaction,
             is_dark=self.is_dark,
-            filter_type=type_,
+            transaction_type=type_,
         )
         modal.show()
 
@@ -224,17 +227,48 @@ class TransactionsView:
 
     def _save_transaction(self, data: dict):
         """Enregistre la transaction."""
-        db.add_transaction(
-            date=data["date"],
-            description=data["description"],
-            amount=data["amount"],
-            transaction_type=data["transaction_type"],
-            category_id=data.get("category_id"),
-            subcategory_id=data.get("subcategory_id"),
-            notes=data.get("notes"),
-        )
+        
+        if data["transaction_type"] == "transfer":
+            # Creates two transactions: one expense from source, one income to dest
+            
+            # 1. Expense from source
+            db.add_transaction(
+                date=data["date"],
+                description=f"Virement vers {data.get('dest_name', 'compte')}",
+                amount=data["amount"],
+                transaction_type="expense",
+                category_id=None,
+                subcategory_id=data.get("source_id"),
+                notes=data.get("notes"),
+            )
+            
+            # 2. Income to dest
+            db.add_transaction(
+                date=data["date"],
+                description=f"Virement de {data.get('source_name', 'compte')}",
+                amount=data["amount"],
+                transaction_type="income",
+                category_id=None,
+                subcategory_id=data.get("dest_id"),
+                notes=data.get("notes"),
+            )
+            
+            msg = "Virement effectué avec succès"
+            
+        else:
+            # Standard transaction
+            db.add_transaction(
+                date=data["date"],
+                description=data["description"],
+                amount=data["amount"],
+                transaction_type=data["transaction_type"],
+                category_id=data.get("category_id"),
+                subcategory_id=data.get("subcategory_id"),
+                notes=data.get("notes"),
+            )
+            msg = "Transaction ajoutée"
 
-        self.page.snack_bar = ft.SnackBar(ft.Text("Transaction added successfully!"))
+        self.page.snack_bar = ft.SnackBar(ft.Text(msg))
         self.page.snack_bar.open = True
         self.on_data_change()
 

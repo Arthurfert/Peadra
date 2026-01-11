@@ -18,14 +18,14 @@ class TransactionModal:
         subcategories: List[Dict[str, Any]],
         on_save: Callable,
         is_dark: bool = True,
-        filter_type: Optional[str] = None,  # 'bank' or 'asset'
+        transaction_type: str = "expense", # 'expense', 'income', 'transfer'
     ):
         self.page = page
         self.categories = categories
         self.subcategories = subcategories
         self.on_save = on_save
         self.is_dark = is_dark
-        self.filter_type = filter_type
+        self.transaction_type = transaction_type
         self.dialog = None
         self._build_controls()
 
@@ -64,59 +64,57 @@ class TransactionModal:
             ),
         )
 
-        # Type de transaction
-        if self.filter_type == "asset":
-            label_text = "Opération"
-            default_value = "income"
-            width = 250
-            options = [
-                ft.dropdown.Option("income", "Investissement (Achat / Apport)"),
-                ft.dropdown.Option("expense", "Désinvestissement (Vente / Retrait)"),
-            ]
+        # Dropdowns Selection logic
+        # Filter subcategories (Assuming we want banking accounts mostly for internal transfers
+        # but allowing all for flexibility)
+        # We sort them
+        sorted_subcats = sorted(self.subcategories, key=lambda x: x["name"])
+        options = [
+            ft.dropdown.Option(str(sub["id"]), sub["name"])
+            for sub in sorted_subcats
+        ]
+
+        # Use explicitly typed list or append to empty list to avoid type inference issues
+        self.controls_list: List[ft.Control] = [
+            self.date_picker,
+            self.description_field,
+            self.amount_field,
+        ]
+
+        if self.transaction_type == "transfer":
+            # Two dropdowns: Source and Dest
+            self.source_dropdown = ft.Dropdown(
+                label="Compte Débité (De)",
+                width=350,
+                options=options,
+            )
+            self.dest_dropdown = ft.Dropdown(
+                label="Compte Crédité (Vers)",
+                width=350,
+                options=options,
+            )
+            # Pre-select if possible
+            if options:
+                self.source_dropdown.value = options[0].key
+                if len(options) > 1:
+                    self.dest_dropdown.value = options[1].key
+                else:
+                    self.dest_dropdown.value = options[0].key
+            
+            self.controls_list.extend([self.source_dropdown, self.dest_dropdown])
+            
         else:
-            label_text = "Sens"
-            default_value = "expense"
-            width = 150
-            options = [
-                ft.dropdown.Option("income", "Revenu / Entrée"),
-                ft.dropdown.Option("expense", "Dépense / Sortie"),
-                ft.dropdown.Option("transfer", "Virement Interne"),
-            ]
-
-        self.type_dropdown = ft.Dropdown(
-            label=label_text,
-            width=width,
-            value=default_value,
-            options=options,
-        )
-
-        # Sous-catégorie (Compte / Actif)
-        filtered_subcats = []
-        if self.filter_type == "bank":
-            filtered_subcats = [
-                s for s in self.subcategories if s.get("category_name") == "Cash"
-            ]
-        elif self.filter_type == "asset":
-            filtered_subcats = [
-                s
-                for s in self.subcategories
-                if s.get("category_name") in ["Bourse", "Immobilier"]
-            ]
-        else:
-            filtered_subcats = self.subcategories
-
-        filtered_subcats.sort(key=lambda x: x["name"])
-
-        self.subcategory_dropdown = ft.Dropdown(
-            label="Compte / Actif",
-            width=350,
-            options=[
-                ft.dropdown.Option(str(sub["id"]), sub["name"])
-                for sub in filtered_subcats
-            ],
-        )
-        if filtered_subcats:
-            self.subcategory_dropdown.value = str(filtered_subcats[0]["id"])
+            # Single dropdown
+            label = "Compte / Catégorie"
+            self.subcategory_dropdown = ft.Dropdown(
+                label=label,
+                width=350,
+                options=options,
+            )
+            if options:
+                self.subcategory_dropdown.value = options[0].key
+            
+            self.controls_list.append(self.subcategory_dropdown)
 
         # Notes
         self.notes_field = ft.TextField(
@@ -127,6 +125,7 @@ class TransactionModal:
             min_lines=2,
             max_lines=4,
         )
+        self.controls_list.append(self.notes_field)
 
     def _open_date_picker(self, e):
         """Ouvre le sélecteur de date."""
@@ -170,6 +169,13 @@ class TransactionModal:
                 errors.append("Montant invalide")
                 self.amount_field.error_text = "Invalide"
 
+        if self.transaction_type == "transfer":
+            if self.source_dropdown.value == self.dest_dropdown.value:
+                 errors.append("Comptes identiques")
+                 self.dest_dropdown.error_text = "Comptes identiques"
+            else:
+                 self.dest_dropdown.error_text = None
+
         self.page.update()
         return len(errors) == 0
 
@@ -185,15 +191,26 @@ class TransactionModal:
             "date": self.date_picker.value,
             "description": description.strip(),
             "amount": float(amount_str),
-            "transaction_type": self.type_dropdown.value,
+            "transaction_type": self.transaction_type,
             "category_id": None,
-            "subcategory_id": (
-                int(self.subcategory_dropdown.value)
-                if self.subcategory_dropdown.value
-                else None
-            ),
             "notes": self.notes_field.value.strip() if self.notes_field.value else None,
         }
+
+        if self.transaction_type == "transfer":
+            source_val = self.source_dropdown.value
+            dest_val = self.dest_dropdown.value
+            if source_val:
+                transaction_data["source_id"] = int(source_val)
+                # Find names for helper descriptions
+                src_name = next((o.text for o in self.source_dropdown.options if o.key == source_val), "")
+                transaction_data["source_name"] = src_name
+            if dest_val:
+                transaction_data["dest_id"] = int(dest_val)
+                dest_name = next((o.text for o in self.dest_dropdown.options if o.key == dest_val), "")
+                transaction_data["dest_name"] = dest_name
+        else:
+             sub_val = self.subcategory_dropdown.value
+             transaction_data["subcategory_id"] = int(sub_val) if sub_val else None
 
         self.close()
 
@@ -206,39 +223,36 @@ class TransactionModal:
 
     def show(self, transaction_data: Optional[Dict[str, Any]] = None):
         """Affiche le modal."""
+        # Rebuild controls based on type if needed, or just assume type is set in init
+        # For edits, we might need to adjust self.transaction_type from data
+        if transaction_data:
+             self.transaction_type = transaction_data.get("transaction_type", self.transaction_type)
+        
         self._build_controls()
 
         if transaction_data:
-            self.date_picker.value = transaction_data.get(
-                "date", datetime.now().strftime("%Y-%m-%d")
-            )
+            self.date_picker.value = transaction_data.get("date", datetime.now().strftime("%Y-%m-%d"))
             self.description_field.value = transaction_data.get("description", "")
             self.amount_field.value = str(transaction_data.get("amount", ""))
-            self.type_dropdown.value = transaction_data.get(
-                "transaction_type", "expense"
-            )
-            if transaction_data.get("subcategory_id"):
-                self.subcategory_dropdown.value = str(
-                    transaction_data["subcategory_id"]
-                )
             self.notes_field.value = transaction_data.get("notes", "")
 
-        title = "Modifier" if transaction_data else "Nouveau mouvement"
+            if self.transaction_type != "transfer" and transaction_data.get("subcategory_id"):
+                 self.subcategory_dropdown.value = str(transaction_data["subcategory_id"])
+
+        type_map = {
+             "income": "New Income",
+             "expense": "New Expense",
+             "transfer": "New Transfer"
+        }
+        title = type_map.get(self.transaction_type, "New Transaction")
+        if transaction_data: title = "Edit Transaction"
 
         self.dialog = ft.AlertDialog(
             modal=True,
             title=ft.Text(title, weight=ft.FontWeight.BOLD),
             content=ft.Container(
                 content=ft.Column(
-                    controls=[
-                        self.date_picker,
-                        self.type_dropdown,
-                        self.description_field,
-                        ft.Row(
-                            [self.amount_field, self.subcategory_dropdown], spacing=16
-                        ),
-                        self.notes_field,
-                    ],
+                    controls=self.controls_list,
                     spacing=16,
                     tight=True,
                 ),

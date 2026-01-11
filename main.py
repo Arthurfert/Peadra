@@ -68,10 +68,12 @@ class PeadraApp:
     def _on_navigation_change(self, index: int):
         """Gère le changement de vue via la navigation."""
         self.current_view_index = index
+        
         # Mettre à jour la navigation pour refléter la sélection
         if hasattr(self, 'nav_container'):
             self.nav_container.content = self.navigation.build()
             self.nav_container.update()
+        
         self._update_content()
 
     def _toggle_theme(self, e):

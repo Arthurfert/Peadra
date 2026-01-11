@@ -29,6 +29,7 @@ class DashboardView:
         self._load_data()
 
     def _load_data(self):
+        # Now reflects Bank Balance
         self.total_patrimony = db.get_total_patrimony()
 
         # Get current month summary
@@ -52,8 +53,8 @@ class DashboardView:
 
         self.income_trend = calc_trend(self.monthly_income, prev_income)
         self.expenses_trend = calc_trend(self.monthly_expenses, prev_expenses)
-        self.savings_trend = 0.0  # Disabled as we switched from flow to stock
-        self.balance_trend = 12.5  # Mock as asset history logic is complex
+        self.savings_trend = 0.0 
+        self.balance_trend = 0.0
 
         # Chart Data (Income vs Expenses) - Last 6 months
         self.chart_data = []
@@ -76,7 +77,7 @@ class DashboardView:
                 }
             )
 
-        # Category Data (Expenses) - Grouped by Description (Type of expense)
+        # Simplified category logic for Expenses logic
         start_date = now.strftime("%Y-%m-01")
         if now.month == 12:
             end_date = f"{now.year + 1}-01-01"
@@ -86,12 +87,7 @@ class DashboardView:
         txs = db.get_transactions_by_period(start_date, end_date)
         self.category_expenses = {}
         for t in txs:
-            # We filter for expenses on 'Compte courant' only, to avoid showing asset transfers as expenses
-            subcategory_name = t.get("subcategory_name")
-            if t["transaction_type"] == "expense" and (
-                subcategory_name == "Compte courant" or subcategory_name is None
-            ):
-                # Use description as category
+            if t["transaction_type"] == "expense":
                 desc = (t["description"] or "Autre").strip()
                 self.category_expenses[desc] = (
                     self.category_expenses.get(desc, 0) + t["amount"]
@@ -254,7 +250,7 @@ class DashboardView:
                             labels_size=30,
                         ),
                         min_y=0,
-                        max_y=max_val,
+                        max_y=max_val if max_val > 0 else 1000,
                         expand=True,
                         tooltip_bgcolor=PeadraTheme.SURFACE,
                     ),
@@ -363,7 +359,7 @@ class DashboardView:
             content=ft.Column(
                 [
                     ft.Text(
-                        "Expenses by Category",
+                        "Dépenses du mois (Top 5)",
                         size=18,
                         weight=ft.FontWeight.BOLD,
                         color=text_color,
@@ -378,13 +374,13 @@ class DashboardView:
                                 ft.ChartAxisLabel(
                                     value=i,
                                     label=ft.Container(
-                                        ft.Text(cat, size=10, color=ft.colors.GREY),
+                                        ft.Text(cat[:10], size=10, color=ft.colors.GREY),
                                         padding=5,
                                     ),
                                 )
-                                for i, (cat, val) in enumerate(sorted_cats)
+                                for i, (cat, _) in enumerate(sorted_cats)
                             ],
-                            labels_size=40,
+                            labels_size=30,
                         ),
                         horizontal_grid_lines=ft.ChartGridLines(
                             interval=max_val / 5,
@@ -423,15 +419,26 @@ class DashboardView:
             red_bg = ft.colors.RED_50
             purple_bg = ft.colors.PURPLE_50
 
+        if self.is_dark:
+            blue_bg = ft.colors.with_opacity(0.1, ft.colors.BLUE)
+            green_bg = ft.colors.with_opacity(0.1, ft.colors.GREEN)
+            red_bg = ft.colors.with_opacity(0.1, ft.colors.RED)
+            purple_bg = ft.colors.with_opacity(0.1, ft.colors.PURPLE)
+        else:
+            blue_bg = ft.colors.BLUE_50
+            green_bg = ft.colors.GREEN_50
+            red_bg = ft.colors.RED_50
+            purple_bg = ft.colors.PURPLE_50
+
         card_row = ft.Row(
             [
                 self._build_stat_card(
-                    "Bank Balance",
+                    "Current Balance",
                     self.total_patrimony,
                     self.balance_trend,
                     ft.icons.ACCOUNT_BALANCE_WALLET,
                     blue_bg,
-                    "blue",
+                    ft.colors.BLUE,
                     "normal",
                 ),
                 self._build_stat_card(
@@ -440,7 +447,7 @@ class DashboardView:
                     self.income_trend,
                     ft.icons.TRENDING_UP,
                     green_bg,
-                    "green",
+                    ft.colors.GREEN,
                     "normal",
                 ),
                 self._build_stat_card(
@@ -449,16 +456,16 @@ class DashboardView:
                     self.expenses_trend,
                     ft.icons.TRENDING_DOWN,
                     red_bg,
-                    "red",
+                    ft.colors.RED,
                     "reverse",
                 ),
                 self._build_stat_card(
-                    "Savings & Investments",
+                    "Savings Outside",
                     self.monthly_savings,
                     self.savings_trend,
                     ft.icons.SAVINGS,
                     purple_bg,
-                    "purple",
+                    ft.colors.PURPLE,
                     "normal",
                 ),
             ],

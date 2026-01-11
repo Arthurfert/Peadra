@@ -51,14 +51,14 @@ class TransactionModal:
         # Description
         self.description_field = ft.TextField(
             label="Description",
-            hint_text="Ex: Courses, Achat Bitcoin, Loyer...",
+            hint_text="Ex: Groceries, Rent...",
             width=350,
             autofocus=True,
         )
 
-        # Montant
+        # Amount
         self.amount_field = ft.TextField(
-            label="Montant (€)",
+            label="Amount (€)",
             hint_text="0.00",
             width=150,
             keyboard_type=ft.KeyboardType.NUMBER,
@@ -88,12 +88,12 @@ class TransactionModal:
         if self.transaction_type == "transfer":
             # Two dropdowns: Source and Dest
             self.source_dropdown = ft.Dropdown(
-                label="Compte Débité (De)",
+                label="Account Debited (From)",
                 width=350,
                 options=options,
             )
             self.dest_dropdown = ft.Dropdown(
-                label="Compte Crédité (Vers)",
+                label="Account Credited (To)",
                 width=350,
                 options=options,
             )
@@ -109,7 +109,7 @@ class TransactionModal:
             
         else:
             # Single dropdown
-            label = "Compte / Catégorie"
+            label = "Account / Category"
             self.subcategory_dropdown = ft.Dropdown(
                 label=label,
                 width=350,
@@ -122,8 +122,8 @@ class TransactionModal:
 
         # Notes
         self.notes_field = ft.TextField(
-            label="Notes (optionnel)",
-            hint_text="Informations supplémentaires...",
+            label="Notes (optional)",
+            hint_text="Additional information...",
             width=350,
             multiline=True,
             min_lines=2,
@@ -153,30 +153,30 @@ class TransactionModal:
         errors = []
 
         if not self.description_field.value or not self.description_field.value.strip():
-            errors.append("La description est requise")
-            self.description_field.error_text = "Requis"
+            errors.append("Description is required")
+            self.description_field.error_text = "Required"
         else:
             self.description_field.error_text = None
 
         if not self.amount_field.value:
-            errors.append("Le montant est requis")
-            self.amount_field.error_text = "Requis"
+            errors.append("Amount is required")
+            self.amount_field.error_text = "Required"
         else:
             try:
                 amount = float(self.amount_field.value)
                 if amount <= 0:
-                    errors.append("Le montant doit être positif")
-                    self.amount_field.error_text = "Doit être positif"
+                    errors.append("Amount must be positive")
+                    self.amount_field.error_text = "Must be positive"
                 else:
                     self.amount_field.error_text = None
             except ValueError:
-                errors.append("Montant invalide")
-                self.amount_field.error_text = "Invalide"
+                errors.append("Invalid amount")
+                self.amount_field.error_text = "Invalid amount"
 
         if self.transaction_type == "transfer":
             if self.source_dropdown.value == self.dest_dropdown.value:
-                 errors.append("Comptes identiques")
-                 self.dest_dropdown.error_text = "Comptes identiques"
+                 errors.append("Identical accounts")
+                 self.dest_dropdown.error_text = "Identical accounts"
             else:
                  self.dest_dropdown.error_text = None
 
@@ -268,9 +268,9 @@ class TransactionModal:
                 padding=ft.padding.only(top=10),
             ),
             actions=[
-                ft.TextButton("Annuler", on_click=self._on_cancel_click),
+                ft.TextButton("Cancel", on_click=self._on_cancel_click),
                 ft.ElevatedButton(
-                    "Enregistrer",
+                    "Save",
                     icon=ft.icons.SAVE,
                     on_click=self._on_save_click,
                     bgcolor=PeadraTheme.PRIMARY_MEDIUM,

@@ -57,6 +57,20 @@ class TransactionsView:
     def _open_type_selector(self, e):
         """Ouvre le dialogue de sélection du type de transaction."""
 
+        # Colors based on theme for better readability
+        if self.is_dark:
+            bank_bg = ft.colors.with_opacity(0.15, ft.colors.BLUE)
+            asset_bg = ft.colors.with_opacity(0.15, ft.colors.ORANGE)
+            bank_icon_col = ft.colors.BLUE_200
+            asset_icon_col = ft.colors.ORANGE_200
+            text_col = ft.colors.WHITE
+        else:
+            bank_bg = ft.colors.BLUE_50
+            asset_bg = ft.colors.ORANGE_50
+            bank_icon_col = ft.colors.BLUE_700
+            asset_icon_col = ft.colors.ORANGE_700
+            text_col = ft.colors.BLACK
+
         def close_dlg(e):
             if isinstance(self.page.dialog, ft.AlertDialog):
                 self.page.dialog.open = False
@@ -71,10 +85,10 @@ class TransactionsView:
             self._open_transaction_modal("asset")
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Nouveau mouvement"),
+            title=ft.Text("New transaction"),
             content=ft.Column(
                 [
-                    ft.Text("Quel type d'opération souhaitez-vous ajouter ?"),
+                    ft.Text("What type of transaction would you like to add?"),
                     ft.Container(height=20),
                     ft.Row(
                         [
@@ -84,14 +98,14 @@ class TransactionsView:
                                         ft.Icon(
                                             ft.icons.ACCOUNT_BALANCE,
                                             size=30,
-                                            color=PeadraTheme.PRIMARY_MEDIUM,
+                                            color=bank_icon_col,
                                         ),
-                                        ft.Text("Banque", weight=ft.FontWeight.BOLD),
+                                        ft.Text("Bank", weight=ft.FontWeight.BOLD, color=text_col),
                                     ],
                                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                                 ),
                                 padding=20,
-                                bgcolor=ft.colors.BLUE_50,
+                                bgcolor=bank_bg,
                                 border_radius=10,
                                 on_click=select_bank,
                                 expand=True,
@@ -102,16 +116,16 @@ class TransactionsView:
                                         ft.Icon(
                                             ft.icons.SHOW_CHART,
                                             size=30,
-                                            color=PeadraTheme.IMMO_COLOR,
+                                            color=asset_icon_col,
                                         ),
                                         ft.Text(
-                                            "Action / Actif", weight=ft.FontWeight.BOLD
+                                            "Stock / Asset", weight=ft.FontWeight.BOLD, color=text_col
                                         ),
                                     ],
                                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                                 ),
                                 padding=20,
-                                bgcolor=ft.colors.ORANGE_50,
+                                bgcolor=asset_bg,
                                 border_radius=10,
                                 on_click=select_asset,
                                 expand=True,
@@ -123,7 +137,7 @@ class TransactionsView:
                 tight=True,
                 width=400,
             ),
-            actions=[ft.TextButton("Annuler", on_click=close_dlg)],
+            actions=[ft.TextButton("Cancel", on_click=close_dlg)],
             actions_alignment=ft.MainAxisAlignment.END,
         )
         self.page.dialog = dlg
@@ -182,11 +196,11 @@ class TransactionsView:
                 self.page.dialog.update()
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Filtrer par catégorie"),
+            title=ft.Text("Filter by categories"),
             content=ft.Container(
                 content=ft.Column(
                     [
-                        ft.TextButton("Tout désélectionner", on_click=clear_filter),
+                        ft.TextButton("Deselect All", on_click=clear_filter),
                         ft.Column(checkboxes, scroll=ft.ScrollMode.AUTO, expand=True),
                     ],
                 ),
@@ -194,9 +208,9 @@ class TransactionsView:
                 height=400,
             ),
             actions=[
-                ft.TextButton("Annuler", on_click=close_dlg),
+                ft.TextButton("Cancel", on_click=close_dlg),
                 ft.ElevatedButton(
-                    "Appliquer",
+                    "Apply Filters",
                     on_click=apply_filter,
                     bgcolor=PeadraTheme.ACCENT,
                     color=ft.colors.WHITE,
@@ -220,10 +234,7 @@ class TransactionsView:
             notes=data.get("notes"),
         )
 
-        # Si c'était un 'asset' (logique simplifiée ici), on pourrait aussi ajouter une entrée dans 'assets'
-        # Mais pour respecter "simplifier", on reste sur le flux transactionnel.
-
-        self.page.snack_bar = ft.SnackBar(ft.Text("Transaction ajoutée"))
+        self.page.snack_bar = ft.SnackBar(ft.Text("Transaction added successfully!"))
         self.page.snack_bar.open = True
         self.on_data_change()
 

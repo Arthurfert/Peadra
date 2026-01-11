@@ -3,34 +3,32 @@
 A personal wealth management application built with Python and Flet.
 
 >**🚧 Early phase of the project 🚧**\
-The app is in French only *for the moment*.\
+The app is partially translated (some parts still in french for the moment)\
 More features and UI/UX improvements to come
 
 ## Overview
 
 Peadra (*"wealth" in Breton*) is a desktop application designed to help you track and manage your personal finances and assets.
 
-It provides a comprehensive view of your patrimony across different asset categories (cash, real estate, stocks) and allows you to record and analyze your financial transactions.
+The project has recently been simplified to focus on the essentials: managing your bank transactions, tracking your daily budget, and managing your cash savings.
 
 ## Features
 
 ### Dashboard
-- **Financial overview**: Instantly view your *Bank Balance* (Checking Account), your *Total Assets*, and your *Savings* (everything that is not in your checking account).
-- **Flow vs. Stock Logic**: 
-    - The income/expense graph focuses on your daily budget (excludes savings transfers so as not to skew the stats).
-    - The “Savings” card represents accumulated stock (savings accounts, stock market, real estate, crypto).
-- **Interactive graphs**: Monthly tracking of income and expenses.
+- **Financial overview**: Instantly view your *Current Balance* (Checking Account) and your *Savings* (savings accounts).
+- **Flow tracking**: Interactive graphs showing the monthly evolution of your income vs. expenses.
+- **Top Expenses**: Instant view of the month's biggest expense items.
 
 ### Transaction Management
-- **Unified view**: A single list to manage all your transactions, whether daily expenses or investments.
-- **Advanced filters**: Quickly filter by asset category (checking account, savings accounts, stocks, crypto, real estate) using dedicated dialog boxes.
-- **Instant Search**: Find any transaction by description, amount, or category.
-- **Visual Color Coding**: Each asset type has its own visual identity (pastel palette) for quick reading.
+- **New intuitive selector**: Choose between *Expense*, *Income*, or *Transfer* via a modern, colorful interface.
+- **Automated Transfers**: A transfer between two accounts automatically creates the two corresponding entries (debit/credit) to keep your balances up to date.
+- **Filters & Search**: Quickly find your transactions by description or account category.
+- **Color Coding**: Immediate visual identification of transaction types.
 
 ## Installation
 
 ### Prerequisites
-- Python 3.8 or higher
+- Python 3.8 ou supérieur
 - pip (Python package manager)
 
 ### Setup

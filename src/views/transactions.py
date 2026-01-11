@@ -388,22 +388,16 @@ class TransactionsView:
         
         cat = cat_name.lower()
         
-        # Cash / Banque
+        # Banque / Épargne
         if "compte courant" in cat: return ft.colors.BLUE_300
         if "livret" in cat or "épargne" in cat: return ft.colors.YELLOW_300
-        if "espèces" in cat or "cash" in cat: return ft.colors.GREEN_300
         
-        # Investissements
-        if "crypto" in cat or "bitcoin" in cat: return ft.colors.ORANGE_400
-        if "action" in cat or "etf" in cat or "pea" in cat or "bourse" in cat: return ft.colors.INDIGO_300
-        if "obligation" in cat: return ft.colors.CYAN_300
-        
-        # Immobilier
-        if "immobilier" in cat or "maison" in cat or "appart" in cat or "scpi" in cat: return ft.colors.BROWN_300
-        
-        # Fallback sur les mot-clés descriptions si la sous-catégorie ne matche pas
+        # Quotidien
         if "salaire" in cat: return ft.colors.TEAL_300
         if "course" in cat: return ft.colors.AMBER_300
+        if "loyer" in cat: return ft.colors.RED_300
+        if "restaurant" in cat: return ft.colors.ORANGE_300
+        if "transport" in cat: return ft.colors.CYAN_300
         
         return ft.colors.GREY_300
 

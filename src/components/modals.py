@@ -18,7 +18,7 @@ class TransactionModal:
         subcategories: List[Dict[str, Any]],
         on_save: Callable,
         is_dark: bool = True,
-        transaction_type: str = "expense", # 'expense', 'income', 'transfer'
+        transaction_type: str = "expense",
     ):
         self.page = page
         self.categories = categories
@@ -27,10 +27,14 @@ class TransactionModal:
         self.is_dark = is_dark
         self.transaction_type = transaction_type
         self.dialog = None
-        self._build_controls()
+        self.editing_id = None
+        self.controls_list = []
+        # Don't build controls in init, wait for show() or build now but clear later
+        # We will build in show() to ensure fresh state
 
     def _build_controls(self):
         """Construit les contrôles du formulaire."""
+        self.controls_list = []  # Clear previous controls
 
         # Date picker
         self.date_picker = ft.TextField(
@@ -212,6 +216,9 @@ class TransactionModal:
              sub_val = self.subcategory_dropdown.value
              transaction_data["subcategory_id"] = int(sub_val) if sub_val else None
 
+        if self.editing_id:
+            transaction_data["id"] = self.editing_id
+
         self.close()
 
         if self.on_save:
@@ -223,10 +230,11 @@ class TransactionModal:
 
     def show(self, transaction_data: Optional[Dict[str, Any]] = None):
         """Affiche le modal."""
-        # Rebuild controls based on type if needed, or just assume type is set in init
-        # For edits, we might need to adjust self.transaction_type from data
+        self.editing_id = None
+        
         if transaction_data:
              self.transaction_type = transaction_data.get("transaction_type", self.transaction_type)
+             self.editing_id = transaction_data.get("id")
         
         self._build_controls()
 

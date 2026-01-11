@@ -3,7 +3,6 @@
 A personal wealth management application built with Python and Flet.
 
 >**🚧 Early phase of the project 🚧**\
-The app is partially translated (some parts still in french for the moment)\
 More features and UI/UX improvements to come
 
 ## Overview

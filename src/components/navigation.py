@@ -33,9 +33,6 @@ class NavigationRailComponent:
             PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
         )
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
-        accent_color = (
-            PeadraTheme.ACCENT if self.is_dark else PeadraTheme.PRIMARY_MEDIUM
-        )
 
         # Récupérer le solde actuel
         balance = db.get_total_patrimony()

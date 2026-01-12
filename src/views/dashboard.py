@@ -53,7 +53,7 @@ class DashboardView:
 
         self.income_trend = calc_trend(self.monthly_income, prev_income)
         self.expenses_trend = calc_trend(self.monthly_expenses, prev_expenses)
-        self.savings_trend = 0.0 
+        self.savings_trend = 0.0
         self.balance_trend = 0.0
 
         # Chart Data (Income vs Expenses) - Last 6 months
@@ -184,10 +184,7 @@ class DashboardView:
             max_val = 100
 
         def create_data_points(values):
-            return [
-                ft.LineChartDataPoint(i, v, tooltip=f"{v:,.0f}")
-                for i, v in enumerate(values)
-            ]
+            return [ft.LineChartDataPoint(i, float(v)) for i, v in enumerate(values)]
 
         return ft.Container(
             content=ft.Column(
@@ -345,11 +342,10 @@ class DashboardView:
                     bar_rods=[
                         ft.BarChartRod(
                             from_y=0,
-                            to_y=val,
+                            to_y=float(val),
                             width=30,
                             color="#2979FF",
                             border_radius=ft.border_radius.vertical(top=6),
-                            tooltip=f"{cat}: ${val:,.0f}",
                         )
                     ],
                 )
@@ -374,7 +370,9 @@ class DashboardView:
                                 ft.ChartAxisLabel(
                                     value=i,
                                     label=ft.Container(
-                                        ft.Text(cat[:10], size=10, color=ft.colors.GREY),
+                                        ft.Text(
+                                            cat[:10], size=10, color=ft.colors.GREY
+                                        ),
                                         padding=5,
                                     ),
                                 )

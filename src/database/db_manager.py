@@ -76,37 +76,6 @@ class DatabaseManager:
         """
         )
 
-        # Table des actifs (patrimoine)
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS assets (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                category_id INTEGER NOT NULL,
-                current_value REAL NOT NULL DEFAULT 0,
-                purchase_value REAL,
-                purchase_date DATE,
-                notes TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (category_id) REFERENCES categories(id)
-            )
-        """
-        )
-
-        # Table historique des valeurs des actifs
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS asset_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                asset_id INTEGER NOT NULL,
-                value REAL NOT NULL,
-                recorded_at DATE NOT NULL,
-                FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE CASCADE
-            )
-        """
-        )
-
         conn.commit()
 
         # Insérer les catégories par défaut si elles n'existent pas
@@ -115,29 +84,14 @@ class DatabaseManager:
     def _insert_default_categories(self):
         """Insère les catégories par défaut."""
         default_categories = [
-            ("Cash", "", "#4CAF50"),
-            ("Immobilier", "", "#FF9800"),
-            ("Bourse", "", "#2196F3"),
+            ("Banque", "", "#4CAF50"),
         ]
 
         default_subcategories = {
-            "Cash": [
+            "Banque": [
                 ("Compte courant", ""),
                 ("Livret A", ""),
                 ("Livret Épargne", ""),
-                ("Espèces", ""),
-            ],
-            "Immobilier": [
-                ("Résidence principale", ""),
-                ("Investissement locatif", ""),
-                ("SCPI", ""),
-            ],
-            "Bourse": [
-                ("Actions", ""),
-                ("ETF", ""),
-                ("Obligations", ""),
-                ("Crypto", ""),
-                ("PEA", ""),
             ],
         }
 
@@ -328,7 +282,7 @@ class DatabaseManager:
     # ==================== STATISTIQUES ====================
 
     def get_savings_total(self) -> float:
-        """Calcule le total de l'épargne (Actifs + Livrets, hors Compte Courant)."""
+        """Calcule le total de l'épargne (tout ce qui n'est pas Compte Courant)."""
         conn = self._get_connection()
         cursor = conn.cursor()
         cursor.execute(
@@ -342,10 +296,11 @@ class DatabaseManager:
             WHERE s.name != 'Compte courant'
         """
         )
-        return cursor.fetchone()[0]
+        result = cursor.fetchone()
+        return result[0] if result else 0.0
 
     def get_total_patrimony(self) -> float:
-        """Calcule le patrimoine total (Basé sur le Compte Courant, car les mouvements d'actifs sont des transferts)."""
+        """Calcule le solde total du compte courant."""
         conn = self._get_connection()
         cursor = conn.cursor()
         cursor.execute(
@@ -359,7 +314,8 @@ class DatabaseManager:
             WHERE s.name = 'Compte courant' OR t.subcategory_id IS NULL
         """
         )
-        return cursor.fetchone()[0]
+        result = cursor.fetchone()
+        return result[0] if result else 0.0
 
     def get_monthly_summary(
         self, year: Optional[int] = None, month: Optional[int] = None

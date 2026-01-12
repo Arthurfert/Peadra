@@ -28,6 +28,7 @@ class TransactionModal:
         self.transaction_type = transaction_type
         self.dialog = None
         self.editing_id = None
+        self.other_id = None
         self.controls_list = []
         # Don't build controls in init, wait for show() or build now but clear later
         # We will build in show() to ensure fresh state
@@ -218,6 +219,8 @@ class TransactionModal:
 
         if self.editing_id:
             transaction_data["id"] = self.editing_id
+        if self.other_id:
+            transaction_data["other_id"] = self.other_id
 
         self.close()
 
@@ -235,6 +238,7 @@ class TransactionModal:
         if transaction_data:
              self.transaction_type = transaction_data.get("transaction_type", self.transaction_type)
              self.editing_id = transaction_data.get("id")
+             self.other_id = transaction_data.get("other_id")
         
         self._build_controls()
 
@@ -246,6 +250,12 @@ class TransactionModal:
 
             if self.transaction_type != "transfer" and transaction_data.get("subcategory_id"):
                  self.subcategory_dropdown.value = str(transaction_data["subcategory_id"])
+            
+            if self.transaction_type == "transfer":
+                if transaction_data.get("source_id"):
+                    self.source_dropdown.value = str(transaction_data["source_id"])
+                if transaction_data.get("dest_id"):
+                    self.dest_dropdown.value = str(transaction_data["dest_id"])
 
         type_map = {
              "income": "New Income",

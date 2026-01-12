@@ -230,17 +230,39 @@ class TransactionsView:
         
         if data.get("id"):
             # Mise à jour
-            db.update_transaction(
-                data["id"],
-                date=data["date"],
-                description=data["description"],
-                amount=data["amount"],
-                transaction_type=data["transaction_type"],
-                category_id=data.get("category_id"),
-                subcategory_id=data.get("subcategory_id"),
-                notes=data.get("notes"),
-            )
-            msg = "Transaction modifiée"
+            if data["transaction_type"] == "transfer" and data.get("other_id"):
+                # Update both sides of transfer
+                # 1. Expense (Source)
+                db.update_transaction(
+                    data["id"],
+                    date=data["date"],
+                    description=f"Virement vers {data.get('dest_name', 'compte')}",
+                    amount=data["amount"],
+                    subcategory_id=data.get("source_id"),
+                    notes=data.get("notes"),
+                )
+                # 2. Income (Dest)
+                db.update_transaction(
+                    data["other_id"],
+                    date=data["date"],
+                    description=f"Virement de {data.get('source_name', 'compte')}",
+                    amount=data["amount"],
+                    subcategory_id=data.get("dest_id"),
+                    notes=data.get("notes"),
+                )
+                msg = "Virement modifié"
+            else:
+                db.update_transaction(
+                    data["id"],
+                    date=data["date"],
+                    description=data["description"],
+                    amount=data["amount"],
+                    transaction_type=data["transaction_type"],
+                    category_id=data.get("category_id"),
+                    subcategory_id=data.get("subcategory_id"),
+                    notes=data.get("notes"),
+                )
+                msg = "Transaction modifiée"
 
         elif data["transaction_type"] == "transfer":
             # Création - Transfert (2 transactions)
@@ -325,23 +347,163 @@ class TransactionsView:
         dlg.open = True
         self.page.update()
 
+    def _group_transactions(self, transactions):
+        grouped = []
+        i = 0
+        while i < len(transactions):
+            t1 = transactions[i]
+            
+            # Transfer signatures
+            desc1 = t1["description"] or ""
+            is_transfer_candidate = desc1.startswith("Virement vers ") or desc1.startswith("Virement de ")
+            
+            if is_transfer_candidate and i + 1 < len(transactions):
+                t2 = transactions[i+1]
+                desc2 = t2["description"] or ""
+                
+                # Check match: same amount, date, different type
+                if (t1["amount"] == t2["amount"] and 
+                    t1["date"] == t2["date"] and
+                    t1["transaction_type"] != t2["transaction_type"]):
+                    
+                    match = False
+                    source = None
+                    dest = None
+                    source_id = None
+                    dest_id = None
+                    id_expense = None
+                    id_income = None
+                    
+                    # Determine which is which
+                    if t1["transaction_type"] == "expense" and desc1.startswith("Virement vers "):
+                         if t2["transaction_type"] == "income" and desc2.startswith("Virement de "):
+                             dest = desc1[14:]
+                             source = desc2[12:]
+                             source_id = t1["subcategory_id"]
+                             dest_id = t2["subcategory_id"]
+                             id_expense = t1["id"]
+                             id_income = t2["id"]
+                             match = True
+                    elif t1["transaction_type"] == "income" and desc1.startswith("Virement de "):
+                         if t2["transaction_type"] == "expense" and desc2.startswith("Virement vers "):
+                             source = desc1[12:]
+                             dest = desc2[14:]
+                             source_id = t2["subcategory_id"]
+                             dest_id = t1["subcategory_id"]
+                             id_expense = t2["id"]
+                             id_income = t1["id"]
+                             match = True
+                    
+                    if match:
+                        combined = t1.copy()
+                        combined["ids"] = [t1["id"], t2["id"]] # Both IDs for deletion
+                        combined["id"] = id_expense # Use expense ID as primary for editing
+                        combined["other_id"] = id_income
+                        combined["description"] = f"Transfert de {source} vers {dest}"
+                        combined["transaction_type"] = "transfer_group"
+                        combined["subcategory_name"] = "Virement"
+                        combined["subcategory_id"] = None
+                        combined["category_color"] = ft.colors.BLUE_GREY_100
+                        combined["source_id"] = source_id
+                        combined["dest_id"] = dest_id
+                        grouped.append(combined)
+                        i += 2
+                        continue
+            
+            grouped.append(t1)
+            i += 1
+        return grouped
+
+    def _edit_transfer_group(self, t):
+        data = {
+            "id": t["id"],
+            "other_id": t["other_id"],
+            "date": t["date"],
+            "description": t["description"], # Not really used in modal for transfer pre-fill strictly but good to have
+            "amount": t["amount"],
+            "transaction_type": "transfer",
+            "notes": t.get("notes"),
+            "source_id": t["source_id"],
+            "dest_id": t["dest_id"]
+        }
+        modal = TransactionModal(
+            page=self.page,
+            categories=self.categories,
+            subcategories=self.subcategories,
+            on_save=self._save_transaction,
+            is_dark=self.is_dark,
+            transaction_type="transfer",
+        )
+        modal.show(data)
+
+    def _confirm_delete_group(self, ids):
+        def close_dlg(e):
+            if isinstance(self.page.dialog, ft.AlertDialog):
+                self.page.dialog.open = False
+                self.page.update()
+
+        def delete(e):
+            for tid in ids:
+                db.delete_transaction(tid)
+            close_dlg(e)
+            self.on_data_change()
+            self.page.snack_bar = ft.SnackBar(ft.Text("Virement supprimé"))
+            self.page.snack_bar.open = True
+
+        dlg = ft.AlertDialog(
+            title=ft.Text("Confirmer la suppression"),
+            content=ft.Text("Voulez-vous vraiment supprimer ce virement (2 transactions) ?"),
+            actions=[
+                ft.TextButton("Annuler", on_click=close_dlg),
+                ft.TextButton("Supprimer", on_click=delete, style=ft.ButtonStyle(color=ft.colors.RED)),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        self.page.dialog = dlg
+        dlg.open = True
+        self.page.update()
+
     def _generate_rows(self):
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
         rows = []
-        for t in self.transactions:
-            is_income = t["transaction_type"] == "income"
-            amount_color = ft.colors.GREEN if is_income else text_color
-            amount_prefix = "+" if is_income else ""
+        
+        display_transactions = self._group_transactions(self.transactions)
 
-            icon = ft.icons.NORTH_EAST if is_income else ft.icons.SOUTH_WEST
-            icon_color = ft.colors.GREEN if is_income else ft.colors.RED
-            icon_bg = ft.colors.GREEN_50 if is_income else ft.colors.RED_50
-            if self.is_dark:
-                icon_bg = ft.colors.with_opacity(0.1, icon_color)
+        for t in display_transactions:
+            is_group = t.get("transaction_type") == "transfer_group"
+            
+            if is_group:
+                # TRANSFER ROW
+                icon = ft.icons.SWAP_HORIZ
+                icon_color = ft.colors.BLUE
+                icon_bg = ft.colors.with_opacity(0.1, ft.colors.BLUE) if self.is_dark else ft.colors.BLUE_50
+                amount_color = text_color
+                amount_prefix = ""
+                cat_name = "Virement"
+                cat_bg = ft.colors.BLUE_GREY_100
+                cat_text_col = ft.colors.BLUE_GREY_900
+                
+                edit_action = lambda e, t=t: self._edit_transfer_group(t)
+                delete_action = lambda e, ids=t["ids"]: self._confirm_delete_group(ids)
+                
+            else:
+                # STANDARD ROW
+                is_income = t["transaction_type"] == "income"
+                amount_color = ft.colors.GREEN if is_income else text_color
+                amount_prefix = "+" if is_income else ""
 
-            cat_name = t["subcategory_name"] or ""
-            cat_bg = self._get_category_color(cat_name)
-            cat_text_col = self._get_category_text_color(cat_name)
+                icon = ft.icons.NORTH_EAST if is_income else ft.icons.SOUTH_WEST
+                icon_color = ft.colors.GREEN if is_income else ft.colors.RED
+                icon_bg = ft.colors.GREEN_50 if is_income else ft.colors.RED_50
+                if self.is_dark:
+                    icon_bg = ft.colors.with_opacity(0.1, icon_color)
+
+                cat_name = t["subcategory_name"] or ""
+                cat_bg = self._get_category_color(cat_name)
+                cat_text_col = self._get_category_text_color(cat_name)
+                
+                edit_action = lambda e, t=t: self._edit_transaction(t)
+                delete_action = lambda e, id=t["id"]: self._confirm_delete(id)
 
             try:
                 date_obj = datetime.strptime(t["date"], "%Y-%m-%d")
@@ -411,12 +573,12 @@ class TransactionsView:
                                     ft.PopupMenuItem(
                                         text="Modify", 
                                         icon=ft.icons.EDIT, 
-                                        on_click=lambda e, t=t: self._edit_transaction(t)
+                                        on_click=edit_action
                                     ),
                                     ft.PopupMenuItem(
                                         text="Delete", 
                                         icon=ft.icons.DELETE, 
-                                        on_click=lambda e, id=t["id"]: self._confirm_delete(id)
+                                        on_click=delete_action
                                     ),
                                 ],
                                 tooltip="Actions",

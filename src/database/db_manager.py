@@ -350,6 +350,46 @@ class DatabaseManager:
         row = cursor.fetchone()
         return {"income": row[0], "expenses": row[1], "balance": row[0] - row[1]}
 
+    def get_accounts_distribution(self) -> List[Dict[str, Any]]:
+        """Calcule la répartition des soldes par compte."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        # Récupérer les ID des comptes (sous-catégories de 'Banque')
+        # On suppose que "Banque" est la catégorie pour les comptes
+        cursor.execute(
+            """
+            SELECT s.id, s.name 
+            FROM subcategories s
+            JOIN categories c ON s.category_id = c.id
+            WHERE c.name = 'Banque'
+            """
+        )
+        accounts = cursor.fetchall()
+
+        distribution = []
+        for acc_id, acc_name in accounts:
+            cursor.execute(
+                """
+                SELECT 
+                    COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount 
+                                      WHEN t.transaction_type = 'expense' THEN -t.amount 
+                                      ELSE 0 END), 0)
+                FROM transactions t
+                WHERE t.subcategory_id = ?
+                """,
+                (acc_id,),
+            )
+            result = cursor.fetchone()
+            balance = result[0] if result else 0.0
+
+            # On inclut même si 0 pour montrer que le compte existe,
+            # mais pour un camembert, on filtre souvent les 0 ou négatifs à l'affichage.
+            # Ici on retourne tout, le dashboard filtrera.
+            distribution.append({"name": acc_name, "value": balance})
+
+        return distribution
+
     # ==================== EXPORT ====================
 
     def export_to_json(self, filepath: str) -> bool:

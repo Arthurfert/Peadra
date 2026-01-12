@@ -18,6 +18,7 @@ class DashboardView:
         self.page = page
         self.is_dark = is_dark
         self.on_data_change = on_data_change
+        self.touched_index = -1
         self._load_data()
 
     def update_theme(self, is_dark: bool):
@@ -92,6 +93,9 @@ class DashboardView:
                 self.category_expenses[desc] = (
                     self.category_expenses.get(desc, 0) + t["amount"]
                 )
+
+        # Account Distribution Data
+        self.account_distribution = db.get_accounts_distribution()
 
     def _build_stat_card(
         self,
@@ -355,7 +359,7 @@ class DashboardView:
             content=ft.Column(
                 [
                     ft.Text(
-                        "Dépenses du mois (Top 5)",
+                        "Monthly expenses (Top 5)",
                         size=18,
                         weight=ft.FontWeight.BOLD,
                         color=text_color,
@@ -401,6 +405,144 @@ class DashboardView:
                 else None
             ),
         )
+
+    def _build_account_distribution_chart(self) -> ft.Container:
+        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        bg_card = PeadraTheme.DARK_SURFACE if self.is_dark else ft.colors.WHITE
+
+        # Filter out zero or negative balances for the pie chart
+        data = [d for d in self.account_distribution if d["value"] > 0]
+
+        # Colors for the chart
+        colors = [
+            ft.colors.BLUE,
+            ft.colors.GREEN,
+            ft.colors.ORANGE,
+            ft.colors.PURPLE,
+            ft.colors.RED,
+            ft.colors.TEAL,
+            ft.colors.CYAN,
+        ]
+
+        if not data:
+            return ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Text(
+                            "Patrimony distribution",
+                            size=18,
+                            weight=ft.FontWeight.BOLD,
+                            color=text_color,
+                        ),
+                        ft.Container(
+                            content=ft.Text(
+                                "No balance to display", color=ft.colors.GREY
+                            ),
+                            alignment=ft.alignment.center,
+                            expand=True,
+                        ),
+                    ]
+                ),
+                bgcolor=bg_card,
+                padding=24,
+                border_radius=20,
+                expand=True,
+                border=(
+                    ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.GREY))
+                    if not self.is_dark
+                    else None
+                ),
+            )
+
+        def on_pie_touch(e):
+            idx = e.section_index if e.section_index is not None else -1
+            self.touched_index = idx
+            if hasattr(self, "pie_chart_container"):
+                self.pie_chart_container.content = build_chart_content()
+                self.pie_chart_container.update()
+
+        def build_chart_content():
+            sections = []
+            for i, item in enumerate(data):
+                color = colors[i % len(colors)]
+                is_touched = i == self.touched_index
+                radius = 50 if is_touched else 40
+
+                # Show title (amount) only if touched
+                title = f"{item['value']:.0f}€" if is_touched else ""
+
+                sections.append(
+                    ft.PieChartSection(
+                        item["value"],
+                        title=title,
+                        title_style=ft.TextStyle(
+                            size=14, color=ft.colors.WHITE, weight=ft.FontWeight.BOLD
+                        ),
+                        color=color,
+                        radius=radius,
+                        # No badges
+                    )
+                )
+
+            chart = ft.PieChart(
+                sections=sections,
+                sections_space=5,
+                center_space_radius=30,
+                expand=True,
+                on_chart_event=on_pie_touch,
+            )
+
+            # Legend
+            legend_items = []
+            for i, item in enumerate(data):
+                color = colors[i % len(colors)]
+                legend_items.append(
+                    ft.Row(
+                        [
+                            ft.Container(
+                                width=12, height=12, bgcolor=color, border_radius=6
+                            ),
+                            ft.Text(f"{item['name']}", color=ft.colors.GREY, size=12),
+                        ],
+                        spacing=5,
+                    )
+                )
+
+            legend = ft.Column(legend_items, scroll=ft.ScrollMode.AUTO, spacing=10)
+
+            return ft.Column(
+                [
+                    ft.Text(
+                        "Patrimony distribution",
+                        size=18,
+                        weight=ft.FontWeight.BOLD,
+                        color=text_color,
+                    ),
+                    ft.Container(height=20),
+                    ft.Row(
+                        [
+                            ft.Container(chart, expand=True, height=200),
+                            ft.Container(legend, width=150),
+                        ],
+                        alignment=ft.MainAxisAlignment.START,
+                        vertical_alignment=ft.CrossAxisAlignment.START,
+                    ),
+                ]
+            )
+
+        self.pie_chart_container = ft.Container(
+            content=build_chart_content(),
+            padding=24,
+            bgcolor=bg_card,
+            border_radius=20,
+            expand=True,
+            border=(
+                ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.GREY))
+                if not self.is_dark
+                else None
+            ),
+        )
+        return self.pie_chart_container
 
     def build(self) -> ft.Container:
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
@@ -470,15 +612,22 @@ class DashboardView:
             spacing=20,
         )
 
-        charts_row = ft.Container(
+        charts_row_1 = ft.Container(
+            content=self._build_income_expense_chart(),
+            height=300,
+        )
+
+        charts_row_2 = ft.Container(
             content=ft.Row(
                 [
-                    ft.Container(content=self._build_income_expense_chart(), expand=3),
-                    ft.Container(content=self._build_category_chart(), expand=2),
+                    ft.Container(content=self._build_category_chart(), expand=1),
+                    ft.Container(
+                        content=self._build_account_distribution_chart(), expand=1
+                    ),
                 ],
                 spacing=20,
             ),
-            height=400,
+            height=300,
         )
 
         content = ft.Column(
@@ -504,7 +653,9 @@ class DashboardView:
                 ),
                 card_row,
                 ft.Container(height=20),
-                charts_row,
+                charts_row_1,
+                ft.Container(height=20),
+                charts_row_2,
             ],
             scroll=ft.ScrollMode.AUTO,
             expand=True,

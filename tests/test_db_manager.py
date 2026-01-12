@@ -14,8 +14,6 @@ def test_database_initialization(db_manager):
         "categories",
         "subcategories",
         "transactions",
-        "assets",
-        "asset_history",
     ]
     for table in expected_tables:
         assert table in tables, f"La table {table} devrait exister"

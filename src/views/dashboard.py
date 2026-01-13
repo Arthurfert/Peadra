@@ -91,7 +91,9 @@ class DashboardView:
         txs = db.get_transactions_by_period(start_date, end_date)
         self.category_expenses = {}
         for t in txs:
-            if t["transaction_type"] == "expense":
+            if t["transaction_type"] == "expense" and not t["description"].startswith(
+                "Virement vers "
+            ):
                 desc = (t["description"] or "Autre").strip()
                 self.category_expenses[desc] = (
                     self.category_expenses.get(desc, 0) + t["amount"]

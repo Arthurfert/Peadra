@@ -252,7 +252,8 @@ class DashboardView:
                                 )
                                 for i in range(len(dates))
                             ],
-                            labels_size=30,
+                            labels_size=40,
+                            labels_interval=1,
                         ),
                         min_y=0,
                         max_y=max_val if max_val > 0 else 1000,

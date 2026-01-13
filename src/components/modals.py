@@ -50,9 +50,13 @@ class TransactionModal:
         )
 
         # Description
+        hint = "Ex: Groceries, Rent..."
+        if self.transaction_type == "income":
+            hint = "Ex: Salary, Social Security..."
+
         self.description_field = ft.TextField(
             label="Description",
-            hint_text="Ex: Groceries, Rent...",
+            hint_text=hint,
             width=350,
             autofocus=True,
         )

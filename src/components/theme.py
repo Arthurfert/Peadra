@@ -18,8 +18,8 @@ class PeadraTheme:
     SURFACE = "#E0E1DD"  # Gris clair
 
     # Couleurs pour le mode clair
-    LIGHT_BG = "#E9EED8"
-    LIGHT_SURFACE = "#FDFDE2"
+    LIGHT_BG = "#FFFFFF"
+    LIGHT_SURFACE = "#E8E7F0"
     LIGHT_TEXT = "#181F2D"
     LIGHT_TEXT_SECONDARY = "#2D4056"
 

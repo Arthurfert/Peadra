@@ -108,7 +108,7 @@ class DashboardView:
         trend_semantic: str = "normal",
     ) -> ft.Container:
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
-        bg_card = PeadraTheme.DARK_SURFACE if self.is_dark else ft.colors.WHITE
+        bg_card = PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
 
         is_positive = trend >= 0
         if trend_semantic == "reverse":
@@ -174,7 +174,7 @@ class DashboardView:
 
     def _build_income_expense_chart(self) -> ft.Container:
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
-        bg_card = PeadraTheme.DARK_SURFACE if self.is_dark else ft.colors.WHITE
+        bg_card = PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
 
         dates = [d["month"] for d in self.chart_data]
         incomes = [d["income"] for d in self.chart_data]
@@ -298,7 +298,7 @@ class DashboardView:
 
     def _build_category_chart(self) -> ft.Container:
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
-        bg_card = PeadraTheme.DARK_SURFACE if self.is_dark else ft.colors.WHITE
+        bg_card = PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
 
         sorted_cats = sorted(
             self.category_expenses.items(), key=lambda x: x[1], reverse=True
@@ -408,7 +408,7 @@ class DashboardView:
 
     def _build_account_distribution_chart(self) -> ft.Container:
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
-        bg_card = PeadraTheme.DARK_SURFACE if self.is_dark else ft.colors.WHITE
+        bg_card = PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
 
         # Filter out zero or negative balances for the pie chart
         data = [d for d in self.account_distribution if d["value"] > 0]

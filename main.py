@@ -150,10 +150,11 @@ class PeadraApp:
                     # Logo et titre
                     ft.Row(
                         controls=[
-                            ft.Icon(
-                                ft.icons.ACCOUNT_BALANCE,
-                                size=32,
-                                color=PeadraTheme.ACCENT,
+                            ft.Image(
+                                src="Peadra_white.png" if self.is_dark else "Peadra.png",
+                                width=32,
+                                height=32,
+                                fit=ft.ImageFit.CONTAIN,
                             ),
                             ft.Text(
                                 "Peadra",
@@ -214,8 +215,7 @@ class PeadraApp:
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             ),
             padding=ft.Padding(left=24, right=24, top=16, bottom=16),
-            bgcolor=bg_color,
-            border=ft.Border(bottom=ft.BorderSide(1, "rgba(119, 141, 169, 0.2)")),
+            bgcolor=bg_color
         )
 
     def _update_content(self):
@@ -241,13 +241,23 @@ class PeadraApp:
         # Conteneur de navigation pour permettre les mises à jour
         self.nav_container = ft.Container(content=self.navigation.build())
 
-        # Layout principal
-        main_layout = ft.Row(
+        # Layout du corps (Navigation + Contenu)
+        body_layout = ft.Row(
             controls=[
                 # Navigation latérale
                 self.nav_container,
                 # Contenu principal
                 self.content_area,
+            ],
+            spacing=0,
+            expand=True,
+        )
+
+        # Layout principal (Header + Body)
+        main_layout = ft.Column(
+            controls=[
+                self._build_header(),
+                body_layout,
             ],
             spacing=0,
             expand=True,

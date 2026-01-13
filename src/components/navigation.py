@@ -86,32 +86,6 @@ class NavigationRailComponent:
             padding=24,
             content=ft.Column(
                 [
-                    # Logo
-                    ft.Container(
-                        content=ft.Row(
-                            [
-                                ft.Container(
-                                    content=ft.Icon(
-                                        ft.icons.ACCOUNT_BALANCE_WALLET,
-                                        color=ft.colors.WHITE,
-                                        size=24,
-                                    ),
-                                    bgcolor="#1976D2",
-                                    padding=8,
-                                    border_radius=8,
-                                ),
-                                ft.Text(
-                                    "Peadra",
-                                    size=24,
-                                    weight=ft.FontWeight.BOLD,
-                                    color=text_color,
-                                ),
-                            ],
-                            spacing=12,
-                            alignment=ft.MainAxisAlignment.START,
-                        ),
-                        margin=ft.margin.only(bottom=40),
-                    ),
                     # Navigation Items
                     ft.Column(
                         [

@@ -154,13 +154,13 @@ class PeadraApp:
                                 src="Peadra_white.png"
                                 if self.is_dark
                                 else "Peadra.png",
-                                width=32,
-                                height=32,
+                                width=60,
+                                height=60,
                                 fit=ft.ImageFit.CONTAIN,
                             ),
                             ft.Text(
                                 "Peadra",
-                                size=24,
+                                size=28,
                                 weight=ft.FontWeight.BOLD,
                                 color=text_color,
                             ),

@@ -35,7 +35,6 @@ class DatabaseManager:
             CREATE TABLE IF NOT EXISTS categories (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL UNIQUE,
-                icon TEXT DEFAULT '',
                 color TEXT DEFAULT '#1976D2',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -49,7 +48,6 @@ class DatabaseManager:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 category_id INTEGER NOT NULL,
-                icon TEXT DEFAULT '',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
             )
@@ -84,24 +82,24 @@ class DatabaseManager:
     def _insert_default_categories(self):
         """Insère les catégories par défaut."""
         default_categories = [
-            ("Banque", "", "#4CAF50"),
+            ("Banque", "#4CAF50"),
         ]
 
         default_subcategories = {
             "Banque": [
-                ("Compte courant", ""),
-                ("Livret A", ""),
-                ("Livret Épargne", ""),
+                "Compte courant",
+                "Livret A",
+                "Livret Épargne",
             ],
         }
 
         conn = self._get_connection()
         cursor = conn.cursor()
 
-        for name, icon, color in default_categories:
+        for name, color in default_categories:
             cursor.execute(
-                "INSERT OR IGNORE INTO categories (name, icon, color) VALUES (?, ?, ?)",
-                (name, icon, color),
+                "INSERT OR IGNORE INTO categories (name, color) VALUES (?, ?)",
+                (name, color),
             )
 
             # Récupérer l'ID de la catégorie
@@ -109,7 +107,7 @@ class DatabaseManager:
             row = cursor.fetchone()
             if row:
                 category_id = row[0]
-                for sub_name, sub_icon in default_subcategories.get(name, []):
+                for sub_name in default_subcategories.get(name, []):
                     # Check if exists first to avoid duplicates (schema has no unique constraint)
                     cursor.execute(
                         "SELECT 1 FROM subcategories WHERE name = ? AND category_id = ?",
@@ -117,8 +115,8 @@ class DatabaseManager:
                     )
                     if not cursor.fetchone():
                         cursor.execute(
-                            "INSERT INTO subcategories (name, category_id, icon) VALUES (?, ?, ?)",
-                            (sub_name, category_id, sub_icon),
+                            "INSERT INTO subcategories (name, category_id) VALUES (?, ?)",
+                            (sub_name, category_id),
                         )
 
         # Cleanup potential duplicates from previous versions
@@ -160,7 +158,7 @@ class DatabaseManager:
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT s.*, c.name as category_name, c.icon as category_icon, c.color as category_color
+            SELECT s.*, c.name as category_name, c.color as category_color
             FROM subcategories s
             JOIN categories c ON s.category_id = c.id
             ORDER BY c.name, s.name
@@ -247,8 +245,8 @@ class DatabaseManager:
         conn = self._get_connection()
         cursor = conn.cursor()
         query = """
-            SELECT t.*, c.name as category_name, c.icon as category_icon,
-                   s.name as subcategory_name, s.icon as subcategory_icon
+            SELECT t.*, c.name as category_name,
+                   s.name as subcategory_name
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
             LEFT JOIN subcategories s ON t.subcategory_id = s.id
@@ -267,8 +265,8 @@ class DatabaseManager:
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT t.*, c.name as category_name, c.icon as category_icon,
-                   s.name as subcategory_name, s.icon as subcategory_icon
+            SELECT t.*, c.name as category_name,
+                   s.name as subcategory_name
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
             LEFT JOIN subcategories s ON t.subcategory_id = s.id

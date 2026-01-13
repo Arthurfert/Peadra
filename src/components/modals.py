@@ -81,9 +81,13 @@ class TransactionModal:
         # Use explicitly typed list or append to empty list to avoid type inference issues
         self.controls_list: List[ft.Control] = [
             self.date_picker,
-            self.description_field,
-            self.amount_field,
         ]
+
+        # Description (only for non-transfer)
+        if self.transaction_type != "transfer":
+            self.controls_list.append(self.description_field)
+
+        self.controls_list.append(self.amount_field)
 
         if self.transaction_type == "transfer":
             # Two dropdowns: Source and Dest
@@ -152,11 +156,15 @@ class TransactionModal:
         """Valide le formulaire."""
         errors = []
 
-        if not self.description_field.value or not self.description_field.value.strip():
-            errors.append("Description is required")
-            self.description_field.error_text = "Required"
-        else:
-            self.description_field.error_text = None
+        if self.transaction_type != "transfer":
+            if (
+                not self.description_field.value
+                or not self.description_field.value.strip()
+            ):
+                errors.append("Description is required")
+                self.description_field.error_text = "Required"
+            else:
+                self.description_field.error_text = None
 
         if not self.amount_field.value:
             errors.append("Amount is required")
@@ -189,6 +197,8 @@ class TransactionModal:
             return
 
         description = self.description_field.value or ""
+        if self.transaction_type == "transfer":
+            description = "Transfer"  # Placeholder, will be overwritten
         amount_str = self.amount_field.value or "0"
 
         transaction_data = {

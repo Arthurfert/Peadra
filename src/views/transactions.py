@@ -236,7 +236,7 @@ class TransactionsView:
                 db.update_transaction(
                     data["id"],
                     date=data["date"],
-                    description=f"Virement vers {data.get('dest_name', 'compte')}",
+                    description=f"Transfer to {data.get('dest_name', 'compte')}",
                     amount=data["amount"],
                     subcategory_id=data.get("source_id"),
                     notes=data.get("notes"),
@@ -245,12 +245,12 @@ class TransactionsView:
                 db.update_transaction(
                     data["other_id"],
                     date=data["date"],
-                    description=f"Virement de {data.get('source_name', 'compte')}",
+                    description=f"Transfer from {data.get('source_name', 'compte')}",
                     amount=data["amount"],
                     subcategory_id=data.get("dest_id"),
                     notes=data.get("notes"),
                 )
-                msg = "Virement modifié"
+                msg = "Transfer modified"
             else:
                 db.update_transaction(
                     data["id"],
@@ -262,7 +262,7 @@ class TransactionsView:
                     subcategory_id=data.get("subcategory_id"),
                     notes=data.get("notes"),
                 )
-                msg = "Transaction modifiée"
+                msg = "Transaction modified"
 
         elif data["transaction_type"] == "transfer":
             # Création - Transfert (2 transactions)
@@ -270,7 +270,7 @@ class TransactionsView:
             # 1. Expense from source
             db.add_transaction(
                 date=data["date"],
-                description=f"Virement vers {data.get('dest_name', 'compte')}",
+                description=f"Transfer to {data.get('dest_name', 'compte')}",
                 amount=data["amount"],
                 transaction_type="expense",
                 category_id=None,
@@ -281,7 +281,7 @@ class TransactionsView:
             # 2. Income to dest
             db.add_transaction(
                 date=data["date"],
-                description=f"Virement de {data.get('source_name', 'compte')}",
+                description=f"Transfer from {data.get('source_name', 'compte')}",
                 amount=data["amount"],
                 transaction_type="income",
                 category_id=None,
@@ -289,7 +289,7 @@ class TransactionsView:
                 notes=data.get("notes"),
             )
 
-            msg = "Virement effectué avec succès"
+            msg = "Transfer completed"
 
         else:
             # Création - Standard
@@ -302,7 +302,7 @@ class TransactionsView:
                 subcategory_id=data.get("subcategory_id"),
                 notes=data.get("notes"),
             )
-            msg = "Transaction ajoutée"
+            msg = "Transaction added"
 
         self.page.snack_bar = ft.SnackBar(ft.Text(msg))
         self.page.snack_bar.open = True
@@ -332,16 +332,16 @@ class TransactionsView:
             db.delete_transaction(transaction_id)
             close_dlg(e)
             self.on_data_change()
-            self.page.snack_bar = ft.SnackBar(ft.Text("Transaction supprimée"))
+            self.page.snack_bar = ft.SnackBar(ft.Text("Transaction deleted"))
             self.page.snack_bar.open = True
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Confirmer la suppression"),
-            content=ft.Text("Voulez-vous vraiment supprimer cette transaction ?"),
+            title=ft.Text("Confirm delete"),
+            content=ft.Text("Are you sure you want to delete this transaction ?"),
             actions=[
-                ft.TextButton("Annuler", on_click=close_dlg),
+                ft.TextButton("Cancel", on_click=close_dlg),
                 ft.TextButton(
-                    "Supprimer",
+                    "Delete",
                     on_click=delete,
                     style=ft.ButtonStyle(color=ft.colors.RED),
                 ),
@@ -361,8 +361,8 @@ class TransactionsView:
             # Transfer signatures
             desc1 = t1["description"] or ""
             is_transfer_candidate = desc1.startswith(
-                "Virement vers "
-            ) or desc1.startswith("Virement de ")
+                "Transfer to "
+            ) or desc1.startswith("Transfer from ")
 
             if is_transfer_candidate and i + 1 < len(transactions):
                 t2 = transactions[i + 1]
@@ -384,26 +384,26 @@ class TransactionsView:
 
                     # Determine which is which
                     if t1["transaction_type"] == "expense" and desc1.startswith(
-                        "Virement vers "
+                        "Transfer to "
                     ):
                         if t2["transaction_type"] == "income" and desc2.startswith(
-                            "Virement de "
+                            "Transfer from "
                         ):
-                            dest = desc1[14:]
-                            source = desc2[12:]
+                            dest = desc1[12:]
+                            source = desc2[14:]
                             source_id = t1["subcategory_id"]
                             dest_id = t2["subcategory_id"]
                             id_expense = t1["id"]
                             id_income = t2["id"]
                             match = True
                     elif t1["transaction_type"] == "income" and desc1.startswith(
-                        "Virement de "
+                        "Transfer from "
                     ):
                         if t2["transaction_type"] == "expense" and desc2.startswith(
-                            "Virement vers "
+                            "Transfer to "
                         ):
-                            source = desc1[12:]
-                            dest = desc2[14:]
+                            source = desc1[14:]
+                            dest = desc2[12:]
                             source_id = t2["subcategory_id"]
                             dest_id = t1["subcategory_id"]
                             id_expense = t2["id"]
@@ -417,9 +417,9 @@ class TransactionsView:
                             id_expense  # Use expense ID as primary for editing
                         )
                         combined["other_id"] = id_income
-                        combined["description"] = f"Transfert de {source} vers {dest}"
+                        combined["description"] = f"Transfer from {source} to {dest}"
                         combined["transaction_type"] = "transfer_group"
-                        combined["subcategory_name"] = "Virement"
+                        combined["subcategory_name"] = "Transfer"
                         combined["subcategory_id"] = None
                         combined["category_color"] = ft.colors.BLUE_GREY_100
                         combined["source_id"] = source_id
@@ -467,18 +467,18 @@ class TransactionsView:
                 db.delete_transaction(tid)
             close_dlg(e)
             self.on_data_change()
-            self.page.snack_bar = ft.SnackBar(ft.Text("Virement supprimé"))
+            self.page.snack_bar = ft.SnackBar(ft.Text("Transfer deleted"))
             self.page.snack_bar.open = True
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Confirmer la suppression"),
+            title=ft.Text("Confirm delete"),
             content=ft.Text(
-                "Voulez-vous vraiment supprimer ce virement (2 transactions) ?"
+                "Are you sure you want to delete this transfer (2 transactions) ?"
             ),
             actions=[
-                ft.TextButton("Annuler", on_click=close_dlg),
+                ft.TextButton("Cancel", on_click=close_dlg),
                 ft.TextButton(
-                    "Supprimer",
+                    "Delete",
                     on_click=delete,
                     style=ft.ButtonStyle(color=ft.colors.RED),
                 ),

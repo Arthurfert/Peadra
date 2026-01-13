@@ -92,7 +92,7 @@ class DashboardView:
         self.category_expenses = {}
         for t in txs:
             if t["transaction_type"] == "expense" and not t["description"].startswith(
-                "Virement vers "
+                "Transfer to "
             ):
                 desc = (t["description"] or "Autre").strip()
                 self.category_expenses[desc] = (

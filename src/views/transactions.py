@@ -570,7 +570,7 @@ class TransactionsView:
                                 ],
                                 spacing=12,
                             ),
-                            expand=3,
+                            expand=4,
                         ),
                         # Category
                         ft.Container(
@@ -760,7 +760,7 @@ class TransactionsView:
                             weight=ft.FontWeight.BOLD,
                             color=ft.colors.GREY_700,
                         ),
-                        expand=3,
+                        expand=4,
                     ),
                     ft.Container(
                         ft.Text(
@@ -769,6 +769,7 @@ class TransactionsView:
                             color=ft.colors.GREY_700,
                         ),
                         expand=2,
+                        alignment=ft.alignment.center_left,
                     ),
                     ft.Container(
                         ft.Text(
@@ -784,6 +785,7 @@ class TransactionsView:
                             text_align=ft.TextAlign.RIGHT,
                         ),
                         expand=1,
+                        alignment=ft.alignment.center_right,
                     ),
                     ft.Container(width=50),  # Spacer for actions column
                 ],

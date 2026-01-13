@@ -229,6 +229,7 @@ class PeadraApp:
     def _build_ui(self):
         """Construit l'interface utilisateur complète."""
         bg_color = PeadraTheme.DARK_BG if self.is_dark else PeadraTheme.LIGHT_BG
+        surface_color = PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
 
         # Zone de contenu
         self.content_area = ft.Container(
@@ -236,6 +237,14 @@ class PeadraApp:
             expand=True,
             padding=0,  # Let individual views handle padding
             bgcolor=bg_color,
+            border_radius=ft.border_radius.only(top_left=30),
+        )
+
+        # Wrapper pour le fond derrière l'angle arrondi
+        content_wrapper = ft.Container(
+            content=self.content_area,
+            expand=True,
+            bgcolor=surface_color,
         )
 
         # Conteneur de navigation pour permettre les mises à jour
@@ -247,7 +256,7 @@ class PeadraApp:
                 # Navigation latérale
                 self.nav_container,
                 # Contenu principal
-                self.content_area,
+                content_wrapper,
             ],
             spacing=0,
             expand=True,

@@ -37,6 +37,7 @@ class PeadraApp:
         self.page.window.min_height = 700
         self.page.padding = 0
         self.page.spacing = 0
+        self.page.window.icon = "icon.ico"
 
         # Appliquer le thème initial
         self._apply_theme()
@@ -68,12 +69,12 @@ class PeadraApp:
     def _on_navigation_change(self, index: int):
         """Gère le changement de vue via la navigation."""
         self.current_view_index = index
-        
+
         # Mettre à jour la navigation pour refléter la sélection
-        if hasattr(self, 'nav_container'):
+        if hasattr(self, "nav_container"):
             self.nav_container.content = self.navigation.build()
             self.nav_container.update()
-        
+
         self._update_content()
 
     def _toggle_theme(self, e):
@@ -93,12 +94,12 @@ class PeadraApp:
         """Rafraîchit toutes les vues (appelé après une modification de données)."""
         for view in self.views.values():
             view.refresh()
-            
+
         # Rafraîchir la navigation (pour le solde)
-        if hasattr(self, 'nav_container'):
+        if hasattr(self, "nav_container"):
             self.nav_container.content = self.navigation.build()
             self.nav_container.update()
-            
+
         self._update_content()
 
     def _export_data(self, e, format_type: str):
@@ -149,14 +150,17 @@ class PeadraApp:
                     # Logo et titre
                     ft.Row(
                         controls=[
-                            ft.Icon(
-                                ft.icons.ACCOUNT_BALANCE,
-                                size=32,
-                                color=PeadraTheme.ACCENT,
+                            ft.Image(
+                                src="Peadra_white.png"
+                                if self.is_dark
+                                else "Peadra.png",
+                                width=60,
+                                height=60,
+                                fit=ft.ImageFit.CONTAIN,
                             ),
                             ft.Text(
                                 "Peadra",
-                                size=24,
+                                size=28,
                                 weight=ft.FontWeight.BOLD,
                                 color=text_color,
                             ),
@@ -214,7 +218,6 @@ class PeadraApp:
             ),
             padding=ft.Padding(left=24, right=24, top=16, bottom=16),
             bgcolor=bg_color,
-            border=ft.Border(bottom=ft.BorderSide(1, "rgba(119, 141, 169, 0.2)")),
         )
 
     def _update_content(self):
@@ -228,6 +231,9 @@ class PeadraApp:
     def _build_ui(self):
         """Construit l'interface utilisateur complète."""
         bg_color = PeadraTheme.DARK_BG if self.is_dark else PeadraTheme.LIGHT_BG
+        surface_color = (
+            PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
+        )
 
         # Zone de contenu
         self.content_area = ft.Container(
@@ -235,18 +241,36 @@ class PeadraApp:
             expand=True,
             padding=0,  # Let individual views handle padding
             bgcolor=bg_color,
+            border_radius=ft.border_radius.only(top_left=30),
         )
-        
+
+        # Wrapper pour le fond derrière l'angle arrondi
+        content_wrapper = ft.Container(
+            content=self.content_area,
+            expand=True,
+            bgcolor=surface_color,
+        )
+
         # Conteneur de navigation pour permettre les mises à jour
         self.nav_container = ft.Container(content=self.navigation.build())
 
-        # Layout principal
-        main_layout = ft.Row(
+        # Layout du corps (Navigation + Contenu)
+        body_layout = ft.Row(
             controls=[
                 # Navigation latérale
                 self.nav_container,
                 # Contenu principal
-                self.content_area,
+                content_wrapper,
+            ],
+            spacing=0,
+            expand=True,
+        )
+
+        # Layout principal (Header + Body)
+        main_layout = ft.Column(
+            controls=[
+                self._build_header(),
+                body_layout,
             ],
             spacing=0,
             expand=True,
@@ -264,4 +288,4 @@ def main(page: ft.Page):
 
 
 if __name__ == "__main__":
-    ft.app(main)
+    ft.app(main, assets_dir="assets")

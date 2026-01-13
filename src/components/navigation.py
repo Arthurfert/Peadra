@@ -33,12 +33,9 @@ class NavigationRailComponent:
             PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
         )
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
-        accent_color = (
-            PeadraTheme.ACCENT if self.is_dark else PeadraTheme.PRIMARY_MEDIUM
-        )
 
         # Récupérer le solde actuel
-        balance = db.get_total_patrimony()
+        total_patrimony = db.get_total_patrimony()
 
         def nav_item(icon_off, icon_on, label, index):
             is_selected = self.selected_index == index
@@ -89,32 +86,6 @@ class NavigationRailComponent:
             padding=24,
             content=ft.Column(
                 [
-                    # Logo
-                    ft.Container(
-                        content=ft.Row(
-                            [
-                                ft.Container(
-                                    content=ft.Icon(
-                                        ft.icons.ACCOUNT_BALANCE_WALLET,
-                                        color=ft.colors.WHITE,
-                                        size=24,
-                                    ),
-                                    bgcolor="#1976D2",
-                                    padding=8,
-                                    border_radius=8,
-                                ),
-                                ft.Text(
-                                    "Peadra",
-                                    size=24,
-                                    weight=ft.FontWeight.BOLD,
-                                    color=text_color,
-                                ),
-                            ],
-                            spacing=12,
-                            alignment=ft.MainAxisAlignment.START,
-                        ),
-                        margin=ft.margin.only(bottom=40),
-                    ),
                     # Navigation Items
                     ft.Column(
                         [
@@ -134,15 +105,15 @@ class NavigationRailComponent:
                         spacing=8,
                     ),
                     ft.Container(expand=True),
-                    # Current Balance Card
+                    # Total Patrimony Card
                     ft.Container(
                         content=ft.Column(
                             [
                                 ft.Text(
-                                    "Current Balance", size=14, color=ft.colors.GREY_500
+                                    "Total Assets", size=14, color=ft.colors.GREY_500
                                 ),
                                 ft.Text(
-                                    f"€{balance:,.2f}",
+                                    f"€{total_patrimony:,.2f}",
                                     size=24,
                                     weight=ft.FontWeight.BOLD,
                                     color=text_color,

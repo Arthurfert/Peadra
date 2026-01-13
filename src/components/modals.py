@@ -50,9 +50,13 @@ class TransactionModal:
         )
 
         # Description
+        hint = "Ex: Groceries, Rent..."
+        if self.transaction_type == "income":
+            hint = "Ex: Salary, Social Security..."
+
         self.description_field = ft.TextField(
             label="Description",
-            hint_text="Ex: Groceries, Rent...",
+            hint_text=hint,
             width=350,
             autofocus=True,
         )
@@ -75,16 +79,19 @@ class TransactionModal:
         # We sort them
         sorted_subcats = sorted(self.subcategories, key=lambda x: x["name"])
         options = [
-            ft.dropdown.Option(str(sub["id"]), sub["name"])
-            for sub in sorted_subcats
+            ft.dropdown.Option(str(sub["id"]), sub["name"]) for sub in sorted_subcats
         ]
 
         # Use explicitly typed list or append to empty list to avoid type inference issues
         self.controls_list: List[ft.Control] = [
             self.date_picker,
-            self.description_field,
-            self.amount_field,
         ]
+
+        # Description (only for non-transfer)
+        if self.transaction_type != "transfer":
+            self.controls_list.append(self.description_field)
+
+        self.controls_list.append(self.amount_field)
 
         if self.transaction_type == "transfer":
             # Two dropdowns: Source and Dest
@@ -105,9 +112,9 @@ class TransactionModal:
                     self.dest_dropdown.value = options[1].key
                 else:
                     self.dest_dropdown.value = options[0].key
-            
+
             self.controls_list.extend([self.source_dropdown, self.dest_dropdown])
-            
+
         else:
             # Single dropdown
             label = "Account / Category"
@@ -118,7 +125,7 @@ class TransactionModal:
             )
             if options:
                 self.subcategory_dropdown.value = options[0].key
-            
+
             self.controls_list.append(self.subcategory_dropdown)
 
         # Notes
@@ -153,11 +160,15 @@ class TransactionModal:
         """Valide le formulaire."""
         errors = []
 
-        if not self.description_field.value or not self.description_field.value.strip():
-            errors.append("Description is required")
-            self.description_field.error_text = "Required"
-        else:
-            self.description_field.error_text = None
+        if self.transaction_type != "transfer":
+            if (
+                not self.description_field.value
+                or not self.description_field.value.strip()
+            ):
+                errors.append("Description is required")
+                self.description_field.error_text = "Required"
+            else:
+                self.description_field.error_text = None
 
         if not self.amount_field.value:
             errors.append("Amount is required")
@@ -176,10 +187,10 @@ class TransactionModal:
 
         if self.transaction_type == "transfer":
             if self.source_dropdown.value == self.dest_dropdown.value:
-                 errors.append("Identical accounts")
-                 self.dest_dropdown.error_text = "Identical accounts"
+                errors.append("Identical accounts")
+                self.dest_dropdown.error_text = "Identical accounts"
             else:
-                 self.dest_dropdown.error_text = None
+                self.dest_dropdown.error_text = None
 
         self.page.update()
         return len(errors) == 0
@@ -190,6 +201,8 @@ class TransactionModal:
             return
 
         description = self.description_field.value or ""
+        if self.transaction_type == "transfer":
+            description = "Transfer"  # Placeholder, will be overwritten
         amount_str = self.amount_field.value or "0"
 
         transaction_data = {
@@ -207,15 +220,25 @@ class TransactionModal:
             if source_val:
                 transaction_data["source_id"] = int(source_val)
                 # Find names for helper descriptions
-                src_name = next((o.text for o in self.source_dropdown.options if o.key == source_val), "")
+                src_name = next(
+                    (
+                        o.text
+                        for o in self.source_dropdown.options
+                        if o.key == source_val
+                    ),
+                    "",
+                )
                 transaction_data["source_name"] = src_name
             if dest_val:
                 transaction_data["dest_id"] = int(dest_val)
-                dest_name = next((o.text for o in self.dest_dropdown.options if o.key == dest_val), "")
+                dest_name = next(
+                    (o.text for o in self.dest_dropdown.options if o.key == dest_val),
+                    "",
+                )
                 transaction_data["dest_name"] = dest_name
         else:
-             sub_val = self.subcategory_dropdown.value
-             transaction_data["subcategory_id"] = int(sub_val) if sub_val else None
+            sub_val = self.subcategory_dropdown.value
+            transaction_data["subcategory_id"] = int(sub_val) if sub_val else None
 
         if self.editing_id:
             transaction_data["id"] = self.editing_id
@@ -234,23 +257,31 @@ class TransactionModal:
     def show(self, transaction_data: Optional[Dict[str, Any]] = None):
         """Affiche le modal."""
         self.editing_id = None
-        
+
         if transaction_data:
-             self.transaction_type = transaction_data.get("transaction_type", self.transaction_type)
-             self.editing_id = transaction_data.get("id")
-             self.other_id = transaction_data.get("other_id")
-        
+            self.transaction_type = transaction_data.get(
+                "transaction_type", self.transaction_type
+            )
+            self.editing_id = transaction_data.get("id")
+            self.other_id = transaction_data.get("other_id")
+
         self._build_controls()
 
         if transaction_data:
-            self.date_picker.value = transaction_data.get("date", datetime.now().strftime("%Y-%m-%d"))
+            self.date_picker.value = transaction_data.get(
+                "date", datetime.now().strftime("%Y-%m-%d")
+            )
             self.description_field.value = transaction_data.get("description", "")
             self.amount_field.value = str(transaction_data.get("amount", ""))
             self.notes_field.value = transaction_data.get("notes", "")
 
-            if self.transaction_type != "transfer" and transaction_data.get("subcategory_id"):
-                 self.subcategory_dropdown.value = str(transaction_data["subcategory_id"])
-            
+            if self.transaction_type != "transfer" and transaction_data.get(
+                "subcategory_id"
+            ):
+                self.subcategory_dropdown.value = str(
+                    transaction_data["subcategory_id"]
+                )
+
             if self.transaction_type == "transfer":
                 if transaction_data.get("source_id"):
                     self.source_dropdown.value = str(transaction_data["source_id"])
@@ -258,12 +289,13 @@ class TransactionModal:
                     self.dest_dropdown.value = str(transaction_data["dest_id"])
 
         type_map = {
-             "income": "New Income",
-             "expense": "New Expense",
-             "transfer": "New Transfer"
+            "income": "New Income",
+            "expense": "New Expense",
+            "transfer": "New Transfer",
         }
         title = type_map.get(self.transaction_type, "New Transaction")
-        if transaction_data: title = "Edit Transaction"
+        if transaction_data:
+            title = "Edit Transaction"
 
         self.dialog = ft.AlertDialog(
             modal=True,

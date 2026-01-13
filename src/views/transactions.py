@@ -83,7 +83,7 @@ class TransactionsView:
         def select_expense(e):
             close_dlg(e)
             self._open_transaction_modal("expense")
-        
+
         def select_income(e):
             close_dlg(e)
             self._open_transaction_modal("income")
@@ -119,29 +119,29 @@ class TransactionsView:
                             "Expense",
                             expense_icon_col,
                             expense_bg,
-                            select_expense
+                            select_expense,
                         ),
                         create_option_card(
                             ft.icons.MONETIZATION_ON,
                             "Income",
                             income_icon_col,
                             income_bg,
-                            select_income
+                            select_income,
                         ),
                         create_option_card(
                             ft.icons.SWAP_HORIZ,
                             "Transfer",
                             transfer_icon_col,
                             transfer_bg,
-                            select_transfer
+                            select_transfer,
                         ),
                     ],
                     spacing=15,
                     vertical_alignment=ft.CrossAxisAlignment.STRETCH,
                 ),
                 width=500,
-                height=140, 
-                padding=10
+                height=140,
+                padding=10,
             ),
             actions=[ft.TextButton("Cancel", on_click=close_dlg)],
             actions_alignment=ft.MainAxisAlignment.END,
@@ -227,7 +227,7 @@ class TransactionsView:
 
     def _save_transaction(self, data: dict):
         """Enregistre ou met à jour la transaction."""
-        
+
         if data.get("id"):
             # Mise à jour
             if data["transaction_type"] == "transfer" and data.get("other_id"):
@@ -236,7 +236,7 @@ class TransactionsView:
                 db.update_transaction(
                     data["id"],
                     date=data["date"],
-                    description=f"Virement vers {data.get('dest_name', 'compte')}",
+                    description=f"Transfer to {data.get('dest_name', 'compte')}",
                     amount=data["amount"],
                     subcategory_id=data.get("source_id"),
                     notes=data.get("notes"),
@@ -245,12 +245,12 @@ class TransactionsView:
                 db.update_transaction(
                     data["other_id"],
                     date=data["date"],
-                    description=f"Virement de {data.get('source_name', 'compte')}",
+                    description=f"Transfer from {data.get('source_name', 'compte')}",
                     amount=data["amount"],
                     subcategory_id=data.get("dest_id"),
                     notes=data.get("notes"),
                 )
-                msg = "Virement modifié"
+                msg = "Transfer modified"
             else:
                 db.update_transaction(
                     data["id"],
@@ -262,35 +262,35 @@ class TransactionsView:
                     subcategory_id=data.get("subcategory_id"),
                     notes=data.get("notes"),
                 )
-                msg = "Transaction modifiée"
+                msg = "Transaction modified"
 
         elif data["transaction_type"] == "transfer":
             # Création - Transfert (2 transactions)
-            
+
             # 1. Expense from source
             db.add_transaction(
                 date=data["date"],
-                description=f"Virement vers {data.get('dest_name', 'compte')}",
+                description=f"Transfer to {data.get('dest_name', 'compte')}",
                 amount=data["amount"],
                 transaction_type="expense",
                 category_id=None,
                 subcategory_id=data.get("source_id"),
                 notes=data.get("notes"),
             )
-            
+
             # 2. Income to dest
             db.add_transaction(
                 date=data["date"],
-                description=f"Virement de {data.get('source_name', 'compte')}",
+                description=f"Transfer from {data.get('source_name', 'compte')}",
                 amount=data["amount"],
                 transaction_type="income",
                 category_id=None,
                 subcategory_id=data.get("dest_id"),
                 notes=data.get("notes"),
             )
-            
-            msg = "Virement effectué avec succès"
-            
+
+            msg = "Transfer completed"
+
         else:
             # Création - Standard
             db.add_transaction(
@@ -302,7 +302,7 @@ class TransactionsView:
                 subcategory_id=data.get("subcategory_id"),
                 notes=data.get("notes"),
             )
-            msg = "Transaction ajoutée"
+            msg = "Transaction added"
 
         self.page.snack_bar = ft.SnackBar(ft.Text(msg))
         self.page.snack_bar.open = True
@@ -322,6 +322,7 @@ class TransactionsView:
 
     def _confirm_delete(self, transaction_id):
         """Demande confirmation avant suppression."""
+
         def close_dlg(e):
             if isinstance(self.page.dialog, ft.AlertDialog):
                 self.page.dialog.open = False
@@ -331,15 +332,19 @@ class TransactionsView:
             db.delete_transaction(transaction_id)
             close_dlg(e)
             self.on_data_change()
-            self.page.snack_bar = ft.SnackBar(ft.Text("Transaction supprimée"))
+            self.page.snack_bar = ft.SnackBar(ft.Text("Transaction deleted"))
             self.page.snack_bar.open = True
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Confirmer la suppression"),
-            content=ft.Text("Voulez-vous vraiment supprimer cette transaction ?"),
+            title=ft.Text("Confirm delete"),
+            content=ft.Text("Are you sure you want to delete this transaction ?"),
             actions=[
-                ft.TextButton("Annuler", on_click=close_dlg),
-                ft.TextButton("Supprimer", on_click=delete, style=ft.ButtonStyle(color=ft.colors.RED)),
+                ft.TextButton("Cancel", on_click=close_dlg),
+                ft.TextButton(
+                    "Delete",
+                    on_click=delete,
+                    style=ft.ButtonStyle(color=ft.colors.RED),
+                ),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
@@ -352,20 +357,23 @@ class TransactionsView:
         i = 0
         while i < len(transactions):
             t1 = transactions[i]
-            
+
             # Transfer signatures
             desc1 = t1["description"] or ""
-            is_transfer_candidate = desc1.startswith("Virement vers ") or desc1.startswith("Virement de ")
-            
+            is_transfer_candidate = desc1.startswith(
+                "Transfer to "
+            ) or desc1.startswith("Transfer from ")
+
             if is_transfer_candidate and i + 1 < len(transactions):
-                t2 = transactions[i+1]
+                t2 = transactions[i + 1]
                 desc2 = t2["description"] or ""
-                
+
                 # Check match: same amount, date, different type
-                if (t1["amount"] == t2["amount"] and 
-                    t1["date"] == t2["date"] and
-                    t1["transaction_type"] != t2["transaction_type"]):
-                    
+                if (
+                    t1["amount"] == t2["amount"]
+                    and t1["date"] == t2["date"]
+                    and t1["transaction_type"] != t2["transaction_type"]
+                ):
                     match = False
                     source = None
                     dest = None
@@ -373,35 +381,45 @@ class TransactionsView:
                     dest_id = None
                     id_expense = None
                     id_income = None
-                    
+
                     # Determine which is which
-                    if t1["transaction_type"] == "expense" and desc1.startswith("Virement vers "):
-                         if t2["transaction_type"] == "income" and desc2.startswith("Virement de "):
-                             dest = desc1[14:]
-                             source = desc2[12:]
-                             source_id = t1["subcategory_id"]
-                             dest_id = t2["subcategory_id"]
-                             id_expense = t1["id"]
-                             id_income = t2["id"]
-                             match = True
-                    elif t1["transaction_type"] == "income" and desc1.startswith("Virement de "):
-                         if t2["transaction_type"] == "expense" and desc2.startswith("Virement vers "):
-                             source = desc1[12:]
-                             dest = desc2[14:]
-                             source_id = t2["subcategory_id"]
-                             dest_id = t1["subcategory_id"]
-                             id_expense = t2["id"]
-                             id_income = t1["id"]
-                             match = True
-                    
+                    if t1["transaction_type"] == "expense" and desc1.startswith(
+                        "Transfer to "
+                    ):
+                        if t2["transaction_type"] == "income" and desc2.startswith(
+                            "Transfer from "
+                        ):
+                            dest = desc1[12:]
+                            source = desc2[14:]
+                            source_id = t1["subcategory_id"]
+                            dest_id = t2["subcategory_id"]
+                            id_expense = t1["id"]
+                            id_income = t2["id"]
+                            match = True
+                    elif t1["transaction_type"] == "income" and desc1.startswith(
+                        "Transfer from "
+                    ):
+                        if t2["transaction_type"] == "expense" and desc2.startswith(
+                            "Transfer to "
+                        ):
+                            source = desc1[14:]
+                            dest = desc2[12:]
+                            source_id = t2["subcategory_id"]
+                            dest_id = t1["subcategory_id"]
+                            id_expense = t2["id"]
+                            id_income = t1["id"]
+                            match = True
+
                     if match:
                         combined = t1.copy()
-                        combined["ids"] = [t1["id"], t2["id"]] # Both IDs for deletion
-                        combined["id"] = id_expense # Use expense ID as primary for editing
+                        combined["ids"] = [t1["id"], t2["id"]]  # Both IDs for deletion
+                        combined["id"] = (
+                            id_expense  # Use expense ID as primary for editing
+                        )
                         combined["other_id"] = id_income
-                        combined["description"] = f"Transfert de {source} vers {dest}"
+                        combined["description"] = f"Transfer from {source} to {dest}"
                         combined["transaction_type"] = "transfer_group"
-                        combined["subcategory_name"] = "Virement"
+                        combined["subcategory_name"] = "Transfer"
                         combined["subcategory_id"] = None
                         combined["category_color"] = ft.colors.BLUE_GREY_100
                         combined["source_id"] = source_id
@@ -409,7 +427,7 @@ class TransactionsView:
                         grouped.append(combined)
                         i += 2
                         continue
-            
+
             grouped.append(t1)
             i += 1
         return grouped
@@ -419,12 +437,14 @@ class TransactionsView:
             "id": t["id"],
             "other_id": t["other_id"],
             "date": t["date"],
-            "description": t["description"], # Not really used in modal for transfer pre-fill strictly but good to have
+            "description": t[
+                "description"
+            ],  # Not really used in modal for transfer pre-fill strictly but good to have
             "amount": t["amount"],
             "transaction_type": "transfer",
             "notes": t.get("notes"),
             "source_id": t["source_id"],
-            "dest_id": t["dest_id"]
+            "dest_id": t["dest_id"],
         }
         modal = TransactionModal(
             page=self.page,
@@ -447,15 +467,21 @@ class TransactionsView:
                 db.delete_transaction(tid)
             close_dlg(e)
             self.on_data_change()
-            self.page.snack_bar = ft.SnackBar(ft.Text("Virement supprimé"))
+            self.page.snack_bar = ft.SnackBar(ft.Text("Transfer deleted"))
             self.page.snack_bar.open = True
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Confirmer la suppression"),
-            content=ft.Text("Voulez-vous vraiment supprimer ce virement (2 transactions) ?"),
+            title=ft.Text("Confirm delete"),
+            content=ft.Text(
+                "Are you sure you want to delete this transfer (2 transactions) ?"
+            ),
             actions=[
-                ft.TextButton("Annuler", on_click=close_dlg),
-                ft.TextButton("Supprimer", on_click=delete, style=ft.ButtonStyle(color=ft.colors.RED)),
+                ft.TextButton("Cancel", on_click=close_dlg),
+                ft.TextButton(
+                    "Delete",
+                    on_click=delete,
+                    style=ft.ButtonStyle(color=ft.colors.RED),
+                ),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
@@ -466,26 +492,33 @@ class TransactionsView:
     def _generate_rows(self):
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
         rows = []
-        
+
         display_transactions = self._group_transactions(self.transactions)
 
         for t in display_transactions:
             is_group = t.get("transaction_type") == "transfer_group"
-            
+
             if is_group:
                 # TRANSFER ROW
                 icon = ft.icons.SWAP_HORIZ
                 icon_color = ft.colors.BLUE
-                icon_bg = ft.colors.with_opacity(0.1, ft.colors.BLUE) if self.is_dark else ft.colors.BLUE_50
+                icon_bg = (
+                    ft.colors.with_opacity(0.1, ft.colors.BLUE)
+                    if self.is_dark
+                    else ft.colors.BLUE_50
+                )
                 amount_color = text_color
                 amount_prefix = ""
                 cat_name = "Virement"
                 cat_bg = ft.colors.BLUE_GREY_100
                 cat_text_col = ft.colors.BLUE_GREY_900
-                
-                edit_action = lambda e, t=t: self._edit_transfer_group(t)
-                delete_action = lambda e, ids=t["ids"]: self._confirm_delete_group(ids)
-                
+
+                def edit_action(e, t=t):
+                    return self._edit_transfer_group(t)
+
+                def delete_action(e, ids=t["ids"]):
+                    return self._confirm_delete_group(ids)
+
             else:
                 # STANDARD ROW
                 is_income = t["transaction_type"] == "income"
@@ -501,14 +534,17 @@ class TransactionsView:
                 cat_name = t["subcategory_name"] or ""
                 cat_bg = self._get_category_color(cat_name)
                 cat_text_col = self._get_category_text_color(cat_name)
-                
-                edit_action = lambda e, t=t: self._edit_transaction(t)
-                delete_action = lambda e, id=t["id"]: self._confirm_delete(id)
+
+                def edit_action(e, t=t):
+                    return self._edit_transaction(t)
+
+                def delete_action(e, id=t["id"]):
+                    return self._confirm_delete(id)
 
             try:
                 date_obj = datetime.strptime(t["date"], "%Y-%m-%d")
                 date_str = date_obj.strftime("%b %d, %Y")
-            except:
+            except ValueError:
                 date_str = t["date"]
 
             row = ft.Container(
@@ -534,7 +570,7 @@ class TransactionsView:
                                 ],
                                 spacing=12,
                             ),
-                            expand=3,
+                            expand=4,
                         ),
                         # Category
                         ft.Container(
@@ -571,14 +607,14 @@ class TransactionsView:
                                 icon=ft.icons.MORE_VERT,
                                 items=[
                                     ft.PopupMenuItem(
-                                        text="Modify", 
-                                        icon=ft.icons.EDIT, 
-                                        on_click=edit_action
+                                        text="Modify",
+                                        icon=ft.icons.EDIT,
+                                        on_click=edit_action,
                                     ),
                                     ft.PopupMenuItem(
-                                        text="Delete", 
-                                        icon=ft.icons.DELETE, 
-                                        on_click=delete_action
+                                        text="Delete",
+                                        icon=ft.icons.DELETE,
+                                        on_click=delete_action,
                                     ),
                                 ],
                                 tooltip="Actions",
@@ -592,6 +628,12 @@ class TransactionsView:
                 border=ft.border.only(
                     bottom=ft.border.BorderSide(
                         1, ft.colors.with_opacity(0.1, ft.colors.GREY)
+                    )
+                )
+                if self.is_dark
+                else ft.border.only(
+                    bottom=ft.border.BorderSide(
+                        1, ft.colors.with_opacity(0.6, ft.colors.GREY)
                     )
                 ),
             )
@@ -621,20 +663,27 @@ class TransactionsView:
         """Retourne une couleur distinctive basée sur le nom de la sous-catégorie."""
         if not cat_name:
             return ft.colors.GREY_300
-        
+
         cat = cat_name.lower()
-        
+
         # Banque / Épargne
-        if "compte courant" in cat: return ft.colors.BLUE_300
-        if "livret" in cat or "épargne" in cat: return ft.colors.YELLOW_300
-        
+        if "compte courant" in cat:
+            return ft.colors.BLUE_300
+        if "livret" in cat or "épargne" in cat:
+            return ft.colors.YELLOW_300
+
         # Quotidien
-        if "salaire" in cat: return ft.colors.TEAL_300
-        if "course" in cat: return ft.colors.AMBER_300
-        if "loyer" in cat: return ft.colors.RED_300
-        if "restaurant" in cat: return ft.colors.ORANGE_300
-        if "transport" in cat: return ft.colors.CYAN_300
-        
+        if "salaire" in cat:
+            return ft.colors.TEAL_300
+        if "course" in cat:
+            return ft.colors.AMBER_300
+        if "loyer" in cat:
+            return ft.colors.RED_300
+        if "restaurant" in cat:
+            return ft.colors.ORANGE_300
+        if "transport" in cat:
+            return ft.colors.CYAN_300
+
         return ft.colors.GREY_300
 
     def _get_category_text_color(self, cat_name: str) -> str:
@@ -711,7 +760,7 @@ class TransactionsView:
                             weight=ft.FontWeight.BOLD,
                             color=ft.colors.GREY_700,
                         ),
-                        expand=3,
+                        expand=4,
                     ),
                     ft.Container(
                         ft.Text(
@@ -720,6 +769,7 @@ class TransactionsView:
                             color=ft.colors.GREY_700,
                         ),
                         expand=2,
+                        alignment=ft.alignment.center_left,
                     ),
                     ft.Container(
                         ft.Text(
@@ -735,8 +785,9 @@ class TransactionsView:
                             text_align=ft.TextAlign.RIGHT,
                         ),
                         expand=1,
+                        alignment=ft.alignment.center_right,
                     ),
-                    ft.Container(width=50), # Spacer for actions column
+                    ft.Container(width=50),  # Spacer for actions column
                 ],
             ),
             padding=ft.padding.symmetric(horizontal=16, vertical=12),

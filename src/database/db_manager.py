@@ -298,7 +298,23 @@ class DatabaseManager:
         return result[0] if result else 0.0
 
     def get_total_patrimony(self) -> float:
-        """Calcule le solde total du compte courant."""
+        """Calcule le solde total"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT 
+                COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount 
+                                  WHEN t.transaction_type = 'expense' THEN -t.amount 
+                                  ELSE 0 END), 0)
+            FROM transactions t
+        """
+        )
+        result = cursor.fetchone()
+        return result[0] if result else 0.0
+
+    def get_balance(self) -> float:
+        """Calcule le solde total du compte courant"""
         conn = self._get_connection()
         cursor = conn.cursor()
         cursor.execute(
@@ -309,7 +325,7 @@ class DatabaseManager:
                                   ELSE 0 END), 0)
             FROM transactions t
             LEFT JOIN subcategories s ON t.subcategory_id = s.id
-            WHERE s.name = 'Compte courant' OR t.subcategory_id IS NULL
+            WHERE s.name = 'Compte courant'
         """
         )
         result = cursor.fetchone()

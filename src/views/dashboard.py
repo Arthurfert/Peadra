@@ -32,6 +32,7 @@ class DashboardView:
     def _load_data(self):
         # Now reflects Bank Balance
         self.total_patrimony = db.get_total_patrimony()
+        self.balance = db.get_balance()
 
         # Get current month summary
         now = datetime.now()
@@ -45,6 +46,8 @@ class DashboardView:
         prev_summary = db.get_monthly_summary(prev_month.year, prev_month.month)
         prev_income = prev_summary.get("income", 0) or 0
         prev_expenses = prev_summary.get("expenses", 0) or 0
+        prev_savings = prev_summary.get("savings", 0) or 0
+        prev_balance = prev_summary.get("balance", 0) or 0
 
         # Calculate trends
         def calc_trend(curr, prev):
@@ -54,8 +57,8 @@ class DashboardView:
 
         self.income_trend = calc_trend(self.monthly_income, prev_income)
         self.expenses_trend = calc_trend(self.monthly_expenses, prev_expenses)
-        self.savings_trend = 0.0
-        self.balance_trend = 0.0
+        self.savings_trend = calc_trend(self.monthly_savings, prev_savings)
+        self.balance_trend = calc_trend(self.balance, prev_balance)
 
         # Chart Data (Income vs Expenses) - Last 6 months
         self.chart_data = []
@@ -119,7 +122,7 @@ class DashboardView:
             is_good = is_positive
 
         trend_color = PeadraTheme.SUCCESS if is_good else PeadraTheme.ERROR
-        trend_icon = ft.icons.NORTH_EAST if is_positive else ft.icons.SOUTH_EAST
+        trend_icon = ft.icons.NORTH_EAST if is_good else ft.icons.SOUTH_EAST
         trend_text = f"{'+' if is_positive else ''}{trend:.1f}%"
 
         return ft.Container(
@@ -366,7 +369,7 @@ class DashboardView:
             content=ft.Column(
                 [
                     ft.Text(
-                        "Monthly expenses (Top 5)",
+                        "Top Monthly Expenses",
                         size=18,
                         weight=ft.FontWeight.BOLD,
                         color=text_color,
@@ -438,7 +441,7 @@ class DashboardView:
                 content=ft.Column(
                     [
                         ft.Text(
-                            "Patrimony distribution",
+                            "Assets distribution",
                             size=18,
                             weight=ft.FontWeight.BOLD,
                             color=text_color,
@@ -522,7 +525,7 @@ class DashboardView:
             return ft.Column(
                 [
                     ft.Text(
-                        "Patrimony distribution",
+                        "Assets distribution",
                         size=18,
                         weight=ft.FontWeight.BOLD,
                         color=text_color,
@@ -583,7 +586,7 @@ class DashboardView:
             [
                 self._build_stat_card(
                     "Current Balance",
-                    self.total_patrimony,
+                    self.balance,
                     self.balance_trend,
                     ft.icons.ACCOUNT_BALANCE_WALLET,
                     blue_bg,

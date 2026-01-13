@@ -35,7 +35,7 @@ class NavigationRailComponent:
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
 
         # Récupérer le solde actuel
-        balance = db.get_total_patrimony()
+        total_patrimony = db.get_total_patrimony()
 
         def nav_item(icon_off, icon_on, label, index):
             is_selected = self.selected_index == index
@@ -105,15 +105,15 @@ class NavigationRailComponent:
                         spacing=8,
                     ),
                     ft.Container(expand=True),
-                    # Current Balance Card
+                    # Total Patrimony Card
                     ft.Container(
                         content=ft.Column(
                             [
                                 ft.Text(
-                                    "Current Balance", size=14, color=ft.colors.GREY_500
+                                    "Total Assets", size=14, color=ft.colors.GREY_500
                                 ),
                                 ft.Text(
-                                    f"€{balance:,.2f}",
+                                    f"€{total_patrimony:,.2f}",
                                     size=24,
                                     weight=ft.FontWeight.BOLD,
                                     color=text_color,

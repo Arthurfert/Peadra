@@ -37,6 +37,7 @@ class PeadraApp:
         self.page.window.min_height = 700
         self.page.padding = 0
         self.page.spacing = 0
+        self.page.window.icon = "icon.ico"
 
         # Appliquer le thème initial
         self._apply_theme()
@@ -264,4 +265,4 @@ def main(page: ft.Page):
 
 
 if __name__ == "__main__":
-    ft.app(main)
+    ft.app(main, assets_dir="assets")

@@ -151,7 +151,9 @@ class PeadraApp:
                     ft.Row(
                         controls=[
                             ft.Image(
-                                src="Peadra_white.png" if self.is_dark else "Peadra.png",
+                                src="Peadra_white.png"
+                                if self.is_dark
+                                else "Peadra.png",
                                 width=32,
                                 height=32,
                                 fit=ft.ImageFit.CONTAIN,
@@ -215,7 +217,7 @@ class PeadraApp:
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             ),
             padding=ft.Padding(left=24, right=24, top=16, bottom=16),
-            bgcolor=bg_color
+            bgcolor=bg_color,
         )
 
     def _update_content(self):
@@ -229,7 +231,9 @@ class PeadraApp:
     def _build_ui(self):
         """Construit l'interface utilisateur complète."""
         bg_color = PeadraTheme.DARK_BG if self.is_dark else PeadraTheme.LIGHT_BG
-        surface_color = PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
+        surface_color = (
+            PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
+        )
 
         # Zone de contenu
         self.content_area = ft.Container(

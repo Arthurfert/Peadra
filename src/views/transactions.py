@@ -544,7 +544,7 @@ class TransactionsView:
             try:
                 date_obj = datetime.strptime(t["date"], "%Y-%m-%d")
                 date_str = date_obj.strftime("%b %d, %Y")
-            except:
+            except ValueError:
                 date_str = t["date"]
 
             row = ft.Container(
@@ -628,6 +628,12 @@ class TransactionsView:
                 border=ft.border.only(
                     bottom=ft.border.BorderSide(
                         1, ft.colors.with_opacity(0.1, ft.colors.GREY)
+                    )
+                )
+                if self.is_dark
+                else ft.border.only(
+                    bottom=ft.border.BorderSide(
+                        1, ft.colors.with_opacity(0.6, ft.colors.GREY)
                     )
                 ),
             )

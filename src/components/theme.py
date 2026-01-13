@@ -14,7 +14,7 @@ class PeadraTheme:
     PRIMARY_DARK = "#081019"  # Bleu nuit profond
     PRIMARY_MEDIUM = "#161F31"  # Bleu marine
     PRIMARY_LIGHT = "#54687E"  # Bleu gris
-    ACCENT = "#778DA9"  # Bleu ardoise
+    ACCENT = "#6FA4E8"  # Bleu ardoise
     SURFACE = "#E0E1DD"  # Gris clair
 
     # Couleurs pour le mode clair

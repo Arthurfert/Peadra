@@ -1,44 +1,43 @@
-# Peadra
+<div align="center" style="display:flex;align-items:center;justify-content:center;gap:12px;">
+  <img src="./assets/icon.ico" alt="Peadra's logo" style="height:100px;margin:0;">
+  <p style="margin:0;font-size:60;">Peadra</p>
+</div>
 
-A personal wealth management application built with Python and Flet.
+## Screenshots
 
->**🚧 Early phase of the project 🚧**\
-More features and UI/UX improvements to come
+|                 Dashboard                 |                Transactions page               |
+| :---------------------------------------: | :--------------------------------------------: |
+| ![Peadra dashboard](assets/Dashboard.jpg) | ![Peadra transaction](assets/transactions.jpg) |
 
 ## Overview
 
 Peadra (*"wealth" in Breton*) is a desktop application designed to help you track and manage your personal finances and assets.
 
-The project has recently been simplified to focus on the essentials: managing your bank transactions, tracking your daily budget, and managing your cash savings.
+**🚧 Early phase of the project 🚧**
 
 ## Features
 
-### Dashboard
-- **Financial overview**: Instantly view your *Current Balance* (Checking Account) and your *Savings* (savings accounts).
-- **Flow tracking**: Interactive graphs showing the monthly evolution of your income vs. expenses.
-- **Top Expenses**: Instant view of the month's biggest expense items.
+- View your current balance, assets distribution and evolution
+- Add, modify and delete transactions
+- Organize into categories
 
-### Transaction Management
-- **New intuitive selector**: Choose between *Expense*, *Income*, or *Transfer* via a modern, colorful interface.
-- **Automated Transfers**: A transfer between two accounts automatically creates the two corresponding entries (debit/credit) to keep your balances up to date.
-- **Filters & Search**: Quickly find your transactions by description or account category.
-- **Color Coding**: Immediate visual identification of transaction types.
+>To come : More graphs, subscriptions views, invests page.
 
 ## Installation
 
 ### Prerequisites
-- Python 3.8 ou supérieur
+- Python 3.8 or higher
 - pip (Python package manager)
 
 ### Setup
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/Peadra.git
+git clone https://github.com/Arthurfert/Peadra.git
 cd Peadra
 ```
 
-2. Create a virtual environment (recommended):
+2. Create a virtual environment (*recommended*):
 ```bash
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
@@ -46,7 +45,7 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 3. Install dependencies:
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt # Or requirements-dev.txt for pytests and linting
 ```
 
 4. Run the application:
@@ -78,12 +77,6 @@ Peadra/
         ├── transactions.py # Transactions management view
 ```
 
-## Technologies
-
-- **Python 3.8+** - Programming language
-- **Flet 0.24.1** - Cross-platform UI framework based on Flutter
-- **SQLite** - Local database for data persistence
-
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
@@ -93,9 +86,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 Contributions are welcome! Please feel free to submit a Pull Request.
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
+2. Create your feature branch
+3. Make your changes !
 5. Open a Pull Request
 
 ## Acknowledgments

@@ -205,14 +205,17 @@ class DashboardView:
         if not dates:
             return ft.Container()
 
-        # Calculate max values for separate scaling
-        max_cash_flow = max(max(incomes + [0]), max(expenses + [0])) * 1.2
-        max_patrimony = max(patrimonies + [0]) * 1.2
+        # Calculate max values
+        max_patrimony = round(max(patrimonies + [0]), -2)
+        max_bars = round(max(incomes + expenses + [0]), -2)
         
-        if max_cash_flow == 0:
-            max_cash_flow = 100
         if max_patrimony == 0:
             max_patrimony = 100
+        if max_bars == 0:
+            max_bars = 100
+        
+        # Scale max_bars so that bars occupy max 30% of chart height
+        max_bars_scaled = max_bars * 3.33  # Bars will be ~30% of max height
 
         # Create bar chart groups for income and expenses
         bar_groups = []
@@ -247,42 +250,14 @@ class DashboardView:
         # Build the chart with Stack to overlay line on bars
         chart_content = ft.Stack(
             [
-                # Bar chart layer (background) - uses its own scale
-                ft.BarChart(
-                    bar_groups=bar_groups,
-                    border=ft.border.all(0, ft.colors.TRANSPARENT),
-                    left_axis=ft.ChartAxis(
-                        labels_size=0,
-                        show_labels=False,  # Hide bar chart Y-axis labels
-                    ),
-                    bottom_axis=ft.ChartAxis(
-                        labels=[
-                            ft.ChartAxisLabel(
-                                value=i,
-                                label=ft.Container(
-                                    ft.Text(
-                                        dates[i], size=10, color=ft.colors.GREY
-                                    ),
-                                    padding=10,
-                                ),
-                            )
-                            for i in range(len(dates))
-                        ],
-                        labels_size=40,
-                    ),
-                    horizontal_grid_lines=ft.ChartGridLines(
-                        interval=max_cash_flow / 5,
-                        color=ft.colors.TRANSPARENT,  # Hide grid lines from bar chart
-                        width=1,
-                    ),
-                    max_y=max_cash_flow,  # Bar chart uses cash flow scale
-                    tooltip_bgcolor=PeadraTheme.SURFACE,
-                ),
-                # Line chart layer (foreground) - uses patrimony scale with visible Y-axis
+                # Line chart layer (background) - uses patrimony scale with visible Y-axis
                 ft.LineChart(
                     data_series=[
                         ft.LineChartData(
-                            data_points=create_data_points(patrimonies),
+                            data_points=[
+                                ft.LineChartDataPoint(i, float(v))
+                                for i, v in enumerate(patrimonies)
+                            ],
                             stroke_width=3,
                             color="#7E57C2",  # Purple for Balance
                             curved=True,
@@ -302,13 +277,51 @@ class DashboardView:
                         labels_size=40, title_size=0, show_labels=True  # Show patrimony Y-axis
                     ),
                     bottom_axis=ft.ChartAxis(
-                        labels_size=0,
-                        show_labels=False,
+                        labels=[
+                            ft.ChartAxisLabel(
+                                value=i,
+                                label=ft.Container(
+                                    ft.Text(
+                                        dates[i], size=12, color=ft.colors.GREY
+                                    ),
+                                    padding=ft.padding.only(top=20),
+                                ),
+                            )
+                            for i in range(len(dates))
+                        ],
+                        labels_size=50,  # Space for labels below chart
+                        show_labels=True,  # Show month labels on LineChart
                     ),
                     min_y=0,
                     max_y=max_patrimony,  # Line chart uses patrimony scale
                     expand=True,
                     tooltip_bgcolor=PeadraTheme.SURFACE,
+                ),
+                # Bar chart layer (foreground for hover) - wrapped in padding to align with 0
+                ft.Container(
+                    content=ft.BarChart(
+                        bar_groups=bar_groups,
+                        border=ft.border.all(0, ft.colors.TRANSPARENT),
+                        left_axis=ft.ChartAxis(
+                            labels_size=40,  # Match LineChart to align drawing areas
+                            show_labels=False,
+                        ),
+                        bottom_axis=ft.ChartAxis(
+                            labels_size=50,  # Reserve space but don't show labels
+                            show_labels=False,
+                        ),
+                        horizontal_grid_lines=ft.ChartGridLines(
+                            interval=max_bars_scaled / 5,
+                            color=ft.colors.TRANSPARENT,
+                            width=1,
+                        ),
+                        min_y=0,
+                        max_y=max_bars_scaled,  # Scaled so bars stay at ~30% height
+                        tooltip_bgcolor=PeadraTheme.SURFACE,
+                    ),
+                    expand=True,
+                    margin=ft.margin.only(bottom=50),  # Align with LineChart
+                    bgcolor=ft.colors.TRANSPARENT,
                 ),
             ],
             expand=True,
@@ -317,16 +330,16 @@ class DashboardView:
         return ft.Container(
             content=ft.Column(
                 [
-                    ft.Text(
-                        "Cash Flow",
-                        size=18,
-                        weight=ft.FontWeight.BOLD,
-                        color=text_color,
-                    ),
-                    ft.Container(height=20),
-                    chart_content,
                     ft.Row(
                         [
+                            ft.Text(
+                                "Cash Flow",
+                                size=18,
+                                weight=ft.FontWeight.BOLD,
+                                color=text_color,
+                            ),
+                            ft.Container(expand=True),  # Spacer
+                            # Legend moved to the right of the title
                             ft.Row(
                                 [
                                     ft.Container(
@@ -336,10 +349,7 @@ class DashboardView:
                                         border_radius=5,
                                     ),
                                     ft.Text("Balance", color=ft.colors.GREY, size=12),
-                                ]
-                            ),
-                            ft.Row(
-                                [
+                                    ft.Container(width=15),  # Spacing
                                     ft.Container(
                                         width=10,
                                         height=10,
@@ -347,10 +357,7 @@ class DashboardView:
                                         border_radius=5,
                                     ),
                                     ft.Text("Inflows", color=ft.colors.GREY, size=12),
-                                ]
-                            ),
-                            ft.Row(
-                                [
+                                    ft.Container(width=15),  # Spacing
                                     ft.Container(
                                         width=10,
                                         height=10,
@@ -358,12 +365,14 @@ class DashboardView:
                                         border_radius=5,
                                     ),
                                     ft.Text("Outflows", color=ft.colors.GREY, size=12),
-                                ]
+                                ],
+                                spacing=5,
                             ),
                         ],
-                        alignment=ft.MainAxisAlignment.CENTER,
-                        spacing=20,
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                     ),
+                    ft.Container(height=20),
+                    chart_content,
                 ],
             ),
             padding=24,
@@ -417,7 +426,7 @@ class DashboardView:
                 ),
             )
 
-        max_val = max([v for k, v in sorted_cats]) * 1.2
+        max_val = round(max([v for k, v in sorted_cats]), -2)
         if max_val == 0:
             max_val = 100
 
@@ -699,7 +708,7 @@ class DashboardView:
 
         charts_row_1 = ft.Container(
             content=self._build_income_expense_chart(),
-            height=300,
+            height=320,  # Reduced to give space for labels below
         )
 
         charts_row_2 = ft.Container(

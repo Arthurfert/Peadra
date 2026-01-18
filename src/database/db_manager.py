@@ -331,6 +331,24 @@ class DatabaseManager:
         result = cursor.fetchone()
         return result[0] if result else 0.0
 
+    def get_history_patrimony(self, date_limit: str) -> float:
+        """Calcule le patrimoine total jusqu'à une date donnée (exclusive)."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT 
+                COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount 
+                                  WHEN t.transaction_type = 'expense' THEN -t.amount 
+                                  ELSE 0 END), 0)
+            FROM transactions t
+            WHERE t.date < ?
+        """,
+            (date_limit,),
+        )
+        result = cursor.fetchone()
+        return result[0] if result else 0.0
+
     def get_monthly_summary(
         self, year: Optional[int] = None, month: Optional[int] = None
     ) -> Dict[str, float]:

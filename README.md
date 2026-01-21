@@ -1,17 +1,18 @@
-<p align="center">
-  <img src="./assets/icon.ico" alt="Peadra's logo" style="height:100px;margin:0;">
-  <h1 align="center">Peadra</h1>
-</p>
-
-Peadra (*"wealth" in Breton*) is a desktop application designed to help you track and manage your personal finances and assets.
-
-**🚧 Early phase of the project 🚧**
+<div align="center">
+  <img src="./assets/Peadra-logo.png" alt="Peadra's logo" style="height:200px;margin:0;">
+</div>
 
 ## Screenshots
 
 |                 Dashboard                 |                Transactions page               |
 | :---------------------------------------: | :--------------------------------------------: |
 | ![Peadra dashboard](assets/Dashboard.jpg) | ![Peadra transaction](assets/transactions.jpg) |
+
+## Overview
+
+Peadra (*"wealth" in Breton*) is a desktop application designed to help you track and manage your personal finances and assets.
+
+**🚧 Early phase of the project 🚧**
 
 ## Features
 

@@ -513,11 +513,8 @@ class TransactionsView:
                 cat_bg = ft.colors.BLUE_GREY_100
                 cat_text_col = ft.colors.BLUE_GREY_900
 
-                def edit_action(e, t=t):
-                    return self._edit_transfer_group(t)
-
-                def delete_action(e, ids=t["ids"]):
-                    return self._confirm_delete_group(ids)
+                edit_action = lambda e, t=t: self._edit_transfer_group(t)
+                delete_action = lambda e, ids=t["ids"]: self._confirm_delete_group(ids)
 
             else:
                 # STANDARD ROW
@@ -535,11 +532,8 @@ class TransactionsView:
                 cat_bg = self._get_category_color(cat_name)
                 cat_text_col = self._get_category_text_color(cat_name)
 
-                def edit_action(e, t=t):
-                    return self._edit_transaction(t)
-
-                def delete_action(e, id=t["id"]):
-                    return self._confirm_delete(id)
+                edit_action = lambda e, t=t: self._edit_transaction(t)
+                delete_action = lambda e, id=t["id"]: self._confirm_delete(id)
 
             try:
                 date_obj = datetime.strptime(t["date"], "%Y-%m-%d")

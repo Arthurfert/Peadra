@@ -48,7 +48,7 @@ class DashboardView:
         prev_summary = db.get_monthly_summary(prev_month.year, prev_month.month)
         prev_income = prev_summary.get("income", 0) or 0
         prev_expenses = prev_summary.get("expenses", 0) or 0
-        
+
         # For Stocks (Savings/Balance), we compare Current Value vs Value at Start of Month (History)
         start_of_month_str = now.replace(day=1).strftime("%Y-%m-%d")
         prev_savings = db.get_history_savings(start_of_month_str)
@@ -112,13 +112,13 @@ class DashboardView:
             # Filter out transfers
             if desc.startswith("Transfer to ") or desc.startswith("Transfer from "):
                 continue
-                
+
             if t["transaction_type"] == "expense":
                 self.category_expenses[desc] = (
                     self.category_expenses.get(desc, 0) + t["amount"]
                 )
             elif t["transaction_type"] == "income":
-                    self.category_incomes[desc] = (
+                self.category_incomes[desc] = (
                     self.category_incomes.get(desc, 0) + t["amount"]
                 )
 
@@ -230,13 +230,13 @@ class DashboardView:
         # Add padding (20% above and below the range)
         padding = patrimony_spread * 0.5  # More padding to avoid "stuck at top" look
         min_y_patrimony = max(0, raw_min_patrimony - padding)
-        
+
         # If the minimum is very close to zero compared to the max, might as well start at 0
         if min_y_patrimony < raw_max_patrimony * 0.1:
             min_y_patrimony = 0
-            
+
         max_y_patrimony = raw_max_patrimony + padding
-        
+
         # Buffer for flat lines
         if max_y_patrimony == min_y_patrimony:
             max_y_patrimony += 100
@@ -349,7 +349,12 @@ class DashboardView:
                         min_y=0,
                         max_y=max_bars_scaled,  # Scaled so bars stay at ~30% height
                         tooltip_bgcolor=PeadraTheme.SURFACE,
-                        scale=ft.transform.Scale(scale_x=(len(dates) / (len(dates) - 1)) if len(dates) > 1 else 1, scale_y=1),
+                        scale=ft.transform.Scale(
+                            scale_x=(len(dates) / (len(dates) - 1))
+                            if len(dates) > 1
+                            else 1,
+                            scale_y=1,
+                        ),
                     ),
                     expand=True,
                     margin=ft.margin.only(bottom=50),  # Align with LineChart
@@ -379,7 +384,9 @@ class DashboardView:
                                         bgcolor="#7E57C2",
                                         border_radius=5,
                                     ),
-                                    ft.Text("Total Assets", color=ft.colors.GREY, size=12),
+                                    ft.Text(
+                                        "Total Assets", color=ft.colors.GREY, size=12
+                                    ),
                                     ft.Container(width=15),  # Spacing
                                     ft.Container(
                                         width=10,
@@ -435,8 +442,12 @@ class DashboardView:
 
         if len(sorted_items) > 5:
             top_items = sorted_items[:5]
-            other_value = sum(item[1] for item in sorted_items[5:]) if len(sorted_items) > 5 else 0
-            
+            other_value = (
+                sum(item[1] for item in sorted_items[5:])
+                if len(sorted_items) > 5
+                else 0
+            )
+
             data_points = [{"name": k, "value": v} for k, v in top_items]
             if other_value > 0:
                 data_points.append({"name": "Autres", "value": other_value})
@@ -496,10 +507,10 @@ class DashboardView:
                 color = colors[i % len(colors)]
                 is_touched = i == touched_index
                 radius = 50 if is_touched else 40
-                
+
                 # Show title (amount) only if touched
                 section_title = f"{item['value']:.0f}€" if is_touched else ""
-                
+
                 sections.append(
                     ft.PieChartSection(
                         item["value"],
@@ -580,16 +591,16 @@ class DashboardView:
             self.category_expenses,
             "touched_index_expenses",
             "expenses_chart_container",
-            "No expenses this month"
+            "No expenses this month",
         )
-    
+
     def _build_income_distribution_chart(self) -> ft.Container:
         return self._build_pie_chart(
             "This Month Incomes",
             self.category_incomes,
             "touched_index_income",
             "income_chart_container",
-            "No income this month"
+            "No income this month",
         )
 
     def _build_account_distribution_chart(self) -> ft.Container:
@@ -600,16 +611,16 @@ class DashboardView:
 
         # Filter out zero or negative balances for the pie chart
         data = [d for d in self.account_distribution if d["value"] > 0]
-        
+
         # Let's manual construct the dict
         data_dict = {d["name"]: d["value"] for d in data}
-        
+
         return self._build_pie_chart(
             "Assets Distribution",
             data_dict,
             "touched_index_assets",
             "assets_chart_container",
-            "No assets to display"
+            "No assets to display",
         )
 
     def build(self) -> ft.Container:
@@ -689,7 +700,9 @@ class DashboardView:
             content=ft.Row(
                 [
                     ft.Container(content=self._build_category_chart(), expand=1),
-                    ft.Container(content=self._build_income_distribution_chart(), expand=1),
+                    ft.Container(
+                        content=self._build_income_distribution_chart(), expand=1
+                    ),
                     ft.Container(
                         content=self._build_account_distribution_chart(), expand=1
                     ),

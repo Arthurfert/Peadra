@@ -48,8 +48,11 @@ class DashboardView:
         prev_summary = db.get_monthly_summary(prev_month.year, prev_month.month)
         prev_income = prev_summary.get("income", 0) or 0
         prev_expenses = prev_summary.get("expenses", 0) or 0
-        prev_savings = prev_summary.get("savings", 0) or 0
-        prev_balance = prev_summary.get("balance", 0) or 0
+        
+        # For Stocks (Savings/Balance), we compare Current Value vs Value at Start of Month (History)
+        start_of_month_str = now.replace(day=1).strftime("%Y-%m-%d")
+        prev_savings = db.get_history_savings(start_of_month_str)
+        prev_balance = db.get_history_balance(start_of_month_str)
 
         # Calculate trends
         def calc_trend(curr, prev):
@@ -213,17 +216,35 @@ class DashboardView:
         if not dates:
             return ft.Container()
 
-        # Calculate max values
-        max_patrimony = round(max(patrimonies + [0]), -2)
-        max_bars = round(max(incomes + expenses + [0]), -2)
+        # Calculate ranges for scaling
+        raw_max_patrimony = max(patrimonies) if patrimonies else 0
+        raw_min_patrimony = min(patrimonies) if patrimonies else 0
+        raw_max_bars = max(incomes + expenses + [0])
 
-        if max_patrimony == 0:
-            max_patrimony = 100
-        if max_bars == 0:
-            max_bars = 100
+        # Dynamic scaling for patrimony line
+        # We want the line to be clearly visible, so we don't start at 0 if values are high
+        patrimony_spread = raw_max_patrimony - raw_min_patrimony
+        if patrimony_spread == 0:
+            patrimony_spread = raw_max_patrimony * 0.1 if raw_max_patrimony > 0 else 100
 
-        # Scale max_bars so that bars occupy max 30% of chart height
-        max_bars_scaled = max_bars * 3.33  # Bars will be ~30% of max height
+        # Add padding (20% above and below the range)
+        padding = patrimony_spread * 0.5  # More padding to avoid "stuck at top" look
+        min_y_patrimony = max(0, raw_min_patrimony - padding)
+        
+        # If the minimum is very close to zero compared to the max, might as well start at 0
+        if min_y_patrimony < raw_max_patrimony * 0.1:
+            min_y_patrimony = 0
+            
+        max_y_patrimony = raw_max_patrimony + padding
+        
+        # Buffer for flat lines
+        if max_y_patrimony == min_y_patrimony:
+            max_y_patrimony += 100
+
+        # For bars, we keep 0 baseline and scale to occupy lower portion
+        if raw_max_bars == 0:
+            raw_max_bars = 100  # Avoid division by zero
+        max_bars_scaled = raw_max_bars * 3
 
         # Create bar chart groups for income and expenses
         bar_groups = []
@@ -274,7 +295,7 @@ class DashboardView:
                     ],
                     border=ft.border.all(0, ft.colors.TRANSPARENT),
                     horizontal_grid_lines=ft.ChartGridLines(
-                        interval=max_patrimony / 5,
+                        interval=(max_y_patrimony - min_y_patrimony) / 5,
                         color=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE),
                         width=1,
                     ),
@@ -302,8 +323,8 @@ class DashboardView:
                     ),
                     min_x=0,
                     max_x=len(dates) - 1,
-                    min_y=0,
-                    max_y=max_patrimony,  # Line chart uses patrimony scale
+                    min_y=min_y_patrimony,
+                    max_y=max_y_patrimony,  # Line chart uses patrimony scale
                     expand=True,
                     tooltip_bgcolor=PeadraTheme.SURFACE,
                 ),
@@ -358,7 +379,7 @@ class DashboardView:
                                         bgcolor="#7E57C2",
                                         border_radius=5,
                                     ),
-                                    ft.Text("Balance", color=ft.colors.GREY, size=12),
+                                    ft.Text("Total Assets", color=ft.colors.GREY, size=12),
                                     ft.Container(width=15),  # Spacing
                                     ft.Container(
                                         width=10,
@@ -555,7 +576,7 @@ class DashboardView:
 
     def _build_category_chart(self) -> ft.Container:
         return self._build_pie_chart(
-            "Expenses Distribution",
+            "This Month Expenses",
             self.category_expenses,
             "touched_index_expenses",
             "expenses_chart_container",
@@ -564,7 +585,7 @@ class DashboardView:
     
     def _build_income_distribution_chart(self) -> ft.Container:
         return self._build_pie_chart(
-            "Income Distribution",
+            "This Month Incomes",
             self.category_incomes,
             "touched_index_income",
             "income_chart_container",

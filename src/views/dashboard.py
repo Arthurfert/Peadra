@@ -73,16 +73,16 @@ class DashboardView:
 
             s = db.get_monthly_summary(year, month)
             month_abbr = calendar.month_abbr[month]
-            
+
             # Calculate patrimony at the end of this month
             # End of month is the first day of next month
             if month == 12:
                 end_date = f"{year + 1}-01-01"
             else:
                 end_date = f"{year}-{month + 1:02d}-01"
-            
+
             patrimony = db.get_history_patrimony(end_date)
-            
+
             self.chart_data.append(
                 {
                     "month": month_abbr,
@@ -91,7 +91,6 @@ class DashboardView:
                     "patrimony": patrimony,
                 }
             )
-
 
         # Simplified category logic for Expenses logic
         start_date = now.strftime("%Y-%m-01")
@@ -208,12 +207,12 @@ class DashboardView:
         # Calculate max values
         max_patrimony = round(max(patrimonies + [0]), -2)
         max_bars = round(max(incomes + expenses + [0]), -2)
-        
+
         if max_patrimony == 0:
             max_patrimony = 100
         if max_bars == 0:
             max_bars = 100
-        
+
         # Scale max_bars so that bars occupy max 30% of chart height
         max_bars_scaled = max_bars * 3.33  # Bars will be ~30% of max height
 
@@ -274,16 +273,16 @@ class DashboardView:
                         interval=1, color=ft.colors.TRANSPARENT
                     ),
                     left_axis=ft.ChartAxis(
-                        labels_size=40, title_size=0, show_labels=True  # Show patrimony Y-axis
+                        labels_size=40,
+                        title_size=0,
+                        show_labels=True,  # Show patrimony Y-axis
                     ),
                     bottom_axis=ft.ChartAxis(
                         labels=[
                             ft.ChartAxisLabel(
                                 value=i,
                                 label=ft.Container(
-                                    ft.Text(
-                                        dates[i], size=12, color=ft.colors.GREY
-                                    ),
+                                    ft.Text(dates[i], size=12, color=ft.colors.GREY),
                                     padding=ft.padding.only(top=20),
                                 ),
                             )
@@ -292,6 +291,8 @@ class DashboardView:
                         labels_size=50,  # Space for labels below chart
                         show_labels=True,  # Show month labels on LineChart
                     ),
+                    min_x=0,
+                    max_x=len(dates) - 1,
                     min_y=0,
                     max_y=max_patrimony,  # Line chart uses patrimony scale
                     expand=True,
@@ -307,7 +308,7 @@ class DashboardView:
                             show_labels=False,
                         ),
                         bottom_axis=ft.ChartAxis(
-                            labels_size=50,  # Reserve space but don't show labels
+                            labels_size=0,  # Reserve space but don't show labels
                             show_labels=False,
                         ),
                         horizontal_grid_lines=ft.ChartGridLines(
@@ -318,10 +319,10 @@ class DashboardView:
                         min_y=0,
                         max_y=max_bars_scaled,  # Scaled so bars stay at ~30% height
                         tooltip_bgcolor=PeadraTheme.SURFACE,
+                        scale=ft.transform.Scale(scale_x=(len(dates) / (len(dates) - 1)) if len(dates) > 1 else 1, scale_y=1),
                     ),
                     expand=True,
                     margin=ft.margin.only(bottom=50),  # Align with LineChart
-                    bgcolor=ft.colors.TRANSPARENT,
                 ),
             ],
             expand=True,

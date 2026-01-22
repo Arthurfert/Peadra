@@ -18,7 +18,9 @@ class DashboardView:
         self.page = page
         self.is_dark = is_dark
         self.on_data_change = on_data_change
-        self.touched_index = -1
+        self.touched_index_assets = -1
+        self.touched_index_income = -1
+        self.touched_index_expenses = -1
         self._load_data()
 
     def update_theme(self, is_dark: bool):
@@ -101,14 +103,18 @@ class DashboardView:
 
         txs = db.get_transactions_by_period(start_date, end_date)
         self.category_expenses = {}
+        self.category_incomes = {}
         for t in txs:
-            if t["transaction_type"] == "expense" and not t["description"].startswith(
-                "Transfer to "
-            ):
+            if not t["description"].startswith("Transfer to "):
                 desc = (t["description"] or "Autre").strip()
-                self.category_expenses[desc] = (
-                    self.category_expenses.get(desc, 0) + t["amount"]
-                )
+                if t["transaction_type"] == "expense":
+                    self.category_expenses[desc] = (
+                        self.category_expenses.get(desc, 0) + t["amount"]
+                    )
+                elif t["transaction_type"] == "income":
+                     self.category_incomes[desc] = (
+                        self.category_incomes.get(desc, 0) + t["amount"]
+                    )
 
         # Account Distribution Data
         self.account_distribution = db.get_accounts_distribution()
@@ -387,128 +393,32 @@ class DashboardView:
             ),
         )
 
-    def _build_category_chart(self) -> ft.Container:
+    def _build_pie_chart(
+        self,
+        title: str,
+        data_dict: dict,
+        touched_index_attr_name: str,
+        container_attr_name: str,
+        empty_msg: str,
+    ) -> ft.Container:
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
         bg_card = (
             PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
         )
 
-        sorted_cats = sorted(
-            self.category_expenses.items(), key=lambda x: x[1], reverse=True
-        )[:5]
+        valid_items = {k: v for k, v in data_dict.items() if v > 0}
+        sorted_items = sorted(valid_items.items(), key=lambda x: x[1], reverse=True)
 
-        if not sorted_cats:
-            return ft.Container(
-                content=ft.Column(
-                    [
-                        ft.Text(
-                            "Expenses by Category",
-                            size=18,
-                            weight=ft.FontWeight.BOLD,
-                            color=text_color,
-                        ),
-                        ft.Container(
-                            content=ft.Text(
-                                "No expenses this month", color=ft.colors.GREY
-                            ),
-                            alignment=ft.alignment.center,
-                            expand=True,
-                        ),
-                    ]
-                ),
-                bgcolor=bg_card,
-                padding=24,
-                border_radius=20,
-                expand=True,
-                border=(
-                    ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.GREY))
-                    if not self.is_dark
-                    else None
-                ),
-            )
+        if len(sorted_items) > 5:
+            top_items = sorted_items[:5]
+            other_value = sum(item[1] for item in sorted_items[5:]) if len(sorted_items) > 5 else 0
+            
+            data_points = [{"name": k, "value": v} for k, v in top_items]
+            if other_value > 0:
+                data_points.append({"name": "Autres", "value": other_value})
+        else:
+            data_points = [{"name": k, "value": v} for k, v in sorted_items]
 
-        max_val = round(max([v for k, v in sorted_cats]), -2)
-        if max_val == 0:
-            max_val = 100
-
-        rod_groups = []
-        for i, (cat, val) in enumerate(sorted_cats):
-            rod_groups.append(
-                ft.BarChartGroup(
-                    x=i,
-                    bar_rods=[
-                        ft.BarChartRod(
-                            from_y=0,
-                            to_y=float(val),
-                            width=30,
-                            color="#2979FF",
-                            border_radius=ft.border_radius.vertical(top=6),
-                        )
-                    ],
-                )
-            )
-
-        return ft.Container(
-            content=ft.Column(
-                [
-                    ft.Text(
-                        "Top Monthly Expenses",
-                        size=18,
-                        weight=ft.FontWeight.BOLD,
-                        color=text_color,
-                    ),
-                    ft.Container(height=20),
-                    ft.BarChart(
-                        bar_groups=rod_groups,
-                        border=ft.border.all(0, ft.colors.TRANSPARENT),
-                        left_axis=ft.ChartAxis(labels_size=40),
-                        bottom_axis=ft.ChartAxis(
-                            labels=[
-                                ft.ChartAxisLabel(
-                                    value=i,
-                                    label=ft.Container(
-                                        ft.Text(
-                                            cat[:10], size=10, color=ft.colors.GREY
-                                        ),
-                                        padding=5,
-                                    ),
-                                )
-                                for i, (cat, _) in enumerate(sorted_cats)
-                            ],
-                            labels_size=30,
-                        ),
-                        horizontal_grid_lines=ft.ChartGridLines(
-                            interval=max_val / 5,
-                            color=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE),
-                            width=1,
-                        ),
-                        max_y=max_val,
-                        expand=True,
-                        tooltip_bgcolor=PeadraTheme.SURFACE,
-                    ),
-                ]
-            ),
-            padding=24,
-            bgcolor=bg_card,
-            border_radius=20,
-            expand=True,
-            border=(
-                ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.GREY))
-                if not self.is_dark
-                else None
-            ),
-        )
-
-    def _build_account_distribution_chart(self) -> ft.Container:
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
-        bg_card = (
-            PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
-        )
-
-        # Filter out zero or negative balances for the pie chart
-        data = [d for d in self.account_distribution if d["value"] > 0]
-
-        # Colors for the chart
         colors = [
             ft.colors.BLUE,
             ft.colors.GREEN,
@@ -519,20 +429,18 @@ class DashboardView:
             ft.colors.CYAN,
         ]
 
-        if not data:
+        if not data_points:
             return ft.Container(
                 content=ft.Column(
                     [
                         ft.Text(
-                            "Assets distribution",
+                            title,
                             size=18,
                             weight=ft.FontWeight.BOLD,
                             color=text_color,
                         ),
                         ft.Container(
-                            content=ft.Text(
-                                "No balance to display", color=ft.colors.GREY
-                            ),
+                            content=ft.Text(empty_msg, color=ft.colors.GREY),
                             alignment=ft.alignment.center,
                             expand=True,
                         ),
@@ -551,31 +459,32 @@ class DashboardView:
 
         def on_pie_touch(e):
             idx = e.section_index if e.section_index is not None else -1
-            self.touched_index = idx
-            if hasattr(self, "pie_chart_container"):
-                self.pie_chart_container.content = build_chart_content()
-                self.pie_chart_container.update()
+            setattr(self, touched_index_attr_name, idx)
+            container = getattr(self, container_attr_name, None)
+            if container:
+                container.content = build_chart_content()
+                container.update()
 
         def build_chart_content():
+            touched_index = getattr(self, touched_index_attr_name, -1)
             sections = []
-            for i, item in enumerate(data):
+            for i, item in enumerate(data_points):
                 color = colors[i % len(colors)]
-                is_touched = i == self.touched_index
+                is_touched = i == touched_index
                 radius = 50 if is_touched else 40
-
+                
                 # Show title (amount) only if touched
-                title = f"{item['value']:.0f}€" if is_touched else ""
-
+                section_title = f"{item['value']:.0f}€" if is_touched else ""
+                
                 sections.append(
                     ft.PieChartSection(
                         item["value"],
-                        title=title,
+                        title=section_title,
                         title_style=ft.TextStyle(
                             size=14, color=ft.colors.WHITE, weight=ft.FontWeight.BOLD
                         ),
                         color=color,
                         radius=radius,
-                        # No badges
                     )
                 )
 
@@ -589,7 +498,7 @@ class DashboardView:
 
             # Legend
             legend_items = []
-            for i, item in enumerate(data):
+            for i, item in enumerate(data_points):
                 color = colors[i % len(colors)]
                 legend_items.append(
                     ft.Row(
@@ -603,12 +512,12 @@ class DashboardView:
                     )
                 )
 
-            legend = ft.Column(legend_items, scroll=ft.ScrollMode.AUTO, spacing=10)
+            legend = ft.Column(legend_items, scroll=ft.ScrollMode.AUTO, spacing=5)
 
             return ft.Column(
                 [
                     ft.Text(
-                        "Assets distribution",
+                        title,
                         size=18,
                         weight=ft.FontWeight.BOLD,
                         color=text_color,
@@ -625,7 +534,8 @@ class DashboardView:
                 ]
             )
 
-        self.pie_chart_container = ft.Container(
+        # Create the container and assign it to self so we can update it later
+        chart_container = ft.Container(
             content=build_chart_content(),
             padding=24,
             bgcolor=bg_card,
@@ -637,7 +547,46 @@ class DashboardView:
                 else None
             ),
         )
-        return self.pie_chart_container
+        setattr(self, container_attr_name, chart_container)
+        return chart_container
+
+    def _build_category_chart(self) -> ft.Container:
+        return self._build_pie_chart(
+            "Expenses Distribution",
+            self.category_expenses,
+            "touched_index_expenses",
+            "expenses_chart_container",
+            "No expenses this month"
+        )
+    
+    def _build_income_distribution_chart(self) -> ft.Container:
+        return self._build_pie_chart(
+            "Income Distribution",
+            self.category_incomes,
+            "touched_index_income",
+            "income_chart_container",
+            "No income this month"
+        )
+
+    def _build_account_distribution_chart(self) -> ft.Container:
+        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        bg_card = (
+            PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
+        )
+
+        # Filter out zero or negative balances for the pie chart
+        data = [d for d in self.account_distribution if d["value"] > 0]
+        
+        # Let's manual construct the dict
+        data_dict = {d["name"]: d["value"] for d in data}
+        
+        return self._build_pie_chart(
+            "Assets Distribution",
+            data_dict,
+            "touched_index_assets",
+            "assets_chart_container",
+            "No assets to display"
+        )
 
     def build(self) -> ft.Container:
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
@@ -716,13 +665,14 @@ class DashboardView:
             content=ft.Row(
                 [
                     ft.Container(content=self._build_category_chart(), expand=1),
+                    ft.Container(content=self._build_income_distribution_chart(), expand=1),
                     ft.Container(
                         content=self._build_account_distribution_chart(), expand=1
                     ),
                 ],
                 spacing=20,
             ),
-            height=300,
+            # height=300, # Remove fixed height to accommodate dynamic content
         )
 
         content = ft.Column(

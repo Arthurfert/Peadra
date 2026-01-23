@@ -44,7 +44,7 @@ class TransactionModal:
             read_only=True,
             width=200,
             suffix=ft.IconButton(
-                icon=ft.icons.CALENDAR_TODAY,
+                icon=ft.Icons.CALENDAR_TODAY,
                 on_click=self._open_date_picker,
             ),
         )
@@ -166,24 +166,24 @@ class TransactionModal:
                 or not self.description_field.value.strip()
             ):
                 errors.append("Description is required")
-                self.description_field.error_text = "Required"
+                self.description_field.error = "Required"
             else:
-                self.description_field.error_text = None
+                self.description_field.error = None
 
         if not self.amount_field.value:
             errors.append("Amount is required")
-            self.amount_field.error_text = "Required"
+            self.amount_field.error = "Required"
         else:
             try:
                 amount = float(self.amount_field.value)
                 if amount <= 0:
                     errors.append("Amount must be positive")
-                    self.amount_field.error_text = "Must be positive"
+                    self.amount_field.error = "Must be positive"
                 else:
-                    self.amount_field.error_text = None
+                    self.amount_field.error = None
             except ValueError:
                 errors.append("Invalid amount")
-                self.amount_field.error_text = "Invalid amount"
+                self.amount_field.error = "Invalid amount"
 
         if self.transaction_type == "transfer":
             if self.source_dropdown.value == self.dest_dropdown.value:
@@ -313,10 +313,10 @@ class TransactionModal:
                 ft.TextButton("Cancel", on_click=self._on_cancel_click),
                 ft.ElevatedButton(
                     "Save",
-                    icon=ft.icons.SAVE,
+                    icon=ft.Icons.SAVE,
                     on_click=self._on_save_click,
                     bgcolor=PeadraTheme.PRIMARY_MEDIUM,
-                    color=ft.colors.WHITE,
+                    color=ft.Colors.WHITE,
                 ),
             ],
             actions_alignment=ft.MainAxisAlignment.END,

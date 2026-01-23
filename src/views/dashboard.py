@@ -4,7 +4,23 @@ Affiche un résumé visuel du patrimoine total.
 """
 
 import flet as ft
-from typing import Callable
+import flet_core as ftc
+from flet_core.charts.bar_chart import BarChart
+from flet_core.charts.bar_chart_group import BarChartGroup
+from flet_core.charts.bar_chart_rod import BarChartRod
+from flet_core.charts.line_chart import LineChart
+from flet_core.charts.line_chart_data import LineChartData
+from flet_core.charts.line_chart_data_point import LineChartDataPoint
+from flet_core.charts.pie_chart import PieChart
+from flet_core.charts.pie_chart_section import PieChartSection
+from flet_core.charts.chart_grid_lines import ChartGridLines
+from flet_core.charts.chart_axis import ChartAxis
+from flet_core.charts.chart_axis_label import ChartAxisLabel
+from flet_core.text_style import TextStyle as CoreTextStyle
+from flet.controls.icon_data import IconData as CoreIconData
+from flet_core.transform import Scale as CoreScale
+from flet_core.types import FontWeight as CoreFontWeight
+from typing import Callable, Union, Any, cast
 from datetime import datetime, timedelta
 import calendar
 from ..components.theme import PeadraTheme
@@ -130,7 +146,7 @@ class DashboardView:
         title: str,
         value: float,
         trend: float,
-        icon: str,
+        icon: Any,
         icon_bg: str,
         icon_color: str,
         trend_semantic: str = "normal",
@@ -147,7 +163,7 @@ class DashboardView:
             is_good = is_positive
 
         trend_color = PeadraTheme.SUCCESS if is_good else PeadraTheme.ERROR
-        trend_icon = ft.icons.NORTH_EAST if is_good else ft.icons.SOUTH_EAST
+        trend_icon = ft.Icons.NORTH_EAST if is_good else ft.Icons.SOUTH_EAST
         trend_text = f"{'+' if is_positive else ''}{trend:.1f}%"
 
         return ft.Container(
@@ -156,7 +172,7 @@ class DashboardView:
                     ft.Row(
                         [
                             ft.Container(
-                                content=ft.Icon(icon, color=icon_color, size=24),
+                                content=ft.Icon(cast(Any, icon), color=icon_color, size=24),
                                 bgcolor=icon_bg,
                                 padding=12,
                                 border_radius=12,
@@ -179,7 +195,7 @@ class DashboardView:
                     ft.Container(height=12),
                     ft.Column(
                         [
-                            ft.Text(title, size=14, color=ft.colors.GREY_500),
+                            ft.Text(title, size=14, color=ft.Colors.GREY_500),
                             ft.Text(
                                 f"€{value:,.2f}",
                                 size=24,
@@ -196,7 +212,7 @@ class DashboardView:
             border_radius=20,
             expand=True,
             border=(
-                ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.GREY))
+                ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.GREY))
                 if not self.is_dark
                 else None
             ),
@@ -250,22 +266,22 @@ class DashboardView:
         bar_groups = []
         for i in range(len(dates)):
             bar_groups.append(
-                ft.BarChartGroup(
+                BarChartGroup(
                     x=i,
                     bar_rods=[
-                        ft.BarChartRod(
+                        BarChartRod(
                             from_y=0,
                             to_y=float(incomes[i]),
                             width=15,
                             color="#4CAF50",
-                            border_radius=ft.border_radius.vertical(top=4),
+                            border_radius=ftc.border_radius.vertical(top=4),
                         ),
-                        ft.BarChartRod(
+                        BarChartRod(
                             from_y=0,
                             to_y=float(expenses[i]),
                             width=15,
                             color="#E53935",
-                            border_radius=ft.border_radius.vertical(top=4),
+                            border_radius=ftc.border_radius.vertical(top=4),
                         ),
                     ],
                     bars_space=4,
@@ -274,17 +290,17 @@ class DashboardView:
 
         # Create line chart data for patrimony
         def create_data_points(values):
-            return [ft.LineChartDataPoint(i, float(v)) for i, v in enumerate(values)]
+            return [LineChartDataPoint(i, float(v)) for i, v in enumerate(values)]
 
         # Build the chart with Stack to overlay line on bars
         chart_content = ft.Stack(
             [
                 # Line chart layer (background) - uses patrimony scale with visible Y-axis
-                ft.LineChart(
+                cast(ft.Control, LineChart(
                     data_series=[
-                        ft.LineChartData(
+                        LineChartData(
                             data_points=[
-                                ft.LineChartDataPoint(i, float(v))
+                                LineChartDataPoint(i, float(v))
                                 for i, v in enumerate(patrimonies)
                             ],
                             stroke_width=3,
@@ -293,28 +309,28 @@ class DashboardView:
                             stroke_cap_round=True,
                         ),
                     ],
-                    border=ft.border.all(0, ft.colors.TRANSPARENT),
-                    horizontal_grid_lines=ft.ChartGridLines(
+                    border=ftc.border.all(0, ft.Colors.TRANSPARENT),
+                    horizontal_grid_lines=ChartGridLines(
                         interval=(max_y_patrimony - min_y_patrimony) / 5,
-                        color=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE),
+                        color=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE),
                         width=1,
                     ),
-                    vertical_grid_lines=ft.ChartGridLines(
-                        interval=1, color=ft.colors.TRANSPARENT
+                    vertical_grid_lines=ChartGridLines(
+                        interval=1, color=ft.Colors.TRANSPARENT
                     ),
-                    left_axis=ft.ChartAxis(
+                    left_axis=ChartAxis(
                         labels_size=40,
                         title_size=0,
                         show_labels=True,  # Show patrimony Y-axis
                     ),
-                    bottom_axis=ft.ChartAxis(
+                    bottom_axis=ChartAxis(
                         labels=[
-                            ft.ChartAxisLabel(
+                            ChartAxisLabel(
                                 value=i,
-                                label=ft.Container(
-                                    ft.Text(dates[i], size=12, color=ft.colors.GREY),
+                                label=cast(Any, ft.Container(
+                                    ft.Text(dates[i], size=12, color=ft.Colors.GREY),
                                     padding=ft.padding.only(top=20),
-                                ),
+                                )),
                             )
                             for i in range(len(dates))
                         ],
@@ -327,35 +343,35 @@ class DashboardView:
                     max_y=max_y_patrimony,  # Line chart uses patrimony scale
                     expand=True,
                     tooltip_bgcolor=PeadraTheme.SURFACE,
-                ),
+                )),
                 # Bar chart layer (foreground for hover) - wrapped in padding to align with 0
                 ft.Container(
-                    content=ft.BarChart(
+                    content=cast(ft.Control, BarChart(
                         bar_groups=bar_groups,
-                        border=ft.border.all(0, ft.colors.TRANSPARENT),
-                        left_axis=ft.ChartAxis(
+                        border=ftc.border.all(0, ft.Colors.TRANSPARENT),
+                        left_axis=ChartAxis(
                             labels_size=40,  # Match LineChart to align drawing areas
                             show_labels=False,
                         ),
-                        bottom_axis=ft.ChartAxis(
+                        bottom_axis=ChartAxis(
                             labels_size=0,  # Reserve space but don't show labels
                             show_labels=False,
                         ),
-                        horizontal_grid_lines=ft.ChartGridLines(
+                        horizontal_grid_lines=ChartGridLines(
                             interval=max_bars_scaled / 5,
-                            color=ft.colors.TRANSPARENT,
+                            color=ft.Colors.TRANSPARENT,
                             width=1,
                         ),
                         min_y=0,
                         max_y=max_bars_scaled,  # Scaled so bars stay at ~30% height
                         tooltip_bgcolor=PeadraTheme.SURFACE,
-                        scale=ft.transform.Scale(
+                        scale=CoreScale(
                             scale_x=(len(dates) / (len(dates) - 1))
                             if len(dates) > 1
                             else 1,
                             scale_y=1,
                         ),
-                    ),
+                    )),
                     expand=True,
                     margin=ft.margin.only(bottom=50),  # Align with LineChart
                 ),
@@ -385,7 +401,7 @@ class DashboardView:
                                         border_radius=5,
                                     ),
                                     ft.Text(
-                                        "Total Assets", color=ft.colors.GREY, size=12
+                                        "Total Assets", color=ft.Colors.GREY, size=12
                                     ),
                                     ft.Container(width=15),  # Spacing
                                     ft.Container(
@@ -394,7 +410,7 @@ class DashboardView:
                                         bgcolor="#4CAF50",
                                         border_radius=5,
                                     ),
-                                    ft.Text("Inflows", color=ft.colors.GREY, size=12),
+                                    ft.Text("Inflows", color=ft.Colors.GREY, size=12),
                                     ft.Container(width=15),  # Spacing
                                     ft.Container(
                                         width=10,
@@ -402,7 +418,7 @@ class DashboardView:
                                         bgcolor="#E53935",
                                         border_radius=5,
                                     ),
-                                    ft.Text("Outflows", color=ft.colors.GREY, size=12),
+                                    ft.Text("Outflows", color=ft.Colors.GREY, size=12),
                                 ],
                                 spacing=5,
                             ),
@@ -418,7 +434,7 @@ class DashboardView:
             border_radius=20,
             expand=True,
             border=(
-                ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.GREY))
+                ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.GREY))
                 if not self.is_dark
                 else None
             ),
@@ -454,14 +470,14 @@ class DashboardView:
         else:
             data_points = [{"name": k, "value": v} for k, v in sorted_items]
 
-        colors = [
-            ft.colors.BLUE,
-            ft.colors.GREEN,
-            ft.colors.ORANGE,
-            ft.colors.PURPLE,
-            ft.colors.RED,
-            ft.colors.TEAL,
-            ft.colors.CYAN,
+        Colors = [
+            ft.Colors.BLUE,
+            ft.Colors.GREEN,
+            ft.Colors.ORANGE,
+            ft.Colors.PURPLE,
+            ft.Colors.RED,
+            ft.Colors.TEAL,
+            ft.Colors.CYAN,
         ]
 
         if not data_points:
@@ -474,11 +490,11 @@ class DashboardView:
                             weight=ft.FontWeight.BOLD,
                             color=text_color,
                         ),
-                        ft.Container(
-                            content=ft.Text(empty_msg, color=ft.colors.GREY),
-                            alignment=ft.alignment.center,
+                        cast(ft.Control, ft.Container(
+                            content=ft.Text(empty_msg, color=ft.Colors.GREY),
+                            alignment=ft.Alignment.CENTER,
                             expand=True,
-                        ),
+                        )),
                     ]
                 ),
                 bgcolor=bg_card,
@@ -486,7 +502,7 @@ class DashboardView:
                 border_radius=20,
                 expand=True,
                 border=(
-                    ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.GREY))
+                    ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.GREY))
                     if not self.is_dark
                     else None
                 ),
@@ -504,7 +520,7 @@ class DashboardView:
             touched_index = getattr(self, touched_index_attr_name, -1)
             sections = []
             for i, item in enumerate(data_points):
-                color = colors[i % len(colors)]
+                color = Colors[i % len(Colors)]
                 is_touched = i == touched_index
                 radius = 50 if is_touched else 40
 
@@ -512,18 +528,18 @@ class DashboardView:
                 section_title = f"{item['value']:.0f}€" if is_touched else ""
 
                 sections.append(
-                    ft.PieChartSection(
+                    PieChartSection(
                         item["value"],
                         title=section_title,
-                        title_style=ft.TextStyle(
-                            size=14, color=ft.colors.WHITE, weight=ft.FontWeight.BOLD
+                        title_style=CoreTextStyle(
+                            size=14, color=ft.Colors.WHITE, weight=CoreFontWeight.BOLD
                         ),
                         color=color,
                         radius=radius,
                     )
                 )
 
-            chart = ft.PieChart(
+            chart = PieChart(
                 sections=sections,
                 sections_space=5,
                 center_space_radius=30,
@@ -532,16 +548,16 @@ class DashboardView:
             )
 
             # Legend
-            legend_items = []
+            legend_items: list[ft.Control] = []
             for i, item in enumerate(data_points):
-                color = colors[i % len(colors)]
+                color = Colors[i % len(Colors)]
                 legend_items.append(
                     ft.Row(
                         [
                             ft.Container(
                                 width=12, height=12, bgcolor=color, border_radius=6
                             ),
-                            ft.Text(f"{item['name']}", color=ft.colors.GREY, size=12),
+                            ft.Text(f"{item['name']}", color=ft.Colors.GREY, size=12),
                         ],
                         spacing=5,
                     )
@@ -560,7 +576,7 @@ class DashboardView:
                     ft.Container(height=20),
                     ft.Row(
                         [
-                            ft.Container(chart, expand=True, height=200),
+                            ft.Container(cast(ft.Control, chart), expand=True, height=200),
                             ft.Container(legend, width=150),
                         ],
                         alignment=ft.MainAxisAlignment.START,
@@ -577,7 +593,7 @@ class DashboardView:
             border_radius=20,
             expand=True,
             border=(
-                ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.GREY))
+                ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.GREY))
                 if not self.is_dark
                 else None
             ),
@@ -628,26 +644,26 @@ class DashboardView:
 
         # Colors for cards
         if self.is_dark:
-            blue_bg = ft.colors.with_opacity(0.2, "blue")
-            green_bg = ft.colors.with_opacity(0.2, "green")
-            red_bg = ft.colors.with_opacity(0.2, "red")
-            purple_bg = ft.colors.with_opacity(0.2, "purple")
+            blue_bg = ft.Colors.with_opacity(0.2, "blue")
+            green_bg = ft.Colors.with_opacity(0.2, "green")
+            red_bg = ft.Colors.with_opacity(0.2, "red")
+            purple_bg = ft.Colors.with_opacity(0.2, "purple")
         else:
-            blue_bg = ft.colors.BLUE_50
-            green_bg = ft.colors.GREEN_50
-            red_bg = ft.colors.RED_50
-            purple_bg = ft.colors.PURPLE_50
+            blue_bg = ft.Colors.BLUE_50
+            green_bg = ft.Colors.GREEN_50
+            red_bg = ft.Colors.RED_50
+            purple_bg = ft.Colors.PURPLE_50
 
         if self.is_dark:
-            blue_bg = ft.colors.with_opacity(0.1, ft.colors.BLUE)
-            green_bg = ft.colors.with_opacity(0.1, ft.colors.GREEN)
-            red_bg = ft.colors.with_opacity(0.1, ft.colors.RED)
-            purple_bg = ft.colors.with_opacity(0.1, ft.colors.PURPLE)
+            blue_bg = ft.Colors.with_opacity(0.1, ft.Colors.BLUE)
+            green_bg = ft.Colors.with_opacity(0.1, ft.Colors.GREEN)
+            red_bg = ft.Colors.with_opacity(0.1, ft.Colors.RED)
+            purple_bg = ft.Colors.with_opacity(0.1, ft.Colors.PURPLE)
         else:
-            blue_bg = ft.colors.BLUE_50
-            green_bg = ft.colors.GREEN_50
-            red_bg = ft.colors.RED_50
-            purple_bg = ft.colors.PURPLE_50
+            blue_bg = ft.Colors.BLUE_50
+            green_bg = ft.Colors.GREEN_50
+            red_bg = ft.Colors.RED_50
+            purple_bg = ft.Colors.PURPLE_50
 
         card_row = ft.Row(
             [
@@ -655,36 +671,36 @@ class DashboardView:
                     "Current Balance",
                     self.balance,
                     self.balance_trend,
-                    ft.icons.ACCOUNT_BALANCE_WALLET,
+                    ft.Icons.ACCOUNT_BALANCE_WALLET,
                     blue_bg,
-                    ft.colors.BLUE,
+                    ft.Colors.BLUE,
                     "normal",
                 ),
                 self._build_stat_card(
                     "Income",
                     self.monthly_income,
                     self.income_trend,
-                    ft.icons.TRENDING_UP,
+                    ft.Icons.TRENDING_UP,
                     green_bg,
-                    ft.colors.GREEN,
+                    ft.Colors.GREEN,
                     "normal",
                 ),
                 self._build_stat_card(
                     "Expenses",
                     self.monthly_expenses,
                     self.expenses_trend,
-                    ft.icons.TRENDING_DOWN,
+                    ft.Icons.TRENDING_DOWN,
                     red_bg,
-                    ft.colors.RED,
+                    ft.Colors.RED,
                     "reverse",
                 ),
                 self._build_stat_card(
                     "Savings Outside",
                     self.monthly_savings,
                     self.savings_trend,
-                    ft.icons.SAVINGS,
+                    ft.Icons.SAVINGS,
                     purple_bg,
-                    ft.colors.PURPLE,
+                    ft.Colors.PURPLE,
                     "normal",
                 ),
             ],
@@ -726,7 +742,7 @@ class DashboardView:
                             ft.Text(
                                 "Welcome back! Here's your financial overview.",
                                 size=16,
-                                color=ft.colors.GREY,
+                                color=ft.Colors.GREY,
                             ),
                         ],
                         spacing=4,

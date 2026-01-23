@@ -5,21 +5,12 @@ Affiche un résumé visuel du patrimoine total.
 
 import flet as ft
 import flet_core as ftc
-from flet_core.charts.bar_chart import BarChart
-from flet_core.charts.bar_chart_group import BarChartGroup
-from flet_core.charts.bar_chart_rod import BarChartRod
-from flet_core.charts.line_chart import LineChart
-from flet_core.charts.line_chart_data import LineChartData
-from flet_core.charts.line_chart_data_point import LineChartDataPoint
-from flet_core.charts.pie_chart import PieChart
-from flet_core.charts.pie_chart_section import PieChartSection
-from flet_core.charts.chart_grid_lines import ChartGridLines
-from flet_core.charts.chart_axis import ChartAxis
-from flet_core.charts.chart_axis_label import ChartAxisLabel
-from flet_core.text_style import TextStyle as CoreTextStyle
-from flet.controls.icon_data import IconData as CoreIconData
-from flet_core.transform import Scale as CoreScale
-from flet_core.types import FontWeight as CoreFontWeight
+from src.flet_charts import (
+    BarChart, BarChartGroup, BarChartRod, 
+    LineChart, LineChartData, LineChartDataPoint, 
+    PieChart, PieChartSection,
+    ChartGridLines, ChartAxis, ChartAxisLabel
+)
 from typing import Callable, Union, Any, cast
 from datetime import datetime, timedelta
 import calendar
@@ -365,7 +356,7 @@ class DashboardView:
                         min_y=0,
                         max_y=max_bars_scaled,  # Scaled so bars stay at ~30% height
                         tooltip_bgcolor=PeadraTheme.SURFACE,
-                        scale=CoreScale(
+                        scale=ft.Scale(
                             scale_x=(len(dates) / (len(dates) - 1))
                             if len(dates) > 1
                             else 1,
@@ -531,8 +522,8 @@ class DashboardView:
                     PieChartSection(
                         item["value"],
                         title=section_title,
-                        title_style=CoreTextStyle(
-                            size=14, color=ft.Colors.WHITE, weight=CoreFontWeight.BOLD
+                        title_style=ft.TextStyle(
+                            size=14, color=ft.Colors.WHITE, weight=ft.FontWeight.BOLD
                         ),
                         color=color,
                         radius=radius,

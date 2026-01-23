@@ -48,7 +48,7 @@ class PeadraTheme:
     @staticmethod
     def get_light_theme() -> ft.Theme:
         """Retourne le thème clair."""
-        return ft.Theme(
+        return ft.Theme(  # type: ignore[call-arg]
             color_scheme_seed=PeadraTheme.PRIMARY_MEDIUM,
             color_scheme=ft.ColorScheme(
                 primary=PeadraTheme.PRIMARY_MEDIUM,
@@ -67,7 +67,7 @@ class PeadraTheme:
     @staticmethod
     def get_dark_theme() -> ft.Theme:
         """Retourne le thème sombre."""
-        return ft.Theme(
+        return ft.Theme(  # type: ignore[call-arg]
             color_scheme_seed=PeadraTheme.PRIMARY_DARK,
             color_scheme=ft.ColorScheme(
                 primary=PeadraTheme.ACCENT,

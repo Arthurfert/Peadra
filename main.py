@@ -241,7 +241,7 @@ class PeadraApp:
             expand=True,
             padding=0,  # Let individual views handle padding
             bgcolor=bg_color,
-            border_radius=ft.border_radius.only(top_left=30),
+            border_radius=ft.BorderRadius.only(top_left=30),
         )
 
         # Wrapper pour le fond derrière l'angle arrondi
@@ -288,4 +288,4 @@ def main(page: ft.Page):
 
 
 if __name__ == "__main__":
-    ft.app(main, assets_dir="assets")
+    ft.run(main, assets_dir="assets")

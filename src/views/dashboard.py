@@ -5,12 +5,7 @@ Affiche un résumé visuel du patrimoine total.
 
 import flet as ft
 import flet_core as ftc
-from src.flet_charts import (
-    BarChart, BarChartGroup, BarChartRod, 
-    LineChart, LineChartData, LineChartDataPoint, 
-    PieChart, PieChartSection,
-    ChartGridLines, ChartAxis, ChartAxisLabel
-)
+import flet_charts as fch
 from typing import Callable, Union, Any, cast
 from datetime import datetime, timedelta
 import calendar
@@ -257,17 +252,17 @@ class DashboardView:
         bar_groups = []
         for i in range(len(dates)):
             bar_groups.append(
-                BarChartGroup(
+                fch.BarChartGroup(
                     x=i,
-                    bar_rods=[
-                        BarChartRod(
+                    rods=[
+                        fch.BarChartRod(
                             from_y=0,
                             to_y=float(incomes[i]),
                             width=15,
                             color="#4CAF50",
                             border_radius=ftc.border_radius.vertical(top=4),
                         ),
-                        BarChartRod(
+                        fch.BarChartRod(
                             from_y=0,
                             to_y=float(expenses[i]),
                             width=15,
@@ -275,48 +270,48 @@ class DashboardView:
                             border_radius=ftc.border_radius.vertical(top=4),
                         ),
                     ],
-                    bars_space=4,
+                    spacing=4,
                 )
             )
 
         # Create line chart data for patrimony
         def create_data_points(values):
-            return [LineChartDataPoint(i, float(v)) for i, v in enumerate(values)]
+            return [fch.LineChartDataPoint(i, float(v)) for i, v in enumerate(values)]
 
         # Build the chart with Stack to overlay line on bars
         chart_content = ft.Stack(
             [
                 # Line chart layer (background) - uses patrimony scale with visible Y-axis
-                cast(ft.Control, LineChart(
+                cast(ft.Control, fch.LineChart(
                     data_series=[
-                        LineChartData(
-                            data_points=[
-                                LineChartDataPoint(i, float(v))
+                        fch.LineChartData(
+                            points=[
+                                fch.LineChartDataPoint(i, float(v))
                                 for i, v in enumerate(patrimonies)
                             ],
                             stroke_width=3,
                             color="#7E57C2",  # Purple for Balance
                             curved=True,
-                            stroke_cap_round=True,
+                            rounded_stroke_cap=True,
                         ),
                     ],
                     border=ftc.border.all(0, ft.Colors.TRANSPARENT),
-                    horizontal_grid_lines=ChartGridLines(
+                    horizontal_grid_lines=fch.ChartGridLines(
                         interval=(max_y_patrimony - min_y_patrimony) / 5,
                         color=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE),
                         width=1,
                     ),
-                    vertical_grid_lines=ChartGridLines(
+                    vertical_grid_lines=fch.ChartGridLines(
                         interval=1, color=ft.Colors.TRANSPARENT
                     ),
-                    left_axis=ChartAxis(
-                        labels_size=40,
+                    left_axis=fch.ChartAxis(
+                        label_size=40,
                         title_size=0,
                         show_labels=True,  # Show patrimony Y-axis
                     ),
-                    bottom_axis=ChartAxis(
+                    bottom_axis=fch.ChartAxis(
                         labels=[
-                            ChartAxisLabel(
+                            fch.ChartAxisLabel(
                                 value=i,
                                 label=cast(Any, ft.Container(
                                     ft.Text(dates[i], size=12, color=ft.Colors.GREY),
@@ -325,7 +320,7 @@ class DashboardView:
                             )
                             for i in range(len(dates))
                         ],
-                        labels_size=50,  # Space for labels below chart
+                        label_size=50,  # Space for labels below chart
                         show_labels=True,  # Show month labels on LineChart
                     ),
                     min_x=0,
@@ -333,29 +328,29 @@ class DashboardView:
                     min_y=min_y_patrimony,
                     max_y=max_y_patrimony,  # Line chart uses patrimony scale
                     expand=True,
-                    tooltip_bgcolor=PeadraTheme.SURFACE,
+                    tooltip=fch.LineChartTooltip(bgcolor=PeadraTheme.SURFACE),
                 )),
                 # Bar chart layer (foreground for hover) - wrapped in padding to align with 0
                 ft.Container(
-                    content=cast(ft.Control, BarChart(
-                        bar_groups=bar_groups,
+                    content=cast(ft.Control, fch.BarChart(
+                        groups=bar_groups,
                         border=ftc.border.all(0, ft.Colors.TRANSPARENT),
-                        left_axis=ChartAxis(
-                            labels_size=40,  # Match LineChart to align drawing areas
+                        left_axis=fch.ChartAxis(
+                            label_size=40,  # Match LineChart to align drawing areas
                             show_labels=False,
                         ),
-                        bottom_axis=ChartAxis(
-                            labels_size=0,  # Reserve space but don't show labels
+                        bottom_axis=fch.ChartAxis(
+                            label_size=0,  # Reserve space but don't show labels
                             show_labels=False,
                         ),
-                        horizontal_grid_lines=ChartGridLines(
+                        horizontal_grid_lines=fch.ChartGridLines(
                             interval=max_bars_scaled / 5,
                             color=ft.Colors.TRANSPARENT,
                             width=1,
                         ),
                         min_y=0,
                         max_y=max_bars_scaled,  # Scaled so bars stay at ~30% height
-                        tooltip_bgcolor=PeadraTheme.SURFACE,
+                        tooltip=fch.BarChartTooltip(bgcolor=PeadraTheme.SURFACE),
                         scale=ft.Scale(
                             scale_x=(len(dates) / (len(dates) - 1))
                             if len(dates) > 1
@@ -519,7 +514,7 @@ class DashboardView:
                 section_title = f"{item['value']:.0f}€" if is_touched else ""
 
                 sections.append(
-                    PieChartSection(
+                    fch.PieChartSection(
                         item["value"],
                         title=section_title,
                         title_style=ft.TextStyle(
@@ -530,12 +525,12 @@ class DashboardView:
                     )
                 )
 
-            chart = PieChart(
+            chart = fch.PieChart(
                 sections=sections,
                 sections_space=5,
                 center_space_radius=30,
                 expand=True,
-                on_chart_event=on_pie_touch,
+                on_event=on_pie_touch,
             )
 
             # Legend

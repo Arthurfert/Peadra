@@ -4,7 +4,7 @@ Interface simplifiée : Liste des transactions et gestion des actifs.
 """
 
 import flet as ft
-from typing import Callable
+from typing import Callable, List
 from datetime import datetime
 from ..components.theme import PeadraTheme
 from ..components.modals import TransactionModal
@@ -57,28 +57,27 @@ class TransactionsView:
     def _open_type_selector(self, e):
         """Ouvre le dialogue de sélection du type de transaction."""
 
-        # Theme colors
+        # Theme Colors
         if self.is_dark:
-            expense_bg = ft.colors.with_opacity(0.15, ft.colors.RED)
-            income_bg = ft.colors.with_opacity(0.15, ft.colors.GREEN)
-            transfer_bg = ft.colors.with_opacity(0.15, ft.colors.BLUE)
-            expense_icon_col = ft.colors.RED_200
-            income_icon_col = ft.colors.GREEN_200
-            transfer_icon_col = ft.colors.BLUE_200
-            text_col = ft.colors.WHITE
+            expense_bg = ft.Colors.with_opacity(0.15, ft.Colors.RED)
+            income_bg = ft.Colors.with_opacity(0.15, ft.Colors.GREEN)
+            transfer_bg = ft.Colors.with_opacity(0.15, ft.Colors.BLUE)
+            expense_icon_col = ft.Colors.RED_200
+            income_icon_col = ft.Colors.GREEN_200
+            transfer_icon_col = ft.Colors.BLUE_200
+            text_col = ft.Colors.WHITE
         else:
-            expense_bg = ft.colors.RED_50
-            income_bg = ft.colors.GREEN_50
-            transfer_bg = ft.colors.BLUE_50
-            expense_icon_col = ft.colors.RED_700
-            income_icon_col = ft.colors.GREEN_700
-            transfer_icon_col = ft.colors.BLUE_700
-            text_col = ft.colors.BLACK
+            expense_bg = ft.Colors.RED_50
+            income_bg = ft.Colors.GREEN_50
+            transfer_bg = ft.Colors.BLUE_50
+            expense_icon_col = ft.Colors.RED_700
+            income_icon_col = ft.Colors.GREEN_700
+            transfer_icon_col = ft.Colors.BLUE_700
+            text_col = ft.Colors.BLACK
 
         def close_dlg(e):
-            if isinstance(self.page.dialog, ft.AlertDialog):
-                self.page.dialog.open = False
-                self.page.update()
+            dlg.open = False
+            self.page.update()
 
         def select_expense(e):
             close_dlg(e)
@@ -115,21 +114,21 @@ class TransactionsView:
                 content=ft.Row(
                     [
                         create_option_card(
-                            ft.icons.CREDIT_CARD,
+                            ft.Icons.CREDIT_CARD,
                             "Expense",
                             expense_icon_col,
                             expense_bg,
                             select_expense,
                         ),
                         create_option_card(
-                            ft.icons.MONETIZATION_ON,
+                            ft.Icons.MONETIZATION_ON,
                             "Income",
                             income_icon_col,
                             income_bg,
                             select_income,
                         ),
                         create_option_card(
-                            ft.icons.SWAP_HORIZ,
+                            ft.Icons.SWAP_HORIZ,
                             "Transfer",
                             transfer_icon_col,
                             transfer_bg,
@@ -146,7 +145,7 @@ class TransactionsView:
             actions=[ft.TextButton("Cancel", on_click=close_dlg)],
             actions_alignment=ft.MainAxisAlignment.END,
         )
-        self.page.dialog = dlg
+        self.page.overlay.append(dlg)
         dlg.open = True
         self.page.update()
 
@@ -178,25 +177,23 @@ class TransactionsView:
             )
 
         def close_dlg(e):
-            if isinstance(self.page.dialog, ft.AlertDialog):
-                self.page.dialog.open = False
-                self.page.update()
+            dlg.open = False
+            self.page.update()
 
         def apply_filter(e):
             self.selected_subcategories = {c.data for c in checkboxes if c.value}
             close_dlg(e)
             self._load_data()
             if hasattr(self, "content_column") and hasattr(self, "table_header"):
-                self.content_column.controls = [
-                    self.table_header
-                ] + self._generate_rows()
+                new_controls: List[ft.Control] = [self.table_header]
+                new_controls.extend(self._generate_rows())
+                self.content_column.controls = new_controls
                 self.content_column.update()
 
         def clear_filter(e):
             for c in checkboxes:
                 c.value = False
-            if self.page.dialog:
-                self.page.dialog.update()
+            dlg.update()
 
         dlg = ft.AlertDialog(
             title=ft.Text("Filter by categories"),
@@ -216,12 +213,12 @@ class TransactionsView:
                     "Apply Filters",
                     on_click=apply_filter,
                     bgcolor=PeadraTheme.ACCENT,
-                    color=ft.colors.WHITE,
+                    color=ft.Colors.WHITE,
                 ),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
-        self.page.dialog = dlg
+        self.page.overlay.append(dlg)
         dlg.open = True
         self.page.update()
 
@@ -304,8 +301,9 @@ class TransactionsView:
             )
             msg = "Transaction added"
 
-        self.page.snack_bar = ft.SnackBar(ft.Text(msg))
-        self.page.snack_bar.open = True
+        snack = ft.SnackBar(ft.Text(msg))
+        self.page.overlay.append(snack)
+        snack.open = True
         self.on_data_change()
 
     def _edit_transaction(self, transaction):
@@ -324,16 +322,17 @@ class TransactionsView:
         """Demande confirmation avant suppression."""
 
         def close_dlg(e):
-            if isinstance(self.page.dialog, ft.AlertDialog):
-                self.page.dialog.open = False
-                self.page.update()
+            dlg.open = False
+            self.page.update()
 
         def delete(e):
             db.delete_transaction(transaction_id)
             close_dlg(e)
             self.on_data_change()
-            self.page.snack_bar = ft.SnackBar(ft.Text("Transaction deleted"))
-            self.page.snack_bar.open = True
+            snack = ft.SnackBar(ft.Text("Transaction deleted"))
+            self.page.overlay.append(snack)
+            snack.open = True
+            self.page.update()
 
         dlg = ft.AlertDialog(
             title=ft.Text("Confirm delete"),
@@ -343,12 +342,12 @@ class TransactionsView:
                 ft.TextButton(
                     "Delete",
                     on_click=delete,
-                    style=ft.ButtonStyle(color=ft.colors.RED),
+                    style=ft.ButtonStyle(color=ft.Colors.RED),
                 ),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
-        self.page.dialog = dlg
+        self.page.overlay.append(dlg)
         dlg.open = True
         self.page.update()
 
@@ -421,7 +420,7 @@ class TransactionsView:
                         combined["transaction_type"] = "transfer_group"
                         combined["subcategory_name"] = "Transfer"
                         combined["subcategory_id"] = None
-                        combined["category_color"] = ft.colors.BLUE_GREY_100
+                        combined["category_color"] = ft.Colors.BLUE_GREY_100
                         combined["source_id"] = source_id
                         combined["dest_id"] = dest_id
                         grouped.append(combined)
@@ -458,17 +457,18 @@ class TransactionsView:
 
     def _confirm_delete_group(self, ids):
         def close_dlg(e):
-            if isinstance(self.page.dialog, ft.AlertDialog):
-                self.page.dialog.open = False
-                self.page.update()
+            dlg.open = False
+            self.page.update()
 
         def delete(e):
             for tid in ids:
                 db.delete_transaction(tid)
             close_dlg(e)
             self.on_data_change()
-            self.page.snack_bar = ft.SnackBar(ft.Text("Transfer deleted"))
-            self.page.snack_bar.open = True
+            snack = ft.SnackBar(ft.Text("Transfer deleted"))
+            self.page.overlay.append(snack)
+            snack.open = True
+            self.page.update()
 
         dlg = ft.AlertDialog(
             title=ft.Text("Confirm delete"),
@@ -480,12 +480,12 @@ class TransactionsView:
                 ft.TextButton(
                     "Delete",
                     on_click=delete,
-                    style=ft.ButtonStyle(color=ft.colors.RED),
+                    style=ft.ButtonStyle(color=ft.Colors.RED),
                 ),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
-        self.page.dialog = dlg
+        self.page.overlay.append(dlg)
         dlg.open = True
         self.page.update()
 
@@ -500,18 +500,18 @@ class TransactionsView:
 
             if is_group:
                 # TRANSFER ROW
-                icon = ft.icons.SWAP_HORIZ
-                icon_color = ft.colors.BLUE
+                icon = ft.Icons.SWAP_HORIZ
+                icon_color = ft.Colors.BLUE
                 icon_bg = (
-                    ft.colors.with_opacity(0.1, ft.colors.BLUE)
+                    ft.Colors.with_opacity(0.1, ft.Colors.BLUE)
                     if self.is_dark
-                    else ft.colors.BLUE_50
+                    else ft.Colors.BLUE_50
                 )
                 amount_color = text_color
                 amount_prefix = ""
                 cat_name = "Virement"
-                cat_bg = ft.colors.BLUE_GREY_100
-                cat_text_col = ft.colors.BLUE_GREY_900
+                cat_bg = ft.Colors.BLUE_GREY_100
+                cat_text_col = ft.Colors.BLUE_GREY_900
 
                 edit_action = lambda e, t=t: self._edit_transfer_group(t)
                 delete_action = lambda e, ids=t["ids"]: self._confirm_delete_group(ids)
@@ -519,14 +519,14 @@ class TransactionsView:
             else:
                 # STANDARD ROW
                 is_income = t["transaction_type"] == "income"
-                amount_color = ft.colors.GREEN if is_income else text_color
+                amount_color = ft.Colors.GREEN if is_income else text_color
                 amount_prefix = "+" if is_income else ""
 
-                icon = ft.icons.NORTH_EAST if is_income else ft.icons.SOUTH_WEST
-                icon_color = ft.colors.GREEN if is_income else ft.colors.RED
-                icon_bg = ft.colors.GREEN_50 if is_income else ft.colors.RED_50
+                icon = ft.Icons.NORTH_EAST if is_income else ft.Icons.SOUTH_WEST
+                icon_color = ft.Colors.GREEN if is_income else ft.Colors.RED
+                icon_bg = ft.Colors.GREEN_50 if is_income else ft.Colors.RED_50
                 if self.is_dark:
-                    icon_bg = ft.colors.with_opacity(0.1, icon_color)
+                    icon_bg = ft.Colors.with_opacity(0.1, icon_color)
 
                 cat_name = t["subcategory_name"] or ""
                 cat_bg = self._get_category_color(cat_name)
@@ -580,7 +580,7 @@ class TransactionsView:
                                 border_radius=12,
                             ),
                             expand=2,
-                            alignment=ft.alignment.center_left,
+                            alignment=ft.Alignment.CENTER_LEFT,
                         ),
                         # Date
                         ft.Container(ft.Text(date_str, color=text_color), expand=2),
@@ -593,41 +593,41 @@ class TransactionsView:
                                 text_align=ft.TextAlign.RIGHT,
                             ),
                             expand=1,
-                            alignment=ft.alignment.center_right,
+                            alignment=ft.Alignment.CENTER_RIGHT,
                         ),
                         # Actions
                         ft.Container(
                             ft.PopupMenuButton(
-                                icon=ft.icons.MORE_VERT,
+                                icon=ft.Icons.MORE_VERT,
                                 items=[
                                     ft.PopupMenuItem(
-                                        text="Modify",
-                                        icon=ft.icons.EDIT,
+                                        content=ft.Text("Modify"),
+                                        icon=ft.Icons.EDIT,
                                         on_click=edit_action,
                                     ),
                                     ft.PopupMenuItem(
-                                        text="Delete",
-                                        icon=ft.icons.DELETE,
+                                        content=ft.Text("Delete"),
+                                        icon=ft.Icons.DELETE,
                                         on_click=delete_action,
                                     ),
                                 ],
                                 tooltip="Actions",
                             ),
                             width=50,
-                            alignment=ft.alignment.center_right,
+                            alignment=ft.Alignment.CENTER_RIGHT,
                         ),
                     ]
                 ),
                 padding=ft.padding.symmetric(horizontal=16, vertical=16),
                 border=ft.border.only(
                     bottom=ft.border.BorderSide(
-                        1, ft.colors.with_opacity(0.1, ft.colors.GREY)
+                        1, ft.Colors.with_opacity(0.1, ft.Colors.GREY)
                     )
                 )
                 if self.is_dark
                 else ft.border.only(
                     bottom=ft.border.BorderSide(
-                        1, ft.colors.with_opacity(0.6, ft.colors.GREY)
+                        1, ft.Colors.with_opacity(0.6, ft.Colors.GREY)
                     )
                 ),
             )
@@ -636,9 +636,9 @@ class TransactionsView:
         if not rows:
             rows.append(
                 ft.Container(
-                    content=ft.Text("No recent transactions", color=ft.colors.GREY),
+                    content=ft.Text("No recent transactions", color=ft.Colors.GREY),
                     padding=20,
-                    alignment=ft.alignment.center,
+                    alignment=ft.Alignment.CENTER,
                 )
             )
 
@@ -650,45 +650,47 @@ class TransactionsView:
         self._load_data()
 
         if hasattr(self, "content_column") and hasattr(self, "table_header"):
-            self.content_column.controls = [self.table_header] + self._generate_rows()
+            new_controls: List[ft.Control] = [self.table_header]
+            new_controls.extend(self._generate_rows())
+            self.content_column.controls = new_controls
             self.content_column.update()
 
     def _get_category_color(self, cat_name: str) -> str:
         """Retourne une couleur distinctive basée sur le nom de la sous-catégorie."""
         if not cat_name:
-            return ft.colors.GREY_300
+            return ft.Colors.GREY_300
 
         cat = cat_name.lower()
 
         # Banque / Épargne
         if "compte courant" in cat:
-            return ft.colors.BLUE_300
+            return ft.Colors.BLUE_300
         if "livret" in cat or "épargne" in cat:
-            return ft.colors.YELLOW_300
+            return ft.Colors.YELLOW_300
 
         # Quotidien
         if "salaire" in cat:
-            return ft.colors.TEAL_300
+            return ft.Colors.TEAL_300
         if "course" in cat:
-            return ft.colors.AMBER_300
+            return ft.Colors.AMBER_300
         if "loyer" in cat:
-            return ft.colors.RED_300
+            return ft.Colors.RED_300
         if "restaurant" in cat:
-            return ft.colors.ORANGE_300
+            return ft.Colors.ORANGE_300
         if "transport" in cat:
-            return ft.colors.CYAN_300
+            return ft.Colors.CYAN_300
 
-        return ft.colors.GREY_300
+        return ft.Colors.GREY_300
 
     def _get_category_text_color(self, cat_name: str) -> str:
         # Simple contrast: darker version of pastel
         if not cat_name:
-            return ft.colors.GREY_800
-        return ft.colors.GREY_900
+            return ft.Colors.GREY_800
+        return ft.Colors.GREY_900
 
     def build(self) -> ft.Container:
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
-        surface_color = PeadraTheme.DARK_SURFACE if self.is_dark else ft.colors.WHITE
+        surface_color = PeadraTheme.DARK_SURFACE if self.is_dark else ft.Colors.WHITE
 
         # Header
         header = ft.Row(
@@ -704,15 +706,15 @@ class TransactionsView:
                         ft.Text(
                             "View and manage your recent transactions.",
                             size=16,
-                            color=ft.colors.GREY,
+                            color=ft.Colors.GREY,
                         ),
                     ]
                 ),
                 ft.ElevatedButton(
                     "Add Transaction",
-                    icon=ft.icons.ADD,
+                    icon=ft.Icons.ADD,
                     bgcolor=PeadraTheme.ACCENT,
-                    color=ft.colors.WHITE,
+                    color=ft.Colors.WHITE,
                     on_click=self._open_type_selector,
                 ),
             ],
@@ -725,17 +727,17 @@ class TransactionsView:
                 ft.TextField(
                     hint_text="Search transactions...",
                     value=self.search_query,
-                    prefix_icon=ft.icons.SEARCH,
+                    prefix_icon=ft.Icons.SEARCH,
                     border_radius=8,
-                    bgcolor=ft.colors.with_opacity(0.05, text_color),
-                    border_color=ft.colors.TRANSPARENT,
+                    bgcolor=ft.Colors.with_opacity(0.05, text_color),
+                    border_color=ft.Colors.TRANSPARENT,
                     expand=True,
                     on_change=self._on_search_change,
                 ),
                 ft.Container(width=10),
                 ft.OutlinedButton(
                     "Filter",
-                    icon=ft.icons.FILTER_LIST,
+                    icon=ft.Icons.FILTER_LIST,
                     style=ft.ButtonStyle(
                         shape=ft.RoundedRectangleBorder(radius=8),
                     ),
@@ -752,7 +754,7 @@ class TransactionsView:
                         ft.Text(
                             "Description",
                             weight=ft.FontWeight.BOLD,
-                            color=ft.colors.GREY_700,
+                            color=ft.Colors.GREY_700,
                         ),
                         expand=4,
                     ),
@@ -760,14 +762,14 @@ class TransactionsView:
                         ft.Text(
                             "Category",
                             weight=ft.FontWeight.BOLD,
-                            color=ft.colors.GREY_700,
+                            color=ft.Colors.GREY_700,
                         ),
                         expand=2,
-                        alignment=ft.alignment.center_left,
+                        alignment=ft.Alignment.CENTER_LEFT,
                     ),
                     ft.Container(
                         ft.Text(
-                            "Date", weight=ft.FontWeight.BOLD, color=ft.colors.GREY_700
+                            "Date", weight=ft.FontWeight.BOLD, color=ft.Colors.GREY_700
                         ),
                         expand=2,
                     ),
@@ -775,23 +777,27 @@ class TransactionsView:
                         ft.Text(
                             "Amount",
                             weight=ft.FontWeight.BOLD,
-                            color=ft.colors.GREY_700,
+                            color=ft.Colors.GREY_700,
                             text_align=ft.TextAlign.RIGHT,
                         ),
                         expand=1,
-                        alignment=ft.alignment.center_right,
+                        alignment=ft.Alignment.CENTER_RIGHT,
                     ),
                     ft.Container(width=50),  # Spacer for actions column
                 ],
             ),
             padding=ft.padding.symmetric(horizontal=16, vertical=12),
-            border=ft.border.only(bottom=ft.border.BorderSide(1, ft.colors.GREY_200)),
+            border=ft.border.only(bottom=ft.border.BorderSide(1, ft.Colors.GREY_200)),
         )
 
         rows = self._generate_rows()
 
+        # Explicitly type the list to satisfy Pylance invariance check
+        col_controls: List[ft.Control] = [self.table_header]
+        col_controls.extend(rows)
+
         self.content_column = ft.Column(
-            [self.table_header] + rows, scroll=ft.ScrollMode.AUTO, spacing=0
+            col_controls, scroll=ft.ScrollMode.AUTO, spacing=0
         )
 
         list_container = ft.Container(
@@ -799,7 +805,7 @@ class TransactionsView:
             bgcolor=surface_color,
             border_radius=12,
             border=(
-                ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.GREY))
+                ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.GREY))
                 if not self.is_dark
                 else None
             ),

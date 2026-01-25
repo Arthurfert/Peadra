@@ -129,7 +129,7 @@ class PeadraApp:
         """Affiche une notification."""
         color = PeadraTheme.SUCCESS if success else PeadraTheme.ERROR
         snackbar = ft.SnackBar(
-            content=ft.Text(message, color=ft.colors.WHITE),
+            content=ft.Text(message, color=ft.Colors.WHITE),
             bgcolor=color,
             duration=3000,
         )
@@ -156,7 +156,7 @@ class PeadraApp:
                                 else "Peadra.png",
                                 width=60,
                                 height=60,
-                                fit=ft.ImageFit.CONTAIN,
+                                fit=ft.BoxFit.CONTAIN,
                             ),
                             ft.Text(
                                 "Peadra",
@@ -174,13 +174,13 @@ class PeadraApp:
                         controls=[
                             # Menu export
                             ft.PopupMenuButton(
-                                icon=ft.icons.DOWNLOAD,
+                                icon=ft.Icons.DOWNLOAD,
                                 tooltip="Exporter les données",
                                 items=[
                                     ft.PopupMenuItem(
                                         content=ft.Row(
                                             controls=[
-                                                ft.Icon(ft.icons.DATA_OBJECT, size=18),
+                                                ft.Icon(ft.Icons.DATA_OBJECT, size=18),
                                                 ft.Text("Exporter en JSON"),
                                             ],
                                             spacing=8,
@@ -190,7 +190,7 @@ class PeadraApp:
                                     ft.PopupMenuItem(
                                         content=ft.Row(
                                             controls=[
-                                                ft.Icon(ft.icons.TABLE_CHART, size=18),
+                                                ft.Icon(ft.Icons.TABLE_CHART, size=18),
                                                 ft.Text("Exporter en CSV"),
                                             ],
                                             spacing=8,
@@ -202,9 +202,9 @@ class PeadraApp:
                             # Toggle thème
                             ft.IconButton(
                                 icon=(
-                                    ft.icons.LIGHT_MODE
+                                    ft.Icons.LIGHT_MODE
                                     if self.is_dark
-                                    else ft.icons.DARK_MODE
+                                    else ft.Icons.DARK_MODE
                                 ),
                                 tooltip="Changer de thème",
                                 on_click=self._toggle_theme,
@@ -241,7 +241,7 @@ class PeadraApp:
             expand=True,
             padding=0,  # Let individual views handle padding
             bgcolor=bg_color,
-            border_radius=ft.border_radius.only(top_left=30),
+            border_radius=ft.BorderRadius.only(top_left=30),
         )
 
         # Wrapper pour le fond derrière l'angle arrondi
@@ -288,4 +288,4 @@ def main(page: ft.Page):
 
 
 if __name__ == "__main__":
-    ft.app(main, assets_dir="assets")
+    ft.run(main, assets_dir="assets")

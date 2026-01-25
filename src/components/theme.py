@@ -4,7 +4,7 @@ Design Glassmorphism avec palette Armorique (bleus profonds et gris ardoise).
 """
 
 import flet as ft
-from typing import Optional
+from typing import Optional, Any, List
 
 
 class PeadraTheme:
@@ -48,17 +48,17 @@ class PeadraTheme:
     @staticmethod
     def get_light_theme() -> ft.Theme:
         """Retourne le thème clair."""
-        return ft.Theme(
+        return ft.Theme(  # type: ignore[call-arg]
             color_scheme_seed=PeadraTheme.PRIMARY_MEDIUM,
             color_scheme=ft.ColorScheme(
                 primary=PeadraTheme.PRIMARY_MEDIUM,
-                on_primary=ft.colors.WHITE,
+                on_primary=ft.Colors.WHITE,
                 secondary=PeadraTheme.ACCENT,
-                on_secondary=ft.colors.WHITE,
+                on_secondary=ft.Colors.WHITE,
                 surface=PeadraTheme.LIGHT_SURFACE,
                 on_surface=PeadraTheme.LIGHT_TEXT,
                 error=PeadraTheme.ERROR,
-                on_error=ft.colors.WHITE,
+                on_error=ft.Colors.WHITE,
             ),
             font_family="Segoe UI",
             use_material3=True,
@@ -67,17 +67,17 @@ class PeadraTheme:
     @staticmethod
     def get_dark_theme() -> ft.Theme:
         """Retourne le thème sombre."""
-        return ft.Theme(
+        return ft.Theme(  # type: ignore[call-arg]
             color_scheme_seed=PeadraTheme.PRIMARY_DARK,
             color_scheme=ft.ColorScheme(
                 primary=PeadraTheme.ACCENT,
                 on_primary=PeadraTheme.DARK_BG,
                 secondary=PeadraTheme.PRIMARY_LIGHT,
-                on_secondary=ft.colors.WHITE,
+                on_secondary=ft.Colors.WHITE,
                 surface=PeadraTheme.DARK_SURFACE,
                 on_surface=PeadraTheme.DARK_TEXT,
                 error=PeadraTheme.ERROR,
-                on_error=ft.colors.WHITE,
+                on_error=ft.Colors.WHITE,
             ),
             font_family="Segoe UI",
             use_material3=True,
@@ -94,13 +94,13 @@ class PeadraTheme:
     ) -> ft.Container:
         """Crée un conteneur avec effet Glassmorphism."""
         if is_dark:
-            bg_color = ft.colors.with_opacity(PeadraTheme.GLASS_OPACITY_DARK, "#1B263B")
-            border_color = ft.colors.with_opacity(0.3, "#778DA9")
+            bg_color = ft.Colors.with_opacity(PeadraTheme.GLASS_OPACITY_DARK, "#1B263B")
+            border_color = ft.Colors.with_opacity(0.3, "#778DA9")
         else:
-            bg_color = ft.colors.with_opacity(
+            bg_color = ft.Colors.with_opacity(
                 PeadraTheme.GLASS_OPACITY_LIGHT, "#FFFFFF"
             )
-            border_color = ft.colors.with_opacity(0.1, "#1B263B")
+            border_color = ft.Colors.with_opacity(0.1, "#1B263B")
 
         return ft.Container(
             content=content,
@@ -113,7 +113,7 @@ class PeadraTheme:
             shadow=ft.BoxShadow(
                 spread_radius=0,
                 blur_radius=20,
-                color=ft.colors.with_opacity(0.1, "#000000"),
+                color=ft.Colors.with_opacity(0.1, "#000000"),
                 offset=ft.Offset(0, 4),
             ),
         )
@@ -155,7 +155,7 @@ class PeadraTheme:
     def stat_card(
         title: str,
         value: str,
-        icon: str,
+        icon: Any,
         color: str,
         is_dark: bool = True,
         trend: Optional[str] = None,
@@ -172,7 +172,7 @@ class PeadraTheme:
         trend_content = []
         if trend:
             trend_color = PeadraTheme.SUCCESS if trend_positive else PeadraTheme.ERROR
-            trend_icon = "arrow_upward" if trend_positive else "arrow_downward"
+            trend_icon = ft.Icons.NORTH_EAST if trend_positive else ft.Icons.SOUTH_EAST
             trend_content = [
                 ft.Row(
                     controls=[
@@ -194,7 +194,11 @@ class PeadraTheme:
                     ft.Row(
                         controls=[
                             ft.Container(
-                                content=ft.Icon(icon, size=24, color=ft.colors.WHITE),
+                                content=ft.Icon(
+                                    icon,
+                                    size=24,
+                                    color=ft.Colors.WHITE,
+                                ),
                                 bgcolor=color,
                                 border_radius=8,
                                 padding=8,

@@ -30,7 +30,7 @@ Peadra (*"wealth" in Breton*) is a desktop application designed to help you trac
 
 ### Setup
 
-1. Clone the repository:
+1. Clone the repository: (if you don't have git, download the zip file)
 ```bash
 git clone https://github.com/Arthurfert/Peadra.git
 cd Peadra
@@ -51,6 +51,13 @@ pip install -r requirements.txt # Or requirements-dev.txt for pytests and lintin
 ```bash
 python main.py
 ```
+
+> For Ubuntu users, you might need to install the following dependencies:
+>```bash
+>sudo apt install libmpv1
+>```
+>If it doesn't work, try fixing it with this [stack overflow post](https://stackoverflow.com/questions/78007193/error-while-loading-shared-libraries-libmpv-so-1-cannot-open-shared-object-fil).
+
 
 ## Project Structure
 
@@ -73,7 +80,7 @@ Peadra/
     └── views/             # Application views
         ├── __init__.py
         ├── dashboard.py   # Dashboard view
-        ├── transactions.py # Transactions management view
+        └── transactions.py # Transactions management view
 ```
 
 ## License

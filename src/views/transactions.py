@@ -7,7 +7,7 @@ import flet as ft
 from typing import Callable, List
 from datetime import datetime
 from ..components.theme import PeadraTheme
-from ..components.modals import TransactionModal
+from ..components.modals import TransactionModal, TransactionDetailsModal
 from ..database.db_manager import db
 
 
@@ -489,6 +489,20 @@ class TransactionsView:
         dlg.open = True
         self.page.update()
 
+    def _open_transaction_details(self, t):
+        """Ouvre le modal de détails de transaction."""
+        is_group = t.get("transaction_type") == "transfer_group"
+
+        if is_group:
+            on_edit = lambda: self._edit_transfer_group(t)
+            on_delete = lambda: self._confirm_delete_group(t["ids"])
+        else:
+            on_edit = lambda: self._edit_transaction(t)
+            on_delete = lambda: self._confirm_delete(t["id"])
+
+        modal = TransactionDetailsModal(self.page, t, on_edit, on_delete)
+        modal.show()
+
     def _generate_rows(self):
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
         rows = []
@@ -619,6 +633,7 @@ class TransactionsView:
                     ]
                 ),
                 padding=ft.padding.symmetric(horizontal=16, vertical=16),
+                on_click=lambda e, t=t: self._open_transaction_details(t),
                 border=ft.border.only(
                     bottom=ft.border.BorderSide(
                         1, ft.Colors.with_opacity(0.1, ft.Colors.GREY)

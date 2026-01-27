@@ -29,7 +29,14 @@ class DatabaseManager:
         conn = self._get_connection()
         cursor = conn.cursor()
 
-        # Table des catégories parentes
+        # Détection et nettoyage de l'ancien schéma (avec table subcategories)
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='subcategories'")
+        if cursor.fetchone():
+            cursor.execute("DROP TABLE IF EXISTS transactions")
+            cursor.execute("DROP TABLE IF EXISTS subcategories")
+            cursor.execute("DROP TABLE IF EXISTS categories")
+
+        # Table des catégories (anciennement sous-catégories/comptes)
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS categories (
@@ -37,19 +44,6 @@ class DatabaseManager:
                 name TEXT NOT NULL UNIQUE,
                 color TEXT DEFAULT '#1976D2',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """
-        )
-
-        # Table des sous-catégories
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS subcategories (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                category_id INTEGER NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
             )
         """
         )
@@ -64,12 +58,10 @@ class DatabaseManager:
                 amount REAL NOT NULL,
                 transaction_type TEXT NOT NULL CHECK(transaction_type IN ('income', 'expense', 'transfer')),
                 category_id INTEGER,
-                subcategory_id INTEGER,
                 notes TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (category_id) REFERENCES categories(id),
-                FOREIGN KEY (subcategory_id) REFERENCES subcategories(id)
+                FOREIGN KEY (category_id) REFERENCES categories(id)
             )
         """
         )
@@ -82,16 +74,10 @@ class DatabaseManager:
     def _insert_default_categories(self):
         """Insère les catégories par défaut."""
         default_categories = [
-            ("Banque", "#4CAF50"),
+            ("Compte courant", "#4CAF50"),
+            ("Livret A", "#2196F3"),
+            ("Livret Épargne", "#009688"),
         ]
-
-        default_subcategories = {
-            "Banque": [
-                "Compte courant",
-                "Livret A",
-                "Livret Épargne",
-            ],
-        }
 
         conn = self._get_connection()
         cursor = conn.cursor()
@@ -101,35 +87,6 @@ class DatabaseManager:
                 "INSERT OR IGNORE INTO categories (name, color) VALUES (?, ?)",
                 (name, color),
             )
-
-            # Récupérer l'ID de la catégorie
-            cursor.execute("SELECT id FROM categories WHERE name = ?", (name,))
-            row = cursor.fetchone()
-            if row:
-                category_id = row[0]
-                for sub_name in default_subcategories.get(name, []):
-                    # Check if exists first to avoid duplicates (schema has no unique constraint)
-                    cursor.execute(
-                        "SELECT 1 FROM subcategories WHERE name = ? AND category_id = ?",
-                        (sub_name, category_id),
-                    )
-                    if not cursor.fetchone():
-                        cursor.execute(
-                            "INSERT INTO subcategories (name, category_id) VALUES (?, ?)",
-                            (sub_name, category_id),
-                        )
-
-        # Cleanup potential duplicates from previous versions
-        cursor.execute(
-            """
-            DELETE FROM subcategories 
-            WHERE rowid NOT IN (
-                SELECT min(rowid) 
-                FROM subcategories 
-                GROUP BY name, category_id
-            )
-        """
-        )
 
         conn.commit()
 
@@ -142,30 +99,6 @@ class DatabaseManager:
         cursor.execute("SELECT * FROM categories ORDER BY name")
         return [dict(row) for row in cursor.fetchall()]
 
-    def get_subcategories(self, category_id: int) -> List[Dict[str, Any]]:
-        """Récupère les sous-catégories d'une catégorie."""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT * FROM subcategories WHERE category_id = ? ORDER BY name",
-            (category_id,),
-        )
-        return [dict(row) for row in cursor.fetchall()]
-
-    def get_all_subcategories(self) -> List[Dict[str, Any]]:
-        """Récupère toutes les sous-catégories avec leur catégorie parente."""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT s.*, c.name as category_name, c.color as category_color
-            FROM subcategories s
-            JOIN categories c ON s.category_id = c.id
-            ORDER BY c.name, s.name
-        """
-        )
-        return [dict(row) for row in cursor.fetchall()]
-
     # ==================== TRANSACTIONS ====================
 
     def add_transaction(
@@ -175,7 +108,6 @@ class DatabaseManager:
         amount: float,
         transaction_type: str,
         category_id: Optional[int] = None,
-        subcategory_id: Optional[int] = None,
         notes: Optional[str] = None,
     ) -> int:
         """Ajoute une nouvelle transaction."""
@@ -184,8 +116,8 @@ class DatabaseManager:
         cursor.execute(
             """
             INSERT INTO transactions (date, description, amount, transaction_type,
-                                      category_id, subcategory_id, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+                                      category_id, notes)
+            VALUES (?, ?, ?, ?, ?, ?)
         """,
             (
                 date,
@@ -193,7 +125,6 @@ class DatabaseManager:
                 amount,
                 transaction_type,
                 category_id,
-                subcategory_id,
                 notes,
             ),
         )
@@ -211,7 +142,6 @@ class DatabaseManager:
             "amount",
             "transaction_type",
             "category_id",
-            "subcategory_id",
             "notes",
         }
         updates = {k: v for k, v in kwargs.items() if k in allowed_fields}
@@ -245,11 +175,9 @@ class DatabaseManager:
         conn = self._get_connection()
         cursor = conn.cursor()
         query = """
-            SELECT t.*, c.name as category_name,
-                   s.name as subcategory_name
+            SELECT t.*, c.name as category_name
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
-            LEFT JOIN subcategories s ON t.subcategory_id = s.id
             ORDER BY t.date DESC, t.id DESC
         """
         if limit:
@@ -265,11 +193,9 @@ class DatabaseManager:
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT t.*, c.name as category_name,
-                   s.name as subcategory_name
+            SELECT t.*, c.name as category_name
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
-            LEFT JOIN subcategories s ON t.subcategory_id = s.id
             WHERE t.date BETWEEN ? AND ?
             ORDER BY t.date DESC
         """,
@@ -290,8 +216,8 @@ class DatabaseManager:
                                   WHEN t.transaction_type = 'expense' THEN -t.amount 
                                   ELSE 0 END), 0)
             FROM transactions t
-            LEFT JOIN subcategories s ON t.subcategory_id = s.id
-            WHERE s.name != 'Compte courant'
+            LEFT JOIN categories c ON t.category_id = c.id
+            WHERE c.name != 'Compte courant'
         """
         )
         result = cursor.fetchone()
@@ -324,8 +250,8 @@ class DatabaseManager:
                                   WHEN t.transaction_type = 'expense' THEN -t.amount 
                                   ELSE 0 END), 0)
             FROM transactions t
-            LEFT JOIN subcategories s ON t.subcategory_id = s.id
-            WHERE s.name = 'Compte courant'
+            LEFT JOIN categories c ON t.category_id = c.id
+            WHERE c.name = 'Compte courant'
         """
         )
         result = cursor.fetchone()
@@ -360,8 +286,8 @@ class DatabaseManager:
                                   WHEN t.transaction_type = 'expense' THEN -t.amount 
                                   ELSE 0 END), 0)
             FROM transactions t
-            LEFT JOIN subcategories s ON t.subcategory_id = s.id
-            WHERE t.date < ? AND s.name != 'Compte courant'
+            LEFT JOIN categories c ON t.category_id = c.id
+            WHERE t.date < ? AND c.name != 'Compte courant'
         """,
             (date_limit,),
         )
@@ -379,8 +305,8 @@ class DatabaseManager:
                                   WHEN t.transaction_type = 'expense' THEN -t.amount 
                                   ELSE 0 END), 0)
             FROM transactions t
-            LEFT JOIN subcategories s ON t.subcategory_id = s.id
-            WHERE t.date < ? AND s.name = 'Compte courant'
+            LEFT JOIN categories c ON t.category_id = c.id
+            WHERE t.date < ? AND c.name = 'Compte courant'
         """,
             (date_limit,),
         )
@@ -411,8 +337,8 @@ class DatabaseManager:
                 COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount ELSE 0 END), 0) as income,
                 COALESCE(SUM(CASE WHEN t.transaction_type = 'expense' THEN t.amount ELSE 0 END), 0) as expenses
             FROM transactions t
-            LEFT JOIN subcategories s ON t.subcategory_id = s.id
-            WHERE (t.date >= ? AND t.date < ?) AND (s.name = 'Compte courant' OR t.subcategory_id IS NULL)
+            LEFT JOIN categories c ON t.category_id = c.id
+            WHERE (t.date >= ? AND t.date < ?) AND (c.name = 'Compte courant' OR t.category_id IS NULL)
         """,
             (start_date, end_date),
         )
@@ -425,16 +351,8 @@ class DatabaseManager:
         conn = self._get_connection()
         cursor = conn.cursor()
 
-        # Récupérer les ID des comptes (sous-catégories de 'Banque')
-        # On suppose que "Banque" est la catégorie pour les comptes
-        cursor.execute(
-            """
-            SELECT s.id, s.name 
-            FROM subcategories s
-            JOIN categories c ON s.category_id = c.id
-            WHERE c.name = 'Banque'
-            """
-        )
+        # Récupérer les ID des comptes (categories)
+        cursor.execute("SELECT id, name FROM categories")
         accounts = cursor.fetchall()
 
         distribution = []
@@ -446,16 +364,13 @@ class DatabaseManager:
                                       WHEN t.transaction_type = 'expense' THEN -t.amount 
                                       ELSE 0 END), 0)
                 FROM transactions t
-                WHERE t.subcategory_id = ?
+                WHERE t.category_id = ?
                 """,
                 (acc_id,),
             )
             result = cursor.fetchone()
             balance = result[0] if result else 0.0
 
-            # On inclut même si 0 pour montrer que le compte existe,
-            # mais pour un camembert, on filtre souvent les 0 ou négatifs à l'affichage.
-            # Ici on retourne tout, le dashboard filtrera.
             distribution.append({"name": acc_name, "value": balance})
 
         return distribution
@@ -467,7 +382,6 @@ class DatabaseManager:
         try:
             data = {
                 "categories": self.get_all_categories(),
-                "subcategories": self.get_all_subcategories(),
                 "transactions": self.get_all_transactions(),
                 "exported_at": datetime.now().isoformat(),
             }

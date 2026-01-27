@@ -15,14 +15,12 @@ class TransactionModal:
         self,
         page: ft.Page,
         categories: List[Dict[str, Any]],
-        subcategories: List[Dict[str, Any]],
         on_save: Callable,
         is_dark: bool = True,
         transaction_type: str = "expense",
     ):
         self.page = page
         self.categories = categories
-        self.subcategories = subcategories
         self.on_save = on_save
         self.is_dark = is_dark
         self.transaction_type = transaction_type
@@ -74,12 +72,10 @@ class TransactionModal:
         )
 
         # Dropdowns Selection logic
-        # Filter subcategories (Assuming we want banking accounts mostly for internal transfers
-        # but allowing all for flexibility)
-        # We sort them
-        sorted_subcats = sorted(self.subcategories, key=lambda x: x["name"])
+        # Filter categories (formerly subcategories)
+        sorted_cats = sorted(self.categories, key=lambda x: x["name"])
         options = [
-            ft.dropdown.Option(str(sub["id"]), sub["name"]) for sub in sorted_subcats
+            ft.dropdown.Option(str(c["id"]), c["name"]) for c in sorted_cats
         ]
 
         # Use explicitly typed list or append to empty list to avoid type inference issues
@@ -118,15 +114,15 @@ class TransactionModal:
         else:
             # Single dropdown
             label = "Account / Category"
-            self.subcategory_dropdown = ft.Dropdown(
+            self.category_dropdown = ft.Dropdown(
                 label=label,
                 width=350,
                 options=options,
             )
             if options:
-                self.subcategory_dropdown.value = options[0].key
+                self.category_dropdown.value = options[0].key
 
-            self.controls_list.append(self.subcategory_dropdown)
+            self.controls_list.append(self.category_dropdown)
 
         # Notes
         self.notes_field = ft.TextField(
@@ -237,8 +233,8 @@ class TransactionModal:
                 )
                 transaction_data["dest_name"] = dest_name
         else:
-            sub_val = self.subcategory_dropdown.value
-            transaction_data["subcategory_id"] = int(sub_val) if sub_val else None
+            cat_val = self.category_dropdown.value
+            transaction_data["category_id"] = int(cat_val) if cat_val else None
 
         if self.editing_id:
             transaction_data["id"] = self.editing_id
@@ -276,10 +272,10 @@ class TransactionModal:
             self.notes_field.value = transaction_data.get("notes", "")
 
             if self.transaction_type != "transfer" and transaction_data.get(
-                "subcategory_id"
+                "category_id"
             ):
-                self.subcategory_dropdown.value = str(
-                    transaction_data["subcategory_id"]
+                self.category_dropdown.value = str(
+                    transaction_data["category_id"]
                 )
 
             if self.transaction_type == "transfer":
@@ -385,12 +381,7 @@ class TransactionDetailsModal:
         amount_txt = f"{amount_prefix}€{t['amount']:,.2f}"
 
         # Category info
-        category_txt = t.get("category_name") or ""
-        subcategory_txt = t.get("subcategory_name")
-        if subcategory_txt and subcategory_txt != category_txt:
-            full_category = f"{category_txt} {subcategory_txt}"
-        else:
-            full_category = category_txt
+        full_category = t.get("category_name") or "Uncategorized"
 
         # Content controls
         content_controls = [

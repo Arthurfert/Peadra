@@ -260,14 +260,14 @@ class DashboardView:
                             to_y=float(incomes[i]),
                             width=15,
                             color="#4CAF50",
-                            border_radius=ftc.border_radius.vertical(top=4),
+                            border_radius=ft.border_radius.vertical(top=4),
                         ),
                         fch.BarChartRod(
                             from_y=0,
                             to_y=float(expenses[i]),
                             width=15,
                             color="#E53935",
-                            border_radius=ftc.border_radius.vertical(top=4),
+                            border_radius=ft.border_radius.vertical(top=4),
                         ),
                     ],
                     spacing=4,
@@ -295,7 +295,7 @@ class DashboardView:
                             rounded_stroke_cap=True,
                         ),
                     ],
-                    border=ftc.border.all(0, ft.Colors.TRANSPARENT),
+                    border=ft.border.all(0, ft.Colors.TRANSPARENT),
                     horizontal_grid_lines=fch.ChartGridLines(
                         interval=(max_y_patrimony - min_y_patrimony) / 5,
                         color=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE),
@@ -334,7 +334,7 @@ class DashboardView:
                 ft.Container(
                     content=cast(ft.Control, fch.BarChart(
                         groups=bar_groups,
-                        border=ftc.border.all(0, ft.Colors.TRANSPARENT),
+                        border=ft.border.all(0, ft.Colors.TRANSPARENT),
                         left_axis=fch.ChartAxis(
                             label_size=40,  # Match LineChart to align drawing areas
                             show_labels=False,
@@ -439,7 +439,12 @@ class DashboardView:
             PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
         )
 
-        valid_items = {k: v for k, v in data_dict.items() if v > 0}
+        valid_items: dict[str, float] = {}
+        for k, v in data_dict.items():
+            if v > 0:
+                key = k.capitalize()
+                valid_items[key] = valid_items.get(key, 0.0) + v
+
         sorted_items = sorted(valid_items.items(), key=lambda x: x[1], reverse=True)
 
         if len(sorted_items) > 5:

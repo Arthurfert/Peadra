@@ -12,7 +12,6 @@ def test_database_initialization(db_manager):
 
     expected_tables = [
         "categories",
-        "subcategories",
         "transactions",
     ]
     for table in expected_tables:

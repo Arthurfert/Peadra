@@ -121,9 +121,9 @@ class PeadraApp:
             success = db.export_to_csv(filepath, "transactions")
 
         if success:
-            self._show_snackbar(f"Export réussi : {filepath}", success=True)
+            self._show_snackbar(f"Export succeeded : {filepath}", success=True)
         else:
-            self._show_snackbar("Erreur lors de l'export", success=False)
+            self._show_snackbar("Error during export", success=False)
 
     def _show_snackbar(self, message: str, success: bool = True):
         """Affiche une notification."""
@@ -175,13 +175,13 @@ class PeadraApp:
                             # Menu export
                             ft.PopupMenuButton(
                                 icon=ft.Icons.DOWNLOAD,
-                                tooltip="Exporter les données",
+                                tooltip="Export datas",
                                 items=[
                                     ft.PopupMenuItem(
                                         content=ft.Row(
                                             controls=[
                                                 ft.Icon(ft.Icons.DATA_OBJECT, size=18),
-                                                ft.Text("Exporter en JSON"),
+                                                ft.Text("Export as JSON"),
                                             ],
                                             spacing=8,
                                         ),
@@ -191,7 +191,7 @@ class PeadraApp:
                                         content=ft.Row(
                                             controls=[
                                                 ft.Icon(ft.Icons.TABLE_CHART, size=18),
-                                                ft.Text("Exporter en CSV"),
+                                                ft.Text("Export as CSV"),
                                             ],
                                             spacing=8,
                                         ),
@@ -199,14 +199,14 @@ class PeadraApp:
                                     ),
                                 ],
                             ),
-                            # Toggle thème
+                            # Toggle theme
                             ft.IconButton(
                                 icon=(
                                     ft.Icons.LIGHT_MODE
                                     if self.is_dark
                                     else ft.Icons.DARK_MODE
                                 ),
-                                tooltip="Changer de thème",
+                                tooltip="Toggle theme",
                                 on_click=self._toggle_theme,
                                 icon_color=PeadraTheme.ACCENT,
                             ),

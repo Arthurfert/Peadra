@@ -7,7 +7,7 @@ import flet as ft
 from typing import Callable, List
 from datetime import datetime
 from ..components.theme import PeadraTheme
-from ..components.modals import TransactionModal
+from ..components.modals import TransactionModal, TransactionDetailsModal
 from ..database.db_manager import db
 
 
@@ -35,7 +35,6 @@ class TransactionsView:
         """Charge les données."""
         self.transactions = db.get_all_transactions()
         self.categories = db.get_all_categories()
-        self.subcategories = db.get_all_subcategories()
         # Filter if search query exists
         if self.search_query:
             q = self.search_query.lower()
@@ -46,12 +45,12 @@ class TransactionsView:
                 or q in (t.get("category_name") or "").lower()
             ]
 
-        # Filter by subcategories
+        # Filter by categories
         if self.selected_subcategories:
             self.transactions = [
                 t
                 for t in self.transactions
-                if str(t.get("subcategory_id")) in self.selected_subcategories
+                if str(t.get("category_id")) in self.selected_subcategories
             ]
 
     def _open_type_selector(self, e):
@@ -154,7 +153,6 @@ class TransactionsView:
         modal = TransactionModal(
             page=self.page,
             categories=self.categories,
-            subcategories=self.subcategories,
             on_save=self._save_transaction,
             is_dark=self.is_dark,
             transaction_type=type_,
@@ -162,18 +160,18 @@ class TransactionsView:
         modal.show()
 
     def _open_filter_dialog(self, e):
-        """Ouvre le dialogue de filtrage par sous-catégories."""
+        """Ouvre le dialogue de filtrage par catégories."""
 
         selected = set(self.selected_subcategories)
         checkboxes = []
 
-        # Sort subcategories by name
-        sorted_subcats = sorted(self.subcategories, key=lambda x: x["name"])
+        # Sort categories by name
+        sorted_cats = sorted(self.categories, key=lambda x: x["name"])
 
-        for sub in sorted_subcats:
-            sub_id = str(sub["id"])
+        for cast in sorted_cats:
+            cat_id = str(cast["id"])
             checkboxes.append(
-                ft.Checkbox(label=sub["name"], value=(sub_id in selected), data=sub_id)
+                ft.Checkbox(label=cast["name"], value=(cat_id in selected), data=cat_id)
             )
 
         def close_dlg(e):
@@ -235,7 +233,7 @@ class TransactionsView:
                     date=data["date"],
                     description=f"Transfer to {data.get('dest_name', 'compte')}",
                     amount=data["amount"],
-                    subcategory_id=data.get("source_id"),
+                    category_id=data.get("source_id"),
                     notes=data.get("notes"),
                 )
                 # 2. Income (Dest)
@@ -244,7 +242,7 @@ class TransactionsView:
                     date=data["date"],
                     description=f"Transfer from {data.get('source_name', 'compte')}",
                     amount=data["amount"],
-                    subcategory_id=data.get("dest_id"),
+                    category_id=data.get("dest_id"),
                     notes=data.get("notes"),
                 )
                 msg = "Transfer modified"
@@ -256,7 +254,6 @@ class TransactionsView:
                     amount=data["amount"],
                     transaction_type=data["transaction_type"],
                     category_id=data.get("category_id"),
-                    subcategory_id=data.get("subcategory_id"),
                     notes=data.get("notes"),
                 )
                 msg = "Transaction modified"
@@ -270,8 +267,7 @@ class TransactionsView:
                 description=f"Transfer to {data.get('dest_name', 'compte')}",
                 amount=data["amount"],
                 transaction_type="expense",
-                category_id=None,
-                subcategory_id=data.get("source_id"),
+                category_id=data.get("source_id"),
                 notes=data.get("notes"),
             )
 
@@ -281,8 +277,7 @@ class TransactionsView:
                 description=f"Transfer from {data.get('source_name', 'compte')}",
                 amount=data["amount"],
                 transaction_type="income",
-                category_id=None,
-                subcategory_id=data.get("dest_id"),
+                category_id=data.get("dest_id"),
                 notes=data.get("notes"),
             )
 
@@ -296,7 +291,6 @@ class TransactionsView:
                 amount=data["amount"],
                 transaction_type=data["transaction_type"],
                 category_id=data.get("category_id"),
-                subcategory_id=data.get("subcategory_id"),
                 notes=data.get("notes"),
             )
             msg = "Transaction added"
@@ -311,7 +305,6 @@ class TransactionsView:
         modal = TransactionModal(
             page=self.page,
             categories=self.categories,
-            subcategories=self.subcategories,
             on_save=self._save_transaction,
             is_dark=self.is_dark,
             transaction_type=transaction["transaction_type"],
@@ -390,8 +383,8 @@ class TransactionsView:
                         ):
                             dest = desc1[12:]
                             source = desc2[14:]
-                            source_id = t1["subcategory_id"]
-                            dest_id = t2["subcategory_id"]
+                            source_id = t1["category_id"]
+                            dest_id = t2["category_id"]
                             id_expense = t1["id"]
                             id_income = t2["id"]
                             match = True
@@ -403,8 +396,8 @@ class TransactionsView:
                         ):
                             source = desc1[14:]
                             dest = desc2[12:]
-                            source_id = t2["subcategory_id"]
-                            dest_id = t1["subcategory_id"]
+                            source_id = t2["category_id"]
+                            dest_id = t1["category_id"]
                             id_expense = t2["id"]
                             id_income = t1["id"]
                             match = True
@@ -418,8 +411,8 @@ class TransactionsView:
                         combined["other_id"] = id_income
                         combined["description"] = f"Transfer from {source} to {dest}"
                         combined["transaction_type"] = "transfer_group"
-                        combined["subcategory_name"] = "Transfer"
-                        combined["subcategory_id"] = None
+                        combined["category_name"] = "Transfer"
+                        combined["category_id"] = None
                         combined["category_color"] = ft.Colors.BLUE_GREY_100
                         combined["source_id"] = source_id
                         combined["dest_id"] = dest_id
@@ -448,7 +441,6 @@ class TransactionsView:
         modal = TransactionModal(
             page=self.page,
             categories=self.categories,
-            subcategories=self.subcategories,
             on_save=self._save_transaction,
             is_dark=self.is_dark,
             transaction_type="transfer",
@@ -489,6 +481,20 @@ class TransactionsView:
         dlg.open = True
         self.page.update()
 
+    def _open_transaction_details(self, t):
+        """Ouvre le modal de détails de transaction."""
+        is_group = t.get("transaction_type") == "transfer_group"
+
+        if is_group:
+            on_edit = lambda: self._edit_transfer_group(t)
+            on_delete = lambda: self._confirm_delete_group(t["ids"])
+        else:
+            on_edit = lambda: self._edit_transaction(t)
+            on_delete = lambda: self._confirm_delete(t["id"])
+
+        modal = TransactionDetailsModal(self.page, t, on_edit, on_delete)
+        modal.show()
+
     def _generate_rows(self):
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
         rows = []
@@ -528,7 +534,7 @@ class TransactionsView:
                 if self.is_dark:
                     icon_bg = ft.Colors.with_opacity(0.1, icon_color)
 
-                cat_name = t["subcategory_name"] or ""
+                cat_name = t.get("category_name", "") or ""
                 cat_bg = self._get_category_color(cat_name)
                 cat_text_col = self._get_category_text_color(cat_name)
 
@@ -619,6 +625,7 @@ class TransactionsView:
                     ]
                 ),
                 padding=ft.padding.symmetric(horizontal=16, vertical=16),
+                on_click=lambda e, t=t: self._open_transaction_details(t),
                 border=ft.border.only(
                     bottom=ft.border.BorderSide(
                         1, ft.Colors.with_opacity(0.1, ft.Colors.GREY)

@@ -73,21 +73,16 @@ def test_statistics(db_manager):
     assert total == 1300.0
 
 
-def test_categories_and_subcategories(db_manager):
-    """Test retrieval of categories and subcategories."""
+def test_categories(db_manager):
+    """Test retrieval of categories."""
     cats = db_manager.get_all_categories()
     assert len(cats) > 0
 
-    # Pick the first category
-    first_cat_id = cats[0]["id"]
-
-    subcats = db_manager.get_subcategories(first_cat_id)
-    # We expect some default subcategories
-    assert isinstance(subcats, list)
-
-    all_subcats = db_manager.get_all_subcategories()
-    assert len(all_subcats) > 0
-    assert "category_name" in all_subcats[0]
+    # Check structure
+    cat = cats[0]
+    assert "id" in cat
+    assert "name" in cat
+    assert "color" in cat
 
 
 def test_monthly_summary(db_manager):

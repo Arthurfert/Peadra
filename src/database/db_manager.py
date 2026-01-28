@@ -42,7 +42,7 @@ class DatabaseManager:
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS categories (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id INTEGER PRIMARY KEY,
                 name TEXT NOT NULL UNIQUE,
                 color TEXT DEFAULT '#1976D2',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -54,7 +54,7 @@ class DatabaseManager:
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS transactions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id INTEGER PRIMARY KEY,
                 date DATE NOT NULL,
                 description TEXT NOT NULL,
                 amount REAL NOT NULL,

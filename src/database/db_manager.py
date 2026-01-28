@@ -30,7 +30,9 @@ class DatabaseManager:
         cursor = conn.cursor()
 
         # Détection et nettoyage de l'ancien schéma (avec table subcategories)
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='subcategories'")
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='subcategories'"
+        )
         if cursor.fetchone():
             cursor.execute("DROP TABLE IF EXISTS transactions")
             cursor.execute("DROP TABLE IF EXISTS subcategories")
@@ -103,11 +105,11 @@ class DatabaseManager:
         """Récupère toutes les catégories avec leur solde actuel."""
         conn = self._get_connection()
         cursor = conn.cursor()
-        
+
         # Récupérer toutes les catégories
         cursor.execute("SELECT * FROM categories ORDER BY name")
         categories = [dict(row) for row in cursor.fetchall()]
-        
+
         result = []
         for cat in categories:
             # Calculer le solde pour chaque catégorie
@@ -120,12 +122,12 @@ class DatabaseManager:
                 FROM transactions 
                 WHERE category_id = ?
                 """,
-                (cat['id'],)
+                (cat["id"],),
             )
             balance = cursor.fetchone()[0]
-            cat['balance'] = balance
+            cat["balance"] = balance
             result.append(cat)
-            
+
         return result
 
     def add_category(self, name: str, color: str) -> int:
@@ -134,8 +136,7 @@ class DatabaseManager:
         cursor = conn.cursor()
         try:
             cursor.execute(
-                "INSERT INTO categories (name, color) VALUES (?, ?)",
-                (name, color)
+                "INSERT INTO categories (name, color) VALUES (?, ?)", (name, color)
             )
             conn.commit()
             return cursor.lastrowid or 0
@@ -150,24 +151,34 @@ class DatabaseManager:
         try:
             cursor.execute(
                 "UPDATE categories SET name = ?, color = ? WHERE id = ?",
-                (name, color, category_id)
+                (name, color, category_id),
             )
             conn.commit()
             return cursor.rowcount > 0
         except sqlite3.IntegrityError:
             return False
 
-    def delete_category(self, category_id: int) -> bool:
-        """Supprime une catégorie et ses transactions associées."""
+    def delete_category(
+        self, category_id: int, delete_transactions: bool = False
+    ) -> bool:
+        """
+        Supprime une catégorie.
+        :param category_id: ID de la catégorie à supprimer.
+        :param delete_transactions: Si True, supprime aussi les transactions associées. Sinon, met category_id à NULL.
+        """
         conn = self._get_connection()
         cursor = conn.cursor()
-        
-        cursor.execute("SELECT COUNT(*) FROM transactions WHERE category_id = ?", (category_id,))
-        count = cursor.fetchone()[0]
-        
-        if count > 0:
-            cursor.execute("UPDATE transactions SET category_id = NULL WHERE category_id = ?", (category_id,))
-        
+
+        if delete_transactions:
+            cursor.execute(
+                "DELETE FROM transactions WHERE category_id = ?", (category_id,)
+            )
+        else:
+            cursor.execute(
+                "UPDATE transactions SET category_id = NULL WHERE category_id = ?",
+                (category_id,),
+            )
+
         cursor.execute("DELETE FROM categories WHERE id = ?", (category_id,))
         conn.commit()
         return cursor.rowcount > 0

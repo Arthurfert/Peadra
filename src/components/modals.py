@@ -74,9 +74,7 @@ class TransactionModal:
         # Dropdowns Selection logic
         # Filter categories (formerly subcategories)
         sorted_cats = sorted(self.categories, key=lambda x: x["name"])
-        options = [
-            ft.dropdown.Option(str(c["id"]), c["name"]) for c in sorted_cats
-        ]
+        options = [ft.dropdown.Option(str(c["id"]), c["name"]) for c in sorted_cats]
 
         # Use explicitly typed list or append to empty list to avoid type inference issues
         self.controls_list: List[ft.Control] = [
@@ -274,9 +272,7 @@ class TransactionModal:
             if self.transaction_type != "transfer" and transaction_data.get(
                 "category_id"
             ):
-                self.category_dropdown.value = str(
-                    transaction_data["category_id"]
-                )
+                self.category_dropdown.value = str(transaction_data["category_id"])
 
             if self.transaction_type == "transfer":
                 if transaction_data.get("source_id"):
@@ -348,7 +344,7 @@ class TransactionDetailsModal:
     def show(self):
         """Affiche le modal."""
         t = self.transaction
-        
+
         # Format date
         try:
             date_obj = datetime.strptime(t["date"], "%Y-%m-%d")
@@ -369,10 +365,10 @@ class TransactionDetailsModal:
             color = ft.Colors.RED
             icon = ft.Icons.ARROW_UPWARD
             amount_prefix = "-"
-            # Fix display for expense to be positive value with - sign if desired, 
+            # Fix display for expense to be positive value with - sign if desired,
             # currently amount is stored positive usually.
             amount_prefix = "- "
-        else: # Transfer
+        else:  # Transfer
             color = ft.Colors.BLUE
             icon = ft.Icons.SWAP_HORIZ
             amount_prefix = ""
@@ -385,28 +381,33 @@ class TransactionDetailsModal:
 
         # Content controls
         content_controls = [
-                ft.Container(
-                    content=ft.Column([
+            ft.Container(
+                content=ft.Column(
+                    [
                         ft.Icon(icon, size=40, color=color),
-                        ft.Text(amount_txt, size=30, weight=ft.FontWeight.BOLD, color=color),
+                        ft.Text(
+                            amount_txt, size=30, weight=ft.FontWeight.BOLD, color=color
+                        ),
                         ft.Text(date_str, size=14, color=ft.Colors.GREY),
-                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                    alignment=ft.Alignment(0, 0),
-                    padding=ft.padding.only(bottom=20)
+                    ],
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
-                ft.Divider(),
-                ft.ListTile(
-                    leading=ft.Icon(ft.Icons.DESCRIPTION),
-                    title=ft.Text("Description", size=12, color=ft.Colors.GREY),
-                    subtitle=ft.Text(t["description"], size=16, weight=ft.FontWeight.W_500),
-                ),
-                ft.ListTile(
-                    leading=ft.Icon(ft.Icons.CATEGORY),
-                    title=ft.Text("Category", size=12, color=ft.Colors.GREY),
-                    subtitle=ft.Text(full_category, size=16),
-                ),
-            ]
-        
+                alignment=ft.Alignment(0, 0),
+                padding=ft.padding.only(bottom=20),
+            ),
+            ft.Divider(),
+            ft.ListTile(
+                leading=ft.Icon(ft.Icons.DESCRIPTION),
+                title=ft.Text("Description", size=12, color=ft.Colors.GREY),
+                subtitle=ft.Text(t["description"], size=16, weight=ft.FontWeight.W_500),
+            ),
+            ft.ListTile(
+                leading=ft.Icon(ft.Icons.CATEGORY),
+                title=ft.Text("Category", size=12, color=ft.Colors.GREY),
+                subtitle=ft.Text(full_category, size=16),
+            ),
+        ]
+
         # Add Notes if present
         if t.get("notes"):
             content_controls.append(
@@ -430,12 +431,14 @@ class TransactionDetailsModal:
             ),
             actions=[
                 ft.TextButton("Close", on_click=self.close),
-                ft.TextButton("Modify", icon=ft.Icons.EDIT, on_click=self._on_edit_click),
                 ft.TextButton(
-                    "Delete", 
-                    icon=ft.Icons.DELETE, 
+                    "Modify", icon=ft.Icons.EDIT, on_click=self._on_edit_click
+                ),
+                ft.TextButton(
+                    "Delete",
+                    icon=ft.Icons.DELETE,
                     on_click=self._on_delete_click,
-                    style=ft.ButtonStyle(color=ft.Colors.RED)
+                    style=ft.ButtonStyle(color=ft.Colors.RED),
                 ),
             ],
             actions_alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -459,4 +462,3 @@ class TransactionDetailsModal:
         if self.dialog:
             self.dialog.open = False
             self.page.update()
-

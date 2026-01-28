@@ -158,7 +158,9 @@ class DashboardView:
                     ft.Row(
                         [
                             ft.Container(
-                                content=ft.Icon(cast(Any, icon), color=icon_color, size=24),
+                                content=ft.Icon(
+                                    cast(Any, icon), color=icon_color, size=24
+                                ),
                                 bgcolor=icon_bg,
                                 padding=12,
                                 border_radius=12,
@@ -282,82 +284,93 @@ class DashboardView:
         chart_content = ft.Stack(
             [
                 # Line chart layer (background) - uses patrimony scale with visible Y-axis
-                cast(ft.Control, fch.LineChart(
-                    data_series=[
-                        fch.LineChartData(
-                            points=[
-                                fch.LineChartDataPoint(i, float(v))
-                                for i, v in enumerate(patrimonies)
-                            ],
-                            stroke_width=3,
-                            color="#7E57C2",  # Purple for Balance
-                            curved=True,
-                            rounded_stroke_cap=True,
-                        ),
-                    ],
-                    border=ft.border.all(0, ft.Colors.TRANSPARENT),
-                    horizontal_grid_lines=fch.ChartGridLines(
-                        interval=(max_y_patrimony - min_y_patrimony) / 5,
-                        color=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE),
-                        width=1,
-                    ),
-                    vertical_grid_lines=fch.ChartGridLines(
-                        interval=1, color=ft.Colors.TRANSPARENT
-                    ),
-                    left_axis=fch.ChartAxis(
-                        label_size=40,
-                        title_size=0,
-                        show_labels=True,  # Show patrimony Y-axis
-                    ),
-                    bottom_axis=fch.ChartAxis(
-                        labels=[
-                            fch.ChartAxisLabel(
-                                value=i,
-                                label=cast(Any, ft.Container(
-                                    ft.Text(dates[i], size=12, color=ft.Colors.GREY),
-                                    padding=ft.padding.only(top=20),
-                                )),
-                            )
-                            for i in range(len(dates))
+                cast(
+                    ft.Control,
+                    fch.LineChart(
+                        data_series=[
+                            fch.LineChartData(
+                                points=[
+                                    fch.LineChartDataPoint(i, float(v))
+                                    for i, v in enumerate(patrimonies)
+                                ],
+                                stroke_width=3,
+                                color="#7E57C2",  # Purple for Balance
+                                curved=True,
+                                rounded_stroke_cap=True,
+                            ),
                         ],
-                        label_size=50,  # Space for labels below chart
-                        show_labels=True,  # Show month labels on LineChart
-                    ),
-                    min_x=0,
-                    max_x=len(dates) - 1,
-                    min_y=min_y_patrimony,
-                    max_y=max_y_patrimony,  # Line chart uses patrimony scale
-                    expand=True,
-                    tooltip=fch.LineChartTooltip(bgcolor=PeadraTheme.SURFACE),
-                )),
-                # Bar chart layer (foreground for hover) - wrapped in padding to align with 0
-                ft.Container(
-                    content=cast(ft.Control, fch.BarChart(
-                        groups=bar_groups,
                         border=ft.border.all(0, ft.Colors.TRANSPARENT),
-                        left_axis=fch.ChartAxis(
-                            label_size=40,  # Match LineChart to align drawing areas
-                            show_labels=False,
-                        ),
-                        bottom_axis=fch.ChartAxis(
-                            label_size=0,  # Reserve space but don't show labels
-                            show_labels=False,
-                        ),
                         horizontal_grid_lines=fch.ChartGridLines(
-                            interval=max_bars_scaled / 5,
-                            color=ft.Colors.TRANSPARENT,
+                            interval=(max_y_patrimony - min_y_patrimony) / 5,
+                            color=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE),
                             width=1,
                         ),
-                        min_y=0,
-                        max_y=max_bars_scaled,  # Scaled so bars stay at ~30% height
-                        tooltip=fch.BarChartTooltip(bgcolor=PeadraTheme.SURFACE),
-                        scale=ft.Scale(
-                            scale_x=(len(dates) / (len(dates) - 1))
-                            if len(dates) > 1
-                            else 1,
-                            scale_y=1,
+                        vertical_grid_lines=fch.ChartGridLines(
+                            interval=1, color=ft.Colors.TRANSPARENT
                         ),
-                    )),
+                        left_axis=fch.ChartAxis(
+                            label_size=40,
+                            title_size=0,
+                            show_labels=True,  # Show patrimony Y-axis
+                        ),
+                        bottom_axis=fch.ChartAxis(
+                            labels=[
+                                fch.ChartAxisLabel(
+                                    value=i,
+                                    label=cast(
+                                        Any,
+                                        ft.Container(
+                                            ft.Text(
+                                                dates[i], size=12, color=ft.Colors.GREY
+                                            ),
+                                            padding=ft.padding.only(top=20),
+                                        ),
+                                    ),
+                                )
+                                for i in range(len(dates))
+                            ],
+                            label_size=50,  # Space for labels below chart
+                            show_labels=True,  # Show month labels on LineChart
+                        ),
+                        min_x=0,
+                        max_x=len(dates) - 1,
+                        min_y=min_y_patrimony,
+                        max_y=max_y_patrimony,  # Line chart uses patrimony scale
+                        expand=True,
+                        tooltip=fch.LineChartTooltip(bgcolor=PeadraTheme.SURFACE),
+                    ),
+                ),
+                # Bar chart layer (foreground for hover) - wrapped in padding to align with 0
+                ft.Container(
+                    content=cast(
+                        ft.Control,
+                        fch.BarChart(
+                            groups=bar_groups,
+                            border=ft.border.all(0, ft.Colors.TRANSPARENT),
+                            left_axis=fch.ChartAxis(
+                                label_size=40,  # Match LineChart to align drawing areas
+                                show_labels=False,
+                            ),
+                            bottom_axis=fch.ChartAxis(
+                                label_size=0,  # Reserve space but don't show labels
+                                show_labels=False,
+                            ),
+                            horizontal_grid_lines=fch.ChartGridLines(
+                                interval=max_bars_scaled / 5,
+                                color=ft.Colors.TRANSPARENT,
+                                width=1,
+                            ),
+                            min_y=0,
+                            max_y=max_bars_scaled,  # Scaled so bars stay at ~30% height
+                            tooltip=fch.BarChartTooltip(bgcolor=PeadraTheme.SURFACE),
+                            scale=ft.Scale(
+                                scale_x=(len(dates) / (len(dates) - 1))
+                                if len(dates) > 1
+                                else 1,
+                                scale_y=1,
+                            ),
+                        ),
+                    ),
                     expand=True,
                     margin=ft.margin.only(bottom=50),  # Align with LineChart
                 ),
@@ -481,11 +494,14 @@ class DashboardView:
                             weight=ft.FontWeight.BOLD,
                             color=text_color,
                         ),
-                        cast(ft.Control, ft.Container(
-                            content=ft.Text(empty_msg, color=ft.Colors.GREY),
-                            alignment=ft.Alignment.CENTER,
-                            expand=True,
-                        )),
+                        cast(
+                            ft.Control,
+                            ft.Container(
+                                content=ft.Text(empty_msg, color=ft.Colors.GREY),
+                                alignment=ft.Alignment.CENTER,
+                                expand=True,
+                            ),
+                        ),
                     ]
                 ),
                 bgcolor=bg_card,
@@ -567,7 +583,9 @@ class DashboardView:
                     ft.Container(height=20),
                     ft.Row(
                         [
-                            ft.Container(cast(ft.Control, chart), expand=True, height=200),
+                            ft.Container(
+                                cast(ft.Control, chart), expand=True, height=200
+                            ),
                             ft.Container(legend, width=150),
                         ],
                         alignment=ft.MainAxisAlignment.START,

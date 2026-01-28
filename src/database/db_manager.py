@@ -99,6 +99,79 @@ class DatabaseManager:
         cursor.execute("SELECT * FROM categories ORDER BY name")
         return [dict(row) for row in cursor.fetchall()]
 
+    def get_categories_with_balances(self) -> List[Dict[str, Any]]:
+        """Récupère toutes les catégories avec leur solde actuel."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        # Récupérer toutes les catégories
+        cursor.execute("SELECT * FROM categories ORDER BY name")
+        categories = [dict(row) for row in cursor.fetchall()]
+        
+        result = []
+        for cat in categories:
+            # Calculer le solde pour chaque catégorie
+            cursor.execute(
+                """
+                SELECT 
+                    COALESCE(SUM(CASE WHEN transaction_type = 'income' THEN amount 
+                                      WHEN transaction_type = 'expense' THEN -amount 
+                                      ELSE 0 END), 0)
+                FROM transactions 
+                WHERE category_id = ?
+                """,
+                (cat['id'],)
+            )
+            balance = cursor.fetchone()[0]
+            cat['balance'] = balance
+            result.append(cat)
+            
+        return result
+
+    def add_category(self, name: str, color: str) -> int:
+        """Ajoute une nouvelle catégorie (compte)."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "INSERT INTO categories (name, color) VALUES (?, ?)",
+                (name, color)
+            )
+            conn.commit()
+            return cursor.lastrowid or 0
+        except sqlite3.IntegrityError:
+            # Le nom existe déjà
+            return -1
+
+    def update_category(self, category_id: int, name: str, color: str) -> bool:
+        """Met à jour une catégorie."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "UPDATE categories SET name = ?, color = ? WHERE id = ?",
+                (name, color, category_id)
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+        except sqlite3.IntegrityError:
+            return False
+
+    def delete_category(self, category_id: int) -> bool:
+        """Supprime une catégorie et ses transactions associées."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT COUNT(*) FROM transactions WHERE category_id = ?", (category_id,))
+        count = cursor.fetchone()[0]
+        
+        if count > 0:
+            cursor.execute("UPDATE transactions SET category_id = NULL WHERE category_id = ?", (category_id,))
+        
+        cursor.execute("DELETE FROM categories WHERE id = ?", (category_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
     # ==================== TRANSACTIONS ====================
 
     def add_transaction(

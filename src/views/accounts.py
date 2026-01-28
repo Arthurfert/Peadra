@@ -182,9 +182,7 @@ class AccountsView:
             self.refresh()
             self.on_data_change()  # Notify app to refresh other views
         else:
-            setattr(
-                self.name_field, "error_text", "Error (Name may already be in use)"
-            )
+            setattr(self.name_field, "error_text", "Error (Name may already be in use)")
             self.name_field.update()
 
     def _delete_account(self, account_id):
@@ -241,77 +239,77 @@ class AccountsView:
         )
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
 
-        return ft.Card(
-            content=ft.Container(
-                content=ft.Column(
-                    [
-                        ft.Row(
-                            [
-                                ft.Container(
-                                    content=ft.Icon(
-                                        ft.Icons.ACCOUNT_BALANCE_WALLET,
-                                        color=ft.Colors.WHITE,
+        return ft.Container(
+            content=ft.Column(
+                [
+                    ft.Row(
+                        [
+                            ft.Container(
+                                content=ft.Icon(
+                                    ft.Icons.ACCOUNT_BALANCE_WALLET,
+                                    color=ft.Colors.WHITE,
+                                    size=24,
+                                ),
+                                bgcolor=account["color"],
+                                padding=12,
+                                border_radius=12,
+                            ),
+                            ft.PopupMenuButton(
+                                icon=ft.Icons.MORE_VERT,
+                                icon_color=ft.Colors.GREY_500,
+                                items=[
+                                    ft.PopupMenuItem(
+                                        content=ft.Row(
+                                            [
+                                                ft.Icon(ft.Icons.EDIT),
+                                                ft.Text("Edit"),
+                                            ]
+                                        ),
+                                        on_click=lambda _: self._open_dialog(account),
                                     ),
-                                    bgcolor=account["color"],
-                                    width=40,
-                                    height=40,
-                                    border_radius=20,
-                                    alignment=ft.Alignment(0, 0),
-                                ),
-                                ft.Column(
-                                    [
-                                        ft.Text(
-                                            account["name"],
-                                            size=16,
-                                            weight=ft.FontWeight.BOLD,
-                                            color=text_color,
+                                    ft.PopupMenuItem(
+                                        content=ft.Row(
+                                            [
+                                                ft.Icon(ft.Icons.DELETE),
+                                                ft.Text("Delete"),
+                                            ]
                                         ),
-                                        ft.Text(
-                                            f"€{account['balance']:,.2f}",
-                                            size=20,
-                                            color=text_color,
+                                        on_click=lambda _: self._delete_account(
+                                            account["id"]
                                         ),
-                                    ],
-                                    spacing=2,
-                                    expand=True,
-                                ),
-                                ft.PopupMenuButton(
-                                    icon=ft.Icons.MORE_VERT,
-                                    icon_color=text_color,
-                                    items=[
-                                        ft.PopupMenuItem(
-                                            content=ft.Row(
-                                                [
-                                                    ft.Icon(ft.Icons.EDIT),
-                                                    ft.Text("Edit"),
-                                                ]
-                                            ),
-                                            on_click=lambda _: self._open_dialog(
-                                                account
-                                            ),
-                                        ),
-                                        ft.PopupMenuItem(
-                                            content=ft.Row(
-                                                [
-                                                    ft.Icon(ft.Icons.DELETE),
-                                                    ft.Text("Delete"),
-                                                ]
-                                            ),
-                                            on_click=lambda _: self._delete_account(
-                                                account["id"]
-                                            ),
-                                        ),
-                                    ],
-                                ),
-                            ],
-                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                        ),
-                    ]
-                ),
-                padding=20,
-                bgcolor=bg_card,
+                                    ),
+                                ],
+                            ),
+                        ],
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                    ),
+                    ft.Container(height=12),
+                    ft.Column(
+                        [
+                            ft.Text(
+                                account["name"],
+                                size=14,
+                                color=ft.Colors.GREY_500,
+                            ),
+                            ft.Text(
+                                f"€{account['balance']:,.2f}",
+                                size=24,
+                                weight=ft.FontWeight.BOLD,
+                                color=text_color,
+                            ),
+                        ],
+                        spacing=4,
+                    ),
+                ]
             ),
-            elevation=2,
+            padding=20,
+            bgcolor=bg_card,
+            border_radius=20,
+            border=(
+                ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.GREY))
+                if not self.is_dark
+                else None
+            ),
         )
 
     def _build_content(self):
@@ -350,14 +348,10 @@ class AccountsView:
             border=ft.border.all(
                 2, ft.Colors.GREY_800 if self.is_dark else ft.Colors.GREY_300
             ),
+            border_radius=20,
         )
 
-        add_card = ft.Card(
-            content=add_container,
-            elevation=0,  # Flat
-        )
-
-        grid.controls.append(add_card)
+        grid.controls.append(add_container)
 
         return ft.Column(
             [

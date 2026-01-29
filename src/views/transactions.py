@@ -535,7 +535,7 @@ class TransactionsView:
                     icon_bg = ft.Colors.with_opacity(0.1, icon_color)
 
                 cat_name = t.get("category_name", "") or ""
-                cat_bg = t.get("category_color") or self._get_category_color(cat_name)
+                cat_bg = t.get("category_color") or ft.Colors.GREY_300
                 cat_text_col = ft.Colors.WHITE
 
                 edit_action = lambda e, t=t: self._edit_transaction(t)
@@ -661,39 +661,6 @@ class TransactionsView:
             new_controls.extend(self._generate_rows())
             self.content_column.controls = new_controls
             self.content_column.update()
-
-    def _get_category_color(self, cat_name: str) -> str:
-        """Retourne une couleur distinctive basée sur le nom de la sous-catégorie."""
-        if not cat_name:
-            return ft.Colors.GREY_300
-
-        cat = cat_name.lower()
-
-        # Banque / Épargne
-        if "compte courant" in cat:
-            return ft.Colors.BLUE_300
-        if "livret" in cat or "épargne" in cat:
-            return ft.Colors.YELLOW_300
-
-        # Quotidien
-        if "salaire" in cat:
-            return ft.Colors.TEAL_300
-        if "course" in cat:
-            return ft.Colors.AMBER_300
-        if "loyer" in cat:
-            return ft.Colors.RED_300
-        if "restaurant" in cat:
-            return ft.Colors.ORANGE_300
-        if "transport" in cat:
-            return ft.Colors.CYAN_300
-
-        return ft.Colors.GREY_300
-
-    def _get_category_text_color(self, cat_name: str) -> str:
-        # Simple contrast: darker version of pastel
-        if not cat_name:
-            return ft.Colors.GREY_800
-        return ft.Colors.GREY_900
 
     def build(self) -> ft.Container:
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT

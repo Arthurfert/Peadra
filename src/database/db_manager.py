@@ -78,9 +78,9 @@ class DatabaseManager:
             return
 
         default_categories = [
-            ("Compte courant", "#4CAF50", "checking"),
-            ("Livret A", "#2196F3", "savings"),
-            ("Livret Épargne", "#009688", "savings"),
+            ("Checking Account", "#4CAF50", "checking"),
+            ("Savings Account A", "#2196F3", "savings"),
+            ("Savings Account B", "#009688", "savings"),
         ]
 
         for name, color, acc_type in default_categories:

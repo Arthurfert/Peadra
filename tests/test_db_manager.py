@@ -12,6 +12,7 @@ from datetime import datetime
 # Tests d'initialisation et de structure
 # ==========================================
 
+
 def test_database_initialization(db_manager):
     """Test que la base de données est correctement initialisée et que les tables existent."""
     conn = db_manager._get_connection()
@@ -51,6 +52,7 @@ def test_migration_legacy_constraint_handled(db_manager):
 # ==========================================
 # Tests CRUD Transactions
 # ==========================================
+
 
 def test_transaction_crud(db_manager):
     """Test des opérations CRUD (Create, Read, Update, Delete) pour les transactions."""
@@ -109,6 +111,7 @@ def test_get_transactions_by_period(db_manager):
 # Tests Catégories et Logique Métier
 # ==========================================
 
+
 def test_categories(db_manager):
     """Test de la récupération des catégories."""
     cats = db_manager.get_all_categories()
@@ -123,31 +126,39 @@ def test_categories(db_manager):
 
 def test_account_discrimination(db_manager):
     """Test que les comptes 'checking' et 'savings' sont correctement distingués dans les calculs."""
-    
+
     # 1. Créer des comptes de test spécifiques
-    checking_id = db_manager.add_category("My Checking", "#000000", account_type="checking")
-    savings_id = db_manager.add_category("My Savings", "#FFFFFF", account_type="savings")
-    
+    checking_id = db_manager.add_category(
+        "My Checking", "#000000", account_type="checking"
+    )
+    savings_id = db_manager.add_category(
+        "My Savings", "#FFFFFF", account_type="savings"
+    )
+
     assert checking_id > 0
     assert savings_id > 0
-    
+
     # 2. Ajouter des transactions
     # +1000 sur Checking
-    db_manager.add_transaction("2023-01-01", "Income Checking", 1000.0, "income", category_id=checking_id)
+    db_manager.add_transaction(
+        "2023-01-01", "Income Checking", 1000.0, "income", category_id=checking_id
+    )
     # +5000 sur Savings
-    db_manager.add_transaction("2023-01-01", "Income Savings", 5000.0, "income", category_id=savings_id)
-    
+    db_manager.add_transaction(
+        "2023-01-01", "Income Savings", 5000.0, "income", category_id=savings_id
+    )
+
     # 3. Vérifier la répartition
-    
+
     # get_balance() doit retourner SEULEMENT la somme des comptes checking
     # Note: Le compte par défaut "Compte courant" est aussi checking, mais vide ici.
     balance = db_manager.get_balance()
     assert balance == 1000.0, f"Attendu 1000.0 pour le solde checking, reçu {balance}"
-    
+
     # get_savings_total() doit retourner SEULEMENT la somme des comptes savings
     savings = db_manager.get_savings_total()
     assert savings == 5000.0, f"Attendu 5000.0 pour le total épargne, reçu {savings}"
-    
+
     # get_total_patrimony() doit TOUT retourner (1000 + 5000 = 6000)
     total = db_manager.get_total_patrimony()
     assert total == 6000.0, f"Attendu 6000.0 pour le patrimoine total, reçu {total}"
@@ -155,34 +166,47 @@ def test_account_discrimination(db_manager):
 
 def test_rename_category_propagates_to_transactions(db_manager):
     """Test que renommer une catégorie met à jour les descriptions de virement 'Transfer to/from'."""
-    
+
     # 1. Setup
     cat_id = db_manager.add_category("Old Name", "#F00", "checking")
-    
+
     # Créer des transactions avec des descriptions de virement
-    t1_id = db_manager.add_transaction("2023-01-01", "Transfer to Old Name", 100.0, "expense", category_id=cat_id)
-    t2_id = db_manager.add_transaction("2023-01-01", "Transfer from Old Name", 100.0, "income", category_id=cat_id)
-    t3_id = db_manager.add_transaction("2023-01-01", "Unrelated Transaction", 50.0, "expense", category_id=cat_id)
-    
+    t1_id = db_manager.add_transaction(
+        "2023-01-01", "Transfer to Old Name", 100.0, "expense", category_id=cat_id
+    )
+    t2_id = db_manager.add_transaction(
+        "2023-01-01", "Transfer from Old Name", 100.0, "income", category_id=cat_id
+    )
+    t3_id = db_manager.add_transaction(
+        "2023-01-01", "Unrelated Transaction", 50.0, "expense", category_id=cat_id
+    )
+
     # 2. Action: Renommer la catégorie
     success = db_manager.update_category(cat_id, "New Name", "#0F0", "checking")
     assert success is True
-    
+
     # 3. Validation
     txs = db_manager.get_all_transactions()
-    
+
     t1 = next(t for t in txs if t["id"] == t1_id)
     t2 = next(t for t in txs if t["id"] == t2_id)
     t3 = next(t for t in txs if t["id"] == t3_id)
-    
-    assert t1["description"] == "Transfer to New Name", "La description aurait dû être mise à jour"
-    assert t2["description"] == "Transfer from New Name", "La description aurait dû être mise à jour"
-    assert t3["description"] == "Unrelated Transaction", "La description non liée ne devrait pas changer"
+
+    assert t1["description"] == "Transfer to New Name", (
+        "La description aurait dû être mise à jour"
+    )
+    assert t2["description"] == "Transfer from New Name", (
+        "La description aurait dû être mise à jour"
+    )
+    assert t3["description"] == "Unrelated Transaction", (
+        "La description non liée ne devrait pas changer"
+    )
 
 
 # ==========================================
 # Tests Statistiques
 # ==========================================
+
 
 def test_statistics(db_manager):
     """Test du calcul global des statistiques (patrimoine)."""
@@ -220,6 +244,7 @@ def test_monthly_summary(db_manager):
 # ==========================================
 # Tests Export
 # ==========================================
+
 
 def test_export_json(db_manager, tmp_path):
     """Test de l'export des données en JSON."""

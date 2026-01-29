@@ -101,6 +101,12 @@ class NavigationRailComponent:
                                 "Transactions",
                                 1,
                             ),
+                            nav_item(
+                                ft.Icons.ACCOUNT_BALANCE_WALLET_OUTLINED,
+                                ft.Icons.ACCOUNT_BALANCE_WALLET,
+                                "Accounts",
+                                2,
+                            ),
                         ],
                         spacing=8,
                     ),

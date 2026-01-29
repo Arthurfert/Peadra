@@ -9,6 +9,7 @@ from src.components.navigation import NavigationRailComponent
 from src.database.db_manager import db
 from src.views.dashboard import DashboardView
 from src.views.transactions import TransactionsView
+from src.views.accounts import AccountsView
 
 
 class PeadraApp:
@@ -64,6 +65,7 @@ class PeadraApp:
         self.views = {
             0: DashboardView(self.page, self.is_dark, self._refresh_all_views),
             1: TransactionsView(self.page, self.is_dark, self._refresh_all_views),
+            2: AccountsView(self.page, self.is_dark, self._refresh_all_views),
         }
 
     def _on_navigation_change(self, index: int):

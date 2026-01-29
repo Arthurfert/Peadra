@@ -29,19 +29,13 @@ class DatabaseManager:
         conn = self._get_connection()
         cursor = conn.cursor()
 
-        # Détection et nettoyage de l'ancien schéma (avec table subcategories)
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='subcategories'")
-        if cursor.fetchone():
-            cursor.execute("DROP TABLE IF EXISTS transactions")
-            cursor.execute("DROP TABLE IF EXISTS subcategories")
-            cursor.execute("DROP TABLE IF EXISTS categories")
-
-        # Table des catégories (anciennement sous-catégories/comptes)
+        # Table des catégories
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS categories (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id INTEGER PRIMARY KEY,
                 name TEXT NOT NULL UNIQUE,
+                type TEXT NOT NULL DEFAULT 'savings' CHECK(type IN ('checking', 'savings')),
                 color TEXT DEFAULT '#1976D2',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -52,7 +46,7 @@ class DatabaseManager:
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS transactions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id INTEGER PRIMARY KEY,
                 date DATE NOT NULL,
                 description TEXT NOT NULL,
                 amount REAL NOT NULL,
@@ -72,20 +66,27 @@ class DatabaseManager:
         self._insert_default_categories()
 
     def _insert_default_categories(self):
-        """Insère les catégories par défaut."""
-        default_categories = [
-            ("Compte courant", "#4CAF50"),
-            ("Livret A", "#2196F3"),
-            ("Livret Épargne", "#009688"),
-        ]
-
+        """Insère les catégories par défaut uniquement si aucune catégorie n'existe."""
         conn = self._get_connection()
         cursor = conn.cursor()
 
-        for name, color in default_categories:
+        # Vérifier s'il y a déjà des catégories
+        cursor.execute("SELECT COUNT(*) FROM categories")
+        count = cursor.fetchone()[0]
+
+        if count > 0:
+            return
+
+        default_categories = [
+            ("Checking Account", "#4CAF50", "checking"),
+            ("Savings Account A", "#2196F3", "savings"),
+            ("Savings Account B", "#009688", "savings"),
+        ]
+
+        for name, color, acc_type in default_categories:
             cursor.execute(
-                "INSERT OR IGNORE INTO categories (name, color) VALUES (?, ?)",
-                (name, color),
+                "INSERT INTO categories (name, color, type) VALUES (?, ?, ?)",
+                (name, color, acc_type),
             )
 
         conn.commit()
@@ -98,6 +99,150 @@ class DatabaseManager:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM categories ORDER BY name")
         return [dict(row) for row in cursor.fetchall()]
+
+    def get_categories_with_balances(self) -> List[Dict[str, Any]]:
+        """Récupère toutes les catégories avec leur solde actuel."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        # Récupérer toutes les catégories
+        cursor.execute("SELECT * FROM categories ORDER BY name")
+        categories = [dict(row) for row in cursor.fetchall()]
+
+        result = []
+        for cat in categories:
+            # Calculer le solde pour chaque catégorie
+            cursor.execute(
+                """
+                SELECT 
+                    COALESCE(SUM(CASE WHEN transaction_type = 'income' THEN amount 
+                                      WHEN transaction_type = 'expense' THEN -amount 
+                                      ELSE 0 END), 0)
+                FROM transactions 
+                WHERE category_id = ?
+                """,
+                (cat["id"],),
+            )
+            balance = cursor.fetchone()[0]
+            cat["balance"] = balance
+            result.append(cat)
+
+        return result
+
+    def get_category_id_by_name(self, name: str) -> Optional[int]:
+        """Récupère l'ID d'une catégorie par son nom."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM categories WHERE name = ?", (name,))
+        row = cursor.fetchone()
+        return row[0] if row else None
+
+    def merge_categories(self, source_id: int, target_id: int) -> bool:
+        """Fusionne la catégorie source vers la cible puis supprime la source."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        # Déplacer les transactions
+        cursor.execute(
+            "UPDATE transactions SET category_id = ? WHERE category_id = ?",
+            (target_id, source_id),
+        )
+
+        # Supprimer la catégorie source
+        cursor.execute("DELETE FROM categories WHERE id = ?", (source_id,))
+
+        conn.commit()
+        return True
+
+    def add_category(self, name: str, color: str, account_type: str = "savings") -> int:
+        """Ajoute une nouvelle catégorie (compte)."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "INSERT INTO categories (name, color, type) VALUES (?, ?, ?)",
+                (name, color, account_type),
+            )
+            conn.commit()
+            return cursor.lastrowid or 0
+        except sqlite3.IntegrityError:
+            # Le nom existe déjà
+            return -1
+
+    def update_category(
+        self,
+        category_id: int,
+        name: str,
+        color: str,
+        account_type: Optional[str] = None,
+    ) -> bool:
+        """Met à jour une catégorie."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        # 1. Get old name
+        cursor.execute("SELECT name FROM categories WHERE id = ?", (category_id,))
+        row = cursor.fetchone()
+        if not row:
+            return False
+        old_name = row[0]
+
+        try:
+            if account_type:
+                cursor.execute(
+                    "UPDATE categories SET name = ?, color = ?, type = ? WHERE id = ?",
+                    (name, color, account_type, category_id),
+                )
+            else:
+                cursor.execute(
+                    "UPDATE categories SET name = ?, color = ? WHERE id = ?",
+                    (name, color, category_id),
+                )
+
+            rows_affected = cursor.rowcount
+
+            # 2. Update transaction descriptions if name changed
+            if rows_affected > 0 and old_name != name:
+                # Update 'Transfer to ...'
+                cursor.execute(
+                    "UPDATE transactions SET description = ? WHERE description = ?",
+                    (f"Transfer to {name}", f"Transfer to {old_name}"),
+                )
+                # Update 'Transfer from ...'
+                cursor.execute(
+                    "UPDATE transactions SET description = ? WHERE description = ?",
+                    (f"Transfer from {name}", f"Transfer from {old_name}"),
+                )
+
+            conn.commit()
+            return rows_affected > 0
+        except sqlite3.IntegrityError:
+            return False
+
+    def delete_category(
+        self, category_id: int, delete_transactions: bool = False
+    ) -> bool:
+        """
+        Supprime une catégorie.
+        :param category_id: ID de la catégorie à supprimer.
+        :param delete_transactions: Si True, supprime aussi les transactions associées. Sinon, met category_id à NULL.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        if delete_transactions:
+            cursor.execute(
+                "DELETE FROM transactions WHERE category_id = ?", (category_id,)
+            )
+        else:
+            cursor.execute(
+                "UPDATE transactions SET category_id = NULL WHERE category_id = ?",
+                (category_id,),
+            )
+
+        cursor.execute("DELETE FROM categories WHERE id = ?", (category_id,))
+        conn.commit()
+        return cursor.rowcount > 0
 
     # ==================== TRANSACTIONS ====================
 
@@ -175,7 +320,7 @@ class DatabaseManager:
         conn = self._get_connection()
         cursor = conn.cursor()
         query = """
-            SELECT t.*, c.name as category_name
+            SELECT t.*, c.name as category_name, c.color as category_color
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
             ORDER BY t.date DESC, t.id DESC
@@ -193,7 +338,7 @@ class DatabaseManager:
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT t.*, c.name as category_name
+            SELECT t.*, c.name as category_name, c.color as category_color
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
             WHERE t.date BETWEEN ? AND ?
@@ -217,7 +362,7 @@ class DatabaseManager:
                                   ELSE 0 END), 0)
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
-            WHERE c.name != 'Compte courant'
+            WHERE c.type = 'savings'
         """
         )
         result = cursor.fetchone()
@@ -251,7 +396,7 @@ class DatabaseManager:
                                   ELSE 0 END), 0)
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
-            WHERE c.name = 'Compte courant'
+            WHERE c.type = 'checking'
         """
         )
         result = cursor.fetchone()
@@ -287,7 +432,7 @@ class DatabaseManager:
                                   ELSE 0 END), 0)
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
-            WHERE t.date < ? AND c.name != 'Compte courant'
+            WHERE t.date < ? AND c.type = 'savings'
         """,
             (date_limit,),
         )
@@ -306,7 +451,7 @@ class DatabaseManager:
                                   ELSE 0 END), 0)
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
-            WHERE t.date < ? AND c.name = 'Compte courant'
+            WHERE t.date < ? AND c.type = 'checking'
         """,
             (date_limit,),
         )
@@ -338,7 +483,7 @@ class DatabaseManager:
                 COALESCE(SUM(CASE WHEN t.transaction_type = 'expense' THEN t.amount ELSE 0 END), 0) as expenses
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
-            WHERE (t.date >= ? AND t.date < ?) AND (c.name = 'Compte courant' OR t.category_id IS NULL)
+            WHERE (t.date >= ? AND t.date < ?) AND (c.type = 'checking' OR t.category_id IS NULL)
         """,
             (start_date, end_date),
         )

@@ -12,15 +12,13 @@
 
 Peadra (*"wealth" in Breton*) is a desktop application designed to help you track and manage your personal finances and assets.
 
-**🚧 Early phase of the project 🚧**
-
 ## Features
 
 - View your current balance, assets distribution and evolution
 - Add, modify and delete transactions
-- Organize into categories
+- Add, modify and delete your accounts
 
->To come : More graphs, subscriptions views, invests page.
+>To come : import data, subscriptions view.
 
 ## Installation
 
@@ -66,20 +64,21 @@ Peadra/
 ├── main.py                 # Application entry point
 ├── requirements.txt        # Python dependencies
 ├── LICENSE                 # MIT License
-├── README.md              # This file
+├── README.md               # This file
 └── src/
     ├── __init__.py
-    ├── components/        # Reusable UI components
+    ├── components/         # Reusable UI components
     │   ├── __init__.py
-    │   ├── modals.py      # Transaction and Asset modals
-    │   ├── navigation.py  # Navigation rail component
-    │   └── theme.py       # Theme configuration and styling
-    ├── database/          # Database layer
+    │   ├── modals.py       # Transaction and Asset modals
+    │   ├── navigation.py   # Navigation rail component
+    │   └── theme.py        # Theme configuration and styling
+    ├── database/           # Database layer
     │   ├── __init__.py
-    │   └── db_manager.py  # SQLite database manager
-    └── views/             # Application views
+    │   └── db_manager.py   # SQLite database manager
+    └── views/              # Application views
         ├── __init__.py
-        ├── dashboard.py   # Dashboard view
+        ├── accounts.py     # Accounts view
+        ├── dashboard.py    # Dashboard view
         └── transactions.py # Transactions management view
 ```
 

@@ -515,7 +515,7 @@ class TransactionsView:
                 )
                 amount_color = text_color
                 amount_prefix = ""
-                cat_name = "Virement"
+                cat_name = "Transfer"
                 cat_bg = ft.Colors.BLUE_GREY_100
                 cat_text_col = ft.Colors.BLUE_GREY_900
 

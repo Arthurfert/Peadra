@@ -179,6 +179,14 @@ class DatabaseManager:
         """Met à jour une catégorie."""
         conn = self._get_connection()
         cursor = conn.cursor()
+
+        # 1. Get old name
+        cursor.execute("SELECT name FROM categories WHERE id = ?", (category_id,))
+        row = cursor.fetchone()
+        if not row:
+            return False
+        old_name = row[0]
+
         try:
             if account_type:
                 cursor.execute(
@@ -190,8 +198,24 @@ class DatabaseManager:
                     "UPDATE categories SET name = ?, color = ? WHERE id = ?",
                     (name, color, category_id),
                 )
+
+            rows_affected = cursor.rowcount
+
+            # 2. Update transaction descriptions if name changed
+            if rows_affected > 0 and old_name != name:
+                # Update 'Transfer to ...'
+                cursor.execute(
+                    "UPDATE transactions SET description = ? WHERE description = ?",
+                    (f"Transfer to {name}", f"Transfer to {old_name}"),
+                )
+                # Update 'Transfer from ...'
+                cursor.execute(
+                    "UPDATE transactions SET description = ? WHERE description = ?",
+                    (f"Transfer from {name}", f"Transfer from {old_name}"),
+                )
+
             conn.commit()
-            return cursor.rowcount > 0
+            return rows_affected > 0
         except sqlite3.IntegrityError:
             return False
 

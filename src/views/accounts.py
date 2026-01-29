@@ -21,6 +21,20 @@ class AccountsView:
         # Dialog components
         self.dialog = None
         self.name_field = ft.TextField(label="Account Name", width=300)
+        self.update_history_checkbox = ft.Checkbox(
+            label="Update name in past transactions",
+            value=True,
+            label_style=ft.TextStyle(size=14)
+        )
+        self.type_dropdown = ft.Dropdown(
+            label="Account Type",
+            options=[
+                ft.dropdown.Option("savings", "Savings Account"),
+                ft.dropdown.Option("current", "Current Account"),
+            ],
+            value="savings",
+            width=300,
+        )
         self.color_dropdown = ft.Dropdown(
             label="Color",
             options=[
@@ -131,11 +145,17 @@ class AccountsView:
             self.editing_id = account["id"]
             self.name_field.value = account["name"]
             self.color_dropdown.value = account["color"]
+            # Default to savings if key missing (migration/compat)
+            self.type_dropdown.value = account.get("type", "savings")
+            self.update_history_checkbox.visible = True
+            self.update_history_checkbox.value = True
             title = "Edit Account"
         else:
             self.editing_id = None
             self.name_field.value = ""
             self.color_dropdown.value = "#2196F3"  # Default color
+            self.type_dropdown.value = "savings"
+            self.update_history_checkbox.visible = False
             title = "New Account"
 
         self.dialog = ft.AlertDialog(
@@ -143,7 +163,9 @@ class AccountsView:
             content=ft.Column(
                 [
                     self.name_field,
+                    self.type_dropdown,
                     self.color_dropdown,
+                    self.update_history_checkbox,
                 ],
                 tight=True,
                 spacing=20,
@@ -163,24 +185,109 @@ class AccountsView:
             self.dialog.open = False
             self.page.update()
 
+    def _show_merge_dialog(self, source_id, target_id, target_name):
+        """Affiche la boîte de dialogue de fusion."""
+
+        # Hide the edit dialog first
+        if self.dialog:
+            self.dialog.open = False
+            self.page.update()
+
+        def close_merge_dlg(e):
+            if self.merge_dialog:
+                self.merge_dialog.open = False
+                self.page.update()
+
+            # Re-open the edit dialog
+            if self.dialog:
+                self.dialog.open = True
+                self.page.update()
+
+        def confirm_merge(e):
+            if db.merge_categories(source_id, target_id):
+                # Close merge dialog
+                if self.merge_dialog:
+                    self.merge_dialog.open = False
+                    self.page.update()
+
+                # Refresh everything
+                self.refresh()
+                self.on_data_change()
+
+                snack = ft.SnackBar(
+                    content=ft.Text(f"Accounts merged into '{target_name}'")
+                )
+                self.page.overlay.append(snack)
+                snack.open = True
+                self.page.update()
+
+        self.merge_dialog = ft.AlertDialog(
+            title=ft.Text("Merge Accounts?"),
+            content=ft.Text(
+                f"An account named '{target_name}' already exists.\nDo you want to merge this account into it?\n\nAll transactions will be moved to '{target_name}'."
+            ),
+            actions=[
+                ft.TextButton("Cancel", on_click=close_merge_dlg),
+                ft.TextButton(
+                    "Merge",
+                    on_click=confirm_merge,
+                    style=ft.ButtonStyle(color=ft.Colors.BLUE),
+                ),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        self.page.overlay.append(self.merge_dialog)
+        self.merge_dialog.open = True
+        self.page.update()
+
     def _save_account(self, e):
-        name = self.name_field.value
+        raw_name = self.name_field.value or ""
+        name = raw_name.strip()
         color = self.color_dropdown.value or "#2196F3"
+        account_type = self.type_dropdown.value or "savings"
+        update_history = self.update_history_checkbox.value
 
         if not name:
             setattr(self.name_field, "error_text", "Please enter a name")
             self.name_field.update()
             return
 
-        if self.editing_id:
-            success = db.update_category(self.editing_id, name, color)
+        # Determine effective mode (Edit vs New)
+        is_edit_mode = self.editing_id is not None and update_history
+
+        # Check for name collision (Case Insensitive)
+        collision_id = None
+        for acc in self.accounts:
+            if acc["name"].lower() == name.lower():
+                collision_id = acc["id"]
+                break
+
+        # If collision found
+        if collision_id:
+            # Case 1: Renaming existing account (Update History = True) and name taken by OTHER
+            if is_edit_mode and collision_id != self.editing_id:
+                self._show_merge_dialog(
+                    self.editing_id, collision_id, acc["name"]
+                )
+                return
+
+            # Case 2: New account (or Edit with History Off) and name taken
+            elif not is_edit_mode:
+                setattr(self.name_field, "error_text", "Account already exists")
+                self.name_field.update()
+                return
+
+            # Case 3: Renaming to self (no change) -> Proceed
+
+        if is_edit_mode and self.editing_id is not None:
+            success = db.update_category(self.editing_id, name, color, account_type=account_type)
         else:
-            success = db.add_category(name, color) != -1
+            success = db.add_category(name, color, account_type=account_type) != -1
 
         if success:
             self._close_dialog(None)
             self.refresh()
-            self.on_data_change()  # Notify app to refresh other views
+            self.on_data_change()
         else:
             setattr(self.name_field, "error_text", "Error (Name may already be in use)")
             self.name_field.update()

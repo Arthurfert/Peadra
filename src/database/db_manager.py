@@ -29,35 +29,18 @@ class DatabaseManager:
         conn = self._get_connection()
         cursor = conn.cursor()
 
-        # Détection et nettoyage de l'ancien schéma (avec table subcategories)
-        cursor.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='subcategories'"
-        )
-        if cursor.fetchone():
-            cursor.execute("DROP TABLE IF EXISTS transactions")
-            cursor.execute("DROP TABLE IF EXISTS subcategories")
-            cursor.execute("DROP TABLE IF EXISTS categories")
-
-        # Table des catégories (anciennement sous-catégories/comptes)
+        # Table des catégories
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS categories (
                 id INTEGER PRIMARY KEY,
                 name TEXT NOT NULL UNIQUE,
-                type TEXT NOT NULL DEFAULT 'savings' CHECK(type IN ('current', 'savings')),
+                type TEXT NOT NULL DEFAULT 'savings' CHECK(type IN ('checking', 'savings')),
                 color TEXT DEFAULT '#1976D2',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """
         )
-
-        # Migration: Add type column if it doesn't exist
-        try:
-            cursor.execute("SELECT type FROM categories LIMIT 1")
-        except sqlite3.OperationalError:
-            cursor.execute("ALTER TABLE categories ADD COLUMN type TEXT NOT NULL DEFAULT 'savings' CHECK(type IN ('current', 'savings'))")
-            # Update default "Compte courant" to be type 'current' if it exists
-            cursor.execute("UPDATE categories SET type = 'current' WHERE name = 'Compte courant'")
 
         # Table des transactions
         cursor.execute(
@@ -90,12 +73,12 @@ class DatabaseManager:
         # Vérifier s'il y a déjà des catégories
         cursor.execute("SELECT COUNT(*) FROM categories")
         count = cursor.fetchone()[0]
-        
+
         if count > 0:
             return
 
         default_categories = [
-            ("Compte courant", "#4CAF50", "current"),
+            ("Compte courant", "#4CAF50", "checking"),
             ("Livret A", "#2196F3", "savings"),
             ("Livret Épargne", "#009688", "savings"),
         ]
@@ -187,7 +170,11 @@ class DatabaseManager:
             return -1
 
     def update_category(
-        self, category_id: int, name: str, color: str, account_type: Optional[str] = None
+        self,
+        category_id: int,
+        name: str,
+        color: str,
+        account_type: Optional[str] = None,
     ) -> bool:
         """Met à jour une catégorie."""
         conn = self._get_connection()
@@ -309,7 +296,7 @@ class DatabaseManager:
         conn = self._get_connection()
         cursor = conn.cursor()
         query = """
-            SELECT t.*, c.name as category_name
+            SELECT t.*, c.name as category_name, c.color as category_color
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
             ORDER BY t.date DESC, t.id DESC
@@ -327,7 +314,7 @@ class DatabaseManager:
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT t.*, c.name as category_name
+            SELECT t.*, c.name as category_name, c.color as category_color
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
             WHERE t.date BETWEEN ? AND ?
@@ -385,7 +372,7 @@ class DatabaseManager:
                                   ELSE 0 END), 0)
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
-            WHERE c.type = 'current'
+            WHERE c.type = 'checking'
         """
         )
         result = cursor.fetchone()
@@ -440,7 +427,7 @@ class DatabaseManager:
                                   ELSE 0 END), 0)
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
-            WHERE t.date < ? AND c.type = 'current'
+            WHERE t.date < ? AND c.type = 'checking'
         """,
             (date_limit,),
         )
@@ -472,7 +459,7 @@ class DatabaseManager:
                 COALESCE(SUM(CASE WHEN t.transaction_type = 'expense' THEN t.amount ELSE 0 END), 0) as expenses
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
-            WHERE (t.date >= ? AND t.date < ?) AND (c.type = 'current' OR t.category_id IS NULL)
+            WHERE (t.date >= ? AND t.date < ?) AND (c.type = 'checking' OR t.category_id IS NULL)
         """,
             (start_date, end_date),
         )

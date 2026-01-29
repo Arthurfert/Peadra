@@ -24,13 +24,13 @@ class AccountsView:
         self.update_history_checkbox = ft.Checkbox(
             label="Update name in past transactions",
             value=True,
-            label_style=ft.TextStyle(size=14)
+            label_style=ft.TextStyle(size=14),
         )
         self.type_dropdown = ft.Dropdown(
             label="Account Type",
             options=[
                 ft.dropdown.Option("savings", "Savings Account"),
-                ft.dropdown.Option("current", "Current Account"),
+                ft.dropdown.Option("checking", "Checking Account"),
             ],
             value="savings",
             width=300,
@@ -266,9 +266,7 @@ class AccountsView:
         if collision_id:
             # Case 1: Renaming existing account (Update History = True) and name taken by OTHER
             if is_edit_mode and collision_id != self.editing_id:
-                self._show_merge_dialog(
-                    self.editing_id, collision_id, acc["name"]
-                )
+                self._show_merge_dialog(self.editing_id, collision_id, acc["name"])
                 return
 
             # Case 2: New account (or Edit with History Off) and name taken
@@ -280,7 +278,9 @@ class AccountsView:
             # Case 3: Renaming to self (no change) -> Proceed
 
         if is_edit_mode and self.editing_id is not None:
-            success = db.update_category(self.editing_id, name, color, account_type=account_type)
+            success = db.update_category(
+                self.editing_id, name, color, account_type=account_type
+            )
         else:
             success = db.add_category(name, color, account_type=account_type) != -1
 

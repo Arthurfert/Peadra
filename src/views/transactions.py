@@ -535,8 +535,8 @@ class TransactionsView:
                     icon_bg = ft.Colors.with_opacity(0.1, icon_color)
 
                 cat_name = t.get("category_name", "") or ""
-                cat_bg = self._get_category_color(cat_name)
-                cat_text_col = self._get_category_text_color(cat_name)
+                cat_bg = t.get("category_color") or self._get_category_color(cat_name)
+                cat_text_col = ft.Colors.WHITE
 
                 edit_action = lambda e, t=t: self._edit_transaction(t)
                 delete_action = lambda e, id=t["id"]: self._confirm_delete(id)

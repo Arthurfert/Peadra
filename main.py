@@ -10,6 +10,7 @@ from src.database.db_manager import db
 from src.views.dashboard import DashboardView
 from src.views.transactions import TransactionsView
 from src.views.accounts import AccountsView
+from src.views.import_data import ImportDialog
 
 
 class PeadraApp:
@@ -61,6 +62,9 @@ class PeadraApp:
             on_change=self._on_navigation_change, is_dark=self.is_dark
         )
 
+        # Dialogues
+        self.import_dialog = ImportDialog(self.page, self.is_dark, self._refresh_all_views)
+
         # Vues
         self.views = {
             0: DashboardView(self.page, self.is_dark, self._refresh_all_views),
@@ -88,6 +92,8 @@ class PeadraApp:
         self.navigation.update_theme(self.is_dark)
         for view in self.views.values():
             view.update_theme(self.is_dark)
+        if hasattr(self, "import_dialog"):
+            self.import_dialog.update_theme(self.is_dark)
 
         # Reconstruire l'interface
         self._build_ui()
@@ -174,6 +180,23 @@ class PeadraApp:
                     # Actions
                     ft.Row(
                         controls=[
+                            # Menu import
+                            ft.PopupMenuButton(
+                                icon=ft.Icons.UPLOAD_FILE,
+                                tooltip="Import datas",
+                                items=[
+                                    ft.PopupMenuItem(
+                                        content=ft.Row(
+                                            controls=[
+                                                ft.Icon(ft.Icons.UPLOAD_FILE, size=18),
+                                                ft.Text("Import CSV"),
+                                            ],
+                                            spacing=8,
+                                        ),
+                                        on_click=lambda e: self.import_dialog.open(),
+                                    ),
+                                ],
+                            ),
                             # Menu export
                             ft.PopupMenuButton(
                                 icon=ft.Icons.DOWNLOAD,

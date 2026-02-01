@@ -6,7 +6,7 @@ Affiche un résumé visuel du patrimoine total.
 import flet as ft
 import flet_core as ftc
 import flet_charts as fch
-from typing import Callable, Union, Any, cast
+from typing import Callable, Union, Any, cast, List
 from datetime import datetime, timedelta
 import calendar
 from ..components.theme import PeadraTheme
@@ -23,6 +23,7 @@ class DashboardView:
         self.touched_index_assets = -1
         self.touched_index_income = -1
         self.touched_index_expenses = -1
+        self.chart_duration = 6
         self._load_data()
 
     def update_theme(self, is_dark: bool):
@@ -32,6 +33,13 @@ class DashboardView:
     def refresh(self):
         """Rafraîchit les données."""
         self._load_data()
+
+    def _update_chart_duration(self, duration: Union[int, str]):
+        self.chart_duration = duration
+        self.refresh()
+        if hasattr(self, 'chart_container_main'):
+             self.chart_container_main.content = self._build_income_expense_chart()
+             self.chart_container_main.update()
 
     def _load_data(self):
         # Now reflects Bank Balance
@@ -67,9 +75,24 @@ class DashboardView:
         self.savings_trend = calc_trend(self.monthly_savings, prev_savings)
         self.balance_trend = calc_trend(self.balance, prev_balance)
 
-        # Chart Data (Income vs Expenses) - Last 6 months
+        # Chart Data (Income vs Expenses)
         self.chart_data = []
-        for i in range(5, -1, -1):
+        
+        num_months = 6
+        if self.chart_duration == "all":
+            earliest_date = db.get_earliest_transaction_date()
+            if earliest_date:
+                start = datetime.strptime(earliest_date, "%Y-%m-%d")
+                num_months = (now.year - start.year) * 12 + (now.month - start.month) + 1
+            else:
+                num_months = 6
+        else:
+            num_months = int(self.chart_duration)
+            
+        if num_months < 1:
+            num_months = 6
+
+        for i in range(num_months - 1, -1, -1):
             date_calc = now.replace(day=1)
             # Subtract i months
             year = date_calc.year
@@ -321,7 +344,14 @@ class DashboardView:
                                         Any,
                                         ft.Container(
                                             ft.Text(
-                                                dates[i], size=12, color=ft.Colors.GREY
+                                                (
+                                                    dates[i]
+                                                    if len(dates) <= 12
+                                                    or i % (len(dates) // 6) == 0
+                                                    else ""
+                                                ),
+                                                size=12,
+                                                color=ft.Colors.GREY,
                                             ),
                                             padding=ft.padding.only(top=20),
                                         ),
@@ -380,53 +410,112 @@ class DashboardView:
 
         return ft.Container(
             content=ft.Column(
-                [
-                    ft.Row(
-                        [
-                            ft.Text(
-                                "Cash Flow",
-                                size=18,
-                                weight=ft.FontWeight.BOLD,
-                                color=text_color,
-                            ),
-                            ft.Container(expand=True),  # Spacer
-                            # Legend moved to the right of the title
-                            ft.Row(
+                cast(
+                    List[ft.Control],
+                    [
+                        ft.Row(
+                            cast(
+                                List[ft.Control],
                                 [
-                                    ft.Container(
-                                        width=10,
-                                        height=10,
-                                        bgcolor="#7E57C2",
-                                        border_radius=5,
+                                    ft.Row(
+                                        cast(
+                                            List[ft.Control],
+                                            [
+                                                ft.Text(
+                                                    "Cash Flow",
+                                                    size=18,
+                                                    weight=ft.FontWeight.BOLD,
+                                                    color=text_color,
+                                                ),
+                                                ft.SegmentedButton(
+                                                    selected=[str(self.chart_duration)],
+                                                    on_change=lambda e: self._update_chart_duration(
+                                                        int(list(e.control.selected)[0])
+                                                        if list(
+                                                            e.control.selected
+                                                        )[0].isdigit()
+                                                        else list(e.control.selected)[0]
+                                                    ),
+                                                    segments=[
+                                                        ft.Segment(
+                                                            value="3", label=ft.Text("3M")
+                                                        ),
+                                                        ft.Segment(
+                                                            value="6", label=ft.Text("6M")
+                                                        ),
+                                                        ft.Segment(
+                                                            value="12", label=ft.Text("1Y")
+                                                        ),
+                                                        ft.Segment(
+                                                            value="all",
+                                                            label=ft.Text("All"),
+                                                        ),
+                                                    ],
+                                                    show_selected_icon=False,
+                                                    style=ft.ButtonStyle(
+                                                        padding=ft.padding.symmetric(
+                                                            horizontal=10, vertical=0
+                                                        ),
+                                                    ),
+                                                ),
+                                            ],
+                                        ),
+                                        spacing=20,
+                                        alignment=ft.MainAxisAlignment.START,
+                                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
                                     ),
-                                    ft.Text(
-                                        "Total Assets", color=ft.Colors.GREY, size=12
+                                    # Legend moved to the right of the title
+                                    ft.Row(
+                                        cast(
+                                            List[ft.Control],
+                                            [
+                                                ft.Container(
+                                                    width=10,
+                                                    height=10,
+                                                    bgcolor="#7E57C2",
+                                                    border_radius=5,
+                                                ),
+                                                ft.Text(
+                                                    "Total Assets",
+                                                    color=ft.Colors.GREY,
+                                                    size=12,
+                                                ),
+                                                ft.Container(width=15),  # Spacing
+                                                ft.Container(
+                                                    width=10,
+                                                    height=10,
+                                                    bgcolor="#4CAF50",
+                                                    border_radius=5,
+                                                ),
+                                                ft.Text(
+                                                    "Inflows",
+                                                    color=ft.Colors.GREY,
+                                                    size=12,
+                                                ),
+                                                ft.Container(width=15),  # Spacing
+                                                ft.Container(
+                                                    width=10,
+                                                    height=10,
+                                                    bgcolor="#E53935",
+                                                    border_radius=5,
+                                                ),
+                                                ft.Text(
+                                                    "Outflows",
+                                                    color=ft.Colors.GREY,
+                                                    size=12,
+                                                ),
+                                            ],
+                                        ),
+                                        spacing=5,
                                     ),
-                                    ft.Container(width=15),  # Spacing
-                                    ft.Container(
-                                        width=10,
-                                        height=10,
-                                        bgcolor="#4CAF50",
-                                        border_radius=5,
-                                    ),
-                                    ft.Text("Inflows", color=ft.Colors.GREY, size=12),
-                                    ft.Container(width=15),  # Spacing
-                                    ft.Container(
-                                        width=10,
-                                        height=10,
-                                        bgcolor="#E53935",
-                                        border_radius=5,
-                                    ),
-                                    ft.Text("Outflows", color=ft.Colors.GREY, size=12),
                                 ],
-                                spacing=5,
                             ),
-                        ],
-                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                    ),
-                    ft.Container(height=20),
-                    chart_content,
-                ],
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                        ),
+                        ft.Container(height=20),
+                        chart_content,
+                    ],
+                ),
             ),
             padding=24,
             bgcolor=bg_card,
@@ -716,10 +805,11 @@ class DashboardView:
             spacing=20,
         )
 
-        charts_row_1 = ft.Container(
+        self.chart_container_main = ft.Container(
             content=self._build_income_expense_chart(),
             height=320,  # Reduced to give space for labels below
         )
+        charts_row_1 = self.chart_container_main
 
         charts_row_2 = ft.Container(
             content=ft.Row(

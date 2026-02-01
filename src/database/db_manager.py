@@ -348,6 +348,14 @@ class DatabaseManager:
         )
         return [dict(row) for row in cursor.fetchall()]
 
+    def get_earliest_transaction_date(self) -> Optional[str]:
+        """Récupère la date de la première transaction."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT MIN(date) FROM transactions")
+        row = cursor.fetchone()
+        return row[0] if row else None
+
     # ==================== STATISTIQUES ====================
 
     def get_savings_total(self) -> float:

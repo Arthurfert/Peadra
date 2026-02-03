@@ -256,7 +256,9 @@ class ImportDialog:
                         ft.Container(content=self.status_text, expand=True),
                     ],
                 ),
+                
                 ft.Container(height=20),
+                
                 # Preview Area
                 ft.Column(
                     [

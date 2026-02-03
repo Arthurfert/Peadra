@@ -146,6 +146,11 @@ class ImportDialog:
         self.preview_data: List[Dict[str, Any]] = []
         self.parsed_transactions: List[Dict[str, Any]] = []
         
+        # Mapping Components
+        self.csv_headers: List[str] = []
+        self.mapping_dropdowns: Dict[str, ft.Dropdown] = {}
+        self.mapping_container = ft.Column(visible=False)
+        
         # UI Components
         self.status_text = ft.Text("No file selected", color=ft.Colors.GREY)
         
@@ -223,6 +228,11 @@ class ImportDialog:
                         border_radius=5,
                     )
                 ]),
+                
+                ft.Container(height=20),
+                
+                # Mapping Area
+                self.mapping_container
                 
             ],
             tight=True,
@@ -316,19 +326,101 @@ class ImportDialog:
             self.preview_table.rows = dt_rows
             self.preview_table.visible = True
             
-            self.import_btn.disabled = False
+            self.import_btn.disabled = True # Wait for valid mapping
+            self.import_btn.update()
             
-            # Store full data for processing
-            self._prepare_transactions(file_path, dialect, has_header)
+            # Setup Mapping
+            self._setup_mapping_ui(columns)
+            
+            # Prepare config for later
+            self.current_csv_config = {
+                "path": file_path,
+                "dialect": dialect,
+                "has_header": has_header
+            }
             
         except Exception as ex:
             self.status_text.value = f"Error: {str(ex)}"
             self.status_text.color = PeadraTheme.ERROR
             self.import_btn.disabled = True
             self.preview_table.visible = False
+            self.mapping_container.visible = False
+            self.page.update()
 
-    def _prepare_transactions(self, file_path: str, dialect, has_header: bool):
+    def _setup_mapping_ui(self, columns: List[ft.DataColumn]):
+        """Crée l'interface de mapping des colonnes."""
+        # Ensure we treat label as Text to access value
+        self.csv_headers = []
+        for col in columns:
+            if isinstance(col.label, ft.Text):
+                self.csv_headers.append(col.label.value)
+            else:
+                self.csv_headers.append(str(col.label))
+
+        self.mapping_dropdowns = {}
+        
+        # Required fields in Peadra
+        required_fields = [
+            ("date", "Date"),
+            ("description", "Description"),
+            ("amount", "Amount"),
+        ]
+        
+        mapping_controls = []
+        for field_id, field_label in required_fields:
+            # Try to auto-match
+            selected_val = None
+            for hdr in self.csv_headers:
+                if field_label.lower() in hdr.lower():
+                    selected_val = hdr
+                    break
+            
+            dd = ft.Dropdown(
+                label=f"Map to {field_label}",
+                options=[ft.dropdown.Option(h) for h in self.csv_headers],
+                value=selected_val,
+                width=200,
+            )
+            # Workaround for Pylance not seeing on_change
+            setattr(dd, "on_change", self._validate_mapping)
+            self.mapping_dropdowns[field_id] = dd
+            
+            mapping_controls.append(
+                ft.Row([
+                    ft.Text(f"{field_label}:", width=100),
+                    dd
+                ])
+            )
+            
+        self.mapping_container.controls = [
+            ft.Text("Column Mapping", weight=ft.FontWeight.BOLD),
+            ft.Text("Match CSV columns to Peadra fields.", size=12, color=ft.Colors.GREY),
+            ft.Container(height=10),
+            ft.Column(mapping_controls)
+        ]
+        self.mapping_container.visible = True
+        self._validate_mapping(None) # Check initial state
+
+    def _validate_mapping(self, _):
+        """Vérifie si le mapping est complet."""
+        all_set = all(dd.value is not None for dd in self.mapping_dropdowns.values())
+        self.import_btn.disabled = not all_set
+        self.page.update()
+
+    def _prepare_transactions(self):
         """Lit tout le fichier et map les données vers le format DB."""
+        if not hasattr(self, "current_csv_config"): return
+        
+        file_path = self.current_csv_config["path"]
+        dialect = self.current_csv_config["dialect"]
+        has_header = self.current_csv_config["has_header"]
+        
+        # Get mapping indices
+        mapping: Dict[str, int] = {}
+        for k, v in self.mapping_dropdowns.items():
+            if v.value is not None:
+                mapping[k] = self.csv_headers.index(v.value)
+        
         self.parsed_transactions = []
         try:
             with open(file_path, "r", encoding="utf-8", newline="") as f:
@@ -340,11 +432,14 @@ class ImportDialog:
                         pass
                 
                 for row in reader:
-                    if len(row) < 3: continue
+                    # Check if row has enough columns for our max index
+                    max_idx = max(mapping.values())
+                    if len(row) <= max_idx: continue
+                    
                     try:
-                        date_str = row[0]
-                        desc = row[1]
-                        amount_str = row[2]
+                        date_str = row[mapping["date"]]
+                        desc = row[mapping["description"]]
+                        amount_str = row[mapping["amount"]]
                         
                         amount = float(amount_str.replace('€', '').replace(',', '.').replace(' ', ''))
                         
@@ -367,6 +462,13 @@ class ImportDialog:
 
     def _import_data(self, _):
         """Insère les données dans la base."""
+        self.import_btn.disabled = True
+        self.import_btn.content = ft.Text("Processing...", color=ft.Colors.WHITE)
+        self.page.update()
+        
+        # Parse now that we have mapping
+        self._prepare_transactions()
+        
         count = 0
         for t in self.parsed_transactions:
             try:
@@ -381,7 +483,9 @@ class ImportDialog:
                         continue
                 
                 if not date_iso:
-                    date_iso = datetime.now().strftime("%Y-%m-%d")
+                    # Fallback or skip? For now, use today if failed parsing
+                    # date_iso = datetime.now().strftime("%Y-%m-%d")
+                    continue # Skip invalid dates
                 
                 db.add_transaction(
                     date=date_iso,
@@ -393,7 +497,16 @@ class ImportDialog:
                 count += 1
             except Exception as e:
                 print(f"Import error: {e}")
-
+        
+        self.dialog.open = False
+        self.on_data_change() # Signal refresh
+        self.page.update()
+        
+        # Reset UI
+        # Use content completely to avoid Pylance errors on text property
+        self.import_btn.content = ft.Text("Confirm Import")
+        # self.import_btn.text = "Confirm Import" # Avoid Pylance error
+        
         # Close dialog and notify
         self._close_dialog(None)
         

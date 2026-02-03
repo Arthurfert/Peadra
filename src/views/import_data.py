@@ -8,9 +8,122 @@ import flet as ft
 from typing import Callable, Optional, List, Dict, Any
 import csv
 import codecs
+import os
 from datetime import datetime
 from ..components.theme import PeadraTheme
 from ..database.db_manager import db
+
+
+class CustomFilePicker:
+    """Sélecteur de fichiers personnalisé."""
+    
+    def __init__(self, page: ft.Page, on_select: Callable[[str], None], on_cancel: Callable[[], None], allowed_extensions: Optional[List[str]] = None):
+        self.page = page
+        self.on_select = on_select
+        self.on_cancel = on_cancel
+        self.allowed_extensions = [ext.lower() for ext in (allowed_extensions or [])]
+        self.current_path = os.getcwd()
+        
+        self.path_text = ft.Text(value=self.current_path, size=12, color=ft.Colors.GREY)
+        self.file_list = ft.ListView(expand=True, spacing=2)
+        
+        self.dialog = ft.AlertDialog(
+            title=ft.Text("Select File"),
+            content=ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Row(
+                            [
+                                ft.IconButton(icon=ft.Icons.ARROW_UPWARD, on_click=self._go_up, tooltip="Go up"),
+                                ft.Container(content=self.path_text, expand=True, padding=5),
+                            ],
+                            alignment=ft.MainAxisAlignment.START
+                        ),
+                        ft.Divider(height=1),
+                        self.file_list
+                    ],
+                    spacing=10
+                ),
+                width=600, 
+                height=400,
+                padding=10
+            ),
+            actions=[ft.TextButton("Cancel", on_click=lambda _: self._cancel())],
+        )
+
+    def _cancel(self):
+        """Handle cancel action to ensure dialog closes before callback."""
+        self.dialog.open = False
+        self.page.update()
+        self.on_cancel()
+
+    def open(self):
+        self._refresh_file_list()
+        self.page.show_dialog(self.dialog)
+        self.page.update()
+
+    def _refresh_file_list(self):
+        self.path_text.value = self.current_path
+        self.file_list.controls.clear()
+        
+        try:
+            items = os.listdir(self.current_path)
+            # Sort: folders first, then files
+            folders = []
+            files = []
+            
+            for item in items:
+                full_path = os.path.join(self.current_path, item)
+                if os.path.isdir(full_path):
+                    folders.append(item)
+                elif os.path.isfile(full_path):
+                    ext = os.path.splitext(item)[1][1:].lower()
+                    if not self.allowed_extensions or ext in self.allowed_extensions:
+                        files.append(item)
+            
+            folders.sort(key=str.lower)
+            files.sort(key=str.lower)
+            
+            for folder in folders:
+                self.file_list.controls.append(
+                    ft.ListTile(
+                        leading=ft.Icon(ft.Icons.FOLDER, color=ft.Colors.AMBER),
+                        title=ft.Text(folder),
+                        on_click=lambda e, p=folder: self._navigate(p),
+                        dense=True,
+                    )
+                )
+                
+            for file in files:
+                self.file_list.controls.append(
+                    ft.ListTile(
+                        leading=ft.Icon(ft.Icons.INSERT_DRIVE_FILE, color=ft.Colors.BLUE),
+                        title=ft.Text(file),
+                        on_click=lambda e, p=file: self._select_file(p),
+                        dense=True,
+                    )
+                )
+
+        except Exception as e:
+            self.file_list.controls.append(ft.Text(f"Error: {e}", color=ft.Colors.RED))
+            
+        self.page.update()
+
+    def _navigate(self, folder_name: str):
+        self.current_path = os.path.join(self.current_path, folder_name)
+        self._refresh_file_list()
+
+    def _go_up(self, _):
+        parent = os.path.dirname(self.current_path)
+        if parent and parent != self.current_path:
+            self.current_path = parent
+            self._refresh_file_list()
+
+    def _select_file(self, file_name: str):
+        full_path = os.path.join(self.current_path, file_name)
+        self.dialog.open = False
+        self.page.update()
+        self.on_select(full_path)
 
 
 class ImportDialog:
@@ -21,9 +134,13 @@ class ImportDialog:
         self.is_dark = is_dark
         self.on_data_change = on_data_change
         
-        # File Picker setup (Added to overlay in __init__)
-        self.file_picker = ft.FilePicker()
-        self.page.overlay.append(self.file_picker)
+        # Custom File Picker setup
+        self.custom_file_picker = CustomFilePicker(
+            page=self.page,
+            on_select=self._on_custom_file_selected,
+            on_cancel=self._on_custom_picker_cancel,
+            allowed_extensions=["csv", "txt"]
+        )
         
         self.current_file_path: Optional[str] = None
         self.preview_data: List[Dict[str, Any]] = []
@@ -115,6 +232,7 @@ class ImportDialog:
     def open(self):
         """Ouvre la boîte de dialogue."""
         self.page.show_dialog(self.dialog)
+        self.page.update()
 
     def _close_dialog(self, e):
         """Ferme la boîte de dialogue."""
@@ -129,30 +247,23 @@ class ImportDialog:
             self.import_btn.style.bgcolor = PeadraTheme.PRIMARY_MEDIUM if is_dark else PeadraTheme.PRIMARY_LIGHT
         self.page.update()
 
-    async def _on_pick_files(self, _):
-        """Ouvre le sélecteur de fichiers."""
-        try:
-            files = await self.file_picker.pick_files(
-                allow_multiple=False,
-                allowed_extensions=["csv", "txt"]
-            )
-            
-            if files:
-                # Mock event object to reuse existing handler logic
-                class FilePickerResultEvent:
-                    def __init__(self, f): self.files = f
-                self._on_file_picked(FilePickerResultEvent(files))
-        except Exception as e:
-            print(f"File picker error: {e}")
+    def _on_pick_files(self, _):
+        """Ouvre le sélecteur de fichiers personnalisé."""
+        self.dialog.open = False
+        self.page.update()
+        self.custom_file_picker.open()
 
-    def _on_file_picked(self, e):
-        """Callback après sélection du fichier."""       
-        if not e.files:
-            return
+    def _on_custom_picker_cancel(self):
+        """Callback quand le picker est annulé."""
+        self.page.show_dialog(self.dialog)
+        self.page.update()
 
-        file_path = e.files[0].path
+    def _on_custom_file_selected(self, file_path: str):
+        """Callback quand un fichier est choisi."""
+        self.page.show_dialog(self.dialog)
+        
         self.current_file_path = file_path
-        self.status_text.value = e.files[0].name
+        self.status_text.value = os.path.basename(file_path)
         self.status_text.color = ft.Colors.ON_SURFACE
         self.status_text.update()
         

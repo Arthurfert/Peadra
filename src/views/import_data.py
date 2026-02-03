@@ -146,6 +146,26 @@ class ImportDialog:
         self.preview_data: List[Dict[str, Any]] = []
         self.parsed_transactions: List[Dict[str, Any]] = []
         
+        # Account Selection Components
+        self.selected_account_id: Optional[int] = None
+        self.account_dropdown = ft.Dropdown(
+            label="Target Account",
+            width=300,
+        )
+        # attach handler after construction because Dropdown constructor may not accept on_change as a parameter
+        setattr(self.account_dropdown, "on_change", self._on_account_change)
+        self.new_account_name = ft.TextField(
+            label="New Account Name", 
+            width=300, 
+            visible=False,
+            on_change=self._validate_import_readiness
+        )
+        self.account_container = ft.Column([
+            ft.Text("Account Selection", weight=ft.FontWeight.BOLD),
+            self.account_dropdown,
+            self.new_account_name
+        ])
+        
         # Mapping Components
         self.csv_headers: List[str] = []
         self.mapping_dropdowns: Dict[str, ft.Dropdown] = {}
@@ -231,6 +251,11 @@ class ImportDialog:
                 
                 ft.Container(height=20),
                 
+                # Account Selection
+                self.account_container,
+                
+                ft.Container(height=20),
+                
                 # Mapping Area
                 self.mapping_container
                 
@@ -241,7 +266,56 @@ class ImportDialog:
 
     def open(self):
         """Ouvre la boîte de dialogue."""
+        self._load_accounts()
         self.page.show_dialog(self.dialog)
+        self.page.update()
+
+    def _load_accounts(self):
+        """Charge la liste des comptes."""
+        accounts = db.get_all_categories()
+        options = [
+            ft.dropdown.Option(
+                key=str(acc["id"]), 
+                text=acc["name"]
+            ) for acc in accounts
+        ]
+        options.append(ft.dropdown.Option(key="new", text="+ Create New Account"))
+        
+        self.account_dropdown.options = options
+        # Select first account by default if available and not set
+        if accounts and not self.account_dropdown.value:
+             self.account_dropdown.value = str(accounts[0]["id"])
+             self.selected_account_id = accounts[0]["id"]
+             
+    def _on_account_change(self, e):
+        """Gère le changement de compte."""
+        val = self.account_dropdown.value
+        if val == "new":
+            self.new_account_name.visible = True
+            self.selected_account_id = None
+        else:
+            self.new_account_name.visible = False
+            self.selected_account_id = int(val) if val else None
+            
+        self.page.update()
+        self._validate_import_readiness(None)
+
+    def _validate_import_readiness(self, _):
+        """Vérifie si tout est prêt pour l'import (compte + mapping)."""
+        # Check Account
+        account_ready = False
+        if self.account_dropdown.value == "new":
+            account_ready = bool(self.new_account_name.value and self.new_account_name.value.strip())
+        else:
+            account_ready = self.account_dropdown.value is not None
+
+        # Check Mapping
+        mapping_ready = False
+        if self.mapping_dropdowns:
+            mapping_ready = all(dd.value is not None for dd in self.mapping_dropdowns.values())
+            
+        # Only enable if file is loaded (mapping visible) AND account valid AND mapping valid
+        self.import_btn.disabled = not (self.mapping_container.visible and account_ready and mapping_ready)
         self.page.update()
 
     def _close_dialog(self, e):
@@ -382,7 +456,7 @@ class ImportDialog:
                 width=200,
             )
             # Workaround for Pylance not seeing on_change
-            setattr(dd, "on_change", self._validate_mapping)
+            setattr(dd, "on_change", self._validate_import_readiness)
             self.mapping_dropdowns[field_id] = dd
             
             mapping_controls.append(
@@ -399,13 +473,11 @@ class ImportDialog:
             ft.Column(mapping_controls)
         ]
         self.mapping_container.visible = True
-        self._validate_mapping(None) # Check initial state
+        self._validate_import_readiness(None) # Check initial state
 
+    # Legacy method replaced by _validate_import_readiness
     def _validate_mapping(self, _):
-        """Vérifie si le mapping est complet."""
-        all_set = all(dd.value is not None for dd in self.mapping_dropdowns.values())
-        self.import_btn.disabled = not all_set
-        self.page.update()
+        self._validate_import_readiness(_)
 
     def _prepare_transactions(self):
         """Lit tout le fichier et map les données vers le format DB."""
@@ -466,6 +538,20 @@ class ImportDialog:
         self.import_btn.content = ft.Text("Processing...", color=ft.Colors.WHITE)
         self.page.update()
         
+        # Handle New Account Creation
+        if self.account_dropdown.value == "new":
+            name = self.new_account_name.value
+            # Basic defaults
+            new_id = db.add_category(name, "#9E9E9E", "savings") 
+            if new_id and new_id > 0:
+                self.selected_account_id = new_id
+            else:
+                 self.status_text.value = "Error creating account"
+                 self.import_btn.content = ft.Text("Confirm Import")
+                 self.import_btn.disabled = False
+                 self.page.update()
+                 return
+        
         # Parse now that we have mapping
         self._prepare_transactions()
         
@@ -492,7 +578,7 @@ class ImportDialog:
                     description=t["description"],
                     amount=t["amount"],
                     transaction_type=t["type"],
-                    category_id=None
+                    category_id=self.selected_account_id
                 )
                 count += 1
             except Exception as e:

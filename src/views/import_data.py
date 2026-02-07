@@ -90,9 +90,7 @@ class CustomFilePicker:
                 if os.path.isdir(full_path):
                     folders.append(item)
                 elif os.path.isfile(full_path):
-                    ext = os.path.splitext(item)[1][1:].lower()
-                    if not self.allowed_extensions or ext in self.allowed_extensions:
-                        files.append(item)
+                    files.append(item)
 
             folders.sort(key=str.lower)
             files.sort(key=str.lower)
@@ -108,14 +106,26 @@ class CustomFilePicker:
                 )
 
             for file in files:
+                ext = os.path.splitext(file)[1][1:].lower()
+                is_allowed = (
+                    not self.allowed_extensions or ext in self.allowed_extensions
+                )
+
                 self.file_list.controls.append(
                     ft.ListTile(
                         leading=ft.Icon(
-                            ft.Icons.INSERT_DRIVE_FILE, color=ft.Colors.BLUE
+                            ft.Icons.INSERT_DRIVE_FILE,
+                            color=ft.Colors.BLUE if is_allowed else ft.Colors.GREY,
                         ),
-                        title=ft.Text(file),
-                        on_click=lambda e, p=file: self._select_file(p),
+                        title=ft.Text(
+                            file, color=None if is_allowed else ft.Colors.GREY
+                        ),
+                        on_click=lambda e, p=file: self._select_file(p)
+                        if is_allowed
+                        else None,
                         dense=True,
+                        disabled=not is_allowed,
+                        opacity=1.0 if is_allowed else 0.5,
                     )
                 )
 
@@ -154,7 +164,7 @@ class ImportDialog:
             page=self.page,
             on_select=self._on_custom_file_selected,
             on_cancel=self._on_custom_picker_cancel,
-            allowed_extensions=["csv", "txt"],
+            allowed_extensions=["csv"],
         )
 
         self.current_file_path: Optional[str] = None

@@ -17,8 +17,9 @@ Peadra (*"wealth" in Breton*) is a desktop application designed to help you trac
 - View your current balance, assets distribution and evolution
 - Add, modify and delete transactions
 - Add, modify and delete your accounts
+- Import data from CSV files
 
->To come : import data, subscriptions view.
+>To come : updated graphs, subscriptions view, and more.
 
 ## Installation
 
@@ -79,6 +80,7 @@ Peadra/
         ├── __init__.py
         ├── accounts.py     # Accounts view
         ├── dashboard.py    # Dashboard view
+        ├── import_data.py  # Import data view
         └── transactions.py # Transactions management view
 ```
 

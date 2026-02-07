@@ -4,6 +4,7 @@ Permet d'importer des transactions depuis un fichier CSV via une boîte de dialo
 """
 
 import flet as ft
+
 # import flet_core as fct
 from typing import Callable, Optional, List, Dict, Any
 import csv
@@ -16,17 +17,23 @@ from ..database.db_manager import db
 
 class CustomFilePicker:
     """Sélecteur de fichiers personnalisé."""
-    
-    def __init__(self, page: ft.Page, on_select: Callable[[str], None], on_cancel: Callable[[], None], allowed_extensions: Optional[List[str]] = None):
+
+    def __init__(
+        self,
+        page: ft.Page,
+        on_select: Callable[[str], None],
+        on_cancel: Callable[[], None],
+        allowed_extensions: Optional[List[str]] = None,
+    ):
         self.page = page
         self.on_select = on_select
         self.on_cancel = on_cancel
         self.allowed_extensions = [ext.lower() for ext in (allowed_extensions or [])]
         self.current_path = os.getcwd()
-        
+
         self.path_text = ft.Text(value=self.current_path, size=12, color=ft.Colors.GREY)
         self.file_list = ft.ListView(expand=True, spacing=2)
-        
+
         self.dialog = ft.AlertDialog(
             title=ft.Text("Select File"),
             content=ft.Container(
@@ -34,19 +41,25 @@ class CustomFilePicker:
                     [
                         ft.Row(
                             [
-                                ft.IconButton(icon=ft.Icons.ARROW_UPWARD, on_click=self._go_up, tooltip="Go up"),
-                                ft.Container(content=self.path_text, expand=True, padding=5),
+                                ft.IconButton(
+                                    icon=ft.Icons.ARROW_UPWARD,
+                                    on_click=self._go_up,
+                                    tooltip="Go up",
+                                ),
+                                ft.Container(
+                                    content=self.path_text, expand=True, padding=5
+                                ),
                             ],
-                            alignment=ft.MainAxisAlignment.START
+                            alignment=ft.MainAxisAlignment.START,
                         ),
                         ft.Divider(height=1),
-                        self.file_list
+                        self.file_list,
                     ],
-                    spacing=10
+                    spacing=10,
                 ),
-                width=600, 
+                width=600,
                 height=400,
-                padding=10
+                padding=10,
             ),
             actions=[ft.TextButton("Cancel", on_click=lambda _: self._cancel())],
         )
@@ -65,13 +78,13 @@ class CustomFilePicker:
     def _refresh_file_list(self):
         self.path_text.value = self.current_path
         self.file_list.controls.clear()
-        
+
         try:
             items = os.listdir(self.current_path)
             # Sort: folders first, then files
             folders = []
             files = []
-            
+
             for item in items:
                 full_path = os.path.join(self.current_path, item)
                 if os.path.isdir(full_path):
@@ -80,10 +93,10 @@ class CustomFilePicker:
                     ext = os.path.splitext(item)[1][1:].lower()
                     if not self.allowed_extensions or ext in self.allowed_extensions:
                         files.append(item)
-            
+
             folders.sort(key=str.lower)
             files.sort(key=str.lower)
-            
+
             for folder in folders:
                 self.file_list.controls.append(
                     ft.ListTile(
@@ -93,11 +106,13 @@ class CustomFilePicker:
                         dense=True,
                     )
                 )
-                
+
             for file in files:
                 self.file_list.controls.append(
                     ft.ListTile(
-                        leading=ft.Icon(ft.Icons.INSERT_DRIVE_FILE, color=ft.Colors.BLUE),
+                        leading=ft.Icon(
+                            ft.Icons.INSERT_DRIVE_FILE, color=ft.Colors.BLUE
+                        ),
                         title=ft.Text(file),
                         on_click=lambda e, p=file: self._select_file(p),
                         dense=True,
@@ -106,7 +121,7 @@ class CustomFilePicker:
 
         except Exception as e:
             self.file_list.controls.append(ft.Text(f"Error: {e}", color=ft.Colors.RED))
-            
+
         self.page.update()
 
     def _navigate(self, folder_name: str):
@@ -133,19 +148,19 @@ class ImportDialog:
         self.page = page
         self.is_dark = is_dark
         self.on_data_change = on_data_change
-        
+
         # Custom File Picker setup
         self.custom_file_picker = CustomFilePicker(
             page=self.page,
             on_select=self._on_custom_file_selected,
             on_cancel=self._on_custom_picker_cancel,
-            allowed_extensions=["csv", "txt"]
+            allowed_extensions=["csv", "txt"],
         )
-        
+
         self.current_file_path: Optional[str] = None
         self.preview_data: List[Dict[str, Any]] = []
         self.parsed_transactions: List[Dict[str, Any]] = []
-        
+
         # Account Selection Components
         self.selected_account_id: Optional[int] = None
         self.account_dropdown = ft.Dropdown(
@@ -155,54 +170,54 @@ class ImportDialog:
         # attach handler after construction because Dropdown constructor may not accept on_change as a parameter
         setattr(self.account_dropdown, "on_change", self._on_account_change)
         self.new_account_name = ft.TextField(
-            label="New Account Name", 
-            width=300, 
+            label="New Account Name",
+            width=300,
             visible=False,
-            on_change=self._validate_import_readiness
+            on_change=self._validate_import_readiness,
         )
-        self.account_container = ft.Column([
-            ft.Text("Account Selection", weight=ft.FontWeight.BOLD),
-            self.account_dropdown,
-            self.new_account_name
-        ])
-        
+        self.account_container = ft.Column(
+            [
+                ft.Text("Account Selection", weight=ft.FontWeight.BOLD),
+                self.account_dropdown,
+                self.new_account_name,
+            ]
+        )
+
         # Mapping Components
+        self.column_mappers: List[ft.Dropdown] = []
         self.csv_headers: List[str] = []
-        self.mapping_dropdowns: Dict[str, ft.Dropdown] = {}
-        self.mapping_container = ft.Column(visible=False)
-        
+
         # UI Components
         self.status_text = ft.Text("No file selected", color=ft.Colors.GREY)
-        
+
         # Initialize with at least one column to avoid "ValueError" if accidentally shown
         self.preview_table = ft.DataTable(
-            columns=[ft.DataColumn(label=ft.Text("Preview"))], 
-            rows=[], 
-            visible=False
+            columns=[ft.DataColumn(label=ft.Text("Preview"))],
+            rows=[],
+            visible=False,
+            heading_row_height=80,
         )
-        
+
         self.import_btn = ft.ElevatedButton(
             "Confirm Import",
             icon=ft.Icons.UPLOAD_FILE,
             on_click=self._import_data,
             disabled=True,
             style=ft.ButtonStyle(
-                bgcolor=PeadraTheme.PRIMARY_MEDIUM if is_dark else PeadraTheme.PRIMARY_LIGHT,
+                bgcolor=PeadraTheme.PRIMARY_MEDIUM
+                if is_dark
+                else PeadraTheme.PRIMARY_LIGHT,
                 color=ft.Colors.WHITE,
-            )
+            ),
         )
-        
+
         self.cancel_btn = ft.TextButton("Cancel", on_click=self._close_dialog)
 
         # Dialog
         self.dialog = ft.AlertDialog(
             modal=True,
             title=ft.Text("Import Transactions"),
-            content=ft.Container(
-                content=self._build_content(),
-                width=700,
-                padding=10
-            ),
+            content=ft.Container(content=self._build_content(), width=700, padding=10),
             actions=[
                 self.cancel_btn,
                 self.import_btn,
@@ -219,7 +234,6 @@ class ImportDialog:
                     color=ft.Colors.GREY,
                 ),
                 ft.Container(height=10),
-                
                 # File Selection
                 ft.Row(
                     [
@@ -232,36 +246,37 @@ class ImportDialog:
                         ft.Container(content=self.status_text, expand=True),
                     ],
                 ),
-                
                 ft.Container(height=20),
-                
                 # Preview Area
-                ft.Column([
-                    ft.Text("Preview", weight=ft.FontWeight.BOLD),
-                    ft.Container(
-                        content=ft.Column(
-                            [self.preview_table], 
-                            scroll=ft.ScrollMode.ADAPTIVE
+                ft.Column(
+                    [
+                        ft.Text("Preview", weight=ft.FontWeight.BOLD),
+                        ft.Container(
+                            content=ft.Row(
+                                [
+                                    ft.Column(
+                                        [self.preview_table],
+                                        scroll=ft.ScrollMode.ADAPTIVE,
+                                    )
+                                ],
+                                scroll=ft.ScrollMode.ADAPTIVE,
+                            ),
+                            height=200,  # Constrain height
+                            border=ft.border.all(
+                                1, ft.Colors.with_opacity(0.2, ft.Colors.GREY)
+                            ),
+                            border_radius=5,
                         ),
-                        height=200, # Constrain height
-                        border=ft.border.all(1, ft.Colors.with_opacity(0.2, ft.Colors.GREY)),
-                        border_radius=5,
-                    )
-                ]),
-                
+                    ]
+                ),
                 ft.Container(height=20),
-                
                 # Account Selection
                 self.account_container,
-                
                 ft.Container(height=20),
-                
-                # Mapping Area
-                self.mapping_container
-                
+                # Mapping Area removed - now integrated in Preview
             ],
             tight=True,
-            scroll=ft.ScrollMode.AUTO
+            scroll=ft.ScrollMode.AUTO,
         )
 
     def open(self):
@@ -274,19 +289,16 @@ class ImportDialog:
         """Charge la liste des comptes."""
         accounts = db.get_all_categories()
         options = [
-            ft.dropdown.Option(
-                key=str(acc["id"]), 
-                text=acc["name"]
-            ) for acc in accounts
+            ft.dropdown.Option(key=str(acc["id"]), text=acc["name"]) for acc in accounts
         ]
         options.append(ft.dropdown.Option(key="new", text="+ Create New Account"))
-        
+
         self.account_dropdown.options = options
         # Select first account by default if available and not set
         if accounts and not self.account_dropdown.value:
-             self.account_dropdown.value = str(accounts[0]["id"])
-             self.selected_account_id = accounts[0]["id"]
-             
+            self.account_dropdown.value = str(accounts[0]["id"])
+            self.selected_account_id = accounts[0]["id"]
+
     def _on_account_change(self, e):
         """Gère le changement de compte."""
         val = self.account_dropdown.value
@@ -296,7 +308,7 @@ class ImportDialog:
         else:
             self.new_account_name.visible = False
             self.selected_account_id = int(val) if val else None
-            
+
         self.page.update()
         self._validate_import_readiness(None)
 
@@ -305,17 +317,26 @@ class ImportDialog:
         # Check Account
         account_ready = False
         if self.account_dropdown.value == "new":
-            account_ready = bool(self.new_account_name.value and self.new_account_name.value.strip())
+            account_ready = bool(
+                self.new_account_name.value and self.new_account_name.value.strip()
+            )
         else:
             account_ready = self.account_dropdown.value is not None
 
         # Check Mapping
         mapping_ready = False
-        if self.mapping_dropdowns:
-            mapping_ready = all(dd.value is not None for dd in self.mapping_dropdowns.values())
-            
-        # Only enable if file is loaded (mapping visible) AND account valid AND mapping valid
-        self.import_btn.disabled = not (self.mapping_container.visible and account_ready and mapping_ready)
+        if self.column_mappers:
+            # Check if we have at least one Date, Description and Amount
+            mapped_values = [dd.value for dd in self.column_mappers if dd.value]
+            has_date = "Date" in mapped_values
+            has_desc = "Description" in mapped_values
+            has_amount = "Amount" in mapped_values
+            mapping_ready = has_date and has_desc and has_amount
+
+        # Only enable if file is loaded AND account valid AND mapping valid
+        self.import_btn.disabled = not (
+            self.preview_table.visible and account_ready and mapping_ready
+        )
         self.page.update()
 
     def _close_dialog(self, e):
@@ -328,7 +349,9 @@ class ImportDialog:
         self.is_dark = is_dark
         # Update button color if needed
         if self.import_btn.style:
-            self.import_btn.style.bgcolor = PeadraTheme.PRIMARY_MEDIUM if is_dark else PeadraTheme.PRIMARY_LIGHT
+            self.import_btn.style.bgcolor = (
+                PeadraTheme.PRIMARY_MEDIUM if is_dark else PeadraTheme.PRIMARY_LIGHT
+            )
         self.page.update()
 
     def _on_pick_files(self, _):
@@ -345,12 +368,12 @@ class ImportDialog:
     def _on_custom_file_selected(self, file_path: str):
         """Callback quand un fichier est choisi."""
         self.page.show_dialog(self.dialog)
-        
+
         self.current_file_path = file_path
         self.status_text.value = os.path.basename(file_path)
         self.status_text.color = ft.Colors.ON_SURFACE
         self.status_text.update()
-        
+
         self._parse_preview(file_path)
         self.dialog.update()
 
@@ -366,25 +389,32 @@ class ImportDialog:
                     has_header = csv.Sniffer().has_header(sample)
                 except csv.Error:
                     # Fallback if sniffing fails
-                    dialect = 'excel'
+                    dialect = "excel"
                     has_header = True
-                
+
                 reader = csv.reader(f, dialect)
                 header = next(reader) if has_header else None
-                
+
                 rows = []
                 for i, row in enumerate(reader):
-                    if i >= 5: break
+                    if i >= 5:
+                        break
                     rows.append(row)
 
-            # Build DataTable columns
+            # Build DataTable columns with Mapping Dropdowns
             columns = []
+            self.column_mappers = []  # Reset mappers
+
             if header:
                 for col in header:
-                    columns.append(ft.DataColumn(label=ft.Text(str(col))))
+                    columns.append(
+                        ft.DataColumn(label=self._create_header_content(str(col)))
+                    )
             elif rows:
                 for i in range(len(rows[0])):
-                    columns.append(ft.DataColumn(label=ft.Text(f"Col {i+1}")))
+                    columns.append(
+                        ft.DataColumn(label=self._create_header_content(f"Col {i + 1}"))
+                    )
             else:
                 # No data
                 self.preview_table.visible = False
@@ -399,81 +429,70 @@ class ImportDialog:
             self.preview_table.columns = columns
             self.preview_table.rows = dt_rows
             self.preview_table.visible = True
-            
-            self.import_btn.disabled = True # Wait for valid mapping
+
+            self.import_btn.disabled = True  # Wait for valid mapping
             self.import_btn.update()
-            
-            # Setup Mapping
-            self._setup_mapping_ui(columns)
-            
+
+            self._validate_import_readiness(None)  # Check initial state
+
             # Prepare config for later
             self.current_csv_config = {
                 "path": file_path,
                 "dialect": dialect,
-                "has_header": has_header
+                "has_header": has_header,
             }
-            
+
         except Exception as ex:
             self.status_text.value = f"Error: {str(ex)}"
             self.status_text.color = PeadraTheme.ERROR
             self.import_btn.disabled = True
             self.preview_table.visible = False
-            self.mapping_container.visible = False
+            self.preview_table.visible = False
+            # self.mapping_container.visible = False # Removed
             self.page.update()
 
-    def _setup_mapping_ui(self, columns: List[ft.DataColumn]):
-        """Crée l'interface de mapping des colonnes."""
-        # Ensure we treat label as Text to access value
-        self.csv_headers = []
-        for col in columns:
-            if isinstance(col.label, ft.Text):
-                self.csv_headers.append(col.label.value)
-            else:
-                self.csv_headers.append(str(col.label))
+    def _create_header_content(self, header_text: str) -> ft.Column:
+        """Crée le contenu de l'en-tête avec le dropdown de mapping."""
+        # Mapping options
+        options = ["Unused", "Date", "Description", "Amount"]
 
-        self.mapping_dropdowns = {}
-        
-        # Required fields in Peadra
-        required_fields = [
-            ("date", "Date"),
-            ("description", "Description"),
-            ("amount", "Amount"),
-        ]
-        
-        mapping_controls = []
-        for field_id, field_label in required_fields:
-            # Try to auto-match
-            selected_val = None
-            for hdr in self.csv_headers:
-                if field_label.lower() in hdr.lower():
-                    selected_val = hdr
-                    break
-            
-            dd = ft.Dropdown(
-                label=f"Map to {field_label}",
-                options=[ft.dropdown.Option(h) for h in self.csv_headers],
-                value=selected_val,
-                width=200,
-            )
-            # Workaround for Pylance not seeing on_change
-            setattr(dd, "on_change", self._validate_import_readiness)
-            self.mapping_dropdowns[field_id] = dd
-            
-            mapping_controls.append(
-                ft.Row([
-                    ft.Text(f"{field_label}:", width=100),
-                    dd
-                ])
-            )
-            
-        self.mapping_container.controls = [
-            ft.Text("Column Mapping", weight=ft.FontWeight.BOLD),
-            ft.Text("Match CSV columns to Peadra fields.", size=12, color=ft.Colors.GREY),
-            ft.Container(height=10),
-            ft.Column(mapping_controls)
-        ]
-        self.mapping_container.visible = True
-        self._validate_import_readiness(None) # Check initial state
+        # Auto-select logic
+        selected_val = "Unused"
+        lower_header = header_text.lower()
+        if "date" in lower_header or "time" in lower_header:
+            selected_val = "Date"
+        elif (
+            "desc" in lower_header
+            or "label" in lower_header
+            or "libelle" in lower_header
+            or "objet" in lower_header
+        ):
+            selected_val = "Description"
+        elif (
+            "amount" in lower_header
+            or "value" in lower_header
+            or "montant" in lower_header
+            or "solde" in lower_header
+        ):
+            selected_val = "Amount"
+
+        dd = ft.Dropdown(
+            label=header_text,
+            options=[ft.dropdown.Option(opt) for opt in options],
+            value=selected_val,
+            text_size=13,
+            height=45,
+            content_padding=10,
+            width=140,
+        )
+        setattr(dd, "on_change", self._validate_import_readiness)
+        self.column_mappers.append(dd)
+
+        return ft.Container(content=dd, padding=ft.padding.only(top=5))
+
+    def _setup_mapping_ui(self, columns: List[ft.DataColumn]):
+        """Deprecated - Logic moved to _parse_preview and _create_header_content."""
+        pass
 
     # Legacy method replaced by _validate_import_readiness
     def _validate_mapping(self, _):
@@ -481,18 +500,30 @@ class ImportDialog:
 
     def _prepare_transactions(self):
         """Lit tout le fichier et map les données vers le format DB."""
-        if not hasattr(self, "current_csv_config"): return
-        
+        if not hasattr(self, "current_csv_config"):
+            return
+
         file_path = self.current_csv_config["path"]
         dialect = self.current_csv_config["dialect"]
         has_header = self.current_csv_config["has_header"]
-        
+
         # Get mapping indices
         mapping: Dict[str, int] = {}
-        for k, v in self.mapping_dropdowns.items():
-            if v.value is not None:
-                mapping[k] = self.csv_headers.index(v.value)
-        
+
+        for idx, dd in enumerate(self.column_mappers):
+            val = dd.value
+            if val == "Date":
+                mapping["date"] = idx
+            elif val == "Description":
+                mapping["description"] = idx
+            elif val == "Amount":
+                mapping["amount"] = idx
+
+        # Ensure we have all required mappings
+        if len(mapping) < 3:
+            print("Missing mapping configuration")
+            return
+
         self.parsed_transactions = []
         try:
             with open(file_path, "r", encoding="utf-8", newline="") as f:
@@ -502,31 +533,38 @@ class ImportDialog:
                         next(reader)
                     except StopIteration:
                         pass
-                
+
                 for row in reader:
                     # Check if row has enough columns for our max index
                     max_idx = max(mapping.values())
-                    if len(row) <= max_idx: continue
-                    
+                    if len(row) <= max_idx:
+                        continue
+
                     try:
                         date_str = row[mapping["date"]]
                         desc = row[mapping["description"]]
                         amount_str = row[mapping["amount"]]
-                        
-                        amount = float(amount_str.replace('€', '').replace(',', '.').replace(' ', ''))
-                        
+
+                        amount = float(
+                            amount_str.replace("€", "")
+                            .replace(",", ".")
+                            .replace(" ", "")
+                        )
+
                         t_type = "expense"
                         if amount > 0:
                             t_type = "income"
                         else:
                             amount = abs(amount)
-                        
-                        self.parsed_transactions.append({
-                            "date": date_str,
-                            "description": desc,
-                            "amount": amount,
-                            "type": t_type
-                        })
+
+                        self.parsed_transactions.append(
+                            {
+                                "date": date_str,
+                                "description": desc,
+                                "amount": amount,
+                                "type": t_type,
+                            }
+                        )
                     except ValueError:
                         continue
         except Exception as e:
@@ -537,24 +575,24 @@ class ImportDialog:
         self.import_btn.disabled = True
         self.import_btn.content = ft.Text("Processing...", color=ft.Colors.WHITE)
         self.page.update()
-        
+
         # Handle New Account Creation
         if self.account_dropdown.value == "new":
             name = self.new_account_name.value
             # Basic defaults
-            new_id = db.add_category(name, "#9E9E9E", "savings") 
+            new_id = db.add_category(name, "#9E9E9E", "savings")
             if new_id and new_id > 0:
                 self.selected_account_id = new_id
             else:
-                 self.status_text.value = "Error creating account"
-                 self.import_btn.content = ft.Text("Confirm Import")
-                 self.import_btn.disabled = False
-                 self.page.update()
-                 return
-        
+                self.status_text.value = "Error creating account"
+                self.import_btn.content = ft.Text("Confirm Import")
+                self.import_btn.disabled = False
+                self.page.update()
+                return
+
         # Parse now that we have mapping
         self._prepare_transactions()
-        
+
         count = 0
         for t in self.parsed_transactions:
             try:
@@ -567,43 +605,45 @@ class ImportDialog:
                         break
                     except ValueError:
                         continue
-                
+
                 if not date_iso:
                     # Fallback or skip? For now, use today if failed parsing
                     # date_iso = datetime.now().strftime("%Y-%m-%d")
-                    continue # Skip invalid dates
-                
+                    continue  # Skip invalid dates
+
                 db.add_transaction(
                     date=date_iso,
                     description=t["description"],
                     amount=t["amount"],
                     transaction_type=t["type"],
-                    category_id=self.selected_account_id
+                    category_id=self.selected_account_id,
                 )
                 count += 1
             except Exception as e:
                 print(f"Import error: {e}")
-        
+
         self.dialog.open = False
-        self.on_data_change() # Signal refresh
+        self.on_data_change()  # Signal refresh
         self.page.update()
-        
+
         # Reset UI
         # Use content completely to avoid Pylance errors on text property
         self.import_btn.content = ft.Text("Confirm Import")
         # self.import_btn.text = "Confirm Import" # Avoid Pylance error
-        
+
         # Close dialog and notify
         self._close_dialog(None)
-        
+
         # Show snackbar via page overlay
         bg_col = PeadraTheme.SUCCESS
         snack = ft.SnackBar(
-            content=ft.Text(f"Successfully imported {count} transactions!", color=ft.Colors.WHITE),
+            content=ft.Text(
+                f"Successfully imported {count} transactions!", color=ft.Colors.WHITE
+            ),
             bgcolor=bg_col,
         )
         self.page.overlay.append(snack)
         snack.open = True
-        
+
         self.on_data_change()
         self.page.update()

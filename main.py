@@ -63,7 +63,9 @@ class PeadraApp:
         )
 
         # Dialogues
-        self.import_dialog = ImportDialog(self.page, self.is_dark, self._refresh_all_views)
+        self.import_dialog = ImportDialog(
+            self.page, self.is_dark, self._refresh_all_views
+        )
 
         # Vues
         self.views = {

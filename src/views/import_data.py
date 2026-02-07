@@ -283,8 +283,10 @@ class ImportDialog:
                     ]
                 ),
                 ft.Container(height=20),
+                
                 # Account Selection
                 self.account_container,
+                
                 ft.Container(height=20),
                 # Mapping Area removed - now integrated in Preview
             ],

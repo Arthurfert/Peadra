@@ -57,6 +57,34 @@ python main.py
 >```
 >If it doesn't work, try fixing it with this [stack overflow post](https://stackoverflow.com/questions/78007193/error-while-loading-shared-libraries-libmpv-so-1-cannot-open-shared-object-fil).
 
+## Build
+
+### Windows
+
+Prerequisites : 
+- Visual Studio with C/C++
+- On windows, you will need developers mode enabled 
+
+```bash
+flet build windows
+```
+
+### Linux
+
+```bash
+flet build linux
+```
+
+### MacOS
+
+Prerequisites : 
+- Rosetta 2 (for packaging)
+- Xcode (to compile swift or objective-C code)
+- CocoaPods (install and compile flutter plugins)
+
+```bash
+flet build macos
+```
 
 ## Project Structure
 

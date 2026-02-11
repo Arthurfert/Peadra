@@ -1,4 +1,5 @@
-flet==0.80.4
+flet==0.80.5
+flet-charts==0.80.5
 pytest
 pytest-cov
 black

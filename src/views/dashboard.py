@@ -4,7 +4,6 @@ Affiche un résumé visuel du patrimoine total.
 """
 
 import flet as ft
-import flet_core as ftc
 import flet_charts as fch
 from typing import Callable, Union, Any, cast, List
 from datetime import datetime, timedelta

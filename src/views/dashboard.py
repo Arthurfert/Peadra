@@ -247,17 +247,51 @@ class DashboardView:
         raw_min_patrimony = min(patrimonies) if patrimonies else 0
         raw_max_bars = max(incomes + expenses + [0])
 
+        # Helper: round a value to a "nice" number (1, 2, 5 multiples of powers of 10)
+        def nice_ceil(val):
+            """Round up to the nearest nice number."""
+            if val <= 0:
+                return 0
+            import math
+            exp = math.floor(math.log10(val))
+            base = 10 ** exp
+            frac = val / base
+            if frac <= 1:
+                nice = 1
+            elif frac <= 2:
+                nice = 2
+            elif frac <= 5:
+                nice = 5
+            else:
+                nice = 10
+            return nice * base
+
+        def nice_floor(val):
+            """Round down to the nearest nice number."""
+            if val <= 0:
+                return 0
+            import math
+            exp = math.floor(math.log10(val))
+            base = 10 ** exp
+            frac = val / base
+            if frac < 2:
+                nice = 1
+            elif frac < 5:
+                nice = 2
+            else:
+                nice = 5
+            return nice * base
+
         # Dynamic scaling for patrimony line
-        # We want the line to be clearly visible, so we don't start at 0 if values are high
         patrimony_spread = raw_max_patrimony - raw_min_patrimony
         if patrimony_spread == 0:
-            patrimony_spread = raw_max_patrimony * 0.1 if raw_max_patrimony > 0 else 100
+            patrimony_spread = nice_ceil(raw_max_patrimony * 0.1) if raw_max_patrimony > 0 else 100
 
-        # Add padding (20% above and below the range)
-        padding = patrimony_spread * 0.5  # More padding to avoid "stuck at top" look
+        # Add padding (50% of spread above and below)
+        padding = patrimony_spread * 0.5
         min_y_patrimony = max(0, raw_min_patrimony - padding)
 
-        # If the minimum is very close to zero compared to the max, might as well start at 0
+        # If the minimum is very close to zero compared to the max, start at 0
         if min_y_patrimony < raw_max_patrimony * 0.1:
             min_y_patrimony = 0
 
@@ -266,6 +300,16 @@ class DashboardView:
         # Buffer for flat lines
         if max_y_patrimony == min_y_patrimony:
             max_y_patrimony += 100
+
+        # Snap min/max to nice round numbers so axis labels are clean (e.g. 0, 2K, 4K, 6K)
+        y_range = max_y_patrimony - min_y_patrimony
+        nice_interval = nice_ceil(y_range / 5)
+        import math
+        min_y_patrimony = math.floor(min_y_patrimony / nice_interval) * nice_interval
+        max_y_patrimony = math.ceil(max_y_patrimony / nice_interval) * nice_interval
+        # Ensure at least the raw data fits
+        if max_y_patrimony < raw_max_patrimony:
+            max_y_patrimony += nice_interval
 
         # For bars, we keep 0 baseline and scale to occupy lower portion
         if raw_max_bars == 0:
@@ -323,7 +367,7 @@ class DashboardView:
                         ],
                         border=ft.border.all(0, ft.Colors.TRANSPARENT),
                         horizontal_grid_lines=fch.ChartGridLines(
-                            interval=(max_y_patrimony - min_y_patrimony) / 5,
+                            interval=nice_interval,
                             color=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE),
                             width=1,
                         ),

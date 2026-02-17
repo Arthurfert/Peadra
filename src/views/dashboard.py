@@ -36,9 +36,9 @@ class DashboardView:
     def _update_chart_duration(self, duration: Union[int, str]):
         self.chart_duration = duration
         self.refresh()
-        if hasattr(self, 'chart_container_main'):
-             self.chart_container_main.content = self._build_income_expense_chart()
-             self.chart_container_main.update()
+        if hasattr(self, "chart_container_main"):
+            self.chart_container_main.content = self._build_income_expense_chart()
+            self.chart_container_main.update()
 
     def _load_data(self):
         # Now reflects Bank Balance
@@ -76,18 +76,20 @@ class DashboardView:
 
         # Chart Data (Income vs Expenses)
         self.chart_data = []
-        
+
         num_months = 6
         if self.chart_duration == "all":
             earliest_date = db.get_earliest_transaction_date()
             if earliest_date:
                 start = datetime.strptime(earliest_date, "%Y-%m-%d")
-                num_months = (now.year - start.year) * 12 + (now.month - start.month) + 1
+                num_months = (
+                    (now.year - start.year) * 12 + (now.month - start.month) + 1
+                )
             else:
                 num_months = 6
         else:
             num_months = int(self.chart_duration)
-            
+
         if num_months < 1:
             num_months = 6
 
@@ -253,8 +255,9 @@ class DashboardView:
             if val <= 0:
                 return 0
             import math
+
             exp = math.floor(math.log10(val))
-            base = 10 ** exp
+            base = 10**exp
             frac = val / base
             if frac <= 1:
                 nice = 1
@@ -266,26 +269,12 @@ class DashboardView:
                 nice = 10
             return nice * base
 
-        def nice_floor(val):
-            """Round down to the nearest nice number."""
-            if val <= 0:
-                return 0
-            import math
-            exp = math.floor(math.log10(val))
-            base = 10 ** exp
-            frac = val / base
-            if frac < 2:
-                nice = 1
-            elif frac < 5:
-                nice = 2
-            else:
-                nice = 5
-            return nice * base
-
         # Dynamic scaling for patrimony line
         patrimony_spread = raw_max_patrimony - raw_min_patrimony
         if patrimony_spread == 0:
-            patrimony_spread = nice_ceil(raw_max_patrimony * 0.1) if raw_max_patrimony > 0 else 100
+            patrimony_spread = (
+                nice_ceil(raw_max_patrimony * 0.1) if raw_max_patrimony > 0 else 100
+            )
 
         # Add padding (50% of spread above and below)
         padding = patrimony_spread * 0.5
@@ -305,6 +294,7 @@ class DashboardView:
         y_range = max_y_patrimony - min_y_patrimony
         nice_interval = nice_ceil(y_range / 5)
         import math
+
         min_y_patrimony = math.floor(min_y_patrimony / nice_interval) * nice_interval
         max_y_patrimony = math.ceil(max_y_patrimony / nice_interval) * nice_interval
         # Ensure at least the raw data fits
@@ -437,7 +427,7 @@ class DashboardView:
                             max_y=max_bars_scaled,  # Scaled so bars stay at ~30% height
                             tooltip=fch.BarChartTooltip(bgcolor=PeadraTheme.SURFACE),
                             scale=ft.Scale(
-                                scale_x=(len(dates) / (len(dates) - 1))
+                                scale_x=(len(dates) / (len(dates) - 0.95))
                                 if len(dates) > 1
                                 else 1,
                                 scale_y=1,
@@ -474,20 +464,23 @@ class DashboardView:
                                                     selected=[str(self.chart_duration)],
                                                     on_change=lambda e: self._update_chart_duration(
                                                         int(list(e.control.selected)[0])
-                                                        if list(
-                                                            e.control.selected
-                                                        )[0].isdigit()
+                                                        if list(e.control.selected)[
+                                                            0
+                                                        ].isdigit()
                                                         else list(e.control.selected)[0]
                                                     ),
                                                     segments=[
                                                         ft.Segment(
-                                                            value="3", label=ft.Text("3M")
+                                                            value="3",
+                                                            label=ft.Text("3M"),
                                                         ),
                                                         ft.Segment(
-                                                            value="6", label=ft.Text("6M")
+                                                            value="6",
+                                                            label=ft.Text("6M"),
                                                         ),
                                                         ft.Segment(
-                                                            value="12", label=ft.Text("1Y")
+                                                            value="12",
+                                                            label=ft.Text("1Y"),
                                                         ),
                                                         ft.Segment(
                                                             value="all",

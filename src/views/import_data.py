@@ -498,7 +498,9 @@ class ImportDialog:
         setattr(dd, "on_change", self._validate_import_readiness)
         self.column_mappers.append(dd)
 
-        return ft.Column(controls=[ft.Container(content=dd, padding=ft.padding.only(top=5))])
+        return ft.Column(
+            controls=[ft.Container(content=dd, padding=ft.padding.only(top=5))]
+        )
 
     def _setup_mapping_ui(self, columns: List[ft.DataColumn]):
         """Deprecated - Logic moved to _parse_preview and _create_header_content."""

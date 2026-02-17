@@ -170,3 +170,6 @@ assets/tmp/
 # ---------------------------------
 .DS_Store
 Thumbs.db
+
+# CSV test files
+*.csv

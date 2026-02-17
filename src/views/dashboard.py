@@ -4,9 +4,8 @@ Affiche un résumé visuel du patrimoine total.
 """
 
 import flet as ft
-import flet_core as ftc
 import flet_charts as fch
-from typing import Callable, Union, Any, cast
+from typing import Callable, Union, Any, cast, List
 from datetime import datetime, timedelta
 import calendar
 from ..components.theme import PeadraTheme
@@ -23,6 +22,7 @@ class DashboardView:
         self.touched_index_assets = -1
         self.touched_index_income = -1
         self.touched_index_expenses = -1
+        self.chart_duration = 6
         self._load_data()
 
     def update_theme(self, is_dark: bool):
@@ -32,6 +32,13 @@ class DashboardView:
     def refresh(self):
         """Rafraîchit les données."""
         self._load_data()
+
+    def _update_chart_duration(self, duration: Union[int, str]):
+        self.chart_duration = duration
+        self.refresh()
+        if hasattr(self, "chart_container_main"):
+            self.chart_container_main.content = self._build_income_expense_chart()
+            self.chart_container_main.update()
 
     def _load_data(self):
         # Now reflects Bank Balance
@@ -67,9 +74,26 @@ class DashboardView:
         self.savings_trend = calc_trend(self.monthly_savings, prev_savings)
         self.balance_trend = calc_trend(self.balance, prev_balance)
 
-        # Chart Data (Income vs Expenses) - Last 6 months
+        # Chart Data (Income vs Expenses)
         self.chart_data = []
-        for i in range(5, -1, -1):
+
+        num_months = 6
+        if self.chart_duration == "all":
+            earliest_date = db.get_earliest_transaction_date()
+            if earliest_date:
+                start = datetime.strptime(earliest_date, "%Y-%m-%d")
+                num_months = (
+                    (now.year - start.year) * 12 + (now.month - start.month) + 1
+                )
+            else:
+                num_months = 6
+        else:
+            num_months = int(self.chart_duration)
+
+        if num_months < 1:
+            num_months = 6
+
+        for i in range(num_months - 1, -1, -1):
             date_calc = now.replace(day=1)
             # Subtract i months
             year = date_calc.year
@@ -225,17 +249,38 @@ class DashboardView:
         raw_min_patrimony = min(patrimonies) if patrimonies else 0
         raw_max_bars = max(incomes + expenses + [0])
 
+        # Helper: round a value to a "nice" number (1, 2, 5 multiples of powers of 10)
+        def nice_ceil(val):
+            """Round up to the nearest nice number."""
+            if val <= 0:
+                return 0
+            import math
+
+            exp = math.floor(math.log10(val))
+            base = 10**exp
+            frac = val / base
+            if frac <= 1:
+                nice = 1
+            elif frac <= 2:
+                nice = 2
+            elif frac <= 5:
+                nice = 5
+            else:
+                nice = 10
+            return nice * base
+
         # Dynamic scaling for patrimony line
-        # We want the line to be clearly visible, so we don't start at 0 if values are high
         patrimony_spread = raw_max_patrimony - raw_min_patrimony
         if patrimony_spread == 0:
-            patrimony_spread = raw_max_patrimony * 0.1 if raw_max_patrimony > 0 else 100
+            patrimony_spread = (
+                nice_ceil(raw_max_patrimony * 0.1) if raw_max_patrimony > 0 else 100
+            )
 
-        # Add padding (20% above and below the range)
-        padding = patrimony_spread * 0.5  # More padding to avoid "stuck at top" look
+        # Add padding (50% of spread above and below)
+        padding = patrimony_spread * 0.5
         min_y_patrimony = max(0, raw_min_patrimony - padding)
 
-        # If the minimum is very close to zero compared to the max, might as well start at 0
+        # If the minimum is very close to zero compared to the max, start at 0
         if min_y_patrimony < raw_max_patrimony * 0.1:
             min_y_patrimony = 0
 
@@ -244,6 +289,17 @@ class DashboardView:
         # Buffer for flat lines
         if max_y_patrimony == min_y_patrimony:
             max_y_patrimony += 100
+
+        # Snap min/max to nice round numbers so axis labels are clean (e.g. 0, 2K, 4K, 6K)
+        y_range = max_y_patrimony - min_y_patrimony
+        nice_interval = nice_ceil(y_range / 5)
+        import math
+
+        min_y_patrimony = math.floor(min_y_patrimony / nice_interval) * nice_interval
+        max_y_patrimony = math.ceil(max_y_patrimony / nice_interval) * nice_interval
+        # Ensure at least the raw data fits
+        if max_y_patrimony < raw_max_patrimony:
+            max_y_patrimony += nice_interval
 
         # For bars, we keep 0 baseline and scale to occupy lower portion
         if raw_max_bars == 0:
@@ -301,7 +357,7 @@ class DashboardView:
                         ],
                         border=ft.border.all(0, ft.Colors.TRANSPARENT),
                         horizontal_grid_lines=fch.ChartGridLines(
-                            interval=(max_y_patrimony - min_y_patrimony) / 5,
+                            interval=nice_interval,
                             color=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE),
                             width=1,
                         ),
@@ -321,7 +377,14 @@ class DashboardView:
                                         Any,
                                         ft.Container(
                                             ft.Text(
-                                                dates[i], size=12, color=ft.Colors.GREY
+                                                (
+                                                    dates[i]
+                                                    if len(dates) <= 12
+                                                    or i % (len(dates) // 6) == 0
+                                                    else ""
+                                                ),
+                                                size=12,
+                                                color=ft.Colors.GREY,
                                             ),
                                             padding=ft.padding.only(top=20),
                                         ),
@@ -364,7 +427,7 @@ class DashboardView:
                             max_y=max_bars_scaled,  # Scaled so bars stay at ~30% height
                             tooltip=fch.BarChartTooltip(bgcolor=PeadraTheme.SURFACE),
                             scale=ft.Scale(
-                                scale_x=(len(dates) / (len(dates) - 1))
+                                scale_x=(len(dates) / (len(dates) - 0.95))
                                 if len(dates) > 1
                                 else 1,
                                 scale_y=1,
@@ -380,53 +443,115 @@ class DashboardView:
 
         return ft.Container(
             content=ft.Column(
-                [
-                    ft.Row(
-                        [
-                            ft.Text(
-                                "Cash Flow",
-                                size=18,
-                                weight=ft.FontWeight.BOLD,
-                                color=text_color,
-                            ),
-                            ft.Container(expand=True),  # Spacer
-                            # Legend moved to the right of the title
-                            ft.Row(
+                cast(
+                    List[ft.Control],
+                    [
+                        ft.Row(
+                            cast(
+                                List[ft.Control],
                                 [
-                                    ft.Container(
-                                        width=10,
-                                        height=10,
-                                        bgcolor="#7E57C2",
-                                        border_radius=5,
+                                    ft.Row(
+                                        cast(
+                                            List[ft.Control],
+                                            [
+                                                ft.Text(
+                                                    "Cash Flow",
+                                                    size=18,
+                                                    weight=ft.FontWeight.BOLD,
+                                                    color=text_color,
+                                                ),
+                                                ft.SegmentedButton(
+                                                    selected=[str(self.chart_duration)],
+                                                    on_change=lambda e: self._update_chart_duration(
+                                                        int(list(e.control.selected)[0])
+                                                        if list(e.control.selected)[
+                                                            0
+                                                        ].isdigit()
+                                                        else list(e.control.selected)[0]
+                                                    ),
+                                                    segments=[
+                                                        ft.Segment(
+                                                            value="3",
+                                                            label=ft.Text("3M"),
+                                                        ),
+                                                        ft.Segment(
+                                                            value="6",
+                                                            label=ft.Text("6M"),
+                                                        ),
+                                                        ft.Segment(
+                                                            value="12",
+                                                            label=ft.Text("1Y"),
+                                                        ),
+                                                        ft.Segment(
+                                                            value="all",
+                                                            label=ft.Text("All"),
+                                                        ),
+                                                    ],
+                                                    show_selected_icon=False,
+                                                    style=ft.ButtonStyle(
+                                                        padding=ft.padding.symmetric(
+                                                            horizontal=10, vertical=0
+                                                        ),
+                                                    ),
+                                                ),
+                                            ],
+                                        ),
+                                        spacing=20,
+                                        alignment=ft.MainAxisAlignment.START,
+                                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
                                     ),
-                                    ft.Text(
-                                        "Total Assets", color=ft.Colors.GREY, size=12
+                                    # Legend moved to the right of the title
+                                    ft.Row(
+                                        cast(
+                                            List[ft.Control],
+                                            [
+                                                ft.Container(
+                                                    width=10,
+                                                    height=10,
+                                                    bgcolor="#7E57C2",
+                                                    border_radius=5,
+                                                ),
+                                                ft.Text(
+                                                    "Total Assets",
+                                                    color=ft.Colors.GREY,
+                                                    size=12,
+                                                ),
+                                                ft.Container(width=15),  # Spacing
+                                                ft.Container(
+                                                    width=10,
+                                                    height=10,
+                                                    bgcolor="#4CAF50",
+                                                    border_radius=5,
+                                                ),
+                                                ft.Text(
+                                                    "Inflows",
+                                                    color=ft.Colors.GREY,
+                                                    size=12,
+                                                ),
+                                                ft.Container(width=15),  # Spacing
+                                                ft.Container(
+                                                    width=10,
+                                                    height=10,
+                                                    bgcolor="#E53935",
+                                                    border_radius=5,
+                                                ),
+                                                ft.Text(
+                                                    "Outflows",
+                                                    color=ft.Colors.GREY,
+                                                    size=12,
+                                                ),
+                                            ],
+                                        ),
+                                        spacing=5,
                                     ),
-                                    ft.Container(width=15),  # Spacing
-                                    ft.Container(
-                                        width=10,
-                                        height=10,
-                                        bgcolor="#4CAF50",
-                                        border_radius=5,
-                                    ),
-                                    ft.Text("Inflows", color=ft.Colors.GREY, size=12),
-                                    ft.Container(width=15),  # Spacing
-                                    ft.Container(
-                                        width=10,
-                                        height=10,
-                                        bgcolor="#E53935",
-                                        border_radius=5,
-                                    ),
-                                    ft.Text("Outflows", color=ft.Colors.GREY, size=12),
                                 ],
-                                spacing=5,
                             ),
-                        ],
-                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                    ),
-                    ft.Container(height=20),
-                    chart_content,
-                ],
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                        ),
+                        ft.Container(height=20),
+                        chart_content,
+                    ],
+                ),
             ),
             padding=24,
             bgcolor=bg_card,
@@ -716,10 +841,11 @@ class DashboardView:
             spacing=20,
         )
 
-        charts_row_1 = ft.Container(
+        self.chart_container_main = ft.Container(
             content=self._build_income_expense_chart(),
             height=320,  # Reduced to give space for labels below
         )
+        charts_row_1 = self.chart_container_main
 
         charts_row_2 = ft.Container(
             content=ft.Row(

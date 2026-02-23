@@ -116,15 +116,6 @@ Peadra/
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch
-3. Make your changes !
-5. Open a Pull Request
-
 ## Acknowledgments
 
 - Built with [Flet](https://flet.dev/) - A framework for building interactive multi-platform applications in Python

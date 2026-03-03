@@ -162,6 +162,11 @@ class PeadraApp:
         snackbar.open = True
         self.page.update()
 
+    def _open_settings(self, e):
+        """Ouvre la vue des paramètres."""
+        self.current_view_index = 3
+        self._update_content()
+
     def _build_header(self) -> ft.Container:
         """Construit l'en-tête de l'application."""
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
@@ -194,6 +199,12 @@ class PeadraApp:
                     ),
                     # Spacer
                     ft.Container(expand=True),
+                    # Bouton des paramètres
+                    ft.IconButton(
+                        icon=ft.Icons.SETTINGS,
+                        tooltip="Settings",
+                        on_click=lambda e: self._open_settings(e),
+                    ),
                 ],
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             ),

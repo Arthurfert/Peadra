@@ -4,9 +4,13 @@
 
 ## Screenshots
 
-|                 Dashboard                 |                Transactions page               |
+|                 Dashboard                 |                  Transactions                  |
 | :---------------------------------------: | :--------------------------------------------: |
 | ![Peadra dashboard](assets/Dashboard.jpg) | ![Peadra transaction](assets/transactions.jpg) |
+
+|                  Accounts                 |                   Parameters                   |
+| :---------------------------------------: | :--------------------------------------------: |
+| ![Peadra Accounts](assets/Accounts.jpg)   | ![Peadra Parameters](assets/Parameters.jpg)    |
 
 ## Overview
 
@@ -17,9 +21,15 @@ Peadra (*"wealth" in Breton*) is a desktop application designed to help you trac
 - View your current balance, assets distribution and evolution
 - Add, modify and delete transactions
 - Add, modify and delete your accounts
-- Import data from CSV files
+- Import data from CSV files, export in JSON & CSV
 
->To come : updated graphs, subscriptions view, and more.
+>To come : subscriptions view, and [more](TODO.md)
+
+## Technologies
+
+- UI : **Flet** (*Python library based on Flutter*)
+- Backend : **Python**
+- Database : **SQLite** (*All your data is stored locally, and your the only one having access to it !*)
 
 ## Installation
 
@@ -109,6 +119,7 @@ Peadra/
         ├── accounts.py     # Accounts view
         ├── dashboard.py    # Dashboard view
         ├── import_data.py  # Import data view
+        ├── parameters.py   # Parameters view
         └── transactions.py # Transactions management view
 ```
 

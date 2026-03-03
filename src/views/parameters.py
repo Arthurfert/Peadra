@@ -278,7 +278,7 @@ class ParametersView:
                         ],
                         spacing=4,
                     ),
-                    margin=ft.margin.only(bottom=24),
+                    margin=ft.margin.only(bottom=20),
                 ),
                 appearance_section,
                 ft.Container(height=12),
@@ -291,4 +291,9 @@ class ParametersView:
             spacing=0,
         )
 
-        return ft.Container(content=content, padding=30, expand=True)
+        return ft.Container(
+            content=content,
+            padding=30,
+            expand=True,
+            alignment=ft.Alignment.TOP_RIGHT,
+        )

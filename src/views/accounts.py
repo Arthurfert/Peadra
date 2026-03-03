@@ -257,16 +257,18 @@ class AccountsView:
 
         # Check for name collision (Case Insensitive)
         collision_id = None
+        collision_name = None
         for acc in self.accounts:
             if acc["name"].lower() == name.lower():
                 collision_id = acc["id"]
+                collision_name = acc["name"]
                 break
 
         # If collision found
         if collision_id:
             # Case 1: Renaming existing account (Update History = True) and name taken by OTHER
             if is_edit_mode and collision_id != self.editing_id:
-                self._show_merge_dialog(self.editing_id, collision_id, acc["name"])
+                self._show_merge_dialog(self.editing_id, collision_id, collision_name)
                 return
 
             # Case 2: New account (or Edit with History Off) and name taken

@@ -609,7 +609,9 @@ class DatabaseManager:
         """Vérifie si un fichier a déjà été importé."""
         conn = self._get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM imported_files WHERE file_hash = ?", (file_hash,))
+        cursor.execute(
+            "SELECT COUNT(*) FROM imported_files WHERE file_hash = ?", (file_hash,)
+        )
         return cursor.fetchone()[0] > 0
 
     def log_imported_file(self, file_hash: str, filename: str):

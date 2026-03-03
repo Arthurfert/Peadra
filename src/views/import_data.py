@@ -26,7 +26,6 @@ def calculate_file_hash(file_path: str) -> str:
     return sha256_hash.hexdigest()
 
 
-
 class CustomFilePicker:
     """Sélecteur de fichiers personnalisé."""
 
@@ -695,7 +694,7 @@ class ImportDialog:
                 count += 1
             except Exception as e:
                 print(f"Import error: {e}")
-        
+
         # Log successful import
         if self.current_file_hash and self.current_file_path:
             db.log_imported_file(

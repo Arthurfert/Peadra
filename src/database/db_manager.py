@@ -60,6 +60,18 @@ class DatabaseManager:
         """
         )
 
+        # Table des fichiers importés
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS imported_files (
+                id INTEGER PRIMARY KEY,
+                file_hash TEXT NOT NULL,
+                filename TEXT,
+                imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """
+        )
+
         conn.commit()
 
         # Insérer les catégories par défaut si elles n'existent pas
@@ -590,6 +602,28 @@ class DatabaseManager:
         except Exception as e:
             print(f"Erreur export CSV: {e}")
             return False
+
+    # ==================== IMPORTS ====================
+
+    def is_file_imported(self, file_hash: str) -> bool:
+        """Vérifie si un fichier a déjà été importé."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM imported_files WHERE file_hash = ?", (file_hash,))
+        return cursor.fetchone()[0] > 0
+
+    def log_imported_file(self, file_hash: str, filename: str):
+        """Enregistre un fichier importé."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "INSERT INTO imported_files (file_hash, filename) VALUES (?, ?)",
+                (file_hash, filename),
+            )
+            conn.commit()
+        except Exception as e:
+            print(f"Erreur enregistrement import: {str(e)}")
 
     def close(self):
         """Ferme la connexion à la base de données."""

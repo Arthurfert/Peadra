@@ -10,9 +10,21 @@ from typing import Callable, Optional, List, Dict, Any
 import csv
 import codecs
 import os
+import hashlib
 from datetime import datetime
 from ..components.theme import PeadraTheme
 from ..database.db_manager import db
+
+
+def calculate_file_hash(file_path: str) -> str:
+    """Calcule le hash SHA256 d'un fichier."""
+    sha256_hash = hashlib.sha256()
+    with open(file_path, "rb") as f:
+        # Read and update hash string value in blocks of 4K
+        for byte_block in iter(lambda: f.read(4096), b""):
+            sha256_hash.update(byte_block)
+    return sha256_hash.hexdigest()
+
 
 
 class CustomFilePicker:
@@ -168,6 +180,7 @@ class ImportDialog:
         )
 
         self.current_file_path: Optional[str] = None
+        self.current_file_hash: Optional[str] = None
         self.preview_data: List[Dict[str, Any]] = []
         self.parsed_transactions: List[Dict[str, Any]] = []
 
@@ -377,6 +390,55 @@ class ImportDialog:
 
     def _on_custom_file_selected(self, file_path: str):
         """Callback quand un fichier est choisi."""
+        # Calculate hash first
+        try:
+            self.current_file_hash = calculate_file_hash(file_path)
+            is_duplicate = db.is_file_imported(self.current_file_hash)
+        except Exception as e:
+            print(f"Error checking file hash: {e}")
+            is_duplicate = False
+
+        if is_duplicate:
+            self._show_duplicate_warning(file_path)
+            return
+
+        self._proceed_with_file_selection(file_path)
+
+    def _show_duplicate_warning(self, file_path: str):
+        """Affiche un avertissement si le fichier a déjà été importé."""
+
+        def on_continue(_):
+            warning_dialog.open = False
+            self.page.update()
+            self._proceed_with_file_selection(file_path)
+
+        def on_cancel(_):
+            warning_dialog.open = False
+            self.page.update()
+            # Reopen main dialog empty
+            self.page.show_dialog(self.dialog)
+            self.page.update()
+
+        warning_dialog = ft.AlertDialog(
+            title=ft.Text("Warning: Duplicate Import"),
+            content=ft.Text(
+                "This file appears to have been imported already.\nDo you want to continue?"
+            ),
+            actions=[
+                ft.TextButton("Cancel", on_click=on_cancel),
+                ft.TextButton(
+                    "Import Anyway",
+                    on_click=on_continue,
+                    style=ft.ButtonStyle(color=ft.Colors.ERROR),
+                ),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        self.page.show_dialog(warning_dialog)
+        self.page.update()
+
+    def _proceed_with_file_selection(self, file_path: str):
+        """Continue la sélection de fichier après validation."""
         self.page.show_dialog(self.dialog)
 
         self.current_file_path = file_path
@@ -633,6 +695,12 @@ class ImportDialog:
                 count += 1
             except Exception as e:
                 print(f"Import error: {e}")
+        
+        # Log successful import
+        if self.current_file_hash and self.current_file_path:
+            db.log_imported_file(
+                self.current_file_hash, os.path.basename(self.current_file_path)
+            )
 
         self.dialog.open = False
         self.on_data_change()  # Signal refresh

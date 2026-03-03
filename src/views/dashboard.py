@@ -15,7 +15,13 @@ from ..database.db_manager import db
 class DashboardView:
     """Vue du tableau de bord."""
 
-    def __init__(self, page: ft.Page, is_dark: bool, on_data_change: Callable, get_month_mode: Optional[Callable] = None):
+    def __init__(
+        self,
+        page: ft.Page,
+        is_dark: bool,
+        on_data_change: Callable,
+        get_month_mode: Optional[Callable] = None,
+    ):
         self.page = page
         self.is_dark = is_dark
         self.on_data_change = on_data_change
@@ -59,7 +65,9 @@ class DashboardView:
             # Previous period for trends: 30 days before the rolling window
             prev_summary = db.get_rolling_summary(60)
             prev_income = (prev_summary.get("income", 0) or 0) - self.monthly_income
-            prev_expenses = (prev_summary.get("expenses", 0) or 0) - self.monthly_expenses
+            prev_expenses = (
+                prev_summary.get("expenses", 0) or 0
+            ) - self.monthly_expenses
 
             # Rolling period dates for category breakdown
             category_start_date = (now - timedelta(days=30)).strftime("%Y-%m-%d")
@@ -618,9 +626,7 @@ class DashboardView:
                         ],
                         show_selected_icon=False,
                         style=ft.ButtonStyle(
-                            padding=ft.padding.symmetric(
-                                horizontal=10, vertical=0
-                            ),
+                            padding=ft.padding.symmetric(horizontal=10, vertical=0),
                         ),
                     ),
                 ],

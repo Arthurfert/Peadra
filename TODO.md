@@ -6,7 +6,8 @@ This document presents future changes and wanted improvements.
 
 ## In development
 
-- Data import
+- Exact file importation already made verification (file's hash)
+- Better dashboard & parameters
 
 ## Future Improvements *(by priority)*
 

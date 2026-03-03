@@ -323,7 +323,7 @@ class DashboardView:
 
         # Snap min/max to nice round numbers so axis labels are clean (e.g. 0, 2K, 4K, 6K)
         y_range = max_y_patrimony - min_y_patrimony
-        nice_interval = nice_ceil(y_range / 5)
+        nice_interval = nice_ceil(y_range / 4)
         import math
 
         min_y_patrimony = math.floor(min_y_patrimony / nice_interval) * nice_interval
@@ -335,7 +335,7 @@ class DashboardView:
         # Bar chart Y-axis scaling
         if raw_max_bars == 0:
             raw_max_bars = 100
-        nice_bar_interval = nice_ceil(raw_max_bars / 5) if raw_max_bars > 0 else 100
+        nice_bar_interval = nice_ceil(raw_max_bars / 4) if raw_max_bars > 0 else 100
         if nice_bar_interval > 0:
             max_y_bars = math.ceil(raw_max_bars / nice_bar_interval) * nice_bar_interval
         else:
@@ -457,7 +457,7 @@ class DashboardView:
                                     groups=bar_groups,
                                     border=ft.border.all(0, ft.Colors.TRANSPARENT),
                                     left_axis=fch.ChartAxis(
-                                        label_size=40,
+                                        label_size=55,
                                         title_size=0,
                                         show_labels=True,
                                     ),
@@ -565,7 +565,7 @@ class DashboardView:
                                         interval=1, color=ft.Colors.TRANSPARENT
                                     ),
                                     left_axis=fch.ChartAxis(
-                                        label_size=40,
+                                        label_size=55,
                                         title_size=0,
                                         show_labels=True,
                                     ),

@@ -10,6 +10,7 @@ from src.database.db_manager import db
 from src.views.dashboard import DashboardView
 from src.views.transactions import TransactionsView
 from src.views.accounts import AccountsView
+from src.views.parameters import ParametersView
 from src.views.import_data import ImportDialog
 
 
@@ -68,10 +69,24 @@ class PeadraApp:
         )
 
         # Vues
+        self.parameters_view = ParametersView(
+            self.page,
+            self.is_dark,
+            self._refresh_all_views,
+            on_toggle_theme=self._toggle_theme,
+            on_import=lambda: self.import_dialog.open(),
+            on_export=self._export_data,
+        )
         self.views = {
-            0: DashboardView(self.page, self.is_dark, self._refresh_all_views),
+            0: DashboardView(
+                self.page,
+                self.is_dark,
+                self._refresh_all_views,
+                get_month_mode=self.parameters_view.get_month_mode,
+            ),
             1: TransactionsView(self.page, self.is_dark, self._refresh_all_views),
             2: AccountsView(self.page, self.is_dark, self._refresh_all_views),
+            3: self.parameters_view,
         }
 
     def _on_navigation_change(self, index: int):
@@ -179,67 +194,6 @@ class PeadraApp:
                     ),
                     # Spacer
                     ft.Container(expand=True),
-                    # Actions
-                    ft.Row(
-                        controls=[
-                            # Menu import
-                            ft.PopupMenuButton(
-                                icon=ft.Icons.UPLOAD_FILE,
-                                tooltip="Import datas",
-                                items=[
-                                    ft.PopupMenuItem(
-                                        content=ft.Row(
-                                            controls=[
-                                                ft.Icon(ft.Icons.UPLOAD_FILE, size=18),
-                                                ft.Text("Import CSV"),
-                                            ],
-                                            spacing=8,
-                                        ),
-                                        on_click=lambda e: self.import_dialog.open(),
-                                    ),
-                                ],
-                            ),
-                            # Menu export
-                            ft.PopupMenuButton(
-                                icon=ft.Icons.DOWNLOAD,
-                                tooltip="Export datas",
-                                items=[
-                                    ft.PopupMenuItem(
-                                        content=ft.Row(
-                                            controls=[
-                                                ft.Icon(ft.Icons.DATA_OBJECT, size=18),
-                                                ft.Text("Export as JSON"),
-                                            ],
-                                            spacing=8,
-                                        ),
-                                        on_click=lambda e: self._export_data(e, "json"),
-                                    ),
-                                    ft.PopupMenuItem(
-                                        content=ft.Row(
-                                            controls=[
-                                                ft.Icon(ft.Icons.TABLE_CHART, size=18),
-                                                ft.Text("Export as CSV"),
-                                            ],
-                                            spacing=8,
-                                        ),
-                                        on_click=lambda e: self._export_data(e, "csv"),
-                                    ),
-                                ],
-                            ),
-                            # Toggle theme
-                            ft.IconButton(
-                                icon=(
-                                    ft.Icons.LIGHT_MODE
-                                    if self.is_dark
-                                    else ft.Icons.DARK_MODE
-                                ),
-                                tooltip="Toggle theme",
-                                on_click=self._toggle_theme,
-                                icon_color=PeadraTheme.ACCENT,
-                            ),
-                        ],
-                        spacing=8,
-                    ),
                 ],
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             ),

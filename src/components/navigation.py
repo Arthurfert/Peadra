@@ -107,6 +107,12 @@ class NavigationRailComponent:
                                 "Accounts",
                                 2,
                             ),
+                            nav_item(
+                                ft.Icons.SETTINGS_OUTLINED,
+                                ft.Icons.SETTINGS,
+                                "Parameters",
+                                3,
+                            ),
                         ],
                         spacing=8,
                     ),

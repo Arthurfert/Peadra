@@ -5,7 +5,7 @@ Affiche un résumé visuel du patrimoine total.
 
 import flet as ft
 import flet_charts as fch
-from typing import Callable, Union, Any, cast, List
+from typing import Callable, Union, Any, cast, List, Optional
 from datetime import datetime, timedelta
 import calendar
 from ..components.theme import PeadraTheme
@@ -15,10 +15,11 @@ from ..database.db_manager import db
 class DashboardView:
     """Vue du tableau de bord."""
 
-    def __init__(self, page: ft.Page, is_dark: bool, on_data_change: Callable):
+    def __init__(self, page: ft.Page, is_dark: bool, on_data_change: Callable, get_month_mode: Optional[Callable] = None):
         self.page = page
         self.is_dark = is_dark
         self.on_data_change = on_data_change
+        self.get_month_mode = get_month_mode or (lambda: "strict")
         self.touched_index_assets = -1
         self.touched_index_income = -1
         self.touched_index_expenses = -1
@@ -45,18 +46,43 @@ class DashboardView:
         self.total_patrimony = db.get_total_patrimony()
         self.balance = db.get_balance()
 
-        # Get current month summary
         now = datetime.now()
-        current_summary = db.get_monthly_summary(now.year, now.month)
-        self.monthly_income = current_summary.get("income", 0) or 0
-        self.monthly_expenses = current_summary.get("expenses", 0) or 0
-        self.monthly_savings = db.get_savings_total()
+        month_mode = self.get_month_mode()
 
-        # Previous month for trends
-        prev_month = now.replace(day=1) - timedelta(days=1)
-        prev_summary = db.get_monthly_summary(prev_month.year, prev_month.month)
-        prev_income = prev_summary.get("income", 0) or 0
-        prev_expenses = prev_summary.get("expenses", 0) or 0
+        if month_mode == "rolling":
+            # Rolling: last 30 days
+            current_summary = db.get_rolling_summary(30)
+            self.monthly_income = current_summary.get("income", 0) or 0
+            self.monthly_expenses = current_summary.get("expenses", 0) or 0
+            self.monthly_savings = db.get_savings_total()
+
+            # Previous period for trends: 30 days before the rolling window
+            prev_summary = db.get_rolling_summary(60)
+            prev_income = (prev_summary.get("income", 0) or 0) - self.monthly_income
+            prev_expenses = (prev_summary.get("expenses", 0) or 0) - self.monthly_expenses
+
+            # Rolling period dates for category breakdown
+            category_start_date = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+            category_end_date = now.strftime("%Y-%m-%d")
+        else:
+            # Strict: calendar month
+            current_summary = db.get_monthly_summary(now.year, now.month)
+            self.monthly_income = current_summary.get("income", 0) or 0
+            self.monthly_expenses = current_summary.get("expenses", 0) or 0
+            self.monthly_savings = db.get_savings_total()
+
+            # Previous month for trends
+            prev_month = now.replace(day=1) - timedelta(days=1)
+            prev_summary = db.get_monthly_summary(prev_month.year, prev_month.month)
+            prev_income = prev_summary.get("income", 0) or 0
+            prev_expenses = prev_summary.get("expenses", 0) or 0
+
+            # Calendar month dates for category breakdown
+            category_start_date = now.strftime("%Y-%m-01")
+            if now.month == 12:
+                category_end_date = f"{now.year + 1}-01-01"
+            else:
+                category_end_date = f"{now.year}-{now.month + 1:02d}-01"
 
         # For Stocks (Savings/Balance), we compare Current Value vs Value at Start of Month (History)
         start_of_month_str = now.replace(day=1).strftime("%Y-%m-%d")
@@ -124,11 +150,8 @@ class DashboardView:
             )
 
         # Simplified category logic for Expenses logic
-        start_date = now.strftime("%Y-%m-01")
-        if now.month == 12:
-            end_date = f"{now.year + 1}-01-01"
-        else:
-            end_date = f"{now.year}-{now.month + 1:02d}-01"
+        start_date = category_start_date
+        end_date = category_end_date
 
         txs = db.get_transactions_by_period(start_date, end_date)
         self.category_expenses = {}

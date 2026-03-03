@@ -528,6 +528,31 @@ class DatabaseManager:
 
         return distribution
 
+    def get_rolling_summary(self, days: int = 30) -> Dict[str, float]:
+        """Récupère le résumé des transactions des N derniers jours (Compte Courant)."""
+        from datetime import timedelta
+
+        end_date = datetime.now().strftime("%Y-%m-%d")
+        start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            SELECT 
+                COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount ELSE 0 END), 0) as income,
+                COALESCE(SUM(CASE WHEN t.transaction_type = 'expense' THEN t.amount ELSE 0 END), 0) as expenses
+            FROM transactions t
+            LEFT JOIN categories c ON t.category_id = c.id
+            WHERE (t.date >= ? AND t.date <= ?) AND (c.type = 'checking' OR t.category_id IS NULL)
+        """,
+            (start_date, end_date),
+        )
+
+        row = cursor.fetchone()
+        return {"income": row[0], "expenses": row[1], "balance": row[0] - row[1]}
+
     # ==================== EXPORT ====================
 
     def export_to_json(self, filepath: str) -> bool:

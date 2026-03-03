@@ -25,6 +25,8 @@ def test_database_initialization(db_manager):
     expected_tables = [
         "categories",
         "transactions",
+        "imported_files",
+        "settings",
     ]
     for table in expected_tables:
         assert table in tables, f"La table {table} devrait exister"
@@ -277,3 +279,56 @@ def test_export_csv(db_manager, tmp_path):
     with open(export_file, "r", encoding="utf-8") as f:
         content = f.read()
         assert "Test" in content
+
+
+# ==========================================
+# Tests Imported Files
+# ==========================================
+
+
+def test_imported_files_management(db_manager):
+    """Test de la gestion des fichiers importés (enregistrement et vérification)."""
+    file_hash = "abcdef1234567890"
+    filename = "test_import.csv"
+
+    # Vérifier que le fichier n'est pas encore importé
+    assert db_manager.is_file_imported(file_hash) is False
+
+    # Enregistrer le fichier
+    db_manager.log_imported_file(file_hash, filename)
+
+    # Vérifier que le fichier est maintenant considéré comme importé
+    assert db_manager.is_file_imported(file_hash) is True
+
+    # Vérifier qu'un autre hash n'est pas importé
+    assert db_manager.is_file_imported("otherhash") is False
+
+
+# ==========================================
+# Tests Settings
+# ==========================================
+
+
+def test_settings_management(db_manager):
+    """Test de la gestion des paramètres (get et set)."""
+    # 1. Get default value for non-existent setting
+    val = db_manager.get_setting("non_existent_key", default="default_value")
+    assert val == "default_value"
+
+    # 2. Set new setting
+    db_manager.set_setting("theme_mode", "dark")
+
+    # 3. Get existing setting
+    val = db_manager.get_setting("theme_mode")
+    assert val == "dark"
+
+    # 4. Update existing setting
+    db_manager.set_setting("theme_mode", "light")
+    val = db_manager.get_setting("theme_mode")
+    assert val == "light"
+
+    # 5. Check another setting
+    db_manager.set_setting("month_mode", "rolling")
+    val = db_manager.get_setting("month_mode")
+    assert val == "rolling"
+

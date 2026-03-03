@@ -120,7 +120,7 @@ class CustomFilePicker:
                         title=ft.Text(
                             file, color=None if is_allowed else ft.Colors.GREY
                         ),
-                        on_click=lambda e, p=file: self._select_file(p)
+                        on_click=(lambda e, p=file: self._select_file(p))
                         if is_allowed
                         else None,
                         dense=True,
@@ -498,7 +498,9 @@ class ImportDialog:
         setattr(dd, "on_change", self._validate_import_readiness)
         self.column_mappers.append(dd)
 
-        return ft.Column(controls=[ft.Container(content=dd, padding=ft.padding.only(top=5))])
+        return ft.Column(
+            controls=[ft.Container(content=dd, padding=ft.padding.only(top=5))]
+        )
 
     def _setup_mapping_ui(self, columns: List[ft.DataColumn]):
         """Deprecated - Logic moved to _parse_preview and _create_header_content."""

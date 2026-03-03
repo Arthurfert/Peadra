@@ -5,7 +5,7 @@ Affiche un résumé visuel du patrimoine total.
 
 import flet as ft
 import flet_charts as fch
-from typing import Callable, Union, Any, cast, List
+from typing import Callable, Union, Any, cast, List, Optional
 from datetime import datetime, timedelta
 import calendar
 from ..components.theme import PeadraTheme
@@ -15,10 +15,17 @@ from ..database.db_manager import db
 class DashboardView:
     """Vue du tableau de bord."""
 
-    def __init__(self, page: ft.Page, is_dark: bool, on_data_change: Callable):
+    def __init__(
+        self,
+        page: ft.Page,
+        is_dark: bool,
+        on_data_change: Callable,
+        get_month_mode: Optional[Callable] = None,
+    ):
         self.page = page
         self.is_dark = is_dark
         self.on_data_change = on_data_change
+        self.get_month_mode = get_month_mode or (lambda: "strict")
         self.touched_index_assets = -1
         self.touched_index_income = -1
         self.touched_index_expenses = -1
@@ -45,18 +52,45 @@ class DashboardView:
         self.total_patrimony = db.get_total_patrimony()
         self.balance = db.get_balance()
 
-        # Get current month summary
         now = datetime.now()
-        current_summary = db.get_monthly_summary(now.year, now.month)
-        self.monthly_income = current_summary.get("income", 0) or 0
-        self.monthly_expenses = current_summary.get("expenses", 0) or 0
-        self.monthly_savings = db.get_savings_total()
+        month_mode = self.get_month_mode()
 
-        # Previous month for trends
-        prev_month = now.replace(day=1) - timedelta(days=1)
-        prev_summary = db.get_monthly_summary(prev_month.year, prev_month.month)
-        prev_income = prev_summary.get("income", 0) or 0
-        prev_expenses = prev_summary.get("expenses", 0) or 0
+        if month_mode == "rolling":
+            # Rolling: last 30 days
+            current_summary = db.get_rolling_summary(30)
+            self.monthly_income = current_summary.get("income", 0) or 0
+            self.monthly_expenses = current_summary.get("expenses", 0) or 0
+            self.monthly_savings = db.get_savings_total()
+
+            # Previous period for trends: 30 days before the rolling window
+            prev_summary = db.get_rolling_summary(60)
+            prev_income = (prev_summary.get("income", 0) or 0) - self.monthly_income
+            prev_expenses = (
+                prev_summary.get("expenses", 0) or 0
+            ) - self.monthly_expenses
+
+            # Rolling period dates for category breakdown
+            category_start_date = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+            category_end_date = now.strftime("%Y-%m-%d")
+        else:
+            # Strict: calendar month
+            current_summary = db.get_monthly_summary(now.year, now.month)
+            self.monthly_income = current_summary.get("income", 0) or 0
+            self.monthly_expenses = current_summary.get("expenses", 0) or 0
+            self.monthly_savings = db.get_savings_total()
+
+            # Previous month for trends
+            prev_month = now.replace(day=1) - timedelta(days=1)
+            prev_summary = db.get_monthly_summary(prev_month.year, prev_month.month)
+            prev_income = prev_summary.get("income", 0) or 0
+            prev_expenses = prev_summary.get("expenses", 0) or 0
+
+            # Calendar month dates for category breakdown
+            category_start_date = now.strftime("%Y-%m-01")
+            if now.month == 12:
+                category_end_date = f"{now.year + 1}-01-01"
+            else:
+                category_end_date = f"{now.year}-{now.month + 1:02d}-01"
 
         # For Stocks (Savings/Balance), we compare Current Value vs Value at Start of Month (History)
         start_of_month_str = now.replace(day=1).strftime("%Y-%m-%d")
@@ -124,11 +158,8 @@ class DashboardView:
             )
 
         # Simplified category logic for Expenses logic
-        start_date = now.strftime("%Y-%m-01")
-        if now.month == 12:
-            end_date = f"{now.year + 1}-01-01"
-        else:
-            end_date = f"{now.year}-{now.month + 1:02d}-01"
+        start_date = category_start_date
+        end_date = category_end_date
 
         txs = db.get_transactions_by_period(start_date, end_date)
         self.category_expenses = {}
@@ -292,7 +323,7 @@ class DashboardView:
 
         # Snap min/max to nice round numbers so axis labels are clean (e.g. 0, 2K, 4K, 6K)
         y_range = max_y_patrimony - min_y_patrimony
-        nice_interval = nice_ceil(y_range / 5)
+        nice_interval = nice_ceil(y_range / 4)
         import math
 
         min_y_patrimony = math.floor(min_y_patrimony / nice_interval) * nice_interval
@@ -301,10 +332,20 @@ class DashboardView:
         if max_y_patrimony < raw_max_patrimony:
             max_y_patrimony += nice_interval
 
-        # For bars, we keep 0 baseline and scale to occupy lower portion
+        # Bar chart Y-axis scaling
         if raw_max_bars == 0:
-            raw_max_bars = 100  # Avoid division by zero
-        max_bars_scaled = raw_max_bars * 3
+            raw_max_bars = 100
+        nice_bar_interval = nice_ceil(raw_max_bars / 4) if raw_max_bars > 0 else 100
+        if nice_bar_interval > 0:
+            max_y_bars = math.ceil(raw_max_bars / nice_bar_interval) * nice_bar_interval
+        else:
+            max_y_bars = 100
+        # Always add one interval of padding so bars never touch the top edge
+        max_y_bars += nice_bar_interval
+
+        # Dynamic bar width based on number of data points
+        bar_width = max(4, min(15, 120 // max(1, len(dates))))
+        bar_spacing = max(1, min(4, bar_width // 3))
 
         # Create bar chart groups for income and expenses
         bar_groups = []
@@ -316,132 +357,49 @@ class DashboardView:
                         fch.BarChartRod(
                             from_y=0,
                             to_y=float(incomes[i]),
-                            width=15,
+                            width=bar_width,
                             color="#4CAF50",
                             border_radius=ft.border_radius.vertical(top=4),
                         ),
                         fch.BarChartRod(
                             from_y=0,
                             to_y=float(expenses[i]),
-                            width=15,
+                            width=bar_width,
                             color="#E53935",
                             border_radius=ft.border_radius.vertical(top=4),
                         ),
                     ],
-                    spacing=4,
+                    spacing=bar_spacing,
                 )
             )
 
-        # Create line chart data for patrimony
-        def create_data_points(values):
-            return [fch.LineChartDataPoint(i, float(v)) for i, v in enumerate(values)]
-
-        # Build the chart with Stack to overlay line on bars
-        chart_content = ft.Stack(
-            [
-                # Line chart layer (background) - uses patrimony scale with visible Y-axis
-                cast(
-                    ft.Control,
-                    fch.LineChart(
-                        data_series=[
-                            fch.LineChartData(
-                                points=[
-                                    fch.LineChartDataPoint(i, float(v))
-                                    for i, v in enumerate(patrimonies)
-                                ],
-                                stroke_width=3,
-                                color="#7E57C2",  # Purple for Balance
-                                curved=True,
-                                rounded_stroke_cap=True,
+        # Helper to build bottom axis labels
+        def _make_bottom_labels():
+            return [
+                fch.ChartAxisLabel(
+                    value=i,
+                    label=cast(
+                        Any,
+                        ft.Container(
+                            ft.Text(
+                                (
+                                    dates[i]
+                                    if len(dates) <= 12
+                                    or i % max(1, len(dates) // 6) == 0
+                                    else ""
+                                ),
+                                size=12,
+                                color=ft.Colors.GREY,
                             ),
-                        ],
-                        border=ft.border.all(0, ft.Colors.TRANSPARENT),
-                        horizontal_grid_lines=fch.ChartGridLines(
-                            interval=nice_interval,
-                            color=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE),
-                            width=1,
-                        ),
-                        vertical_grid_lines=fch.ChartGridLines(
-                            interval=1, color=ft.Colors.TRANSPARENT
-                        ),
-                        left_axis=fch.ChartAxis(
-                            label_size=40,
-                            title_size=0,
-                            show_labels=True,  # Show patrimony Y-axis
-                        ),
-                        bottom_axis=fch.ChartAxis(
-                            labels=[
-                                fch.ChartAxisLabel(
-                                    value=i,
-                                    label=cast(
-                                        Any,
-                                        ft.Container(
-                                            ft.Text(
-                                                (
-                                                    dates[i]
-                                                    if len(dates) <= 12
-                                                    or i % (len(dates) // 6) == 0
-                                                    else ""
-                                                ),
-                                                size=12,
-                                                color=ft.Colors.GREY,
-                                            ),
-                                            padding=ft.padding.only(top=20),
-                                        ),
-                                    ),
-                                )
-                                for i in range(len(dates))
-                            ],
-                            label_size=50,  # Space for labels below chart
-                            show_labels=True,  # Show month labels on LineChart
-                        ),
-                        min_x=0,
-                        max_x=len(dates) - 1,
-                        min_y=min_y_patrimony,
-                        max_y=max_y_patrimony,  # Line chart uses patrimony scale
-                        expand=True,
-                        tooltip=fch.LineChartTooltip(bgcolor=PeadraTheme.SURFACE),
-                    ),
-                ),
-                # Bar chart layer (foreground for hover) - wrapped in padding to align with 0
-                ft.Container(
-                    content=cast(
-                        ft.Control,
-                        fch.BarChart(
-                            groups=bar_groups,
-                            border=ft.border.all(0, ft.Colors.TRANSPARENT),
-                            left_axis=fch.ChartAxis(
-                                label_size=40,  # Match LineChart to align drawing areas
-                                show_labels=False,
-                            ),
-                            bottom_axis=fch.ChartAxis(
-                                label_size=0,  # Reserve space but don't show labels
-                                show_labels=False,
-                            ),
-                            horizontal_grid_lines=fch.ChartGridLines(
-                                interval=max_bars_scaled / 5,
-                                color=ft.Colors.TRANSPARENT,
-                                width=1,
-                            ),
-                            min_y=0,
-                            max_y=max_bars_scaled,  # Scaled so bars stay at ~30% height
-                            tooltip=fch.BarChartTooltip(bgcolor=PeadraTheme.SURFACE),
-                            scale=ft.Scale(
-                                scale_x=(len(dates) / (len(dates) - 0.95))
-                                if len(dates) > 1
-                                else 1,
-                                scale_y=1,
-                            ),
+                            padding=ft.padding.only(top=10),
                         ),
                     ),
-                    expand=True,
-                    margin=ft.margin.only(bottom=50),  # Align with LineChart
-                ),
-            ],
-            expand=True,
-        )
+                )
+                for i in range(len(dates))
+            ]
 
-        return ft.Container(
+        # --- Bar Chart Card (Inflows / Outflows) ---
+        bar_chart_card = ft.Container(
             content=ft.Column(
                 cast(
                     List[ft.Control],
@@ -450,57 +408,111 @@ class DashboardView:
                             cast(
                                 List[ft.Control],
                                 [
+                                    ft.Text(
+                                        "Inflows / Outflows",
+                                        size=16,
+                                        weight=ft.FontWeight.BOLD,
+                                        color=text_color,
+                                    ),
                                     ft.Row(
                                         cast(
                                             List[ft.Control],
                                             [
-                                                ft.Text(
-                                                    "Cash Flow",
-                                                    size=18,
-                                                    weight=ft.FontWeight.BOLD,
-                                                    color=text_color,
+                                                ft.Container(
+                                                    width=10,
+                                                    height=10,
+                                                    bgcolor="#4CAF50",
+                                                    border_radius=5,
                                                 ),
-                                                ft.SegmentedButton(
-                                                    selected=[str(self.chart_duration)],
-                                                    on_change=lambda e: self._update_chart_duration(
-                                                        int(list(e.control.selected)[0])
-                                                        if list(e.control.selected)[
-                                                            0
-                                                        ].isdigit()
-                                                        else list(e.control.selected)[0]
-                                                    ),
-                                                    segments=[
-                                                        ft.Segment(
-                                                            value="3",
-                                                            label=ft.Text("3M"),
-                                                        ),
-                                                        ft.Segment(
-                                                            value="6",
-                                                            label=ft.Text("6M"),
-                                                        ),
-                                                        ft.Segment(
-                                                            value="12",
-                                                            label=ft.Text("1Y"),
-                                                        ),
-                                                        ft.Segment(
-                                                            value="all",
-                                                            label=ft.Text("All"),
-                                                        ),
-                                                    ],
-                                                    show_selected_icon=False,
-                                                    style=ft.ButtonStyle(
-                                                        padding=ft.padding.symmetric(
-                                                            horizontal=10, vertical=0
-                                                        ),
-                                                    ),
+                                                ft.Text(
+                                                    "Inflows",
+                                                    color=ft.Colors.GREY,
+                                                    size=11,
+                                                ),
+                                                ft.Container(width=8),
+                                                ft.Container(
+                                                    width=10,
+                                                    height=10,
+                                                    bgcolor="#E53935",
+                                                    border_radius=5,
+                                                ),
+                                                ft.Text(
+                                                    "Outflows",
+                                                    color=ft.Colors.GREY,
+                                                    size=11,
                                                 ),
                                             ],
                                         ),
-                                        spacing=20,
-                                        alignment=ft.MainAxisAlignment.START,
-                                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                                        spacing=4,
                                     ),
-                                    # Legend moved to the right of the title
+                                ],
+                            ),
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                        ),
+                        ft.Container(height=10),
+                        ft.Container(
+                            content=cast(
+                                ft.Control,
+                                fch.BarChart(
+                                    groups=bar_groups,
+                                    border=ft.border.all(0, ft.Colors.TRANSPARENT),
+                                    left_axis=fch.ChartAxis(
+                                        label_size=55,
+                                        title_size=0,
+                                        show_labels=True,
+                                    ),
+                                    bottom_axis=fch.ChartAxis(
+                                        labels=_make_bottom_labels(),
+                                        label_size=40,
+                                        show_labels=True,
+                                    ),
+                                    horizontal_grid_lines=fch.ChartGridLines(
+                                        interval=nice_bar_interval,
+                                        color=ft.Colors.with_opacity(
+                                            0.1, ft.Colors.ON_SURFACE
+                                        ),
+                                        width=1,
+                                    ),
+                                    min_y=0,
+                                    max_y=max_y_bars,
+                                    tooltip=fch.BarChartTooltip(
+                                        bgcolor=PeadraTheme.SURFACE
+                                    ),
+                                    expand=True,
+                                ),
+                            ),
+                            expand=True,
+                        ),
+                    ],
+                ),
+            ),
+            padding=24,
+            bgcolor=bg_card,
+            border_radius=20,
+            expand=True,
+            border=(
+                ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.GREY))
+                if not self.is_dark
+                else None
+            ),
+        )
+
+        # --- Line Chart Card (Total Assets) ---
+        line_chart_card = ft.Container(
+            content=ft.Column(
+                cast(
+                    List[ft.Control],
+                    [
+                        ft.Row(
+                            cast(
+                                List[ft.Control],
+                                [
+                                    ft.Text(
+                                        "Total Assets",
+                                        size=16,
+                                        weight=ft.FontWeight.BOLD,
+                                        color=text_color,
+                                    ),
                                     ft.Row(
                                         cast(
                                             List[ft.Control],
@@ -514,42 +526,66 @@ class DashboardView:
                                                 ft.Text(
                                                     "Total Assets",
                                                     color=ft.Colors.GREY,
-                                                    size=12,
-                                                ),
-                                                ft.Container(width=15),  # Spacing
-                                                ft.Container(
-                                                    width=10,
-                                                    height=10,
-                                                    bgcolor="#4CAF50",
-                                                    border_radius=5,
-                                                ),
-                                                ft.Text(
-                                                    "Inflows",
-                                                    color=ft.Colors.GREY,
-                                                    size=12,
-                                                ),
-                                                ft.Container(width=15),  # Spacing
-                                                ft.Container(
-                                                    width=10,
-                                                    height=10,
-                                                    bgcolor="#E53935",
-                                                    border_radius=5,
-                                                ),
-                                                ft.Text(
-                                                    "Outflows",
-                                                    color=ft.Colors.GREY,
-                                                    size=12,
+                                                    size=11,
                                                 ),
                                             ],
                                         ),
-                                        spacing=5,
+                                        spacing=4,
                                     ),
                                 ],
                             ),
                             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                         ),
-                        ft.Container(height=20),
-                        chart_content,
+                        ft.Container(height=10),
+                        ft.Container(
+                            content=cast(
+                                ft.Control,
+                                fch.LineChart(
+                                    data_series=[
+                                        fch.LineChartData(
+                                            points=[
+                                                fch.LineChartDataPoint(i, float(v))
+                                                for i, v in enumerate(patrimonies)
+                                            ],
+                                            stroke_width=3,
+                                            color="#7E57C2",
+                                            curved=True,
+                                            rounded_stroke_cap=True,
+                                        ),
+                                    ],
+                                    border=ft.border.all(0, ft.Colors.TRANSPARENT),
+                                    horizontal_grid_lines=fch.ChartGridLines(
+                                        interval=nice_interval,
+                                        color=ft.Colors.with_opacity(
+                                            0.1, ft.Colors.ON_SURFACE
+                                        ),
+                                        width=1,
+                                    ),
+                                    vertical_grid_lines=fch.ChartGridLines(
+                                        interval=1, color=ft.Colors.TRANSPARENT
+                                    ),
+                                    left_axis=fch.ChartAxis(
+                                        label_size=55,
+                                        title_size=0,
+                                        show_labels=True,
+                                    ),
+                                    bottom_axis=fch.ChartAxis(
+                                        labels=_make_bottom_labels(),
+                                        label_size=50,
+                                        show_labels=True,
+                                    ),
+                                    min_x=-0.5,
+                                    max_x=len(dates) - 0.5,
+                                    min_y=min_y_patrimony,
+                                    max_y=max_y_patrimony,
+                                    expand=True,
+                                    tooltip=fch.LineChartTooltip(
+                                        bgcolor=PeadraTheme.SURFACE
+                                    ),
+                                ),
+                            ),
+                            expand=True,
+                        ),
                     ],
                 ),
             ),
@@ -562,6 +598,59 @@ class DashboardView:
                 if not self.is_dark
                 else None
             ),
+        )
+
+        # Duration selector row
+        duration_row = ft.Row(
+            cast(
+                List[ft.Control],
+                [
+                    ft.Text(
+                        "Cash Flow",
+                        size=18,
+                        weight=ft.FontWeight.BOLD,
+                        color=text_color,
+                    ),
+                    ft.SegmentedButton(
+                        selected=[str(self.chart_duration)],
+                        on_change=lambda e: self._update_chart_duration(
+                            int(list(e.control.selected)[0])
+                            if list(e.control.selected)[0].isdigit()
+                            else list(e.control.selected)[0]
+                        ),
+                        segments=[
+                            ft.Segment(value="3", label=ft.Text("3M")),
+                            ft.Segment(value="6", label=ft.Text("6M")),
+                            ft.Segment(value="12", label=ft.Text("1Y")),
+                            ft.Segment(value="all", label=ft.Text("All")),
+                        ],
+                        show_selected_icon=False,
+                        style=ft.ButtonStyle(
+                            padding=ft.padding.symmetric(horizontal=10, vertical=0),
+                        ),
+                    ),
+                ],
+            ),
+            spacing=20,
+            alignment=ft.MainAxisAlignment.START,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
+        return ft.Container(
+            content=ft.Column(
+                cast(
+                    List[ft.Control],
+                    [
+                        duration_row,
+                        ft.Container(height=10),
+                        ft.Row(
+                            [bar_chart_card, line_chart_card],
+                            spacing=20,
+                        ),
+                    ],
+                ),
+            ),
+            expand=True,
         )
 
     def _build_pie_chart(
@@ -843,7 +932,7 @@ class DashboardView:
 
         self.chart_container_main = ft.Container(
             content=self._build_income_expense_chart(),
-            height=320,  # Reduced to give space for labels below
+            height=460,
         )
         charts_row_1 = self.chart_container_main
 
@@ -860,7 +949,6 @@ class DashboardView:
                 ],
                 spacing=20,
             ),
-            # height=300, # Remove fixed height to accommodate dynamic content
         )
 
         content = ft.Column(

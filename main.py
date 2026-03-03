@@ -19,7 +19,11 @@ class PeadraApp:
 
     def __init__(self, page: ft.Page):
         self.page = page
-        self.is_dark = True
+
+        # Charger le thème depuis la base de données
+        theme_setting = db.get_setting("theme_mode", "dark")
+        self.is_dark = theme_setting == "dark"
+
         self.current_view_index = 0
 
         # Configuration de la page
@@ -103,9 +107,14 @@ class PeadraApp:
     def _toggle_theme(self, e):
         """Bascule entre le mode sombre et clair."""
         self.is_dark = not self.is_dark
+
+        # Sauvegarder dans la base de données
+        db.set_setting("theme_mode", "dark" if self.is_dark else "light")
+
         self._apply_theme()
 
         # Mettre à jour tous les composants
+
         self.navigation.update_theme(self.is_dark)
         for view in self.views.values():
             view.update_theme(self.is_dark)

@@ -60,6 +60,28 @@ class DatabaseManager:
         """
         )
 
+        # Table des fichiers importés
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS imported_files (
+                id INTEGER PRIMARY KEY,
+                file_hash TEXT NOT NULL,
+                filename TEXT,
+                imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """
+        )
+
+        # Table des paramètres
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+        """
+        )
+
         conn.commit()
 
         # Insérer les catégories par défaut si elles n'existent pas
@@ -590,6 +612,53 @@ class DatabaseManager:
         except Exception as e:
             print(f"Erreur export CSV: {e}")
             return False
+
+    # ==================== IMPORTS ====================
+
+    def is_file_imported(self, file_hash: str) -> bool:
+        """Vérifie si un fichier a déjà été importé."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT COUNT(*) FROM imported_files WHERE file_hash = ?", (file_hash,)
+        )
+        return cursor.fetchone()[0] > 0
+
+    def log_imported_file(self, file_hash: str, filename: str):
+        """Enregistre un fichier importé."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "INSERT INTO imported_files (file_hash, filename) VALUES (?, ?)",
+                (file_hash, filename),
+            )
+            conn.commit()
+        except Exception as e:
+            print(f"Erreur enregistrement import: {str(e)}")
+
+    # ==================== SETTINGS ====================
+
+    def get_setting(self, key: str, default: str | None = None) -> str | None:
+        """Récupère un paramètre depuis la base de données."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
+        result = cursor.fetchone()
+        return result[0] if result else default
+
+    def set_setting(self, key: str, value: str):
+        """Enregistre un paramètre dans la base de données."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+                (key, value),
+            )
+            conn.commit()
+        except Exception as e:
+            print(f"Erreur sauvegarde paramètre {key}: {str(e)}")
 
     def close(self):
         """Ferme la connexion à la base de données."""

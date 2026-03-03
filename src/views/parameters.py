@@ -27,8 +27,8 @@ class ParametersView:
         self.on_toggle_theme = on_toggle_theme
         self.on_import = on_import
         self.on_export = on_export
-        # Month mode: "strict" (calendar month) or "rolling" (last 30 days)
-        self.month_mode = "strict"
+        # Charger le mode depuis la base de données
+        self.month_mode = db.get_setting("month_mode", "strict") or "strict"
 
     def update_theme(self, is_dark: bool):
         """Met à jour le thème."""
@@ -131,6 +131,8 @@ class ParametersView:
         selected = list(e.control.selected)
         if selected:
             self.month_mode = selected[0]
+            # Sauvegarder dans la base de données
+            db.set_setting("month_mode", self.month_mode)
             self.on_data_change()
 
     def _on_export_json(self, e):
@@ -278,7 +280,7 @@ class ParametersView:
                         ],
                         spacing=4,
                     ),
-                    margin=ft.margin.only(bottom=24),
+                    margin=ft.margin.only(bottom=20),
                 ),
                 appearance_section,
                 ft.Container(height=12),
@@ -291,4 +293,9 @@ class ParametersView:
             spacing=0,
         )
 
-        return ft.Container(content=content, padding=30, expand=True)
+        return ft.Container(
+            content=content,
+            padding=30,
+            expand=True,
+            alignment=ft.Alignment.TOP_RIGHT,
+        )

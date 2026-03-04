@@ -115,5 +115,3 @@ class PeadraTheme:
                 offset=ft.Offset(0, 2),
             ),
         )
-
-

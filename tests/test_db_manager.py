@@ -331,4 +331,3 @@ def test_settings_management(db_manager):
     db_manager.set_setting("month_mode", "rolling")
     val = db_manager.get_setting("month_mode")
     assert val == "rolling"
-

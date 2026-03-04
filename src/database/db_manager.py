@@ -318,7 +318,11 @@ class DatabaseManager:
         return cursor.rowcount > 0
 
     def get_all_transactions(
-        self, limit: Optional[int] = None, offset: int = 0
+        self,
+        limit: Optional[int] = None,
+        offset: int = 0,
+        search_query: str = "",
+        category_ids: Optional[set] = None,
     ) -> List[Dict[str, Any]]:
         """Récupère toutes les transactions."""
         conn = self._get_connection()
@@ -327,11 +331,31 @@ class DatabaseManager:
             SELECT t.*, c.name as category_name, c.color as category_color
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
-            ORDER BY t.date DESC, t.id DESC
+            WHERE 1=1
         """
-        if limit:
-            query += f" LIMIT {limit} OFFSET {offset}"
-        cursor.execute(query)
+        params = []
+
+        if search_query:
+            query += " AND (LOWER(t.description) LIKE ? OR LOWER(c.name) LIKE ?)"
+            sq = f"%{search_query.lower()}%"
+            params.extend([sq, sq])
+
+        if category_ids:
+            valid_ids = [
+                cat for cat in category_ids if cat and str(cat).lower() != "none"
+            ]
+            if valid_ids:
+                placeholders = ",".join("?" for _ in valid_ids)
+                query += f" AND t.category_id IN ({placeholders})"
+                params.extend(valid_ids)
+
+        query += " ORDER BY t.date DESC, t.id DESC"
+
+        if limit is not None:
+            query += " LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
+
+        cursor.execute(query, tuple(params))
         return [dict(row) for row in cursor.fetchall()]
 
     def get_transactions_by_period(

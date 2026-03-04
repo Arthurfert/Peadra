@@ -64,6 +64,8 @@ Peadra/
         └── transactions.py # Transactions management view
 ```
 
+To learn more about how Peadra works under the hood, please have a look to the [documentation](./DOCUMENTATION.md) !
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

@@ -8,7 +8,6 @@ import flet as ft
 # import flet_core as fct
 from typing import Callable, Optional, List, Dict, Any
 import csv
-import codecs
 import os
 import hashlib
 from datetime import datetime
@@ -518,7 +517,6 @@ class ImportDialog:
             self.status_text.color = PeadraTheme.ERROR
             self.import_btn.disabled = True
             self.preview_table.visible = False
-            self.preview_table.visible = False
             # self.mapping_container.visible = False # Removed
             self.page.update()
 
@@ -562,14 +560,6 @@ class ImportDialog:
         return ft.Column(
             controls=[ft.Container(content=dd, padding=ft.padding.only(top=5))]
         )
-
-    def _setup_mapping_ui(self, columns: List[ft.DataColumn]):
-        """Deprecated - Logic moved to _parse_preview and _create_header_content."""
-        pass
-
-    # Legacy method replaced by _validate_import_readiness
-    def _validate_mapping(self, _):
-        self._validate_import_readiness(_)
 
     def _prepare_transactions(self):
         """Lit tout le fichier et map les données vers le format DB."""

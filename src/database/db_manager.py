@@ -127,37 +127,19 @@ class DatabaseManager:
         conn = self._get_connection()
         cursor = conn.cursor()
 
-        # Récupérer toutes les catégories
-        cursor.execute("SELECT * FROM categories ORDER BY name")
-        categories = [dict(row) for row in cursor.fetchall()]
-
-        result = []
-        for cat in categories:
-            # Calculer le solde pour chaque catégorie
-            cursor.execute(
-                """
-                SELECT 
-                    COALESCE(SUM(CASE WHEN transaction_type = 'income' THEN amount 
-                                      WHEN transaction_type = 'expense' THEN -amount 
-                                      ELSE 0 END), 0)
-                FROM transactions 
-                WHERE category_id = ?
-                """,
-                (cat["id"],),
-            )
-            balance = cursor.fetchone()[0]
-            cat["balance"] = balance
-            result.append(cat)
-
-        return result
-
-    def get_category_id_by_name(self, name: str) -> Optional[int]:
-        """Récupère l'ID d'une catégorie par son nom."""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT id FROM categories WHERE name = ?", (name,))
-        row = cursor.fetchone()
-        return row[0] if row else None
+        cursor.execute(
+            """
+            SELECT c.*,
+                   COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
+                                     WHEN t.transaction_type = 'expense' THEN -t.amount
+                                     ELSE 0 END), 0) AS balance
+            FROM categories c
+            LEFT JOIN transactions t ON t.category_id = c.id
+            GROUP BY c.id
+            ORDER BY c.name
+            """
+        )
+        return [dict(row) for row in cursor.fetchall()]
 
     def merge_categories(self, source_id: int, target_id: int) -> bool:
         """Fusionne la catégorie source vers la cible puis supprime la source."""

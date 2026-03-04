@@ -174,7 +174,7 @@ class PeadraApp:
     def _open_settings(self, e):
         """Ouvre la vue des paramètres."""
         self.current_view_index = 3
-        self._update_content()
+        self._on_navigation_change(3)
 
     def _build_header(self) -> ft.Container:
         """Construit l'en-tête de l'application."""

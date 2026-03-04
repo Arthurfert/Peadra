@@ -867,17 +867,6 @@ class DashboardView:
 
         # Colors for cards
         if self.is_dark:
-            blue_bg = ft.Colors.with_opacity(0.2, "blue")
-            green_bg = ft.Colors.with_opacity(0.2, "green")
-            red_bg = ft.Colors.with_opacity(0.2, "red")
-            purple_bg = ft.Colors.with_opacity(0.2, "purple")
-        else:
-            blue_bg = ft.Colors.BLUE_50
-            green_bg = ft.Colors.GREEN_50
-            red_bg = ft.Colors.RED_50
-            purple_bg = ft.Colors.PURPLE_50
-
-        if self.is_dark:
             blue_bg = ft.Colors.with_opacity(0.1, ft.Colors.BLUE)
             green_bg = ft.Colors.with_opacity(0.1, ft.Colors.GREEN)
             red_bg = ft.Colors.with_opacity(0.1, ft.Colors.RED)

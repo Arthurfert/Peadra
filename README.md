@@ -28,73 +28,14 @@ Peadra (*"wealth" in Breton*) is a desktop application designed to help you trac
 ## Technologies
 
 - UI : **Flet** (*Python library based on Flutter*)
-- Backend : **Python**
+- Backend : **Python** (*3.10 or higher*)
 - Database : **SQLite** (*All your data is stored locally, and your the only one having access to it !*)
 
-## Installation
+## Install
 
-### Prerequisites
-- Python 3.10 or higher
-- pip (Python package manager)
+To install the project on your machine, go to [the install tutorial](./INSTALLATION.md).
 
-### Setup
-
-1. Clone the repository: (if you don't have git, download the zip file)
-```bash
-git clone https://github.com/Arthurfert/Peadra.git
-cd Peadra
-```
-
-2. Create a virtual environment (*recommended*):
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-3. Install dependencies:
-```bash
-pip install -r requirements.txt # Or requirements-dev.txt for pytests and linting
-```
-
-4. Run the application:
-```bash
-python main.py
-```
-
-> For Ubuntu users, you might need to install the following dependencies:
->```bash
->sudo apt install libmpv1
->```
->If it doesn't work, try fixing it with this [stack overflow post](https://stackoverflow.com/questions/78007193/error-while-loading-shared-libraries-libmpv-so-1-cannot-open-shared-object-fil).
-
-## Build
-
-### Windows
-
-Prerequisites : 
-- Visual Studio with C/C++
-- On windows, you will need developers mode enabled 
-
-```bash
-flet build windows
-```
-
-### Linux
-
-```bash
-flet build linux
-```
-
-### MacOS
-
-Prerequisites : 
-- Rosetta 2 (for packaging)
-- Xcode (to compile swift or objective-C code)
-- CocoaPods (install and compile flutter plugins)
-
-```bash
-flet build macos
-```
+An installer will be implemented later.
 
 ## Project Structure
 

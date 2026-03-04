@@ -21,6 +21,7 @@ class TransactionsView:
         self.transactions = []
         self.search_query = ""
         self.selected_subcategories = set()
+        self.has_more = False
         self._load_data()
 
     def update_theme(self, is_dark: bool):
@@ -31,27 +32,26 @@ class TransactionsView:
         """Rafraîchit les données."""
         self._load_data()
 
-    def _load_data(self):
+    def _load_data(self, append: bool = False):
         """Charge les données."""
-        self.transactions = db.get_all_transactions()
         self.categories = db.get_all_categories()
-        # Filter if search query exists
-        if self.search_query:
-            q = self.search_query.lower()
-            self.transactions = [
-                t
-                for t in self.transactions
-                if q in t["description"].lower()
-                or q in (t.get("category_name") or "").lower()
-            ]
 
-        # Filter by categories
-        if self.selected_subcategories:
-            self.transactions = [
-                t
-                for t in self.transactions
-                if str(t.get("category_id")) in self.selected_subcategories
-            ]
+        offset = len(self.transactions) if append else 0
+        limit = 30
+
+        new_tx = db.get_all_transactions(
+            limit=limit,
+            offset=offset,
+            search_query=self.search_query,
+            category_ids=self.selected_subcategories,
+        )
+
+        if append:
+            self.transactions.extend(new_tx)
+        else:
+            self.transactions = new_tx
+
+        self.has_more = len(new_tx) == limit
 
     def _open_type_selector(self, e):
         """Ouvre le dialogue de sélection du type de transaction."""
@@ -181,7 +181,7 @@ class TransactionsView:
         def apply_filter(e):
             self.selected_subcategories = {c.data for c in checkboxes if c.value}
             close_dlg(e)
-            self._load_data()
+            self._load_data(append=False)
             if hasattr(self, "content_column") and hasattr(self, "table_header"):
                 new_controls: List[ft.Control] = [self.table_header]
                 new_controls.extend(self._generate_rows())
@@ -648,13 +648,30 @@ class TransactionsView:
                     alignment=ft.Alignment.CENTER,
                 )
             )
+        elif getattr(self, "has_more", False):
+
+            def load_more(e):
+                self._load_data(append=True)
+                if hasattr(self, "content_column") and hasattr(self, "table_header"):
+                    new_controls: List[ft.Control] = [self.table_header]
+                    new_controls.extend(self._generate_rows())
+                    self.content_column.controls = new_controls
+                    self.content_column.update()
+
+            rows.append(
+                ft.Container(
+                    content=ft.TextButton("Load More", on_click=load_more),
+                    padding=20,
+                    alignment=ft.Alignment.CENTER,
+                )
+            )
 
         return rows
 
     def _on_search_change(self, e):
         """Gère la recherche."""
         self.search_query = e.control.value
-        self._load_data()
+        self._load_data(append=False)
 
         if hasattr(self, "content_column") and hasattr(self, "table_header"):
             new_controls: List[ft.Control] = [self.table_header]

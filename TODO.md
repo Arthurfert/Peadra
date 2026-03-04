@@ -6,11 +6,10 @@ This document presents future changes and wanted improvements.
 
 ## In development
 
-- Exact file importation already made verification (file's hash)
+- Fix reported linux bugs
 
 ## Future Improvements *(by priority)*
 
-- Additional tests on Linux systems (bugs reported), general optimization
 - More parameters
 - Frequent transactions & subscriptions
 - Bank API connection

@@ -4,7 +4,7 @@ Design Glassmorphism avec palette Armorique (bleus profonds et gris ardoise).
 """
 
 import flet as ft
-from typing import Optional, Any, List
+from typing import Optional, Any
 
 
 class PeadraTheme:
@@ -84,41 +84,6 @@ class PeadraTheme:
         )
 
     @staticmethod
-    def glass_container(
-        content: ft.Control,
-        is_dark: bool = True,
-        padding: int = 20,
-        border_radius: int = 16,
-        width: Optional[int] = None,
-        height: Optional[int] = None,
-    ) -> ft.Container:
-        """Crée un conteneur avec effet Glassmorphism."""
-        if is_dark:
-            bg_color = ft.Colors.with_opacity(PeadraTheme.GLASS_OPACITY_DARK, "#1B263B")
-            border_color = ft.Colors.with_opacity(0.3, "#778DA9")
-        else:
-            bg_color = ft.Colors.with_opacity(
-                PeadraTheme.GLASS_OPACITY_LIGHT, "#FFFFFF"
-            )
-            border_color = ft.Colors.with_opacity(0.1, "#1B263B")
-
-        return ft.Container(
-            content=content,
-            padding=padding,
-            border_radius=border_radius,
-            width=width,
-            height=height,
-            bgcolor=bg_color,
-            border=ft.border.all(1, border_color),
-            shadow=ft.BoxShadow(
-                spread_radius=0,
-                blur_radius=20,
-                color=ft.Colors.with_opacity(0.1, "#000000"),
-                offset=ft.Offset(0, 4),
-            ),
-        )
-
-    @staticmethod
     def card(
         content: ft.Control,
         is_dark: bool = True,
@@ -150,100 +115,3 @@ class PeadraTheme:
                 offset=ft.Offset(0, 2),
             ),
         )
-
-    @staticmethod
-    def stat_card(
-        title: str,
-        value: str,
-        icon: Any,
-        color: str,
-        is_dark: bool = True,
-        trend: Optional[str] = None,
-        trend_positive: bool = True,
-    ) -> ft.Container:
-        """Crée une carte de statistique."""
-        text_color = PeadraTheme.DARK_TEXT if is_dark else PeadraTheme.LIGHT_TEXT
-        secondary_color = (
-            PeadraTheme.DARK_TEXT_SECONDARY
-            if is_dark
-            else PeadraTheme.LIGHT_TEXT_SECONDARY
-        )
-
-        trend_content = []
-        if trend:
-            trend_color = PeadraTheme.SUCCESS if trend_positive else PeadraTheme.ERROR
-            trend_icon = ft.Icons.NORTH_EAST if trend_positive else ft.Icons.SOUTH_EAST
-            trend_content = [
-                ft.Row(
-                    controls=[
-                        ft.Icon(trend_icon, size=14, color=trend_color),
-                        ft.Text(
-                            trend,
-                            size=12,
-                            color=trend_color,
-                            weight=ft.FontWeight.W_500,
-                        ),
-                    ],
-                    spacing=4,
-                )
-            ]
-
-        return PeadraTheme.card(
-            content=ft.Column(
-                controls=[
-                    ft.Row(
-                        controls=[
-                            ft.Container(
-                                content=ft.Icon(
-                                    icon,
-                                    size=24,
-                                    color=ft.Colors.WHITE,
-                                ),
-                                bgcolor=color,
-                                border_radius=8,
-                                padding=8,
-                            ),
-                            ft.Text(
-                                title,
-                                size=14,
-                                color=secondary_color,
-                                weight=ft.FontWeight.W_500,
-                            ),
-                        ],
-                        alignment=ft.MainAxisAlignment.START,
-                        spacing=12,
-                    ),
-                    ft.Text(
-                        value, size=28, color=text_color, weight=ft.FontWeight.BOLD
-                    ),
-                ]
-                + trend_content,
-                spacing=8,
-            ),
-            is_dark=is_dark,
-            padding=20,
-        )
-
-    @staticmethod
-    def format_currency(amount: float, currency: str = "€") -> str:
-        """Formate un montant en devise."""
-        if amount >= 0:
-            return f"{amount:,.2f} {currency}".replace(",", " ").replace(".", ",")
-        else:
-            return f"-{abs(amount):,.2f} {currency}".replace(",", " ").replace(".", ",")
-
-    @staticmethod
-    def gradient_background(is_dark: bool = True) -> ft.LinearGradient:
-        """Retourne un dégradé pour le fond."""
-        if is_dark:
-            return ft.LinearGradient(
-                begin=ft.Alignment(-1, -1),
-                end=ft.Alignment(1, 1),
-                colors=[PeadraTheme.PRIMARY_DARK, PeadraTheme.PRIMARY_MEDIUM],
-            )
-        else:
-            return ft.LinearGradient(
-                begin=ft.Alignment(-1, -1),
-                end=ft.Alignment(1, 1),
-                colors=[PeadraTheme.LIGHT_BG, "#E8EDF2"],
-            )

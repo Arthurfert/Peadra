@@ -6,7 +6,7 @@ This document presents future changes and wanted improvements.
 
 ## In development
 
-- Additional tests on Linux systems (bugs reported), general optimization
+- Fix reported linux bugs
 
 ## Future Improvements *(by priority)*
 

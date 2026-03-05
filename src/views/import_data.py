@@ -12,7 +12,7 @@ import os
 import hashlib
 from datetime import datetime
 from ..components.theme import PeadraTheme
-from ..database.db_manager import db
+from ..database import db
 
 
 def calculate_file_hash(file_path: str) -> str:

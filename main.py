@@ -6,7 +6,7 @@ Point d'entrée principal de l'application.
 import flet as ft
 from src.components.theme import PeadraTheme
 from src.components.navigation import NavigationRailComponent
-from src.database.db_manager import db
+from src.database import db
 from src.views.dashboard import DashboardView
 from src.views.transactions import TransactionsView
 from src.views.accounts import AccountsView

@@ -99,16 +99,24 @@ def test_get_all_transactions_pagination_and_filtering(db_manager):
     cat1_id = db_manager.add_category("Groceries", "#CCC", "checking")
     cat2_id = db_manager.add_category("Salary Cat", "#DDD", "saving")
 
-    db_manager.add_transaction("2023-01-01", "Supermarket", 50, "expense", category_id=cat1_id)
-    db_manager.add_transaction("2023-01-02", "Bakery store", 10, "expense", category_id=cat1_id)
-    db_manager.add_transaction("2023-01-03", "Monthly Salary", 2000, "income", category_id=cat2_id)
-    db_manager.add_transaction("2023-01-04", "Gym membership", 30, "expense", category_id=cat1_id)
+    db_manager.add_transaction(
+        "2023-01-01", "Supermarket", 50, "expense", category_id=cat1_id
+    )
+    db_manager.add_transaction(
+        "2023-01-02", "Bakery store", 10, "expense", category_id=cat1_id
+    )
+    db_manager.add_transaction(
+        "2023-01-03", "Monthly Salary", 2000, "income", category_id=cat2_id
+    )
+    db_manager.add_transaction(
+        "2023-01-04", "Gym membership", 30, "expense", category_id=cat1_id
+    )
 
     # 1. Test Limit & Offset
     txs = db_manager.get_all_transactions(limit=2, offset=1)
     assert len(txs) == 2
-    # L'ordre par défaut est date DESC, id DESC. 
-    # Les dates: 04, 03, 02, 01. 
+    # L'ordre par défaut est date DESC, id DESC.
+    # Les dates: 04, 03, 02, 01.
     # Offset 1 prend le 2e élément (03) et le 3e (02)
     assert txs[0]["description"] == "Monthly Salary"
     assert txs[1]["description"] == "Bakery store"
@@ -124,7 +132,9 @@ def test_get_all_transactions_pagination_and_filtering(db_manager):
     assert txs[0]["description"] == "Monthly Salary"
 
     # 4. Test combiné (catégories + recherche qui ne correspond pas)
-    txs = db_manager.get_all_transactions(category_ids={str(cat2_id)}, search_query="super")
+    txs = db_manager.get_all_transactions(
+        category_ids={str(cat2_id)}, search_query="super"
+    )
     assert len(txs) == 0
 
 

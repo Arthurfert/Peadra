@@ -9,7 +9,7 @@ from typing import Callable, Union, Any, cast, List, Optional
 from datetime import datetime, timedelta
 import calendar
 from ..components.theme import PeadraTheme
-from ..database.db_manager import db
+from ..database import db
 
 
 class DashboardView:

@@ -8,7 +8,7 @@ from typing import Callable, List
 from datetime import datetime
 from ..components.theme import PeadraTheme
 from ..components.modals import TransactionModal, TransactionDetailsModal
-from ..database.db_manager import db
+from ..database import db
 
 
 class TransactionsView:
@@ -225,7 +225,7 @@ class TransactionsView:
 
     def _save_transaction(self, data: dict):
         """Enregistre ou met à jour la transaction."""
-        
+
         if data.get("is_recurring"):
             db.add_recurring_transaction(
                 description=data["description"],
@@ -235,11 +235,11 @@ class TransactionsView:
                 start_date=data["date"],
                 interval=data["interval"],
                 category_id=data.get("category_id"),
-                end_date=data.get("end_date")
+                end_date=data.get("end_date"),
             )
             # Process immediately so user sees it if it starts today
             db.process_recurring_transactions()
-            
+
             snack = ft.SnackBar(ft.Text("Recurring transaction added"))
             self.page.overlay.append(snack)
             snack.open = True

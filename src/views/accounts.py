@@ -6,7 +6,7 @@ Permet de gérer les comptes (catégories) : affichage, ajout, modification, sup
 import flet as ft
 from typing import Callable, Optional
 from ..components.theme import PeadraTheme
-from ..database.db_manager import db
+from ..database import db
 
 
 class AccountsView:

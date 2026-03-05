@@ -11,6 +11,7 @@ from src.views.dashboard import DashboardView
 from src.views.transactions import TransactionsView
 from src.views.accounts import AccountsView
 from src.views.parameters import ParametersView
+from src.views.subscriptions import SubscriptionsView
 from src.views.import_data import ImportDialog
 
 
@@ -96,7 +97,8 @@ class PeadraApp:
             ),
             1: TransactionsView(self.page, self.is_dark, self._refresh_all_views),
             2: AccountsView(self.page, self.is_dark, self._refresh_all_views),
-            3: self.parameters_view,
+            3: SubscriptionsView(self.page, self.is_dark, self._refresh_all_views),
+            4: self.parameters_view,
         }
 
     def _on_navigation_change(self, index: int):
@@ -179,8 +181,8 @@ class PeadraApp:
 
     def _open_settings(self, e):
         """Ouvre la vue des paramètres."""
-        self.current_view_index = 3
-        self._on_navigation_change(3)
+        self.current_view_index = 4
+        self._on_navigation_change(4)
 
     def _build_header(self) -> ft.Container:
         """Construit l'en-tête de l'application."""

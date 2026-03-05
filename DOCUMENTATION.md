@@ -77,6 +77,8 @@ Peadra/
 3.  **Persistence**: `db_manager.py` executes the SQL query.
 4.  **Return**: Data is returned to the view to update Flet state (`page.update()`).
 
+![Peadra Usage Flow](./assets/Usage_flow.png)
+
 ---
 
 ## 4. Database (Schema)

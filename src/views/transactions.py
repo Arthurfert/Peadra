@@ -231,8 +231,10 @@ class TransactionsView:
                 # We are editing an existing transaction and making it recurring
                 # Calculate the next date so we don't duplicate the current one
                 current_date = datetime.strptime(data["date"], "%Y-%m-%d").date()
-                next_date = db._calculate_next_date(current_date, data["frequency"], data["interval"])
-                
+                next_date = db._calculate_next_date(
+                    current_date, data["frequency"], data["interval"]
+                )
+
                 db.add_recurring_transaction(
                     description=data["description"],
                     amount=data["amount"],
@@ -242,7 +244,7 @@ class TransactionsView:
                     interval=data["interval"],
                     category_id=data.get("category_id"),
                     end_date=data.get("end_date"),
-                    next_due_date=next_date.strftime("%Y-%m-%d")
+                    next_due_date=next_date.strftime("%Y-%m-%d"),
                 )
                 db.process_recurring_transactions()
                 # Do not return here, we still need to update the existing transaction

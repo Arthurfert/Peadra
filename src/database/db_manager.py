@@ -318,7 +318,7 @@ class DatabaseManager:
         """Met à jour une transaction récurrente existante."""
         conn = self._get_connection()
         cursor = conn.cursor()
-        
+
         try:
             cursor.execute(
                 """
@@ -336,8 +336,8 @@ class DatabaseManager:
                     interval,
                     category_id,
                     end_date,
-                    id
-                )
+                    id,
+                ),
             )
             conn.commit()
             return cursor.rowcount > 0

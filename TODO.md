@@ -16,7 +16,7 @@ If so, a peer-to-peer encrypted sync may be implemented.
 ## In development
 
 - Fix reported linux bugs
-- Frequent transactions & subscriptions
+- Subscription view enhancement
 
 ## Future Improvements *(by priority)*
 

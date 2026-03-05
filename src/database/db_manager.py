@@ -303,6 +303,48 @@ class DatabaseManager:
 
     # ==================== TRANSACTIONS RÉCURRENTES ====================
 
+    def update_recurring_transaction(
+        self,
+        id: int,
+        description: str,
+        amount: float,
+        transaction_type: str,
+        frequency: str,
+        start_date: str,
+        interval: int = 1,
+        category_id: Optional[int] = None,
+        end_date: Optional[str] = None,
+    ) -> bool:
+        """Met à jour une transaction récurrente existante."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute(
+                """
+                UPDATE recurring_transactions 
+                SET description = ?, amount = ?, transaction_type = ?, frequency = ?,
+                    start_date = ?, interval = ?, category_id = ?, end_date = ?
+                WHERE id = ?
+                """,
+                (
+                    description,
+                    amount,
+                    transaction_type,
+                    frequency,
+                    start_date,
+                    interval,
+                    category_id,
+                    end_date,
+                    id
+                )
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+        except sqlite3.Error as e:
+            print(f"Database error during update_recurring_transaction: {e}")
+            return False
+
     def add_recurring_transaction(
         self,
         description: str,
@@ -348,7 +390,13 @@ class DatabaseManager:
         """Récupère toutes les transactions récurrentes."""
         conn = self._get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM recurring_transactions WHERE active = 1")
+        query = """
+            SELECT r.*, c.name as category_name, c.color as category_color
+            FROM recurring_transactions r
+            LEFT JOIN categories c ON r.category_id = c.id
+            WHERE r.active = 1
+        """
+        cursor.execute(query)
         return [dict(row) for row in cursor.fetchall()]
 
     def process_recurring_transactions(self):

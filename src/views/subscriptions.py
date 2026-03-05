@@ -9,6 +9,7 @@ from typing import Callable, List, Dict, Any
 import calendar
 
 from ..components.theme import PeadraTheme
+from ..components.modals import TransactionModal, TransactionDetailsModal
 from ..database.db_manager import db
 
 
@@ -31,7 +32,86 @@ class SubscriptionsView:
 
     def _load_data(self):
         self.recurring_transactions = db.get_recurring_transactions()
+        self.categories = db.get_all_categories()
         
+    def _save_transaction(self, data: dict):
+        """Met à jour une transaction récurrente."""
+        if 'id' in data:
+            db.update_recurring_transaction(
+                id=data["id"],
+                description=data["description"],
+                amount=data["amount"],
+                transaction_type=data["transaction_type"],
+                frequency=data.get("frequency", "monthly"), # fallback par défaut
+                start_date=data["date"],
+                interval=data.get("interval", 1),
+                category_id=data.get("category_id"),
+                end_date=data.get("end_date")
+            )
+            
+            # Recalculer les prochaines échéances
+            db.process_recurring_transactions()
+            
+            snack = ft.SnackBar(ft.Text("Abonnement mis à jour avec succès", color=ft.Colors.WHITE), bgcolor=PeadraTheme.SUCCESS)
+            self.page.overlay.append(snack)
+            snack.open = True
+            
+            self.on_data_change()
+            self.refresh()
+            self.page.update()
+        else:
+            # S'il s'agit d'une création depuis la vue (pas utilisé actuellement car le bouton plus est ailleurs)
+            pass
+        
+    def _delete_transaction(self, id: int):
+        """Désactive / Supprime une transaction récurrente."""
+        conn = db._get_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE recurring_transactions SET active = 0 WHERE id = ?", (id,))
+        conn.commit()
+        
+        snack = ft.SnackBar(ft.Text("Abonnement supprimé avec succès", color=ft.Colors.WHITE), bgcolor=ft.Colors.GREEN)
+        self.page.overlay.append(snack)
+        snack.open = True
+        
+        self.on_data_change()
+        self.refresh()
+        self.page.update()
+        
+    def _show_transaction_details(self, tx: Dict[str, Any], date_str: str):
+        # Créer un dictionnaire de transaction classique pour le modal à partir de la transaction récurrente
+        mock_tx = {
+            "id": tx.get("id"),
+            "date": date_str,
+            "description": tx.get("description", "Abonnement"),
+            "amount": tx.get("amount", 0),
+            "transaction_type": tx.get("transaction_type", "expense"),
+            "category_name": tx.get("category_name", "Abonnement"),
+            "notes": f"Fréquence : {tx.get('frequency', '')}\nDébut : {tx.get('start_date', '')}\nProchaine échéance : {tx.get('next_due_date', '')}"
+        }
+        
+        def on_edit():
+            """Ouvre le modal d'édition."""
+            modal = TransactionModal(
+                page=self.page,
+                categories=self.categories,
+                on_save=self._save_transaction,
+                is_dark=self.is_dark,
+                transaction_type=tx["transaction_type"],
+            )
+            modal.show(tx)
+            
+        def on_delete():
+            self._delete_transaction(tx["id"])
+            
+        modal = TransactionDetailsModal(
+            self.page, 
+            mock_tx, 
+            on_edit=on_edit, 
+            on_delete=on_delete
+        )
+        modal.show()
+
     def _prev_month(self, e):
         first_day = self.current_month.replace(day=1)
         prev_month = first_day - timedelta(days=1)
@@ -164,6 +244,7 @@ class SubscriptionsView:
                                 bgcolor=color,
                                 padding=2,
                                 border_radius=4,
+                                on_click=lambda e, t=tx, d=str(date_obj): self._show_transaction_details(t, d)
                             )
                         )
                         
@@ -201,6 +282,7 @@ class SubscriptionsView:
                     title=ft.Text(tx['description'], color=text_color, weight=ft.FontWeight.BOLD),
                     subtitle=ft.Text(f"Next due: {tx['next_due_date']} - Frequency: {tx['frequency']}", color=ft.Colors.with_opacity(0.7, text_color)),
                     trailing=ft.Text(f"€{tx['amount']:.2f}", color=color, weight=ft.FontWeight.BOLD, size=16),
+                    on_click=lambda e, t=tx: self._show_transaction_details(t, t.get('next_due_date', ''))
                 )
             )
             

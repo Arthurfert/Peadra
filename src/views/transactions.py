@@ -32,12 +32,12 @@ class TransactionsView:
         """Rafraîchit les données."""
         self._load_data()
 
-    def _load_data(self, append: bool = False):
+    def _load_data(self, append: bool = False, load_all: bool = False):
         """Charge les données."""
         self.categories = db.get_all_categories()
 
         offset = len(self.transactions) if append else 0
-        limit = 30
+        limit = 30 if not load_all else None
 
         new_tx = db.get_all_transactions(
             limit=limit,
@@ -51,7 +51,10 @@ class TransactionsView:
         else:
             self.transactions = new_tx
 
-        self.has_more = len(new_tx) == limit
+        if load_all:
+            self.has_more = False
+        else:
+            self.has_more = len(new_tx) == limit
 
     def _open_type_selector(self, e):
         """Ouvre le dialogue de sélection du type de transaction."""
@@ -670,17 +673,31 @@ class TransactionsView:
             )
         elif getattr(self, "has_more", False):
 
-            def load_more(e):
-                self._load_data(append=True)
+            def update_view():
                 if hasattr(self, "content_column") and hasattr(self, "table_header"):
                     new_controls: List[ft.Control] = [self.table_header]
                     new_controls.extend(self._generate_rows())
                     self.content_column.controls = new_controls
                     self.content_column.update()
 
+            def load_more(e):
+                self._load_data(append=True)
+                update_view()
+
+            def load_all(e):
+                self._load_data(append=True, load_all=True)
+                update_view()
+
             rows.append(
                 ft.Container(
-                    content=ft.TextButton("Load More", on_click=load_more),
+                    content=ft.Row(
+                        [
+                            ft.TextButton("Load More", on_click=load_more),
+                            ft.TextButton("Load All", on_click=load_all),
+                        ],
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        spacing=20,
+                    ),
                     padding=20,
                     alignment=ft.Alignment.CENTER,
                 )

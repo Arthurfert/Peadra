@@ -15,11 +15,11 @@ class PeadraTheme:
     PRIMARY_MEDIUM = "#161F31"  # Bleu marine
     PRIMARY_LIGHT = "#54687E"  # Bleu gris
     ACCENT = "#6FA4E8"  # Bleu ardoise
-    SURFACE = "#E0E1DD"  # Gris clair
+    SURFACE = "#E9E6DC"  # Gris clair
 
     # Couleurs pour le mode clair
-    LIGHT_BG = "#FFFFFF"
-    LIGHT_SURFACE = "#E8E7F0"
+    LIGHT_BG = "#F0F4FF"
+    LIGHT_SURFACE = "#F5FAFF"
     LIGHT_TEXT = "#181F2D"
     LIGHT_TEXT_SECONDARY = "#2D4056"
 

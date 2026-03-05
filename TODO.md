@@ -16,11 +16,11 @@ If so, a peer-to-peer encrypted sync may be implemented.
 ## In development
 
 - Fix reported linux bugs
+- Frequent transactions & subscriptions
 
 ## Future Improvements *(by priority)*
 
 - More parameters
-- Frequent transactions & subscriptions
 - Security : password, encryption ?
 - Bank API connection
 - Installer

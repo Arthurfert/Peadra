@@ -37,7 +37,11 @@ class SubscriptionsView:
         prev_month = first_day - timedelta(days=1)
         self.current_month = prev_month
         self.refresh()
-        self.page.update()
+        if hasattr(self, 'calendar_container'):
+            self.calendar_container.content = self._build_calendar()
+            self.calendar_container.update()
+        else:
+            self.page.update()
 
     def _next_month(self, e):
         days_in_month = calendar.monthrange(self.current_month.year, self.current_month.month)[1]
@@ -45,7 +49,11 @@ class SubscriptionsView:
         next_month = last_day + timedelta(days=1)
         self.current_month = next_month
         self.refresh()
-        self.page.update()
+        if hasattr(self, 'calendar_container'):
+            self.calendar_container.content = self._build_calendar()
+            self.calendar_container.update()
+        else:
+            self.page.update()
 
     def _build_calendar(self) -> ft.Container:
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
@@ -90,17 +98,60 @@ class SubscriptionsView:
                     # Find if any transaction falls on this day
                     day_txs = []
                     for tx in self.recurring_transactions:
-                        # Simple logic: check if next_due_date is this date or if it recurs on this day
-                        # A better check would be calculating actual recurrences over this month, but for simplicity:
                         try:
-                            next_due = datetime.strptime(tx['next_due_date'], "%Y-%m-%d").date()
-                            if next_due == date_obj:
-                                day_txs.append(tx)
-                            # Handle daily, monthly etc simply matching day
-                            elif tx['frequency'] == 'monthly' and next_due.day == day and next_due <= date_obj:
-                                # Quick approximation for monthly
-                                day_txs.append(tx)
-                        except:
+                            start_date = datetime.strptime(tx['start_date'], "%Y-%m-%d").date()
+                            end_date = datetime.strptime(tx['end_date'], "%Y-%m-%d").date() if tx.get('end_date') else None
+                            frequency = tx['frequency']
+                            interval = tx.get('interval', 1)
+                            
+                            # Check if date_obj is in valid range
+                            if date_obj < start_date or (end_date and date_obj > end_date):
+                                continue
+
+                            # Calculate occurrences based on frequency
+                            if frequency == 'daily':
+                                days_diff = (date_obj - start_date).days
+                                if days_diff % interval == 0:
+                                    day_txs.append(tx)
+                                    
+                            elif frequency == 'weekly':
+                                days_diff = (date_obj - start_date).days
+                                if days_diff % (7 * interval) == 0:
+                                    day_txs.append(tx)
+                                    
+                            elif frequency == 'monthly':
+                                # Check if same day of month
+                                # Handle end of month edge cases (e.g. start on 31st)
+                                is_due = False
+                                
+                                # Exact day match
+                                if date_obj.day == start_date.day:
+                                    # Check interval
+                                    months_diff = (date_obj.year - start_date.year) * 12 + date_obj.month - start_date.month
+                                    if months_diff % interval == 0:
+                                        is_due = True
+                                        
+                                # Edge case: target is last day of month, but didn't match start_date.day
+                                elif date_obj.day != start_date.day:
+                                    # If start date was e.g. 31, and current month only has 30 days, 
+                                    # then it should trigger on the 30th
+                                    days_in_current_month = calendar.monthrange(date_obj.year, date_obj.month)[1]
+                                    if date_obj.day == days_in_current_month and start_date.day > days_in_current_month:
+                                        months_diff = (date_obj.year - start_date.year) * 12 + date_obj.month - start_date.month
+                                        if months_diff % interval == 0:
+                                            is_due = True
+
+                                if is_due:
+                                    day_txs.append(tx)
+
+                            elif frequency == 'yearly':
+                                if date_obj.month == start_date.month and date_obj.day == start_date.day:
+                                    years_diff = date_obj.year - start_date.year
+                                    if years_diff % interval == 0:
+                                        day_txs.append(tx)
+                                        # (Edge case for leap year Feb 29 omitted for simplicity, could be added similar to end of month)
+
+                        except Exception as e:
                             pass
                             
                     day_content: List[ft.Control] = [ft.Text(str(day), color=PeadraTheme.ACCENT if is_today else text_color, weight=ft.FontWeight.BOLD if is_today else ft.FontWeight.NORMAL)]
@@ -172,12 +223,15 @@ class SubscriptionsView:
         
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
         
+        self.calendar_container = ft.Container(content=self._build_calendar())
+        self.list_container = ft.Container(content=self._build_list())
+        
         return ft.Container(
             content=ft.Column(
                 [
                     ft.Text("Subscriptions & Recurring", size=28, weight=ft.FontWeight.BOLD, color=text_color),
-                    self._build_calendar(),
-                    self._build_list()
+                    self.calendar_container,
+                    self.list_container
                 ],
                 spacing=20,
                 scroll=ft.ScrollMode.AUTO,

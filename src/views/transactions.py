@@ -227,24 +227,44 @@ class TransactionsView:
         """Enregistre ou met à jour la transaction."""
 
         if data.get("is_recurring"):
-            db.add_recurring_transaction(
-                description=data["description"],
-                amount=data["amount"],
-                transaction_type=data["transaction_type"],
-                frequency=data["frequency"],
-                start_date=data["date"],
-                interval=data["interval"],
-                category_id=data.get("category_id"),
-                end_date=data.get("end_date"),
-            )
-            # Process immediately so user sees it if it starts today
-            db.process_recurring_transactions()
+            if data.get("id"):
+                # We are editing an existing transaction and making it recurring
+                # Calculate the next date so we don't duplicate the current one
+                current_date = datetime.strptime(data["date"], "%Y-%m-%d").date()
+                next_date = db._calculate_next_date(current_date, data["frequency"], data["interval"])
+                
+                db.add_recurring_transaction(
+                    description=data["description"],
+                    amount=data["amount"],
+                    transaction_type=data["transaction_type"],
+                    frequency=data["frequency"],
+                    start_date=data["date"],
+                    interval=data["interval"],
+                    category_id=data.get("category_id"),
+                    end_date=data.get("end_date"),
+                    next_due_date=next_date.strftime("%Y-%m-%d")
+                )
+                db.process_recurring_transactions()
+                # Do not return here, we still need to update the existing transaction
+            else:
+                db.add_recurring_transaction(
+                    description=data["description"],
+                    amount=data["amount"],
+                    transaction_type=data["transaction_type"],
+                    frequency=data["frequency"],
+                    start_date=data["date"],
+                    interval=data["interval"],
+                    category_id=data.get("category_id"),
+                    end_date=data.get("end_date"),
+                )
+                # Process immediately so user sees it if it starts today
+                db.process_recurring_transactions()
 
-            snack = ft.SnackBar(ft.Text("Recurring transaction added"))
-            self.page.overlay.append(snack)
-            snack.open = True
-            self.on_data_change()
-            return
+                snack = ft.SnackBar(ft.Text("Recurring transaction added"))
+                self.page.overlay.append(snack)
+                snack.open = True
+                self.on_data_change()
+                return
 
         if data.get("id"):
             # Mise à jour

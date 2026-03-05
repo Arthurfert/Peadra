@@ -184,8 +184,8 @@ class TransactionModal:
         )
         self.controls_list.append(self.notes_field)
 
-        # Only add recurring option for new transactions (not editing)
-        if hasattr(self, "recurring_switch") and not self.editing_id:
+        # Add recurring option for both new and editing transactions
+        if hasattr(self, "recurring_switch"):
             self.controls_list.append(ft.Divider())
             self.controls_list.append(self.recurring_switch)
             self.controls_list.append(self.recurring_container)

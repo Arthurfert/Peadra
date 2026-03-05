@@ -355,13 +355,15 @@ class DatabaseManager:
         interval: int = 1,
         category_id: Optional[int] = None,
         end_date: Optional[str] = None,
+        next_due_date: Optional[str] = None,
     ) -> int:
         """Ajoute une transaction récurrente."""
         conn = self._get_connection()
         cursor = conn.cursor()
 
-        # Le premier next_due_date est la start_date
-        next_due_date = start_date
+        # Le premier next_due_date par défaut est la start_date s'il n'est pas fourni
+        if next_due_date is None:
+            next_due_date = start_date
 
         cursor.execute(
             """

@@ -24,6 +24,12 @@ class PeadraApp:
         theme_setting = db.get_setting("theme_mode", "dark")
         self.is_dark = theme_setting == "dark"
 
+        # Traiter les transactions récurrentes au démarrage
+        try:
+            db.process_recurring_transactions()
+        except Exception as e:
+            print(f"Error processing recurring transactions: {e}")
+
         self.current_view_index = 0
 
         # Configuration de la page

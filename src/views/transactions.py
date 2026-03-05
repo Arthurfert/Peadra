@@ -222,6 +222,26 @@ class TransactionsView:
 
     def _save_transaction(self, data: dict):
         """Enregistre ou met à jour la transaction."""
+        
+        if data.get("is_recurring"):
+            db.add_recurring_transaction(
+                description=data["description"],
+                amount=data["amount"],
+                transaction_type=data["transaction_type"],
+                frequency=data["frequency"],
+                start_date=data["date"],
+                interval=data["interval"],
+                category_id=data.get("category_id"),
+                end_date=data.get("end_date")
+            )
+            # Process immediately so user sees it if it starts today
+            db.process_recurring_transactions()
+            
+            snack = ft.SnackBar(ft.Text("Recurring transaction added"))
+            self.page.overlay.append(snack)
+            snack.open = True
+            self.on_data_change()
+            return
 
         if data.get("id"):
             # Mise à jour

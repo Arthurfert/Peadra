@@ -71,7 +71,53 @@ class TransactionModal:
             ),
         )
 
+        # Recurring
+        self.recurring_interval = ft.TextField(
+            label="Every",
+            value="1",
+            width=80,
+            keyboard_type=ft.KeyboardType.NUMBER,
+            text_align=ft.TextAlign.RIGHT
+        )
+        
+        self.recurring_freq = ft.Dropdown(
+            label="Frequency",
+            width=200,
+            options=[
+                ft.dropdown.Option("daily", "Days"),
+                ft.dropdown.Option("weekly", "Weeks"),
+                ft.dropdown.Option("monthly", "Months"),
+                ft.dropdown.Option("yearly", "Years"),
+            ],
+            value="monthly"
+        )
+        
+        self.recurring_end_date = ft.TextField(
+            label="End Date (Optional)",
+            read_only=True,
+            width=200,
+            suffix=ft.IconButton(
+                icon=ft.Icons.CALENDAR_TODAY,
+                on_click=lambda e: self._open_date_picker_generic(e, self.recurring_end_date),
+            ),
+        )
+
+        self.recurring_container = ft.Column(
+            [
+                ft.Row([self.recurring_interval, self.recurring_freq]),
+                self.recurring_end_date
+            ],
+            visible=False
+        )
+
+        self.recurring_switch = ft.Switch(
+            label="Recurring Transaction",
+            value=False,
+            on_change=lambda e: setattr(self.recurring_container, 'visible', e.control.value) or self.recurring_container.update()
+        )
+
         # Dropdowns Selection logic
+
         # Filter categories (formerly subcategories)
         sorted_cats = sorted(self.categories, key=lambda x: x["name"])
         options = [ft.dropdown.Option(str(c["id"]), c["name"]) for c in sorted_cats]
@@ -132,23 +178,36 @@ class TransactionModal:
             max_lines=4,
         )
         self.controls_list.append(self.notes_field)
+        
+        # Only add recurring option for new transactions (not editing)
+        if hasattr(self, 'recurring_switch') and not self.editing_id:
+            self.controls_list.append(ft.Divider())
+            self.controls_list.append(self.recurring_switch)
+            self.controls_list.append(self.recurring_container)
 
     def _open_date_picker(self, e):
-        """Ouvre le sélecteur de date."""
+        """Ouvre le sélecteur de date principal."""
+        self._open_date_picker_generic(e, self.date_picker)
+
+    def _open_date_picker_generic(self, e, field):
+        """Ouvre un sélecteur de date pour un champ donné."""
+        d = datetime.now()
+        if field.value:
+            try:
+                d = datetime.strptime(field.value, "%Y-%m-%d")
+            except ValueError:
+                pass
+
         date_picker = ft.DatePicker(
-            first_date=datetime(2020, 1, 1),
-            last_date=datetime(2030, 12, 31),
-            on_change=self._on_date_change,
+            first_date=datetime(2000, 1, 1),
+            last_date=datetime(2100, 12, 31),
+            value=d,
+            on_change=lambda e: setattr(field, 'value', e.control.value.strftime("%Y-%m-%d")) or field.update(),
         )
+        
         self.page.overlay.append(date_picker)
         date_picker.open = True
         self.page.update()
-
-    def _on_date_change(self, e):
-        """Gère le changement de date."""
-        if e.control.value:
-            self.date_picker.value = e.control.value.strftime("%Y-%m-%d")
-            self.page.update()
 
     def _validate_form(self) -> bool:
         """Valide le formulaire."""
@@ -207,6 +266,24 @@ class TransactionModal:
             "category_id": None,
             "notes": self.notes_field.value.strip() if self.notes_field.value else None,
         }
+        
+        # Add recurring data if enabled
+        if hasattr(self, 'recurring_switch') and self.recurring_switch.value:
+            transaction_data.update({
+                "is_recurring": True,
+                "frequency": self.recurring_freq.value,
+                "interval": int(self.recurring_interval.value or 1),
+                "end_date": self.recurring_end_date.value if self.recurring_end_date.value else None
+            })
+        
+        # Add recurring data if enabled
+        if hasattr(self, 'recurring_switch') and self.recurring_switch.value:
+            transaction_data.update({
+                "is_recurring": True,
+                "frequency": self.recurring_freq.value,
+                "interval": int(self.recurring_interval.value or 1),
+                "end_date": self.recurring_end_date.value if self.recurring_end_date.value else None
+            })
 
         if self.transaction_type == "transfer":
             source_val = self.source_dropdown.value

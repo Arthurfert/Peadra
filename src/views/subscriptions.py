@@ -353,37 +353,125 @@ class SubscriptionsView:
             PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
         )
 
-        list_items = []
+        grid_items = []
+        today = datetime.now().date()
+
         for tx in self.recurring_transactions:
             color = (
                 ft.Colors.RED_400
                 if tx["transaction_type"] == "expense"
                 else ft.Colors.GREEN_400
             )
-            list_items.append(
-                ft.ListTile(
-                    leading=ft.Icon(ft.Icons.REPEAT, color=color),
-                    title=ft.Text(
-                        tx["description"], color=text_color, weight=ft.FontWeight.BOLD
-                    ),
-                    subtitle=ft.Text(
-                        f"Next due: {tx['next_due_date']} - Frequency: {tx['frequency']}",
-                        color=ft.Colors.with_opacity(0.7, text_color),
-                    ),
-                    trailing=ft.Text(
-                        f"€{tx['amount']:.2f}",
-                        color=color,
-                        weight=ft.FontWeight.BOLD,
-                        size=16,
-                    ),
-                    on_click=lambda e, t=tx: self._show_transaction_details(
-                        t, t.get("next_due_date", "")
-                    ),
+            card_bg = ft.Colors.with_opacity(0.05, color)
+
+            # Calcul du total projeté sur l'année en cours
+            year = today.year
+            start_of_year = date(year, 1, 1)
+            end_of_year = date(year, 12, 31)
+
+            # Définir le début de la projection
+            start_limit = start_of_year
+            start_date_str = tx.get("start_date")
+            if start_date_str:
+                try:
+                    start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+                    start_limit = max(start_of_year, start_date)
+                except ValueError:
+                    pass
+
+            # Définir la fin de la projection
+            end_date_str = tx.get("end_date")
+            end_limit = end_of_year
+            is_total_projection = False
+
+            if end_date_str:
+                try:
+                    end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+                    if end_date < start_limit:
+                        continue  # Date de fin déjà passée avant le début du calcul
+                    if end_date <= end_of_year:
+                        end_limit = end_date
+                        is_total_projection = True
+                except ValueError:
+                    pass
+
+            days = max(0, (end_limit - start_limit).days + 1)
+            amount = tx.get("amount", 0.0)
+            freq = tx.get("frequency", "monthly")
+            interval = max(1, tx.get("interval", 1))
+
+            # Approximation du nombre d'occurrences
+            if freq == "daily":
+                occ = days / interval
+            elif freq == "weekly":
+                occ = days / (7 * interval)
+            elif freq == "monthly":
+                months_diff = (end_limit.year - start_limit.year) * 12 + (
+                    end_limit.month - start_limit.month
                 )
+                occ = (months_diff + 1) / interval
+            elif freq == "yearly":
+                years_diff = end_limit.year - start_limit.year
+                occ = (years_diff + 1) / interval
+            else:
+                occ = 0
+
+            yearly_total = amount * occ
+
+            projection_label = (
+                "Total projection" if is_total_projection else f"Projection {year}"
             )
 
-        if not list_items:
-            list_items.append(
+            card = ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Row(
+                            [
+                                ft.Icon(ft.Icons.REPEAT, color=color, size=20),
+                                ft.Text(
+                                    tx["description"],
+                                    color=text_color,
+                                    weight=ft.FontWeight.BOLD,
+                                    size=16,
+                                    expand=True,
+                                    no_wrap=True,
+                                ),
+                            ],
+                            alignment=ft.MainAxisAlignment.START,
+                        ),
+                        ft.Text(
+                            f"{amount:.2f} €",
+                            color=color,
+                            weight=ft.FontWeight.BOLD,
+                            size=24,
+                        ),
+                        ft.Text(
+                            f"{projection_label}: {yearly_total:.2f} €",
+                            color=ft.Colors.with_opacity(0.7, text_color),
+                            size=11,
+                            italic=True,
+                        ),
+                        ft.Text(
+                            f"{tx.get('frequency', '')}, Next: {tx.get('next_due_date', '')}",
+                            color=ft.Colors.with_opacity(0.5, text_color),
+                            size=10,
+                        ),
+                    ],
+                    spacing=5,
+                ),
+                padding=20,
+                bgcolor=card_bg,
+                border_radius=16,
+                border=ft.border.all(1, ft.Colors.with_opacity(0.1, color)),
+                col={"xs": 12, "sm": 6, "md": 4, "lg": 3},
+                on_click=lambda e, t=tx: self._show_transaction_details(
+                    t, t.get("next_due_date", "")
+                ),
+            )
+            grid_items.append(card)
+
+        if not grid_items:
+            grid_items.append(
                 ft.Text(
                     "No recurring transactions found.",
                     color=ft.Colors.with_opacity(0.5, text_color),
@@ -399,9 +487,9 @@ class SubscriptionsView:
                         weight=ft.FontWeight.BOLD,
                         color=text_color,
                     ),
-                    *list_items,
+                    ft.ResponsiveRow(grid_items, run_spacing=15),
                 ],
-                spacing=10,
+                spacing=15,
             ),
             padding=20,
             bgcolor=bg_color,

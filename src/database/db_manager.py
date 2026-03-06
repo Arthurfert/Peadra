@@ -450,7 +450,7 @@ class DatabaseManager:
                     amount=rt["amount"],
                     transaction_type=rt["transaction_type"],
                     category_id=rt["category_id"],
-                    notes=f"Recurring: {rt['frequency']} (every {rt['interval']})",
+                    notes=f"Frequency : {rt['frequency']}\nStart Date : {rt['start_date']}\nNext Due Date : {rt['next_due_date']}",
                 )
 
                 # Calculer la prochaine date

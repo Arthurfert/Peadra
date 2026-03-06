@@ -345,7 +345,8 @@ class TransactionModal:
 
         if transaction_data:
             self.date_picker.value = transaction_data.get(
-                "date", datetime.now().strftime("%Y-%m-%d")
+                "date",
+                transaction_data.get("start_date", datetime.now().strftime("%Y-%m-%d")),
             )
             self.description_field.value = transaction_data.get("description", "")
             self.amount_field.value = str(transaction_data.get("amount", ""))
@@ -361,6 +362,22 @@ class TransactionModal:
                     self.source_dropdown.value = str(transaction_data["source_id"])
                 if transaction_data.get("dest_id"):
                     self.dest_dropdown.value = str(transaction_data["dest_id"])
+
+            if hasattr(self, "recurring_switch") and (
+                "frequency" in transaction_data or transaction_data.get("is_recurring")
+            ):
+                self.recurring_switch.value = True
+                self.recurring_container.visible = True
+                self.recurring_freq.value = str(
+                    transaction_data.get("frequency", "monthly")
+                )
+                self.recurring_interval.value = str(
+                    transaction_data.get("interval", "1")
+                )
+                if transaction_data.get("end_date"):
+                    self.recurring_end_date.value = str(
+                        transaction_data.get("end_date")
+                    )
 
         type_map = {
             "income": "New Income",

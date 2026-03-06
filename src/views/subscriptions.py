@@ -53,7 +53,7 @@ class SubscriptionsView:
             db.process_recurring_transactions()
 
             snack = ft.SnackBar(
-                ft.Text("Abonnement mis à jour avec succès", color=ft.Colors.WHITE),
+                ft.Text("Subscription updated successfully", color=ft.Colors.WHITE),
                 bgcolor=PeadraTheme.SUCCESS,
             )
             self.page.overlay.append(snack)
@@ -76,7 +76,7 @@ class SubscriptionsView:
         conn.commit()
 
         snack = ft.SnackBar(
-            ft.Text("Abonnement supprimé avec succès", color=ft.Colors.WHITE),
+            ft.Text("Subscription deleted successfully", color=ft.Colors.WHITE),
             bgcolor=ft.Colors.GREEN,
         )
         self.page.overlay.append(snack)
@@ -91,11 +91,11 @@ class SubscriptionsView:
         mock_tx = {
             "id": tx.get("id"),
             "date": date_str,
-            "description": tx.get("description", "Abonnement"),
+            "description": tx.get("description", "Recurring Transaction"),
             "amount": tx.get("amount", 0),
             "transaction_type": tx.get("transaction_type", "expense"),
-            "category_name": tx.get("category_name", "Abonnement"),
-            "notes": f"Fréquence : {tx.get('frequency', '')}\nDébut : {tx.get('start_date', '')}\nProchaine échéance : {tx.get('next_due_date', '')}",
+            "category_name": tx.get("category_name", "Recurring"),
+            "notes": f"Frequency : {tx.get('frequency', '')}\nStart Date : {tx.get('start_date', '')}\nNext Due Date : {tx.get('next_due_date', '')}",
         }
 
         def on_edit():

@@ -54,21 +54,22 @@ The project structure follows a logical separation of concerns (simplified MVC):
 
 ```
 Peadra/
-├── main.py                 # Entry point. Initializes Flet app and navigation.
-├── requirements.txt        # Production dependencies list.
+├── main.py                    # Entry point. Initializes Flet app and navigation.
+├── requirements.txt           # Production dependencies list.
 └── src/
-    ├── components/         # Reusable UI widgets
-    │   ├── modals.py       # Modal windows (Transaction, Asset).
-    │   ├── navigation.py   # Sidebar navigation (Rail).
-    │   └── theme.py        # Theme configuration (Light/Dark).
-    ├── database/           # Data access layer
-    │   └── db_manager.py   # SQLite manager (Singleton recommended).
-    └── views/              # Application pages
-        ├── dashboard.py    # View (0): Overview (Charts, KPI).
-        ├── transactions.py # View (1): Transaction list and addition.
-        ├── accounts.py     # View (2): Accounts management.
-        ├── parameters.py   # View (3): User configuration.
-        └── import_data.py  # File import (CSV/Bank exports).
+    ├── components/            # Reusable UI widgets
+    │   ├── modals.py          # Modal windows (Transaction, Asset).
+    │   ├── navigation.py      # Sidebar navigation (Rail).
+    │   └── theme.py           # Theme configuration (Light/Dark).
+    ├── database/              # Data access layer
+    │   └── db_manager.py      # SQLite manager (Singleton recommended).
+    └── views/                 # Application pages
+        ├── dashboard.py       # View (0): Overview (Charts, KPI).
+        ├── transactions.py    # View (1): Transaction list and addition.
+        ├── accounts.py        # View (2): Accounts management.
+        ├── parameters.py      # View (4): User configuration.
+        ├── subscriptions.py   # View (3): Subscriptions calendar view and bento grid with financial projections.
+        └── import_data.py     # File import (CSV/Bank exports).
 ```
 
 ### Data Flow
@@ -103,6 +104,20 @@ The core of the application, storing every financial movement.
 - `category_id` (FK): Link to `categories.id`.
 - `notes` (Text): Optional remarks.
 - `created_at` / `updated_at` (Timestamp).
+
+### `recurring_transactions`
+Manages subscriptions and repeating transactions.
+- `id` (PK): Unique identifier.
+- `description` (Text): Subscription label.
+- `amount` (Real): Expected amount.
+- `transaction_type` (Text): 'income' or 'expense'.
+- `start_date` (Date): When the recurrent transaction begins.
+- `end_date` (Date): Optional end date for the recursion.
+- `frequency` (Text): Recurrence pattern ('daily', 'weekly', 'monthly', 'yearly').
+- `interval` (Integer): Multiplier for the frequency (e.g., every 1 month).
+- `next_due_date` (Date): Next calculated payment date.
+- `category_id` (FK): Link to `categories.id`.
+- `active` (Integer): Flag (1=active, 0=inactive).
 
 ### `imported_files`
 History of imported files to avoid duplicates during CSV imports.

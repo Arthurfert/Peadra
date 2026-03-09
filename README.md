@@ -8,9 +8,9 @@
 | :---------------------------------------: | :--------------------------------------------: |
 | ![Peadra dashboard](assets/Dashboard.jpg) | ![Peadra transaction](assets/transactions.jpg) |
 
-|                  Accounts                 |                   Parameters                   |
-| :---------------------------------------: | :--------------------------------------------: |
-| ![Peadra Accounts](assets/Accounts.jpg)   | ![Peadra Parameters](assets/Parameters.jpg)    |
+|                  Accounts                 |                   Subscriptions                  |
+| :---------------------------------------: | :----------------------------------------------: |
+| ![Peadra Accounts](assets/Accounts.jpg)   | ![Peadra Subscription](assets/Subscriptions.jpg) |
 
 ## Overview
 
@@ -21,9 +21,10 @@ Peadra (*"wealth" in Breton*) is a desktop application designed to help you trac
 - View your current balance, assets distribution and evolution
 - Add, modify and delete transactions
 - Add, modify and delete your accounts
+- View recurring transactions and subscriptions
 - Import data from CSV files, export in JSON & CSV
 
->To come : subscriptions view, and [more](TODO.md)
+>To come : more parameters, an installer, and [more](TODO.md) !
 
 ## Technologies
 
@@ -41,27 +42,28 @@ An installer will be implemented later.
 
 ```
 Peadra/
-├── main.py                 # Application entry point
-├── requirements.txt        # Python dependencies
-├── LICENSE                 # MIT License
-├── README.md               # This file
+├── main.py                   # Application entry point
+├── requirements.txt          # Python dependencies
+├── LICENSE                   # GNU-GPL License
+├── README.md                 # This file
 └── src/
     ├── __init__.py
-    ├── components/         # Reusable UI components
+    ├── components/           # Reusable UI components
     │   ├── __init__.py
-    │   ├── modals.py       # Transaction and Asset modals
-    │   ├── navigation.py   # Navigation rail component
-    │   └── theme.py        # Theme configuration and styling
-    ├── database/           # Database layer
+    │   ├── modals.py         # Transaction and Asset modals
+    │   ├── navigation.py     # Navigation rail component
+    │   └── theme.py          # Theme configuration and styling
+    ├── database/             # Database layer
     │   ├── __init__.py
-    │   └── db_manager.py   # SQLite database manager
-    └── views/              # Application views
+    │   └── db_manager.py     # SQLite database manager
+    └── views/                # Application views
         ├── __init__.py
-        ├── accounts.py     # Accounts view
-        ├── dashboard.py    # Dashboard view
-        ├── import_data.py  # Import data view
-        ├── parameters.py   # Parameters view
-        └── transactions.py # Transactions management view
+        ├── accounts.py       # Accounts view
+        ├── dashboard.py      # Dashboard view
+        ├── import_data.py    # Import data view
+        ├── parameters.py     # Parameters view
+        ├── subscriptions.py  # Parameters view
+        └── transactions.py   # Transactions management view
 ```
 
 To learn more about how Peadra works under the hood, please have a look to the [documentation](./DOCUMENTATION.md) !

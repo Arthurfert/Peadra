@@ -347,6 +347,65 @@ class SubscriptionsView:
             border_radius=16,
         )
 
+    @staticmethod
+    def calculate_projection(tx: Dict[str, Any], today: date) -> tuple[float, str, bool]:
+        """Calcule la projection financière d'une transaction récurrente pour l'année en cours."""
+        year = today.year
+        start_of_year = date(year, 1, 1)
+        end_of_year = date(year, 12, 31)
+
+        # Définir le début de la projection
+        start_limit = start_of_year
+        start_date_str = tx.get("start_date")
+        if start_date_str:
+            try:
+                start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+                start_limit = max(start_of_year, start_date)
+            except ValueError:
+                pass
+
+        # Définir la fin de la projection
+        end_date_str = tx.get("end_date")
+        end_limit = end_of_year
+        is_total_projection = False
+
+        if end_date_str:
+            try:
+                end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+                if end_date < start_limit:
+                    return 0.0, "", False  # Date de fin déjà passée avant le début du calcul
+                if end_date <= end_of_year:
+                    end_limit = end_date
+                    is_total_projection = True
+            except ValueError:
+                pass
+
+        days = max(0, (end_limit - start_limit).days + 1)
+        amount = tx.get("amount", 0.0)
+        freq = tx.get("frequency", "monthly")
+        interval = max(1, tx.get("interval", 1))
+
+        # Approximation du nombre d'occurrences
+        if freq == "daily":
+            occ = days / interval
+        elif freq == "weekly":
+            occ = days / (7 * interval)
+        elif freq == "monthly":
+            months_diff = (end_limit.year - start_limit.year) * 12 + (
+                end_limit.month - start_limit.month
+            )
+            occ = (months_diff + 1) / interval
+        elif freq == "yearly":
+            years_diff = end_limit.year - start_limit.year
+            occ = (years_diff + 1) / interval
+        else:
+            occ = 0
+
+        yearly_total = amount * occ
+        projection_label = "Total projection" if is_total_projection else f"Projection {year}"
+        
+        return yearly_total, projection_label, True
+
     def _build_list(self) -> ft.Container:
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
         bg_color = (
@@ -364,63 +423,10 @@ class SubscriptionsView:
             )
             card_bg = ft.Colors.with_opacity(0.05, color)
 
-            # Calcul du total projeté sur l'année en cours
-            year = today.year
-            start_of_year = date(year, 1, 1)
-            end_of_year = date(year, 12, 31)
-
-            # Définir le début de la projection
-            start_limit = start_of_year
-            start_date_str = tx.get("start_date")
-            if start_date_str:
-                try:
-                    start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
-                    start_limit = max(start_of_year, start_date)
-                except ValueError:
-                    pass
-
-            # Définir la fin de la projection
-            end_date_str = tx.get("end_date")
-            end_limit = end_of_year
-            is_total_projection = False
-
-            if end_date_str:
-                try:
-                    end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
-                    if end_date < start_limit:
-                        continue  # Date de fin déjà passée avant le début du calcul
-                    if end_date <= end_of_year:
-                        end_limit = end_date
-                        is_total_projection = True
-                except ValueError:
-                    pass
-
-            days = max(0, (end_limit - start_limit).days + 1)
-            amount = tx.get("amount", 0.0)
-            freq = tx.get("frequency", "monthly")
-            interval = max(1, tx.get("interval", 1))
-
-            # Approximation du nombre d'occurrences
-            if freq == "daily":
-                occ = days / interval
-            elif freq == "weekly":
-                occ = days / (7 * interval)
-            elif freq == "monthly":
-                months_diff = (end_limit.year - start_limit.year) * 12 + (
-                    end_limit.month - start_limit.month
-                )
-                occ = (months_diff + 1) / interval
-            elif freq == "yearly":
-                years_diff = end_limit.year - start_limit.year
-                occ = (years_diff + 1) / interval
-            else:
-                occ = 0
-
-            yearly_total = amount * occ
-
-            projection_label = (
-                "Total projection" if is_total_projection else f"Projection {year}"
-            )
+            yearly_total, projection_label, is_valid = self.calculate_projection(tx, today)
+            
+            if not is_valid:
+                continue
 
             card = ft.Container(
                 content=ft.Column(
@@ -440,7 +446,7 @@ class SubscriptionsView:
                             alignment=ft.MainAxisAlignment.START,
                         ),
                         ft.Text(
-                            f"{amount:.2f} €",
+                            f"{tx.get('amount', 0.0):.2f} €",
                             color=color,
                             weight=ft.FontWeight.BOLD,
                             size=24,

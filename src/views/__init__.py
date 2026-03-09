@@ -6,6 +6,7 @@ from .dashboard import DashboardView
 from .transactions import TransactionsView
 from .accounts import AccountsView
 from .parameters import ParametersView
+from .subscriptions import SubscriptionsView
 from .import_data import ImportDialog
 
 __all__ = [
@@ -13,5 +14,6 @@ __all__ = [
     "TransactionsView",
     "AccountsView",
     "ParametersView",
+    "SubscriptionsView",
     "ImportDialog",
 ]

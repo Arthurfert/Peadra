@@ -8,7 +8,7 @@ from typing import Callable, List
 from datetime import datetime
 from ..components.theme import PeadraTheme
 from ..components.modals import TransactionModal, TransactionDetailsModal
-from ..database.db_manager import db
+from ..database import db
 
 
 class TransactionsView:
@@ -32,12 +32,12 @@ class TransactionsView:
         """Rafraîchit les données."""
         self._load_data()
 
-    def _load_data(self, append: bool = False):
+    def _load_data(self, append: bool = False, load_all: bool = False):
         """Charge les données."""
         self.categories = db.get_all_categories()
 
         offset = len(self.transactions) if append else 0
-        limit = 30
+        limit = 30 if not load_all else None
 
         new_tx = db.get_all_transactions(
             limit=limit,
@@ -51,7 +51,10 @@ class TransactionsView:
         else:
             self.transactions = new_tx
 
-        self.has_more = len(new_tx) == limit
+        if load_all:
+            self.has_more = False
+        else:
+            self.has_more = len(new_tx) == limit
 
     def _open_type_selector(self, e):
         """Ouvre le dialogue de sélection du type de transaction."""
@@ -222,6 +225,48 @@ class TransactionsView:
 
     def _save_transaction(self, data: dict):
         """Enregistre ou met à jour la transaction."""
+
+        if data.get("is_recurring"):
+            if data.get("id"):
+                # We are editing an existing transaction and making it recurring
+                # Calculate the next date so we don't duplicate the current one
+                current_date = datetime.strptime(data["date"], "%Y-%m-%d").date()
+                next_date = db._calculate_next_date(
+                    current_date, data["frequency"], data["interval"]
+                )
+
+                db.add_recurring_transaction(
+                    description=data["description"],
+                    amount=data["amount"],
+                    transaction_type=data["transaction_type"],
+                    frequency=data["frequency"],
+                    start_date=data["date"],
+                    interval=data["interval"],
+                    category_id=data.get("category_id"),
+                    end_date=data.get("end_date"),
+                    next_due_date=next_date.strftime("%Y-%m-%d"),
+                )
+                db.process_recurring_transactions()
+                # Do not return here, we still need to update the existing transaction
+            else:
+                db.add_recurring_transaction(
+                    description=data["description"],
+                    amount=data["amount"],
+                    transaction_type=data["transaction_type"],
+                    frequency=data["frequency"],
+                    start_date=data["date"],
+                    interval=data["interval"],
+                    category_id=data.get("category_id"),
+                    end_date=data.get("end_date"),
+                )
+                # Process immediately so user sees it if it starts today
+                db.process_recurring_transactions()
+
+                snack = ft.SnackBar(ft.Text("Recurring transaction added"))
+                self.page.overlay.append(snack)
+                snack.open = True
+                self.on_data_change()
+                return
 
         if data.get("id"):
             # Mise à jour
@@ -650,17 +695,31 @@ class TransactionsView:
             )
         elif getattr(self, "has_more", False):
 
-            def load_more(e):
-                self._load_data(append=True)
+            def update_view():
                 if hasattr(self, "content_column") and hasattr(self, "table_header"):
                     new_controls: List[ft.Control] = [self.table_header]
                     new_controls.extend(self._generate_rows())
                     self.content_column.controls = new_controls
                     self.content_column.update()
 
+            def load_more(e):
+                self._load_data(append=True)
+                update_view()
+
+            def load_all(e):
+                self._load_data(append=True, load_all=True)
+                update_view()
+
             rows.append(
                 ft.Container(
-                    content=ft.TextButton("Load More", on_click=load_more),
+                    content=ft.Row(
+                        [
+                            ft.TextButton("Load More", on_click=load_more),
+                            ft.TextButton("Load All", on_click=load_all),
+                        ],
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        spacing=20,
+                    ),
                     padding=20,
                     alignment=ft.Alignment.CENTER,
                 )

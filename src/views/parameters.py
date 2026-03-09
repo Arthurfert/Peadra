@@ -6,7 +6,7 @@ Permet de configurer le thème, l'import/export et le mode de calcul mensuel.
 import flet as ft
 from typing import Callable, Any, cast, List
 from ..components.theme import PeadraTheme
-from ..database.db_manager import db
+from ..database import db
 
 
 class ParametersView:

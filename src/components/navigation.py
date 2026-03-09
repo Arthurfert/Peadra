@@ -107,6 +107,12 @@ class NavigationRailComponent:
                                 "Accounts",
                                 2,
                             ),
+                            nav_item(
+                                ft.Icons.CALENDAR_MONTH_OUTLINED,
+                                ft.Icons.CALENDAR_MONTH,
+                                "Subscriptions",
+                                3,
+                            ),
                         ],
                         spacing=8,
                     ),

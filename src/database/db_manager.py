@@ -5,7 +5,7 @@ Module de gestion de la base de données SQLite pour Peadra.
 import sqlite3
 import json
 import csv
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from typing import List, Optional, Dict, Any
 
 
@@ -78,6 +78,27 @@ class DatabaseManager:
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
                 value TEXT
+            )
+        """
+        )
+
+        # Table des transactions récurrentes
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS recurring_transactions (
+                id INTEGER PRIMARY KEY,
+                description TEXT NOT NULL,
+                amount REAL NOT NULL,
+                category_id INTEGER,
+                transaction_type TEXT NOT NULL CHECK(transaction_type IN ('income', 'expense', 'transfer')),
+                frequency TEXT NOT NULL CHECK(frequency IN ('daily', 'weekly', 'monthly', 'yearly')),
+                interval INTEGER DEFAULT 1,
+                start_date DATE NOT NULL,
+                next_due_date DATE NOT NULL,
+                end_date DATE,
+                last_generated DATE,
+                active BOOLEAN DEFAULT 1,
+                FOREIGN KEY (category_id) REFERENCES categories(id)
             )
         """
         )
@@ -279,6 +300,213 @@ class DatabaseManager:
         )
         conn.commit()
         return cursor.lastrowid or 0
+
+    # ==================== TRANSACTIONS RÉCURRENTES ====================
+
+    def update_recurring_transaction(
+        self,
+        id: int,
+        description: str,
+        amount: float,
+        transaction_type: str,
+        frequency: str,
+        start_date: str,
+        interval: int = 1,
+        category_id: Optional[int] = None,
+        end_date: Optional[str] = None,
+    ) -> bool:
+        """Met à jour une transaction récurrente existante."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute(
+                """
+                UPDATE recurring_transactions 
+                SET description = ?, amount = ?, transaction_type = ?, frequency = ?,
+                    start_date = ?, interval = ?, category_id = ?, end_date = ?
+                WHERE id = ?
+                """,
+                (
+                    description,
+                    amount,
+                    transaction_type,
+                    frequency,
+                    start_date,
+                    interval,
+                    category_id,
+                    end_date,
+                    id,
+                ),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+        except sqlite3.Error as e:
+            print(f"Database error during update_recurring_transaction: {e}")
+            return False
+
+    def add_recurring_transaction(
+        self,
+        description: str,
+        amount: float,
+        transaction_type: str,
+        frequency: str,
+        start_date: str,
+        interval: int = 1,
+        category_id: Optional[int] = None,
+        end_date: Optional[str] = None,
+        next_due_date: Optional[str] = None,
+    ) -> int:
+        """Ajoute une transaction récurrente."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        # Le premier next_due_date par défaut est la start_date s'il n'est pas fourni
+        if next_due_date is None:
+            next_due_date = start_date
+
+        cursor.execute(
+            """
+            INSERT INTO recurring_transactions (
+                description, amount, transaction_type, frequency, 
+                interval, start_date, next_due_date, end_date, category_id
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                description,
+                amount,
+                transaction_type,
+                frequency,
+                interval,
+                start_date,
+                next_due_date,
+                end_date,
+                category_id,
+            ),
+        )
+        conn.commit()
+        return cursor.lastrowid or 0
+
+    def get_recurring_transactions(self) -> List[Dict[str, Any]]:
+        """Récupère toutes les transactions récurrentes."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        query = """
+            SELECT r.*, c.name as category_name, c.color as category_color
+            FROM recurring_transactions r
+            LEFT JOIN categories c ON r.category_id = c.id
+            WHERE r.active = 1
+        """
+        cursor.execute(query)
+        return [dict(row) for row in cursor.fetchall()]
+
+    def process_recurring_transactions(self):
+        """
+        Vérifie et génère les transactions dues.
+        À appeler au démarrage de l'application.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        today = date.today()
+        today_str = today.isoformat()
+
+        # Récupérer les transactions actives dues (next_due_date <= today)
+        cursor.execute(
+            """
+            SELECT * FROM recurring_transactions 
+            WHERE active = 1 AND next_due_date <= ?
+            """,
+            (today_str,),
+        )
+
+        due_transactions = [dict(row) for row in cursor.fetchall()]
+
+        for rt in due_transactions:
+            # Récupérer la date actuelle de traitement pour cette règle
+            current_next_due_str = rt["next_due_date"]
+            current_next_due = datetime.strptime(
+                current_next_due_str, "%Y-%m-%d"
+            ).date()
+
+            # Boucle tant que la transaction est due
+            while current_next_due <= today:
+                # Vérifier la date de fin
+                if rt["end_date"]:
+                    end_date = datetime.strptime(rt["end_date"], "%Y-%m-%d").date()
+                    if current_next_due > end_date:
+                        # Désactiver la transaction si la date de fin est dépassée
+                        cursor.execute(
+                            "UPDATE recurring_transactions SET active = 0 WHERE id = ?",
+                            (rt["id"],),
+                        )
+                        break  # Sortir du while pour passer à la règle suivante
+
+                # Créer la transaction réelle
+                self.add_transaction(
+                    date=current_next_due.isoformat(),
+                    description=rt["description"],
+                    amount=rt["amount"],
+                    transaction_type=rt["transaction_type"],
+                    category_id=rt["category_id"],
+                    notes=f"Frequency : {rt['frequency']}\nStart Date : {rt['start_date']}\nNext Due Date : {rt['next_due_date']}",
+                )
+
+                # Calculer la prochaine date
+                next_date = self._calculate_next_date(
+                    current_next_due, rt["frequency"], rt["interval"]
+                )
+                next_date_str = next_date.isoformat()
+
+                # Mettre à jour la règle pour la prochaine itération ou la fin
+                cursor.execute(
+                    """
+                    UPDATE recurring_transactions 
+                    SET last_generated = ?, next_due_date = ? 
+                    WHERE id = ?
+                    """,
+                    (current_next_due.isoformat(), next_date_str, rt["id"]),
+                )
+
+                # Avancer la date pour la prochaine boucle while
+                current_next_due = next_date
+
+        conn.commit()
+
+    def _calculate_next_date(
+        self, current_date: date, frequency: str, interval: int
+    ) -> date:
+        """Calcule la prochaine date pour une récurrence."""
+        if frequency == "daily":
+            return current_date + timedelta(days=interval)
+        elif frequency == "weekly":
+            return current_date + timedelta(weeks=interval)
+        elif frequency == "monthly":
+            # Ajouter des mois est complexe à cause des nombres de jours variables
+            # Approche simple : le même jour du mois suivant
+            new_month = current_date.month + interval
+            new_year = current_date.year + (new_month - 1) // 12
+            new_month = (new_month - 1) % 12 + 1
+
+            # Gérer le cas où le jour n'existe pas dans le nouveau mois (ex: 31 jan -> fév)
+            last_day_of_month = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+            if new_year % 4 == 0 and (new_year % 100 != 0 or new_year % 400 == 0):
+                last_day_of_month[2] = 29
+
+            new_day = min(current_date.day, last_day_of_month[new_month])
+            return date(new_year, new_month, new_day)
+
+        elif frequency == "yearly":
+            try:
+                return current_date.replace(year=current_date.year + interval)
+            except ValueError:
+                # Gérer le 29 février -> 28 février
+                return current_date.replace(
+                    year=current_date.year + interval, month=2, day=28
+                )
+
+        return current_date  # Fallback
 
     def update_transaction(self, transaction_id: int, **kwargs) -> bool:
         """Met à jour une transaction existante."""

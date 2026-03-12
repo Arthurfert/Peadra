@@ -180,9 +180,13 @@ class PeadraApp:
         self.page.update()
 
     def _open_settings(self, e):
-        """Ouvre la vue des paramètres."""
-        self.current_view_index = 4
-        self._on_navigation_change(4)
+        """Ouvre la vue des paramètres ou la ferme si elle est déjà ouverte."""
+        if self.current_view_index == 4:
+            # Revenir à la vue précédente (stockée dans la navigation)
+            self._on_navigation_change(self.navigation.selected_index)
+        else:
+            self.current_view_index = 4
+            self._on_navigation_change(4)
 
     def _build_header(self) -> ft.Container:
         """Construit l'en-tête de l'application."""

@@ -37,7 +37,14 @@ class TransactionsView:
         self.categories = db.get_all_categories()
 
         offset = len(self.transactions) if append else 0
-        limit = 30 if not load_all else None
+        
+        limit_str = db.get_setting("transactions_display_limit", "30")
+        try:
+            default_limit = int(limit_str) if limit_str else 30
+        except (ValueError, TypeError):
+            default_limit = 30
+            
+        limit = default_limit if not load_all else None
 
         new_tx = db.get_all_transactions(
             limit=limit,

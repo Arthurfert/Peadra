@@ -29,6 +29,7 @@ class ParametersView:
         self.on_export = on_export
         # Charger le mode depuis la base de données
         self.month_mode = db.get_setting("month_mode", "strict") or "strict"
+        self.display_limit = db.get_setting("transactions_display_limit", "30") or "30"
 
     def update_theme(self, is_dark: bool):
         """Met à jour le thème."""
@@ -135,6 +136,27 @@ class ParametersView:
             db.set_setting("month_mode", self.month_mode)
             self.on_data_change()
 
+    def _on_display_limit_change(self, e):
+        """Gère le changement du nombre de transactions affichées."""
+        value = e.control.value
+        if value:
+            # Conserver uniquement les chiffres et ignorer le reste (comme les signes moins ou lettres)
+            clean_value = ''.join(filter(str.isdigit, value))
+            
+            # Si le champ contenait des caractères non numériques, on met à jour la vue avec la version propre
+            if clean_value != value:
+                e.control.value = clean_value
+                e.control.update()
+                
+            if clean_value and int(clean_value) > 0:
+                self.display_limit = clean_value
+                db.set_setting("transactions_display_limit", self.display_limit)
+                
+    def _on_display_limit_blur(self, e):
+        """Met à jour les données seulement quand on a terminé de saisir."""
+        if self.display_limit and int(self.display_limit) > 0:
+            self.on_data_change()
+
     def _on_export_json(self, e):
         """Lance l'export JSON."""
         self.on_export(e, "json")
@@ -226,6 +248,32 @@ class ParametersView:
             ],
         )
 
+        # === Section Transactions ===
+        
+        display_limit_field = ft.TextField(
+            value=self.display_limit,
+            width=80,
+            keyboard_type=ft.KeyboardType.NUMBER,
+            on_change=self._on_display_limit_change,
+            on_blur=self._on_display_limit_blur,
+            on_submit=self._on_display_limit_blur,
+            text_align=ft.TextAlign.RIGHT,
+            content_padding=10,
+        )
+
+        transactions_section = self._build_section_card(
+            "Transactions",
+            ft.Icons.ACCOUNT_BALANCE_WALLET,
+            [
+                self._build_setting_row(
+                    "Display limit",
+                    "Number of transactions loaded by default.",
+                    display_limit_field,
+                ),
+            ],
+        )
+
+
         # === Section Graphiques ===
         month_mode_selector = ft.SegmentedButton(
             selected=[self.month_mode],
@@ -285,6 +333,8 @@ class ParametersView:
                 appearance_section,
                 ft.Container(height=12),
                 data_section,
+                ft.Container(height=12),
+                transactions_section,
                 ft.Container(height=12),
                 charts_section,
             ],

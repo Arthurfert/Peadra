@@ -123,9 +123,41 @@ class ParametersView:
             padding=ft.padding.symmetric(vertical=8, horizontal=4),
         )
 
-    def _on_theme_change(self, e):
-        """Gère le changement de thème."""
-        self.on_toggle_theme(e)
+    def _build_theme_option(self, label: str, image_src: str, is_dark_option: bool) -> ft.Container:
+        """Construit une option de thème cliquable."""
+        is_selected = self.is_dark == is_dark_option
+        border_color = PeadraTheme.ACCENT if is_selected else ft.Colors.with_opacity(0.1, ft.Colors.GREY)
+        
+        def on_click(e):
+            if self.is_dark != is_dark_option:
+                self.on_toggle_theme(e)
+
+        return ft.Container(
+            content=ft.Column(
+                [
+                    ft.Container(
+                        content=ft.Image(
+                            src=image_src,
+                            fit=ft.BoxFit.CONTAIN,
+                        ),
+                        border=ft.border.all(3, border_color),
+                        border_radius=12,
+                        clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+                        ink=True,
+                        on_click=on_click,
+                    ),
+                    ft.Text(
+                        label,
+                        weight=ft.FontWeight.BOLD if is_selected else ft.FontWeight.NORMAL,
+                        color=PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT,
+                    ),
+                ],
+                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=8,
+            ),
+            width=250,
+        )
 
     def _on_month_mode_change(self, e):
         """Gère le changement de mode mois."""
@@ -174,21 +206,26 @@ class ParametersView:
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
 
         # === Section Apparence ===
-        theme_switch = ft.Switch(
-            value=self.is_dark,
-            active_color=PeadraTheme.ACCENT,
-            on_change=self._on_theme_change,
+        theme_options = ft.Row(
+            [
+                self._build_theme_option("Light Theme", "assets/Dashboard_Light.jpg", False),
+                self._build_theme_option("Dark Theme", "assets/Dashboard.jpg", True),
+            ],
+            spacing=20,
+            alignment=ft.MainAxisAlignment.START,
         )
 
         appearance_section = self._build_section_card(
             "Appearance",
             ft.Icons.PALETTE_OUTLINED,
             [
-                self._build_setting_row(
-                    "Dark mode",
-                    "Switch between light and dark theme.",
-                    theme_switch,
+                ft.Text(
+                    "Choose your preferred theme.",
+                    size=15,
+                    color=ft.Colors.GREY,
                 ),
+                ft.Container(height=8),
+                theme_options,
             ],
         )
 

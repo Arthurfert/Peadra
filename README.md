@@ -34,9 +34,12 @@ Peadra (*"wealth" in Breton*) is a desktop application designed to help you trac
 
 ## Install
 
-|                  OS                 |                 Installer file                |
-| :---------------------------------: | :-------------------------------------------: |
-|                Windows              |  [PeadraSetup.exe](installer/PeadraSetup.exe) |
+Download your installer :
+
+|                  OS                 |                    Installer file                   |
+| :---------------------------------: | :-------------------------------------------------: |
+|                Windows              |  [PeadraSetup.exe](installer/PeadraV1.0.exe)        |
+|                 Linux               |  [Peadra.tar.gz](installer/Peadra-linux-1.0.tar.xz) |
 
 For developers, please refer to [the install tutorial](./INSTALLATION.md).
 

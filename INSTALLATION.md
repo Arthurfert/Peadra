@@ -12,8 +12,6 @@ git clone https://github.com/Arthurfert/Peadra.git
 cd Peadra
 ```
 
-**Next steps are for developers, go to `build` to have the App**
-
 2. Create a virtual environment (*recommended*):
 ```bash
 python -m venv venv
@@ -38,7 +36,7 @@ python main.py
 
 # Build
 
-Building the project means creating an app on your OS, like all the one you usually use, and not having to run the code from your IDE. **You need to install the project before.**
+**You need to install the project before.**
 
 ## Windows
 

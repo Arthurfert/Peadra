@@ -173,3 +173,6 @@ Thumbs.db
 
 # CSV test files
 *.csv
+
+# Build scripts
+*.iss

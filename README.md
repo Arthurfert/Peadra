@@ -34,9 +34,11 @@ Peadra (*"wealth" in Breton*) is a desktop application designed to help you trac
 
 ## Install
 
-To install the project on your machine, go to [the install tutorial](./INSTALLATION.md).
+|                  OS                 |                 Installer file                |
+| :---------------------------------: | :-------------------------------------------: |
+|                Windows              |  [PeadraSetup.exe](installer/PeadraSetup.exe) |
 
-An installer will be implemented later.
+For developers, please refer to [the install tutorial](./INSTALLATION.md).
 
 ## Project Structure
 

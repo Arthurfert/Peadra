@@ -33,6 +33,7 @@ class SubscriptionsView:
     def _load_data(self):
         self.recurring_transactions = db.get_recurring_transactions()
         self.categories = db.get_all_categories()
+        self.currency = db.get_setting("currency", "€") or "€"
 
     def _save_transaction(self, data: dict):
         """Met à jour une transaction récurrente."""
@@ -308,7 +309,7 @@ class SubscriptionsView:
                         day_content.append(
                             ft.Container(
                                 content=ft.Text(
-                                    f"{tx['description']} ({tx['amount']} €)",
+                                    f"{tx['description']} ({tx['amount']} {self.currency})",
                                     size=10,
                                     color=ft.Colors.WHITE,
                                     no_wrap=True,
@@ -348,7 +349,9 @@ class SubscriptionsView:
         )
 
     @staticmethod
-    def calculate_projection(tx: Dict[str, Any], today: date) -> tuple[float, str, bool]:
+    def calculate_projection(
+        tx: Dict[str, Any], today: date
+    ) -> tuple[float, str, bool]:
         """Calcule la projection financière d'une transaction récurrente pour l'année en cours."""
         year = today.year
         start_of_year = date(year, 1, 1)
@@ -373,7 +376,11 @@ class SubscriptionsView:
             try:
                 end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
                 if end_date < start_limit:
-                    return 0.0, "", False  # Date de fin déjà passée avant le début du calcul
+                    return (
+                        0.0,
+                        "",
+                        False,
+                    )  # Date de fin déjà passée avant le début du calcul
                 if end_date <= end_of_year:
                     end_limit = end_date
                     is_total_projection = True
@@ -402,8 +409,10 @@ class SubscriptionsView:
             occ = 0
 
         yearly_total = amount * occ
-        projection_label = "Total projection" if is_total_projection else f"Projection {year}"
-        
+        projection_label = (
+            "Total projection" if is_total_projection else f"Projection {year}"
+        )
+
         return yearly_total, projection_label, True
 
     def _build_list(self) -> ft.Container:
@@ -423,8 +432,10 @@ class SubscriptionsView:
             )
             card_bg = ft.Colors.with_opacity(0.05, color)
 
-            yearly_total, projection_label, is_valid = self.calculate_projection(tx, today)
-            
+            yearly_total, projection_label, is_valid = self.calculate_projection(
+                tx, today
+            )
+
             if not is_valid:
                 continue
 
@@ -446,13 +457,13 @@ class SubscriptionsView:
                             alignment=ft.MainAxisAlignment.START,
                         ),
                         ft.Text(
-                            f"{tx.get('amount', 0.0):.2f} €",
+                            f"{tx.get('amount', 0.0):.2f} {self.currency}",
                             color=color,
                             weight=ft.FontWeight.BOLD,
                             size=24,
                         ),
                         ft.Text(
-                            f"{projection_label}: {yearly_total:.2f} €",
+                            f"{projection_label}: {yearly_total:.2f} {self.currency}",
                             color=ft.Colors.with_opacity(0.7, text_color),
                             size=11,
                             italic=True,

@@ -48,6 +48,7 @@ class DashboardView:
             self.chart_container_main.update()
 
     def _load_data(self):
+        self.currency = db.get_setting("currency", "€") or "€"
         # Now reflects Bank Balance
         self.total_patrimony = db.get_total_patrimony()
         self.balance = db.get_balance()
@@ -240,7 +241,7 @@ class DashboardView:
                         [
                             ft.Text(title, size=14, color=ft.Colors.GREY_500),
                             ft.Text(
-                                f"€{value:,.2f}",
+                                f"{value:,.2f} {self.currency}",
                                 size=24,
                                 weight=ft.FontWeight.BOLD,
                                 color=text_color,
@@ -746,7 +747,9 @@ class DashboardView:
                 radius = 50 if is_touched else 40
 
                 # Show title (amount) only if touched
-                section_title = f"{item['value']:.0f}€" if is_touched else ""
+                section_title = (
+                    f"{item['value']:.0f}{self.currency}" if is_touched else ""
+                )
 
                 sections.append(
                     fch.PieChartSection(

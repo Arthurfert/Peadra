@@ -35,9 +35,17 @@ class TransactionsView:
     def _load_data(self, append: bool = False, load_all: bool = False):
         """Charge les données."""
         self.categories = db.get_all_categories()
+        self.currency = db.get_setting("currency", "€") or "€"
 
         offset = len(self.transactions) if append else 0
-        limit = 30 if not load_all else None
+
+        limit_str = db.get_setting("transactions_display_limit", "30")
+        try:
+            default_limit = int(limit_str) if limit_str else 30
+        except (ValueError, TypeError):
+            default_limit = 30
+
+        limit = default_limit if not load_all else None
 
         new_tx = db.get_all_transactions(
             limit=limit,
@@ -638,7 +646,7 @@ class TransactionsView:
                         # Amount
                         ft.Container(
                             ft.Text(
-                                f"{amount_prefix}€{t['amount']:,.2f}",
+                                f"{amount_prefix}{t['amount']:,.2f} {self.currency}",
                                 weight=ft.FontWeight.BOLD,
                                 color=amount_color,
                                 text_align=ft.TextAlign.RIGHT,

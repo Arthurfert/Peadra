@@ -2,8 +2,8 @@ from datetime import date
 import pytest
 from src.views.subscriptions import SubscriptionsView
 
-class TestSubscriptionsViewProjections:
 
+class TestSubscriptionsViewProjections:
     def test_calculate_projection_monthly_full_year(self):
         """Test pour une transaction existant sur toute l'année (pas de date de fin ou fin > fin d'année, début < début d'année)."""
         tx = {
@@ -14,9 +14,11 @@ class TestSubscriptionsViewProjections:
             # pas de end_date
         }
         today = date(2026, 3, 6)
-        
-        yearly_total, label, is_valid = SubscriptionsView.calculate_projection(tx, today)
-        
+
+        yearly_total, label, is_valid = SubscriptionsView.calculate_projection(
+            tx, today
+        )
+
         assert is_valid is True
         assert label == "Projection 2026"
         assert yearly_total == 240.0
@@ -30,9 +32,11 @@ class TestSubscriptionsViewProjections:
             "start_date": "2026-02-15",
         }
         today = date(2026, 3, 6)
-        
-        yearly_total, label, is_valid = SubscriptionsView.calculate_projection(tx, today)
-        
+
+        yearly_total, label, is_valid = SubscriptionsView.calculate_projection(
+            tx, today
+        )
+
         assert is_valid is True
         assert label == "Projection 2026"
         # 11 mois allant de février à décembre
@@ -45,12 +49,14 @@ class TestSubscriptionsViewProjections:
             "frequency": "monthly",
             "interval": 1,
             "start_date": "2026-01-01",
-            "end_date": "2026-06-30"
+            "end_date": "2026-06-30",
         }
         today = date(2026, 3, 6)
-        
-        yearly_total, label, is_valid = SubscriptionsView.calculate_projection(tx, today)
-        
+
+        yearly_total, label, is_valid = SubscriptionsView.calculate_projection(
+            tx, today
+        )
+
         assert is_valid is True
         assert label == "Total projection"
         # De janvier à juin -> 6 mois * 10€ = 60€
@@ -63,12 +69,14 @@ class TestSubscriptionsViewProjections:
             "frequency": "monthly",
             "interval": 1,
             "start_date": "2024-01-01",
-            "end_date": "2025-12-31" # Fini l'an dernier
+            "end_date": "2025-12-31",  # Fini l'an dernier
         }
         today = date(2026, 3, 6)
-        
-        yearly_total, label, is_valid = SubscriptionsView.calculate_projection(tx, today)
-        
+
+        yearly_total, label, is_valid = SubscriptionsView.calculate_projection(
+            tx, today
+        )
+
         assert is_valid is False
         assert yearly_total == 0.0
 
@@ -77,13 +85,15 @@ class TestSubscriptionsViewProjections:
         tx = {
             "amount": 5.0,
             "frequency": "weekly",
-            "interval": 2, # Toutes les 2 semaines
+            "interval": 2,  # Toutes les 2 semaines
             "start_date": "2026-01-01",
         }
         today = date(2026, 3, 6)
-        
-        yearly_total, label, is_valid = SubscriptionsView.calculate_projection(tx, today)
-        
+
+        yearly_total, label, is_valid = SubscriptionsView.calculate_projection(
+            tx, today
+        )
+
         assert is_valid is True
         assert label == "Projection 2026"
         # (365 jours / (7 * 2)) * 5€ = approx 26 occurrences = 130.35

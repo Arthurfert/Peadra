@@ -17,6 +17,7 @@ class AccountsView:
         self.is_dark = is_dark
         self.on_data_change = on_data_change
         self.accounts = []
+        self.currency = db.get_setting("currency", "€") or "€"
 
         # Dialog components
         self.dialog = None
@@ -138,6 +139,7 @@ class AccountsView:
 
     def _load_data(self):
         self.accounts = db.get_categories_with_balances()
+        self.currency = db.get_setting("currency", "€") or "€"
 
     def _open_dialog(self, account: Optional[dict] = None):
         """Ouvre la boîte de dialogue d'ajout/édition."""
@@ -401,7 +403,7 @@ class AccountsView:
                                 color=ft.Colors.GREY_500,
                             ),
                             ft.Text(
-                                f"€{account['balance']:,.2f}",
+                                f"{account['balance']:,.2f} {self.currency}",
                                 size=24,
                                 weight=ft.FontWeight.BOLD,
                                 color=text_color,

@@ -29,6 +29,8 @@ class ParametersView:
         self.on_export = on_export
         # Charger le mode depuis la base de données
         self.month_mode = db.get_setting("month_mode", "strict") or "strict"
+        self.display_limit = db.get_setting("transactions_display_limit", "30") or "30"
+        self.currency = db.get_setting("currency", "€") or "€"
 
     def update_theme(self, is_dark: bool):
         """Met à jour le thème."""
@@ -122,9 +124,51 @@ class ParametersView:
             padding=ft.padding.symmetric(vertical=8, horizontal=4),
         )
 
-    def _on_theme_change(self, e):
-        """Gère le changement de thème."""
-        self.on_toggle_theme(e)
+    def _build_theme_option(
+        self, label: str, image_src: str, is_dark_option: bool
+    ) -> ft.Container:
+        """Construit une option de thème cliquable."""
+        is_selected = self.is_dark == is_dark_option
+        border_color = (
+            PeadraTheme.ACCENT
+            if is_selected
+            else ft.Colors.with_opacity(0.1, ft.Colors.GREY)
+        )
+
+        def on_click(e):
+            if self.is_dark != is_dark_option:
+                self.on_toggle_theme(e)
+
+        return ft.Container(
+            content=ft.Column(
+                [
+                    ft.Container(
+                        content=ft.Image(
+                            src=image_src,
+                            fit=ft.BoxFit.CONTAIN,
+                            border_radius=9,
+                        ),
+                        border=ft.border.all(3, border_color),
+                        border_radius=12,
+                        ink=True,
+                        on_click=on_click,
+                    ),
+                    ft.Text(
+                        label,
+                        weight=ft.FontWeight.BOLD
+                        if is_selected
+                        else ft.FontWeight.NORMAL,
+                        color=PeadraTheme.DARK_TEXT
+                        if self.is_dark
+                        else PeadraTheme.LIGHT_TEXT,
+                    ),
+                ],
+                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=8,
+            ),
+            width=250,
+        )
 
     def _on_month_mode_change(self, e):
         """Gère le changement de mode mois."""
@@ -134,6 +178,33 @@ class ParametersView:
             # Sauvegarder dans la base de données
             db.set_setting("month_mode", self.month_mode)
             self.on_data_change()
+
+    def _on_display_limit_change(self, e):
+        """Gère le changement du nombre de transactions affichées."""
+        value = e.control.value
+        if value:
+            # Conserver uniquement les chiffres et ignorer le reste (comme les signes moins ou lettres)
+            clean_value = "".join(filter(str.isdigit, value))
+
+            # Si le champ contenait des caractères non numériques, on met à jour la vue avec la version propre
+            if clean_value != value:
+                e.control.value = clean_value
+                e.control.update()
+
+            if clean_value and int(clean_value) > 0:
+                self.display_limit = clean_value
+                db.set_setting("transactions_display_limit", self.display_limit)
+
+    def _on_display_limit_blur(self, e):
+        """Met à jour les données seulement quand on a terminé de saisir."""
+        if self.display_limit and int(self.display_limit) > 0:
+            self.on_data_change()
+
+    def _on_currency_change(self, e):
+        """Gère le changement de devise."""
+        self.currency = e.control.value
+        db.set_setting("currency", self.currency)
+        self.on_data_change()
 
     def _on_export_json(self, e):
         """Lance l'export JSON."""
@@ -152,20 +223,45 @@ class ParametersView:
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
 
         # === Section Apparence ===
-        theme_switch = ft.Switch(
-            value=self.is_dark,
-            active_color=PeadraTheme.ACCENT,
-            on_change=self._on_theme_change,
+        theme_options = ft.Row(
+            [
+                self._build_theme_option(
+                    "Light Theme", "assets/Dashboard_Light.jpg", False
+                ),
+                self._build_theme_option("Dark Theme", "assets/Dashboard.jpg", True),
+            ],
+            spacing=20,
+            alignment=ft.MainAxisAlignment.START,
+        )
+
+        currency_dropdown = ft.Dropdown(
+            value=self.currency,
+            options=[
+                ft.dropdown.Option("€", "Euro (€)"),
+                ft.dropdown.Option("$", "US Dollar ($)"),
+                ft.dropdown.Option("£", "Pound Sterling (£)"),
+                ft.dropdown.Option("¥", "Yen (¥)"),
+            ],
+            width=200,
+            on_select=self._on_currency_change,
         )
 
         appearance_section = self._build_section_card(
             "Appearance",
             ft.Icons.PALETTE_OUTLINED,
             [
+                ft.Text(
+                    "Choose your preferred theme.",
+                    size=15,
+                    color=ft.Colors.GREY,
+                ),
+                ft.Container(height=8),
+                theme_options,
+                ft.Container(height=16),
                 self._build_setting_row(
-                    "Dark mode",
-                    "Switch between light and dark theme.",
-                    theme_switch,
+                    "Currency",
+                    "Choose the display currency for the application.",
+                    currency_dropdown,
                 ),
             ],
         )
@@ -222,6 +318,31 @@ class ParametersView:
                     "Export",
                     "Export your data in JSON or CSV format.",
                     ft.Row([export_json_btn, export_csv_btn], spacing=10),
+                ),
+            ],
+        )
+
+        # === Section Transactions ===
+
+        display_limit_field = ft.TextField(
+            value=self.display_limit,
+            width=80,
+            keyboard_type=ft.KeyboardType.NUMBER,
+            on_change=self._on_display_limit_change,
+            on_blur=self._on_display_limit_blur,
+            on_submit=self._on_display_limit_blur,
+            text_align=ft.TextAlign.RIGHT,
+            content_padding=10,
+        )
+
+        transactions_section = self._build_section_card(
+            "Transactions",
+            ft.Icons.ACCOUNT_BALANCE_WALLET,
+            [
+                self._build_setting_row(
+                    "Display limit",
+                    "Number of transactions loaded by default.",
+                    display_limit_field,
                 ),
             ],
         )
@@ -285,6 +406,8 @@ class ParametersView:
                 appearance_section,
                 ft.Container(height=12),
                 data_section,
+                ft.Container(height=12),
+                transactions_section,
                 ft.Container(height=12),
                 charts_section,
             ],

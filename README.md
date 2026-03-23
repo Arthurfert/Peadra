@@ -24,7 +24,7 @@ Peadra (*"wealth" in Breton*) is a desktop application designed to help you trac
 - View recurring transactions and subscriptions
 - Import data from CSV files, export in JSON & CSV
 
->To come : more parameters, an installer, and [more](TODO.md) !
+>To come : an installer, and [more](TODO.md) !
 
 ## Technologies
 

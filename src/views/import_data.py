@@ -610,6 +610,9 @@ class ImportDialog:
 
                         amount = float(
                             amount_str.replace("€", "")
+                            .replace("$", "")
+                            .replace("£", "")
+                            .replace("¥", "")
                             .replace(",", ".")
                             .replace(" ", "")
                         )

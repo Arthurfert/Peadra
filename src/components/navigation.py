@@ -37,6 +37,8 @@ class NavigationRailComponent:
         # Récupérer le solde actuel
         total_patrimony = db.get_total_patrimony()
 
+        currency = db.get_setting("currency", "€") or "€"
+
         def nav_item(icon_off, icon_on, label, index):
             is_selected = self.selected_index == index
 
@@ -125,7 +127,7 @@ class NavigationRailComponent:
                                     "Total Assets", size=14, color=ft.Colors.GREY_500
                                 ),
                                 ft.Text(
-                                    f"€{total_patrimony:,.2f}",
+                                    f"{total_patrimony:,.2f} {currency}",
                                     size=24,
                                     weight=ft.FontWeight.BOLD,
                                     color=text_color,

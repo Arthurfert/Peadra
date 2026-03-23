@@ -6,6 +6,7 @@ import flet as ft
 from datetime import datetime
 from typing import Callable, List, Dict, Any, Optional
 from .theme import PeadraTheme
+from ..database.db_manager import db
 
 
 class TransactionModal:
@@ -34,6 +35,7 @@ class TransactionModal:
     def _build_controls(self):
         """Construit les contrôles du formulaire."""
         self.controls_list = []  # Clear previous controls
+        currency = db.get_setting("currency", "€") or "€"
 
         # Date picker
         self.date_picker = ft.TextField(
@@ -61,7 +63,7 @@ class TransactionModal:
 
         # Amount
         self.amount_field = ft.TextField(
-            label="Amount (€)",
+            label=f"Amount ({currency})",
             hint_text="0.00",
             width=150,
             keyboard_type=ft.KeyboardType.NUMBER,
@@ -472,8 +474,10 @@ class TransactionDetailsModal:
             icon = ft.Icons.SWAP_HORIZ
             amount_prefix = ""
 
+        currency = db.get_setting("currency", "€") or "€"
+
         # Amount formatting
-        amount_txt = f"{amount_prefix}€{t['amount']:,.2f}"
+        amount_txt = f"{amount_prefix}{t['amount']:,.2f} {currency}"
 
         # Category info
         full_category = t.get("category_name") or "Uncategorized"

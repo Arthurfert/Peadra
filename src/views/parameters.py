@@ -139,10 +139,10 @@ class ParametersView:
                         content=ft.Image(
                             src=image_src,
                             fit=ft.BoxFit.CONTAIN,
+                            border_radius=9,
                         ),
                         border=ft.border.all(3, border_color),
                         border_radius=12,
-                        clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
                         ink=True,
                         on_click=on_click,
                     ),

@@ -41,7 +41,7 @@ Download your installer :
 |                Windows              |  [PeadraSetup.exe](installer/PeadraV1.0.exe)        |
 |                 Linux               |  [Peadra.tar.gz](installer/Peadra-linux-1.0.tar.xz) |
 
-For developers, please refer to [the install tutorial](./INSTALLATION.md).
+For developers or MacOS users, please refer to [the install tutorial](./INSTALLATION.md).
 
 ## Project Structure
 

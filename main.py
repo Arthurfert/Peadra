@@ -147,10 +147,18 @@ class PeadraApp:
     def _export_data(self, e, format_type: str):
         """Exporte les données."""
         import os
+        import sys
         from datetime import datetime
 
-        # Créer le dossier exports s'il n'existe pas
-        export_dir = "exports"
+        # Obtenir le dossier de l'application
+        executable_name = os.path.basename(sys.executable).lower()
+        if executable_name in ["python.exe", "python", "python3.exe", "python3"]:
+            app_dir = os.path.abspath(os.path.dirname(__file__))
+        else:
+            app_dir = os.path.dirname(sys.executable)
+
+        # Créer le dossier exports s'il n'existe pas dans le dossier de l'application
+        export_dir = os.path.join(app_dir, "exports")
         os.makedirs(export_dir, exist_ok=True)
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

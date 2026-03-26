@@ -27,7 +27,7 @@ def get_app_dir() -> str:
 class DatabaseManager:
     """Gestionnaire de base de données SQLite."""
 
-    def __init__(self, db_path: str|None = None):
+    def __init__(self, db_path: str | None = None):
         if db_path is None:
             # Enregistrer la base de données dans le dossier de l'application
             db_path = os.path.join(get_app_dir(), "peadra.db")

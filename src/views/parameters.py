@@ -28,7 +28,9 @@ class CustomSavePicker:
 
         self.path_text = ft.Text(value=self.current_path, size=12, color=ft.Colors.GREY)
         self.file_list = ft.ListView(expand=True, spacing=2)
-        self.filename_field = ft.TextField(label="File name", expand=True, height=40, text_size=13)
+        self.filename_field = ft.TextField(
+            label="File name", expand=True, height=40, text_size=13
+        )
 
         self.dialog = ft.AlertDialog(
             title=ft.Text("Save As"),
@@ -51,7 +53,9 @@ class CustomSavePicker:
                         ft.Divider(height=1),
                         self.file_list,
                         ft.Divider(height=1),
-                        ft.Row([self.filename_field], alignment=ft.MainAxisAlignment.CENTER),
+                        ft.Row(
+                            [self.filename_field], alignment=ft.MainAxisAlignment.CENTER
+                        ),
                     ],
                     spacing=10,
                 ),
@@ -72,10 +76,12 @@ class CustomSavePicker:
         self.on_cancel()
 
     def _save(self):
-        filename = self.filename_field.value.strip() if self.filename_field.value else "export"
+        filename = (
+            self.filename_field.value.strip() if self.filename_field.value else "export"
+        )
         if not filename.endswith(f".{self.default_extension}"):
             filename += f".{self.default_extension}"
-        
+
         full_path = os.path.join(self.current_path, filename)
         self.dialog.open = False
         self.page.update()
@@ -121,13 +127,17 @@ class CustomSavePicker:
             for file in files:
                 self.file_list.controls.append(
                     ft.ListTile(
-                        leading=ft.Icon(ft.Icons.INSERT_DRIVE_FILE, color=ft.Colors.GREY),
+                        leading=ft.Icon(
+                            ft.Icons.INSERT_DRIVE_FILE, color=ft.Colors.GREY
+                        ),
                         title=ft.Text(file, color=ft.Colors.GREY_400),
                     )
                 )
 
         except Exception as e:
-            self.file_list.controls.append(ft.Text(f"Error accessing directory: {e}", color=ft.Colors.ERROR))
+            self.file_list.controls.append(
+                ft.Text(f"Error accessing directory: {e}", color=ft.Colors.ERROR)
+            )
 
         self.page.update()
 
@@ -164,7 +174,7 @@ class ParametersView:
         self.month_mode = db.get_setting("month_mode", "strict") or "strict"
         self.display_limit = db.get_setting("transactions_display_limit", "30") or "30"
         self.currency = db.get_setting("currency", "€") or "€"
-        
+
         self._pending_export_format = ""
         self.save_picker = CustomSavePicker(
             page=self.page,
@@ -357,15 +367,21 @@ class ParametersView:
         """Lance l'export JSON."""
         self._pending_export_format = "json"
         from datetime import datetime
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.save_picker.open(default_filename=f"peadra_export_{timestamp}", extension="json")
+        self.save_picker.open(
+            default_filename=f"peadra_export_{timestamp}", extension="json"
+        )
 
     def _on_export_csv(self, e):
         """Lance l'export CSV."""
         self._pending_export_format = "csv"
         from datetime import datetime
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.save_picker.open(default_filename=f"peadra_transactions_{timestamp}", extension="csv")
+        self.save_picker.open(
+            default_filename=f"peadra_transactions_{timestamp}", extension="csv"
+        )
 
     def _on_import_csv(self, e):
         """Lance l'import CSV."""

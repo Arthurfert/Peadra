@@ -2,6 +2,8 @@
 Module de gestion de la base de données SQLite pour Peadra.
 """
 
+import os
+import sys
 import sqlite3
 import json
 import csv
@@ -9,10 +11,26 @@ from datetime import datetime, date, timedelta
 from typing import List, Optional, Dict, Any
 
 
+def get_app_dir() -> str:
+    """Retourne le dossier du projet en dev, ou le dossier de l'exécutable en prod."""
+    executable_name = os.path.basename(sys.executable).lower()
+    if executable_name in ["python.exe", "python", "python3.exe", "python3"]:
+        # Mode développement (flet run ou python main.py)
+        # Retourne à la racine du projet qui contient src/ et main.py
+        current = os.path.abspath(os.path.dirname(__file__))
+        return os.path.dirname(os.path.dirname(current))
+    else:
+        # Mode production (exécutable packagé via flet build)
+        return os.path.dirname(sys.executable)
+
+
 class DatabaseManager:
     """Gestionnaire de base de données SQLite."""
 
-    def __init__(self, db_path: str = "peadra.db"):
+    def __init__(self, db_path: str | None = None):
+        if db_path is None:
+            # Enregistrer la base de données dans le dossier de l'application
+            db_path = os.path.join(get_app_dir(), "peadra.db")
         self.db_path = db_path
         self.connection: Optional[sqlite3.Connection] = None
         self._init_database()

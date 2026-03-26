@@ -3,10 +3,153 @@ Vue Paramètres pour Peadra.
 Permet de configurer le thème, l'import/export et le mode de calcul mensuel.
 """
 
+import os
 import flet as ft
-from typing import Callable, Any, cast, List
+from typing import Callable, Any, cast, List, Optional
 from ..components.theme import PeadraTheme
 from ..database import db
+
+
+class CustomSavePicker:
+    """Sélecteur de dossier et nom de fichier personnalisé (Save File)."""
+
+    def __init__(
+        self,
+        page: ft.Page,
+        on_select: Callable[[str], None],
+        on_cancel: Callable[[], None],
+        default_extension: str = "",
+    ):
+        self.page = page
+        self.on_select = on_select
+        self.on_cancel = on_cancel
+        self.default_extension = default_extension
+        self.current_path = os.getcwd()
+
+        self.path_text = ft.Text(value=self.current_path, size=12, color=ft.Colors.GREY)
+        self.file_list = ft.ListView(expand=True, spacing=2)
+        self.filename_field = ft.TextField(
+            label="File name", expand=True, height=40, text_size=13
+        )
+
+        self.dialog = ft.AlertDialog(
+            title=ft.Text("Save As"),
+            content=ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Row(
+                            [
+                                ft.IconButton(
+                                    icon=ft.Icons.ARROW_UPWARD,
+                                    on_click=self._go_up,
+                                    tooltip="Go up",
+                                ),
+                                ft.Container(
+                                    content=self.path_text, expand=True, padding=5
+                                ),
+                            ],
+                            alignment=ft.MainAxisAlignment.START,
+                        ),
+                        ft.Divider(height=1),
+                        self.file_list,
+                        ft.Divider(height=1),
+                        ft.Row(
+                            [self.filename_field], alignment=ft.MainAxisAlignment.CENTER
+                        ),
+                    ],
+                    spacing=10,
+                ),
+                width=600,
+                height=400,
+                padding=10,
+            ),
+            actions=[
+                ft.TextButton("Cancel", on_click=lambda _: self._cancel()),
+                ft.ElevatedButton("Save", on_click=lambda _: self._save()),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+
+    def _cancel(self):
+        self.dialog.open = False
+        self.page.update()
+        self.on_cancel()
+
+    def _save(self):
+        filename = (
+            self.filename_field.value.strip() if self.filename_field.value else "export"
+        )
+        if not filename.endswith(f".{self.default_extension}"):
+            filename += f".{self.default_extension}"
+
+        full_path = os.path.join(self.current_path, filename)
+        self.dialog.open = False
+        self.page.update()
+        self.on_select(full_path)
+
+    def open(self, default_filename: str = "export", extension: str = "csv"):
+        self.default_extension = extension
+        self.filename_field.value = default_filename
+        self._refresh_file_list()
+        self.page.show_dialog(self.dialog)
+        self.page.update()
+
+    def _refresh_file_list(self):
+        self.path_text.value = self.current_path
+        self.file_list.controls.clear()
+
+        try:
+            items = os.listdir(self.current_path)
+            # Sort folders first, then files
+            folders = []
+            files = []
+            for item in items:
+                full_item_path = os.path.join(self.current_path, item)
+                if os.path.isdir(full_item_path):
+                    folders.append(item)
+                else:
+                    files.append(item)
+
+            folders.sort(key=str.lower)
+            files.sort(key=str.lower)
+
+            # Add folders
+            for folder in folders:
+                self.file_list.controls.append(
+                    ft.ListTile(
+                        leading=ft.Icon(ft.Icons.FOLDER, color=ft.Colors.AMBER),
+                        title=ft.Text(folder),
+                        on_click=lambda e, f=folder: self._navigate(f),
+                    )
+                )
+
+            # Add files (just for viewing)
+            for file in files:
+                self.file_list.controls.append(
+                    ft.ListTile(
+                        leading=ft.Icon(
+                            ft.Icons.INSERT_DRIVE_FILE, color=ft.Colors.GREY
+                        ),
+                        title=ft.Text(file, color=ft.Colors.GREY_400),
+                    )
+                )
+
+        except Exception as e:
+            self.file_list.controls.append(
+                ft.Text(f"Error accessing directory: {e}", color=ft.Colors.ERROR)
+            )
+
+        self.page.update()
+
+    def _navigate(self, folder_name: str):
+        self.current_path = os.path.join(self.current_path, folder_name)
+        self._refresh_file_list()
+
+    def _go_up(self, _):
+        parent = os.path.dirname(self.current_path)
+        if parent and parent != self.current_path:
+            self.current_path = parent
+            self._refresh_file_list()
 
 
 class ParametersView:
@@ -31,6 +174,20 @@ class ParametersView:
         self.month_mode = db.get_setting("month_mode", "strict") or "strict"
         self.display_limit = db.get_setting("transactions_display_limit", "30") or "30"
         self.currency = db.get_setting("currency", "€") or "€"
+
+        self._pending_export_format = ""
+        self.save_picker = CustomSavePicker(
+            page=self.page,
+            on_select=self._on_save_file_selected,
+            on_cancel=self._on_save_picker_cancel,
+        )
+
+    def _on_save_file_selected(self, file_path: str):
+        if self._pending_export_format:
+            self.on_export(self._pending_export_format, file_path)
+
+    def _on_save_picker_cancel(self):
+        pass
 
     def update_theme(self, is_dark: bool):
         """Met à jour le thème."""
@@ -208,11 +365,23 @@ class ParametersView:
 
     def _on_export_json(self, e):
         """Lance l'export JSON."""
-        self.on_export(e, "json")
+        self._pending_export_format = "json"
+        from datetime import datetime
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.save_picker.open(
+            default_filename=f"peadra_export_{timestamp}", extension="json"
+        )
 
     def _on_export_csv(self, e):
         """Lance l'export CSV."""
-        self.on_export(e, "csv")
+        self._pending_export_format = "csv"
+        from datetime import datetime
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.save_picker.open(
+            default_filename=f"peadra_transactions_{timestamp}", extension="csv"
+        )
 
     def _on_import_csv(self, e):
         """Lance l'import CSV."""

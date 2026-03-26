@@ -144,34 +144,22 @@ class PeadraApp:
 
         self._update_content()
 
-    def _export_data(self, e, format_type: str):
+    def _export_data(self, format_type: str, file_path: str):
         """Exporte les données."""
         import os
-        import sys
-        from datetime import datetime
 
-        # Obtenir le dossier de l'application
-        executable_name = os.path.basename(sys.executable).lower()
-        if executable_name in ["python.exe", "python", "python3.exe", "python3"]:
-            app_dir = os.path.abspath(os.path.dirname(__file__))
-        else:
-            app_dir = os.path.dirname(sys.executable)
-
-        # Créer le dossier exports s'il n'existe pas dans le dossier de l'application
-        export_dir = os.path.join(app_dir, "exports")
-        os.makedirs(export_dir, exist_ok=True)
-
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # S'assurer que le dossier parent existe
+        export_dir = os.path.dirname(file_path)
+        if export_dir:
+            os.makedirs(export_dir, exist_ok=True)
 
         if format_type == "json":
-            filepath = os.path.join(export_dir, f"peadra_export_{timestamp}.json")
-            success = db.export_to_json(filepath)
+            success = db.export_to_json(file_path)
         else:
-            filepath = os.path.join(export_dir, f"peadra_transactions_{timestamp}.csv")
-            success = db.export_to_csv(filepath, "transactions")
+            success = db.export_to_csv(file_path, "transactions")
 
         if success:
-            self._show_snackbar(f"Export succeeded : {filepath}", success=True)
+            self._show_snackbar(f"Export succeeded : {file_path}", success=True)
         else:
             self._show_snackbar("Error during export", success=False)
 

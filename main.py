@@ -296,6 +296,8 @@ def main(page: ft.Page):
     """Point d'entrée de l'application Flet."""
     from src.database import db
     app_password_hash = db.get_setting("app_password_hash", "")
+    username = db.get_setting("user_name", "")
+    welcome_str = f"Welcome, {username}" if username else "Peadra"
     
     if app_password_hash:
         def verify_password(e):
@@ -322,7 +324,7 @@ def main(page: ft.Page):
         lock_view = ft.Column(
             controls=[
                 ft.Icon(ft.Icons.LOCK, size=64),
-                ft.Text("Peadra", theme_style=ft.TextThemeStyle.HEADLINE_LARGE, weight=ft.FontWeight.BOLD),
+                ft.Text(welcome_str, theme_style=ft.TextThemeStyle.HEADLINE_LARGE, weight=ft.FontWeight.BOLD),
                 ft.Text("Application locked", theme_style=ft.TextThemeStyle.TITLE_MEDIUM),
                 ft.Container(height=20),
                 pwd_field,

@@ -174,6 +174,7 @@ class ParametersView:
         self.month_mode = db.get_setting("month_mode", "strict") or "strict"
         self.display_limit = db.get_setting("transactions_display_limit", "30") or "30"
         self.currency = db.get_setting("currency", "€") or "€"
+        self.user_name = db.get_setting("user_name", "") or ""
 
         self._pending_export_format = ""
         self.save_picker = CustomSavePicker(
@@ -188,6 +189,17 @@ class ParametersView:
 
     def _on_save_picker_cancel(self):
         pass
+
+    def _on_user_name_change(self, e):
+        """Gère le changement du nom de l'utilisateur."""
+        value = e.control.value
+        if value is not None:
+            self.user_name = value
+            db.set_setting("user_name", self.user_name)
+
+    def _on_user_name_blur(self, e):
+        """Met à jour les données seulement quand on a terminé de saisir."""
+        self.on_data_change()
 
     def update_theme(self, is_dark: bool):
         """Met à jour le thème."""
@@ -423,6 +435,15 @@ class ParametersView:
         """Construit la vue paramètres."""
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
 
+        # === Section Général ===
+        user_name_field = ft.TextField(
+            value=self.user_name,
+            label="User Name",
+            width=250,
+            on_change=self._on_user_name_change,
+            on_blur=self._on_user_name_blur,
+        )
+
         # === Section Apparence ===
         theme_options = ft.Row(
             [
@@ -447,23 +468,39 @@ class ParametersView:
             on_select=self._on_currency_change,
         )
 
-        appearance_section = self._build_section_card(
-            "Appearance",
-            ft.Icons.PALETTE_OUTLINED,
+        general_section = self._build_section_card(
+            "General",
+            ft.Icons.SETTINGS_OUTLINED,
             [
-                ft.Text(
-                    "Choose your preferred theme.",
-                    size=15,
-                    color=ft.Colors.GREY,
+                self._build_setting_row(
+                    "User Name",
+                    "How you want to be un-formally addressed on the app's interfaces.",
+                    user_name_field,
                 ),
-                ft.Container(height=8),
-                theme_options,
-                ft.Container(height=16),
                 self._build_setting_row(
                     "Currency",
                     "Choose the display currency for the application.",
                     currency_dropdown,
                 ),
+                ft.Container(height=8),
+                ft.Column(
+                    [
+                        ft.Text(
+                            "Theme",
+                            size=15,
+                            weight=ft.FontWeight.W_500,
+                            color=text_color,
+                        ),
+                        ft.Text(
+                            "Choose your preferred theme.",
+                            size=12,
+                            color=ft.Colors.GREY,
+                        ),
+                    ],
+                    spacing=2,
+                ),
+                ft.Container(height=8),
+                theme_options,
             ],
         )
 
@@ -650,7 +687,7 @@ class ParametersView:
                     ),
                     margin=ft.margin.only(bottom=20),
                 ),
-                appearance_section,
+                general_section,
                 ft.Container(height=12),
                 data_section,
                 ft.Container(height=12),

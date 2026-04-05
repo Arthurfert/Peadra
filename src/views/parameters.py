@@ -387,6 +387,38 @@ class ParametersView:
         """Lance l'import CSV."""
         self.on_import()
 
+    def _on_save_password(self, e):
+        pwd = self.password_field.value
+        confirm = self.password_confirm_field.value
+        if not pwd:
+            self.password_message.value = "Password cannot be empty"
+            self.password_message.color = ft.Colors.RED
+            self.page.update()
+            return
+        if pwd != confirm:
+            self.password_message.value = "Passwords do not match"
+            self.password_message.color = ft.Colors.RED
+            self.page.update()
+            return
+        import hashlib
+        from src.database import db
+        hashed = hashlib.sha256(pwd.encode()).hexdigest()
+        db.set_setting("app_password_hash", hashed)
+        self.password_message.value = "Password saved"
+        self.password_message.color = ft.Colors.GREEN
+        self.password_field.value = ""
+        self.password_confirm_field.value = ""
+        self.remove_pwd_btn.visible = True
+        self.page.update()
+
+    def _on_remove_password(self, e):
+        from src.database import db
+        db.set_setting("app_password_hash", "")
+        self.password_message.value = "Password removed"
+        self.password_message.color = ft.Colors.GREEN
+        self.remove_pwd_btn.visible = False
+        self.page.update()
+
     def build(self) -> ft.Container:
         """Construit la vue paramètres."""
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
@@ -538,6 +570,52 @@ class ParametersView:
             ),
         )
 
+        # === Section Sécurité ===
+        from src.database import db
+        self.password_field = ft.TextField(
+            password=True, can_reveal_password=True, label="Nouveau", width=180, height=45, text_size=13
+        )
+        self.password_confirm_field = ft.TextField(
+            password=True, can_reveal_password=True, label="Confirmer", width=180, height=45, text_size=13
+        )
+        self.password_message = ft.Text(size=12)
+
+        btn_style = ft.ButtonStyle(
+            padding=ft.padding.symmetric(horizontal=16, vertical=14),
+            shape=ft.RoundedRectangleBorder(radius=8),
+        )
+
+        save_pwd_btn = ft.ElevatedButton(
+            "Enregistrer", 
+            icon=ft.Icons.SAVE_OUTLINED, 
+            on_click=self._on_save_password, 
+            style=btn_style
+        )
+        self.remove_pwd_btn = ft.ElevatedButton(
+            "Supprimer", 
+            icon=ft.Icons.DELETE_OUTLINED, 
+            on_click=self._on_remove_password, 
+            color=ft.Colors.RED, 
+            visible=bool(db.get_setting("app_password_hash")),
+            style=btn_style
+        )
+        
+        security_section = self._build_section_card(
+            "Sécurité",
+            ft.Icons.SECURITY_OUTLINED,
+            [
+                self._build_setting_row(
+                    "Mot de passe",
+                    "Demander un mot de passe à l'ouverture de l'application.",
+                    ft.Column([
+                        ft.Row([self.password_field, self.password_confirm_field], spacing=12),
+                        ft.Row([self.remove_pwd_btn, save_pwd_btn], spacing=12, alignment=ft.MainAxisAlignment.END),
+                        self.password_message
+                    ], spacing=12, horizontal_alignment=ft.CrossAxisAlignment.END)
+                )
+            ]
+        )
+
         charts_section = self._build_section_card(
             "Charts",
             ft.Icons.BAR_CHART_OUTLINED,
@@ -577,6 +655,8 @@ class ParametersView:
                 data_section,
                 ft.Container(height=12),
                 transactions_section,
+                ft.Container(height=12),
+                security_section,
                 ft.Container(height=12),
                 charts_section,
             ],

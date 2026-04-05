@@ -15,10 +15,9 @@ If so, a peer-to-peer encrypted sync may be implemented.
 
 ## In development
 
-- Login page, password
+- Bank API connection
 
 ## Future Improvements & ideas *(by priority)*
 
 - Forcasting & trends
-- Bank API connection
 - Onboarding & tutorial

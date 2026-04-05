@@ -376,3 +376,13 @@ def test_settings_management(db_manager):
     db_manager.set_setting("month_mode", "rolling")
     val = db_manager.get_setting("month_mode")
     assert val == "rolling"
+
+    # 6. App Password Hash
+    db_manager.set_setting("app_password_hash", "123hash456")
+    val = db_manager.get_setting("app_password_hash")
+    assert val == "123hash456"
+
+    # 7. User Name
+    db_manager.set_setting("user_name", "Jean")
+    val = db_manager.get_setting("user_name")
+    assert val == "Jean"

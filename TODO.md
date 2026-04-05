@@ -15,11 +15,9 @@ If so, a peer-to-peer encrypted sync may be implemented.
 
 ## In development
 
-- Fix reported linux bugs
+- Bank API connection
 
 ## Future Improvements & ideas *(by priority)*
 
 - Forcasting & trends
-- Bank API connection
 - Onboarding & tutorial
-- Security : password, encryption ?

@@ -292,8 +292,55 @@ class PeadraApp:
 
 
 def main(page: ft.Page):
+    import hashlib
     """Point d'entrée de l'application Flet."""
-    PeadraApp(page)
+    from src.database import db
+    app_password_hash = db.get_setting("app_password_hash", "")
+    username = db.get_setting("user_name", "")
+    welcome_str = f"Welcome, {username}" if username else "Peadra"
+    
+    if app_password_hash:
+        def verify_password(e):
+            entered_hash = hashlib.sha256(pwd_field.value.encode()).hexdigest()
+            if entered_hash == app_password_hash:
+                page.controls.clear()
+                PeadraApp(page)
+            else:
+                pwd_error.value = "Incorrect password."
+                pwd_field.value = ""
+                _ = pwd_field.focus()
+                page.update()
+
+        pwd_field = ft.TextField(
+            label="Password",
+            password=True,
+            can_reveal_password=True,
+            width=300,
+            on_submit=verify_password
+        )
+        pwd_error = ft.Text(color=ft.Colors.ERROR)
+        submit_btn = ft.Button("Unlock", on_click=verify_password)
+
+        lock_view = ft.Column(
+            controls=[
+                ft.Icon(ft.Icons.LOCK, size=64),
+                ft.Text(welcome_str, theme_style=ft.TextThemeStyle.HEADLINE_LARGE, weight=ft.FontWeight.BOLD),
+                ft.Text("Application locked", theme_style=ft.TextThemeStyle.TITLE_MEDIUM),
+                ft.Container(height=20),
+                pwd_field,
+                pwd_error,
+                submit_btn
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
+        page.vertical_alignment = ft.MainAxisAlignment.CENTER
+        page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
+        page.add(lock_view)
+        page.update()
+    else:
+        PeadraApp(page)
 
 
 if __name__ == "__main__":

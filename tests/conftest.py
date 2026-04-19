@@ -8,6 +8,14 @@ def db_manager(tmp_path):
     # Utiliser un fichier temporaire dans le répertoire tmp_path fourni par pytest
     db_file = tmp_path / "test_peadra.db"
     manager = DatabaseManager(db_path=str(db_file))
+    
+    # Créer un utilisateur de test et le définir comme utilisateur courant
+    # Cela initialise aussi les catégories par défaut
+    manager.register_user("test_user", "test_password")
+    user_id = manager.authenticate_user("test_user", "test_password")
+    if user_id:
+        manager.set_current_user(user_id)
+    
     yield manager
     # Le nettoyage est géré automatiquement par tmp_path,
     # mais on ferme la connexion explicitement

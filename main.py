@@ -59,29 +59,6 @@ class PeadraApp:
             app = PeadraApp(self.page, is_dark_user)
             self.page.update()
 
-        def on_create_account() -> None:
-            """Ouvre le formulaire de création de compte."""
-            # Configurer la page pour le login
-            is_dark_initial = True
-            theme = (
-                PeadraTheme.get_dark_theme()
-                if is_dark_initial
-                else PeadraTheme.get_light_theme()
-            )
-            self.page.theme = theme
-            self.page.theme_mode = (
-                ft.ThemeMode.DARK if is_dark_initial else ft.ThemeMode.LIGHT
-            )
-            self.page.title = "Peadra - Connexion"
-            self.page.vertical_alignment = ft.MainAxisAlignment.CENTER
-            self.page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
-
-            login_view = LoginView(self.page, is_dark_initial, on_login_success)
-            login_container = login_view.build()
-            self.page.controls.clear()
-            self.page.add(login_container)
-            self.page.update()
-
         # Configuration initiale
         is_dark_initial = True
         theme = (
@@ -96,94 +73,20 @@ class PeadraApp:
         self.page.bgcolor = (
             PeadraTheme.DARK_BG if is_dark_initial else PeadraTheme.LIGHT_BG
         )
-        self.page.title = "Peadra - Connexion"
+        self.page.title = "Peadra - Login"
         self.page.vertical_alignment = ft.MainAxisAlignment.CENTER
         self.page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
 
-        # Récupérer la liste des utilisateurs
-        usernames = db.get_all_usernames()
+        # Récupérer la liste des utilisateurs existants
+        existing_users = db.get_all_usernames()
 
-        # Créer les options du dropdown
-        dropdown_options = [ft.dropdown.Option(username) for username in usernames]
-
-        def on_login_click(e) -> None:  # noqa: F841
-            """Gère la connexion."""
-            selected_user = username_dropdown.value
-            password_value = pwd_field.value
-
-            if not selected_user or not password_value:
-                pwd_error.value = (
-                    "Veuillez sélectionner un utilisateur et entrer un mot de passe."
-                )
-                self.page.update()
-                return
-
-            # Authentifier l'utilisateur
-            user_id = db.authenticate_user(selected_user, password_value)
-
-            if user_id is None:
-                pwd_error.value = "Incorrect password."
-                pwd_field.value = ""
-                _ = pwd_field.focus()
-                self.page.update()
-                return
-
-            # Connecter l'utilisateur
-            db.set_current_user(user_id)
-            on_login_success()
-
-        # Créer les contrôles de connexion
-        username_dropdown = ft.Dropdown(
-            label="User",
-            options=dropdown_options,
-            width=300,
-            focused_border_color=PeadraTheme.PRIMARY_LIGHT,
+        # Créer la vue de login avec les utilisateurs existants
+        login_view = LoginView(
+            self.page, is_dark_initial, on_login_success, existing_users
         )
+        login_container = login_view.build()
 
-        pwd_field = ft.TextField(
-            label="Password",
-            password=True,
-            can_reveal_password=True,
-            width=300,
-            on_submit=lambda _: on_login_click(_),
-        )
-        pwd_error = ft.Text(color=ft.Colors.ERROR)
-        login_btn = ft.Button(
-            content=ft.Text("Login"),
-            width=300,
-            height=50,
-            on_click=lambda _: on_login_click(_),
-        )
-        create_btn = ft.TextButton(
-            content=ft.Text("Create an account"), on_click=lambda e: on_create_account()
-        )
-
-        # Construire l'interface de login
-        login_view = ft.Column(
-            controls=[
-                ft.Icon(ft.Icons.LOCK, size=64),
-                ft.Text(
-                    "Peadra",
-                    theme_style=ft.TextThemeStyle.HEADLINE_LARGE,
-                    weight=ft.FontWeight.BOLD,
-                ),
-                ft.Text(
-                    "Financial Asset Tracker", theme_style=ft.TextThemeStyle.TITLE_MEDIUM
-                ),
-                ft.Container(height=20),
-                username_dropdown,
-                pwd_field,
-                pwd_error,
-                ft.Container(height=10),
-                login_btn,
-                create_btn,
-            ],
-            alignment=ft.MainAxisAlignment.CENTER,
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            spacing=12,
-        )
-
-        self.page.add(login_view)
+        self.page.add(login_container)
         self.page.update()
 
     def _setup_page(self):
@@ -461,27 +364,6 @@ def main(page: ft.Page):
         app = PeadraApp(page, is_dark_user)
         page.update()
 
-    def on_create_account() -> None:
-        """Ouvre le formulaire de création de compte."""
-        # Configurer la page pour le login
-        is_dark_initial = True
-        theme = (
-            PeadraTheme.get_dark_theme()
-            if is_dark_initial
-            else PeadraTheme.get_light_theme()
-        )
-        page.theme = theme
-        page.theme_mode = ft.ThemeMode.DARK if is_dark_initial else ft.ThemeMode.LIGHT
-        page.title = "Peadra - Login"
-        page.vertical_alignment = ft.MainAxisAlignment.CENTER
-        page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
-
-        login_view = LoginView(page, is_dark_initial, on_login_success)
-        login_container = login_view.build()
-        page.controls.clear()
-        page.add(login_container)
-        page.update()
-
     # Configuration initiale
     is_dark = True
     theme = PeadraTheme.get_dark_theme() if is_dark else PeadraTheme.get_light_theme()
@@ -499,90 +381,15 @@ def main(page: ft.Page):
     page.vertical_alignment = ft.MainAxisAlignment.CENTER
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
 
-    # Récupérer la liste des utilisateurs
-    usernames = db.get_all_usernames()
+    # Récupérer la liste des utilisateurs existants
+    existing_users = db.get_all_usernames()
 
-    # Créer les options du dropdown
-    dropdown_options = [ft.dropdown.Option(username) for username in usernames]
+    # Créer la vue de login avec les utilisateurs existants
+    # Si aucun utilisateur n'existe, LoginView affichera le mode enregistrement
+    login_view = LoginView(page, is_dark, on_login_success, existing_users)
+    login_container = login_view.build()
 
-    def on_login_click(e) -> None:
-        """Gère la connexion."""
-        selected_user = username_dropdown.value
-        password_value = pwd_field.value
-
-        if not selected_user or not password_value:
-            pwd_error.value = (
-                "Please select a user and enter a password."
-            )
-            page.update()
-            return
-
-        # Authentifier l'utilisateur
-        user_id = db.authenticate_user(selected_user, password_value)
-
-        if user_id is None:
-            pwd_error.value = "Incorrect password."
-            pwd_field.value = ""
-            _ = pwd_field.focus()
-            page.update()
-            return
-
-        # Connecter l'utilisateur
-        db.set_current_user(user_id)
-        on_login_success()
-
-    # Créer les contrôles de connexion
-    username_dropdown = ft.Dropdown(
-        label="User",
-        options=dropdown_options,
-        width=300,
-        focused_border_color=PeadraTheme.PRIMARY_LIGHT,
-    )
-
-    pwd_field = ft.TextField(
-        label="Password",
-        password=True,
-        can_reveal_password=True,
-        width=300,
-        on_submit=lambda _: on_login_click(_),
-    )
-    pwd_error = ft.Text(color=ft.Colors.ERROR)
-    login_btn = ft.Button(
-        content=ft.Text("Login"),
-        width=300,
-        height=50,
-        on_click=lambda _: on_login_click(_),
-    )
-    create_btn = ft.TextButton(
-        content=ft.Text("Create an account"), on_click=lambda e: on_create_account()
-    )
-
-    # Construire l'interface de login
-    login_view = ft.Column(
-        controls=[
-            ft.Icon(ft.Icons.LOCK, size=64),
-            ft.Text(
-                "Peadra",
-                theme_style=ft.TextThemeStyle.HEADLINE_LARGE,
-                weight=ft.FontWeight.BOLD,
-            ),
-            ft.Text(
-                "Financial Asset Tracker", theme_style=ft.TextThemeStyle.TITLE_MEDIUM
-            ),
-            ft.Container(height=20),
-            username_dropdown,
-            pwd_field,
-            pwd_error,
-            ft.Container(height=10),
-            login_btn,
-            create_btn,
-        ],
-        alignment=ft.MainAxisAlignment.CENTER,
-        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-        spacing=12,
-    )
-
-    _ = page.add(login_view)
+    page.add(login_container)
     page.update()
 
 

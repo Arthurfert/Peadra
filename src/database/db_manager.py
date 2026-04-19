@@ -349,6 +349,53 @@ class DatabaseManager:
         cursor.execute("SELECT username FROM users ORDER BY username")
         return [row[0] for row in cursor.fetchall()]
 
+    def get_current_username(self) -> str:
+        """Récupère le username de l'utilisateur actuel."""
+        if not self.user_id:
+            return ""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT username FROM users WHERE id = ?", (self.user_id,))
+        row = cursor.fetchone()
+        return row[0] if row else ""
+
+    def update_username(self, new_username: str) -> bool:
+        """Met à jour le username de l'utilisateur actuel.
+        
+        Args:
+            new_username: Le nouveau nom d'utilisateur
+            
+        Returns:
+            True si la mise à jour réussit
+            
+        Raises:
+            ValueError: Si le nouveau username existe déjà ou si aucun utilisateur n'est défini
+        """
+        if not self.user_id:
+            raise ValueError("No user is currently set.")
+        
+        if not new_username or not new_username.strip():
+            raise ValueError("Username cannot be empty.")
+        
+        new_username = new_username.strip()
+        
+        # Vérifier que le nouveau username n'existe pas
+        if self.user_exists(new_username):
+            raise ValueError(f"Username '{new_username}' already exists.")
+        
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute(
+                "UPDATE users SET username = ? WHERE id = ?",
+                (new_username, self.user_id),
+            )
+            conn.commit()
+            return True
+        except sqlite3.IntegrityError as e:
+            raise ValueError(f"Failed to update username: {str(e)}")
+
     def set_current_user(self, user_id: int):
         """Définit l'utilisateur courant."""
         self.user_id = user_id

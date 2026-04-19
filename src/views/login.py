@@ -269,4 +269,6 @@ class LoginView:
         user_id = db.authenticate_user(username, password)
         if user_id:
             db.set_current_user(user_id)
+            # Auto-remplir le user_name avec le username
+            db.set_setting("user_name", username)
             self.on_login_success()

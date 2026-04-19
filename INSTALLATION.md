@@ -28,11 +28,12 @@ pip install -r requirements.txt # Or requirements-dev.txt for pytests and lintin
 python main.py
 ```
 
+> [!WARNING]
 > For Ubuntu users, you might need to install the following dependencies:
->```bash
->sudo apt install libmpv1
->```
->If it doesn't work, try fixing it with this [stack overflow post](https://stackoverflow.com/questions/78007193/error-while-loading-shared-libraries-libmpv-so-1-cannot-open-shared-object-fil).
+> ```bash
+> sudo apt install libmpv1
+> ```
+> If it doesn't work, try fixing it with this [stack overflow post](https://stackoverflow.com/questions/78007193/error-while-loading-shared-libraries-libmpv-so-1-cannot-open-shared-object-fil).
 
 # Build
 

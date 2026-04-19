@@ -39,7 +39,9 @@ To set up the local development environment:
     ```bash
     pip install -r requirements.txt
     ```
-    *Note: If you are developing, also install test tools via `requirements-dev.txt`.*
+    
+    > [!NOTE]
+    > If you are a developer, also install test tools via `requirements-dev.txt`.*
 
 4.  **Launch the application**:
     ```bash

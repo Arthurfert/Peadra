@@ -20,13 +20,20 @@ def test_auth_system():
 
     # Test 1: Enregistrement d'un nouvel utilisateur
     print("\n1. Test d'enregistrement...")
-    success = db.register_user("test_user", "password123")
-    print(f"   Enregistrement: {'✓ Succès' if success else '✗ Échoué'}")
+    try:
+        success = db.register_user("test_user", "password123")
+        print(f"   Enregistrement: {'✓ Succès' if success else '✗ Échoué'}")
+    except ValueError as e:
+        print(f"   Enregistrement: ✗ Erreur - {e}")
+        return
 
     # Test 2: Essayer d'enregistrer le même utilisateur
     print("\n2. Test de doublon...")
-    duplicate = db.register_user("test_user", "password123")
-    print(f"   Rejet du doublon: {'✓ Succès' if not duplicate else '✗ Échoué'}")
+    try:
+        duplicate = db.register_user("test_user", "password123")
+        print(f"   Rejet du doublon: ✗ Échoué (pas d'exception levée)")
+    except ValueError as e:
+        print(f"   Rejet du doublon: ✓ Succès (exception: {e})")
 
     # Test 3: Authentification correcte
     print("\n3. Test d'authentification correcte...")
@@ -96,10 +103,14 @@ def test_auth_system():
 
     # Test 10: Créer un autre utilisateur
     print("\n10. Test de création d'un deuxième utilisateur...")
-    success2 = db.register_user("autre_user", "motdepasse456")
-    print(
-        f"    Enregistrement du 2e utilisateur: {'✓ Succès' if success2 else '✗ Échoué'}"
-    )
+    try:
+        success2 = db.register_user("autre_user", "motdepasse456")
+        print(
+            f"    Enregistrement du 2e utilisateur: {'✓ Succès' if success2 else '✗ Échoué'}"
+        )
+    except ValueError as e:
+        print(f"    Enregistrement du 2e utilisateur: ✗ Erreur - {e}")
+        return
 
     # Test 11: Vérifier que les données sont isolées
     print("\n11. Test d'isolation des données...")

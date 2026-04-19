@@ -288,10 +288,27 @@ class DatabaseManager:
 
     # ==================== AUTHENTIFICATION ====================
 
+    def user_exists(self, username: str) -> bool:
+        """Vérifie si un nom d'utilisateur existe déjà."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id FROM users WHERE username = ?",
+            (username,),
+        )
+        return cursor.fetchone() is not None
+
     def register_user(self, username: str, password: str) -> bool:
-        """Crée un nouvel utilisateur."""
+        """Crée un nouvel utilisateur.
+        
+        Raises:
+            ValueError: Si le nom d'utilisateur existe déjà ou est invalide.
+        """
         if not username or not password:
-            return False
+            raise ValueError("Username and password are required.")
+
+        if self.user_exists(username):
+            raise ValueError(f"Username '{username}' already exists.")
 
         password_hash = PasswordManager.hash_password(password)
         conn = self._get_connection()
@@ -304,9 +321,8 @@ class DatabaseManager:
             )
             conn.commit()
             return True
-        except sqlite3.IntegrityError:
-            # L'utilisateur existe déjà
-            return False
+        except sqlite3.IntegrityError as e:
+            raise ValueError(f"Failed to register user: {str(e)}")
 
     def authenticate_user(self, username: str, password: str) -> Optional[int]:
         """Authentifie un utilisateur et retourne son ID, ou None si échoué."""

@@ -252,6 +252,11 @@ class LoginView:
             self.page.update()
             return
 
+        if db.user_exists(username):
+            self.error_text.value = f"Username '{username}' already exists."
+            self.page.update()
+            return
+
         # Enregistrer l'utilisateur
         try:
             db.register_user(username, password)

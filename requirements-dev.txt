@@ -4,3 +4,4 @@ pytest
 pytest-cov
 black
 pylint
+PyInstaller

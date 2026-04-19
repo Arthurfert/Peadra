@@ -414,6 +414,7 @@ class ParametersView:
             return
         import hashlib
         from src.database import db
+
         hashed = hashlib.sha256(pwd.encode()).hexdigest()
         db.set_setting("app_password_hash", hashed)
         self.password_message.value = "Password saved"
@@ -425,6 +426,7 @@ class ParametersView:
 
     def _on_remove_password(self, e):
         from src.database import db
+
         db.set_setting("app_password_hash", "")
         self.password_message.value = "Password removed"
         self.password_message.color = ft.Colors.GREEN
@@ -609,11 +611,22 @@ class ParametersView:
 
         # === Section Sécurité ===
         from src.database import db
+
         self.password_field = ft.TextField(
-            password=True, can_reveal_password=True, label="Nouveau", width=180, height=45, text_size=13
+            password=True,
+            can_reveal_password=True,
+            label="Nouveau",
+            width=180,
+            height=45,
+            text_size=13,
         )
         self.password_confirm_field = ft.TextField(
-            password=True, can_reveal_password=True, label="Confirmer", width=180, height=45, text_size=13
+            password=True,
+            can_reveal_password=True,
+            label="Confirmer",
+            width=180,
+            height=45,
+            text_size=13,
         )
         self.password_message = ft.Text(size=12)
 
@@ -623,20 +636,20 @@ class ParametersView:
         )
 
         save_pwd_btn = ft.ElevatedButton(
-            "Enregistrer", 
-            icon=ft.Icons.SAVE_OUTLINED, 
-            on_click=self._on_save_password, 
-            style=btn_style
+            "Enregistrer",
+            icon=ft.Icons.SAVE_OUTLINED,
+            on_click=self._on_save_password,
+            style=btn_style,
         )
         self.remove_pwd_btn = ft.ElevatedButton(
-            "Supprimer", 
-            icon=ft.Icons.DELETE_OUTLINED, 
-            on_click=self._on_remove_password, 
-            color=ft.Colors.RED, 
+            "Supprimer",
+            icon=ft.Icons.DELETE_OUTLINED,
+            on_click=self._on_remove_password,
+            color=ft.Colors.RED,
             visible=bool(db.get_setting("app_password_hash")),
-            style=btn_style
+            style=btn_style,
         )
-        
+
         security_section = self._build_section_card(
             "Sécurité",
             ft.Icons.SECURITY_OUTLINED,
@@ -644,13 +657,24 @@ class ParametersView:
                 self._build_setting_row(
                     "Mot de passe",
                     "Demander un mot de passe à l'ouverture de l'application.",
-                    ft.Column([
-                        ft.Row([self.password_field, self.password_confirm_field], spacing=12),
-                        ft.Row([self.remove_pwd_btn, save_pwd_btn], spacing=12, alignment=ft.MainAxisAlignment.END),
-                        self.password_message
-                    ], spacing=12, horizontal_alignment=ft.CrossAxisAlignment.END)
+                    ft.Column(
+                        [
+                            ft.Row(
+                                [self.password_field, self.password_confirm_field],
+                                spacing=12,
+                            ),
+                            ft.Row(
+                                [self.remove_pwd_btn, save_pwd_btn],
+                                spacing=12,
+                                alignment=ft.MainAxisAlignment.END,
+                            ),
+                            self.password_message,
+                        ],
+                        spacing=12,
+                        horizontal_alignment=ft.CrossAxisAlignment.END,
+                    ),
                 )
-            ]
+            ],
         )
 
         charts_section = self._build_section_card(

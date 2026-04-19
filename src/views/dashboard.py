@@ -944,7 +944,11 @@ class DashboardView:
         )
 
         username = db.get_setting("user_name", "")
-        welcome_text = f"Welcome back, {username}! Here's your financial overview." if username else "Welcome back! Here's your financial overview."
+        welcome_text = (
+            f"Welcome back, {username}! Here's your financial overview."
+            if username
+            else "Welcome back! Here's your financial overview."
+        )
 
         content = ft.Column(
             [

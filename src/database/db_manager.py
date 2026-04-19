@@ -300,7 +300,7 @@ class DatabaseManager:
 
     def register_user(self, username: str, password: str) -> bool:
         """Crée un nouvel utilisateur.
-        
+
         Raises:
             ValueError: Si le nom d'utilisateur existe déjà ou est invalide.
         """
@@ -361,31 +361,31 @@ class DatabaseManager:
 
     def update_username(self, new_username: str) -> bool:
         """Met à jour le username de l'utilisateur actuel.
-        
+
         Args:
             new_username: Le nouveau nom d'utilisateur
-            
+
         Returns:
             True si la mise à jour réussit
-            
+
         Raises:
             ValueError: Si le nouveau username existe déjà ou si aucun utilisateur n'est défini
         """
         if not self.user_id:
             raise ValueError("No user is currently set.")
-        
+
         if not new_username or not new_username.strip():
             raise ValueError("Username cannot be empty.")
-        
+
         new_username = new_username.strip()
-        
+
         # Vérifier que le nouveau username n'existe pas
         if self.user_exists(new_username):
             raise ValueError(f"Username '{new_username}' already exists.")
-        
+
         conn = self._get_connection()
         cursor = conn.cursor()
-        
+
         try:
             cursor.execute(
                 "UPDATE users SET username = ? WHERE id = ?",

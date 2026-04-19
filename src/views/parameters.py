@@ -205,7 +205,7 @@ class ParametersView:
             e.control.value = db.get_current_username()
             self.page.update()
             return
-        
+
         # Vérifier que le nouveau username n'existe pas (autre que l'utilisateur courant)
         current_username = db.get_current_username()
         if new_username != current_username and db.user_exists(new_username):
@@ -213,7 +213,7 @@ class ParametersView:
             e.control.value = current_username
             self.page.update()
             return
-        
+
         # Mettre à jour le username dans la base de données si différent
         if new_username != current_username:
             try:
@@ -697,7 +697,7 @@ class ParametersView:
                         spacing=12,
                         horizontal_alignment=ft.CrossAxisAlignment.END,
                     ),
-                )
+                ),
             ],
         )
 

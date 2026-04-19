@@ -4,10 +4,23 @@ Permet de configurer le thème, l'import/export et le mode de calcul mensuel.
 """
 
 import os
+import sys
 import flet as ft
 from typing import Callable, Any, cast, List, Optional
 from ..components.theme import PeadraTheme
 from ..database import db
+
+
+def get_asset_path(filename: str) -> str:
+    """Retourne le chemin absolu d'un asset."""
+    if getattr(sys, 'frozen', False):
+        # Code exécuté depuis PyInstaller/flet pack
+        base_path = getattr(sys, '_MEIPASS', '')
+    else:
+        # Code en développement
+        base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        base_path = os.path.dirname(base_path)  # Remontée à la racine
+    return os.path.join(base_path, filename)
 
 
 class CustomSavePicker:
@@ -474,9 +487,9 @@ class ParametersView:
         theme_options = ft.Row(
             [
                 self._build_theme_option(
-                    "Light Theme", "assets/Dashboard_Light.jpg", False
+                    "Light Theme", get_asset_path("assets/Dashboard_Light.jpg"), False
                 ),
-                self._build_theme_option("Dark Theme", "assets/Dashboard.jpg", True),
+                self._build_theme_option("Dark Theme", get_asset_path("assets/Dashboard.jpg"), True),
             ],
             spacing=20,
             alignment=ft.MainAxisAlignment.START,

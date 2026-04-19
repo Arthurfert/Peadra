@@ -23,7 +23,7 @@ Peadra (*"wealth" in Breton*) is a desktop application designed to help you trac
 - Add, modify and delete your accounts
 - View recurring transactions and subscriptions
 - Import data from CSV files, export in JSON & CSV
-- Optional password & login
+- Multi accounts & authentification
 
 > A lot of features [to come](TODO.md) !
 
@@ -67,7 +67,8 @@ Peadra/
         └── transactions.py   # Transactions management view
 ```
 
-To learn more about how Peadra works under the hood, please have a look to the [documentation](./DOCUMENTATION.md) !
+> [!NOTE]
+> To learn more about how Peadra works under the hood, please have a look to the [documentation](./DOCUMENTATION.md) !
 
 ## License
 

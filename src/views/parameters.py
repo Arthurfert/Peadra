@@ -170,11 +170,12 @@ class ParametersView:
         self.on_toggle_theme = on_toggle_theme
         self.on_import = on_import
         self.on_export = on_export
+        # Charger le username depuis la base de données
+        self.user_name = db.get_current_username() or ""
         # Charger le mode depuis la base de données
         self.month_mode = db.get_setting("month_mode", "strict") or "strict"
         self.display_limit = db.get_setting("transactions_display_limit", "30") or "30"
         self.currency = db.get_setting("currency", "€") or "€"
-        self.user_name = db.get_setting("user_name", "") or ""
 
         self._pending_export_format = ""
         self.save_picker = CustomSavePicker(
@@ -195,11 +196,34 @@ class ParametersView:
         value = e.control.value
         if value is not None:
             self.user_name = value
-            db.set_setting("user_name", self.user_name)
 
     def _on_user_name_blur(self, e):
-        """Met à jour les données seulement quand on a terminé de saisir."""
-        self.on_data_change()
+        """Met à jour l'username dans la base de données quand on a terminé de saisir."""
+        new_username = self.user_name.strip()
+        if not new_username:
+            # Annuler le changement
+            e.control.value = db.get_current_username()
+            self.page.update()
+            return
+
+        # Vérifier que le nouveau username n'existe pas (autre que l'utilisateur courant)
+        current_username = db.get_current_username()
+        if new_username != current_username and db.user_exists(new_username):
+            # Afficher une erreur et annuler
+            e.control.value = current_username
+            self.page.update()
+            return
+
+        # Mettre à jour le username dans la base de données si différent
+        if new_username != current_username:
+            try:
+                db.update_username(new_username)
+                self.user_name = new_username
+                self.on_data_change()
+            except ValueError:
+                # Annuler le changement
+                e.control.value = current_username
+                self.page.update()
 
     def update_theme(self, is_dark: bool):
         """Met à jour le thème."""
@@ -414,6 +438,7 @@ class ParametersView:
             return
         import hashlib
         from src.database import db
+
         hashed = hashlib.sha256(pwd.encode()).hexdigest()
         db.set_setting("app_password_hash", hashed)
         self.password_message.value = "Password saved"
@@ -425,6 +450,7 @@ class ParametersView:
 
     def _on_remove_password(self, e):
         from src.database import db
+
         db.set_setting("app_password_hash", "")
         self.password_message.value = "Password removed"
         self.password_message.color = ft.Colors.GREEN
@@ -472,11 +498,6 @@ class ParametersView:
             "General",
             ft.Icons.SETTINGS_OUTLINED,
             [
-                self._build_setting_row(
-                    "User Name",
-                    "How you want to be un-formally addressed on the app's interfaces.",
-                    user_name_field,
-                ),
                 self._build_setting_row(
                     "Currency",
                     "Choose the display currency for the application.",
@@ -609,11 +630,22 @@ class ParametersView:
 
         # === Section Sécurité ===
         from src.database import db
+
         self.password_field = ft.TextField(
-            password=True, can_reveal_password=True, label="Nouveau", width=180, height=45, text_size=13
+            password=True,
+            can_reveal_password=True,
+            label="New",
+            width=180,
+            height=45,
+            text_size=13,
         )
         self.password_confirm_field = ft.TextField(
-            password=True, can_reveal_password=True, label="Confirmer", width=180, height=45, text_size=13
+            password=True,
+            can_reveal_password=True,
+            label="Confirm",
+            width=180,
+            height=45,
+            text_size=13,
         )
         self.password_message = ft.Text(size=12)
 
@@ -623,34 +655,50 @@ class ParametersView:
         )
 
         save_pwd_btn = ft.ElevatedButton(
-            "Enregistrer", 
-            icon=ft.Icons.SAVE_OUTLINED, 
-            on_click=self._on_save_password, 
-            style=btn_style
+            "Save",
+            icon=ft.Icons.SAVE_OUTLINED,
+            on_click=self._on_save_password,
+            style=btn_style,
         )
         self.remove_pwd_btn = ft.ElevatedButton(
-            "Supprimer", 
-            icon=ft.Icons.DELETE_OUTLINED, 
-            on_click=self._on_remove_password, 
-            color=ft.Colors.RED, 
+            "Remove",
+            icon=ft.Icons.DELETE_OUTLINED,
+            on_click=self._on_remove_password,
+            color=ft.Colors.RED,
             visible=bool(db.get_setting("app_password_hash")),
-            style=btn_style
+            style=btn_style,
         )
-        
+
         security_section = self._build_section_card(
-            "Sécurité",
+            "Security",
             ft.Icons.SECURITY_OUTLINED,
             [
                 self._build_setting_row(
-                    "Mot de passe",
-                    "Demander un mot de passe à l'ouverture de l'application.",
-                    ft.Column([
-                        ft.Row([self.password_field, self.password_confirm_field], spacing=12),
-                        ft.Row([self.remove_pwd_btn, save_pwd_btn], spacing=12, alignment=ft.MainAxisAlignment.END),
-                        self.password_message
-                    ], spacing=12, horizontal_alignment=ft.CrossAxisAlignment.END)
-                )
-            ]
+                    "User Name",
+                    "Your login username. Changing this will update your account username.",
+                    user_name_field,
+                ),
+                self._build_setting_row(
+                    "Password",
+                    "Require a password to open the application.",
+                    ft.Column(
+                        [
+                            ft.Row(
+                                [self.password_field, self.password_confirm_field],
+                                spacing=12,
+                            ),
+                            ft.Row(
+                                [self.remove_pwd_btn, save_pwd_btn],
+                                spacing=12,
+                                alignment=ft.MainAxisAlignment.END,
+                            ),
+                            self.password_message,
+                        ],
+                        spacing=12,
+                        horizontal_alignment=ft.CrossAxisAlignment.END,
+                    ),
+                ),
+            ],
         )
 
         charts_section = self._build_section_card(

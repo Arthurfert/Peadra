@@ -18,7 +18,7 @@ If so, a peer-to-peer encrypted sync may be implemented.
 
 ## In development
 
-- Multi-accounts
+- Multi-accounts with authentication
 
 ## Future Improvements & ideas *(by priority)*
 

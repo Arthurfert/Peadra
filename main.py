@@ -13,23 +13,15 @@ from src.views.accounts import AccountsView
 from src.views.parameters import ParametersView
 from src.views.subscriptions import SubscriptionsView
 from src.views.import_data import ImportDialog
+from src.views.login import LoginView
 
 
 class PeadraApp:
     """Application principale Peadra."""
 
-    def __init__(self, page: ft.Page):
+    def __init__(self, page: ft.Page, is_dark: bool = True):
         self.page = page
-
-        # Charger le thème depuis la base de données
-        theme_setting = db.get_setting("theme_mode", "dark")
-        self.is_dark = theme_setting == "dark"
-
-        # Traiter les transactions récurrentes au démarrage
-        try:
-            db.process_recurring_transactions()
-        except Exception as e:
-            print(f"Error processing recurring transactions: {e}")
+        self.is_dark = is_dark
 
         self.current_view_index = 0
 
@@ -42,9 +34,64 @@ class PeadraApp:
         # Construire l'interface
         self._build_ui()
 
+    def _logout(self):
+        """Déconnecte l'utilisateur et revient à la vue de login."""
+        self.page.controls.clear()
+
+        # Réinitialiser l'user_id
+        db.user_id = None
+
+        # Afficher la vue de login
+        def on_login_success() -> None:
+            """Callback appelé après une connexion réussie."""
+            # Charger le thème depuis la base de données pour l'utilisateur
+            theme_setting = db.get_setting("theme_mode", "dark")
+            is_dark_user = theme_setting == "dark"
+
+            # Traiter les transactions récurrentes au démarrage
+            try:
+                db.process_recurring_transactions()
+            except Exception as e:
+                print(f"Error processing recurring transactions: {e}")
+
+            # Créer l'application principale
+            self.page.controls.clear()
+            app = PeadraApp(self.page, is_dark_user)
+            self.page.update()
+
+        # Configuration initiale
+        is_dark_initial = True
+        theme = (
+            PeadraTheme.get_dark_theme()
+            if is_dark_initial
+            else PeadraTheme.get_light_theme()
+        )
+        self.page.theme = theme
+        self.page.theme_mode = (
+            ft.ThemeMode.DARK if is_dark_initial else ft.ThemeMode.LIGHT
+        )
+        self.page.bgcolor = (
+            PeadraTheme.DARK_BG if is_dark_initial else PeadraTheme.LIGHT_BG
+        )
+        self.page.title = "Peadra - Login"
+        self.page.vertical_alignment = ft.MainAxisAlignment.CENTER
+        self.page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
+
+        # Récupérer la liste des utilisateurs existants
+        existing_users = db.get_all_usernames()
+
+        # Créer la vue de login avec les utilisateurs existants
+        login_view = LoginView(
+            self.page, is_dark_initial, on_login_success, existing_users
+        )
+        login_container = login_view.build()
+
+        self.page.add(login_container)
+        self.page.update()
+
     def _setup_page(self):
         """Configure la page principale."""
-        self.page.title = "Peadra - Gestion de Patrimoine"
+        self.page.title = "Peadra - Financial Asset Tracker"
         self.page.window.width = 1400
         self.page.window.height = 900
         self.page.window.min_width = 1000
@@ -222,6 +269,12 @@ class PeadraApp:
                         tooltip="Settings",
                         on_click=lambda e: self._open_settings(e),
                     ),
+                    # Bouton logout
+                    ft.IconButton(
+                        icon=ft.Icons.LOGOUT,
+                        tooltip="Logout",
+                        on_click=lambda e: self._logout(),
+                    ),
                 ],
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             ),
@@ -292,55 +345,52 @@ class PeadraApp:
 
 
 def main(page: ft.Page):
-    import hashlib
     """Point d'entrée de l'application Flet."""
-    from src.database import db
-    app_password_hash = db.get_setting("app_password_hash", "")
-    username = db.get_setting("user_name", "")
-    welcome_str = f"Welcome, {username}" if username else "Peadra"
-    
-    if app_password_hash:
-        def verify_password(e):
-            entered_hash = hashlib.sha256(pwd_field.value.encode()).hexdigest()
-            if entered_hash == app_password_hash:
-                page.controls.clear()
-                PeadraApp(page)
-            else:
-                pwd_error.value = "Incorrect password."
-                pwd_field.value = ""
-                _ = pwd_field.focus()
-                page.update()
 
-        pwd_field = ft.TextField(
-            label="Password",
-            password=True,
-            can_reveal_password=True,
-            width=300,
-            on_submit=verify_password
-        )
-        pwd_error = ft.Text(color=ft.Colors.ERROR)
-        submit_btn = ft.Button("Unlock", on_click=verify_password)
+    def on_login_success() -> None:
+        """Callback appelé après une connexion réussie."""
+        # Charger le thème depuis la base de données pour l'utilisateur
+        theme_setting = db.get_setting("theme_mode", "dark")
+        is_dark_user = theme_setting == "dark"
 
-        lock_view = ft.Column(
-            controls=[
-                ft.Icon(ft.Icons.LOCK, size=64),
-                ft.Text(welcome_str, theme_style=ft.TextThemeStyle.HEADLINE_LARGE, weight=ft.FontWeight.BOLD),
-                ft.Text("Application locked", theme_style=ft.TextThemeStyle.TITLE_MEDIUM),
-                ft.Container(height=20),
-                pwd_field,
-                pwd_error,
-                submit_btn
-            ],
-            alignment=ft.MainAxisAlignment.CENTER,
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-        )
+        # Traiter les transactions récurrentes au démarrage
+        try:
+            db.process_recurring_transactions()
+        except Exception as e:
+            print(f"Error processing recurring transactions: {e}")
 
-        page.vertical_alignment = ft.MainAxisAlignment.CENTER
-        page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
-        page.add(lock_view)
+        # Créer l'application principale
+        page.controls.clear()
+        app = PeadraApp(page, is_dark_user)
         page.update()
-    else:
-        PeadraApp(page)
+
+    # Configuration initiale
+    is_dark = True
+    theme = PeadraTheme.get_dark_theme() if is_dark else PeadraTheme.get_light_theme()
+    page.theme = theme
+    page.theme_mode = ft.ThemeMode.DARK if is_dark else ft.ThemeMode.LIGHT
+    page.bgcolor = PeadraTheme.DARK_BG if is_dark else PeadraTheme.LIGHT_BG
+    page.title = "Peadra - Login"
+    page.window.width = 1400
+    page.window.height = 900
+    page.window.min_width = 1000
+    page.window.min_height = 700
+    page.padding = 0
+    page.spacing = 0
+    page.window.icon = "icon.ico"
+    page.vertical_alignment = ft.MainAxisAlignment.CENTER
+    page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
+
+    # Récupérer la liste des utilisateurs existants
+    existing_users = db.get_all_usernames()
+
+    # Créer la vue de login avec les utilisateurs existants
+    # Si aucun utilisateur n'existe, LoginView affichera le mode enregistrement
+    login_view = LoginView(page, is_dark, on_login_success, existing_users)
+    login_container = login_view.build()
+
+    page.add(login_container)
+    page.update()
 
 
 if __name__ == "__main__":

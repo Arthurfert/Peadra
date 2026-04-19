@@ -7,6 +7,7 @@ import sys
 import sqlite3
 import json
 import csv
+import hashlib
 from datetime import datetime, date, timedelta
 from typing import List, Optional, Dict, Any
 
@@ -24,14 +25,29 @@ def get_app_dir() -> str:
         return os.path.dirname(sys.executable)
 
 
+class PasswordManager:
+    """Gestionnaire de mots de passe avec hachage sécurisé."""
+
+    @staticmethod
+    def hash_password(password: str) -> str:
+        """Hache un mot de passe avec SHA-256."""
+        return hashlib.sha256(password.encode()).hexdigest()
+
+    @staticmethod
+    def verify_password(password: str, password_hash: str) -> bool:
+        """Vérifie un mot de passe contre son hash."""
+        return PasswordManager.hash_password(password) == password_hash
+
+
 class DatabaseManager:
     """Gestionnaire de base de données SQLite."""
 
-    def __init__(self, db_path: str | None = None):
+    def __init__(self, db_path: str | None = None, user_id: Optional[int] = None):
         if db_path is None:
             # Enregistrer la base de données dans le dossier de l'application
             db_path = os.path.join(get_app_dir(), "peadra.db")
         self.db_path = db_path
+        self.user_id = user_id  # ID de l'utilisateur actuel
         self.connection: Optional[sqlite3.Connection] = None
         self._init_database()
 
@@ -47,15 +63,30 @@ class DatabaseManager:
         conn = self._get_connection()
         cursor = conn.cursor()
 
+        # Table des utilisateurs
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY,
+                username TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """
+        )
+
         # Table des catégories
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS categories (
                 id INTEGER PRIMARY KEY,
-                name TEXT NOT NULL UNIQUE,
+                user_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
                 type TEXT NOT NULL DEFAULT 'savings' CHECK(type IN ('checking', 'savings')),
                 color TEXT DEFAULT '#1976D2',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, name),
+                FOREIGN KEY (user_id) REFERENCES users(id)
             )
         """
         )
@@ -65,6 +96,7 @@ class DatabaseManager:
             """
             CREATE TABLE IF NOT EXISTS transactions (
                 id INTEGER PRIMARY KEY,
+                user_id INTEGER NOT NULL,
                 date DATE NOT NULL,
                 description TEXT NOT NULL,
                 amount REAL NOT NULL,
@@ -73,6 +105,7 @@ class DatabaseManager:
                 notes TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id),
                 FOREIGN KEY (category_id) REFERENCES categories(id)
             )
         """
@@ -83,9 +116,12 @@ class DatabaseManager:
             """
             CREATE TABLE IF NOT EXISTS imported_files (
                 id INTEGER PRIMARY KEY,
+                user_id INTEGER NOT NULL,
                 file_hash TEXT NOT NULL,
                 filename TEXT,
-                imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, file_hash),
+                FOREIGN KEY (user_id) REFERENCES users(id)
             )
         """
         )
@@ -94,8 +130,12 @@ class DatabaseManager:
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS settings (
-                key TEXT PRIMARY KEY,
-                value TEXT
+                id INTEGER PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                key TEXT NOT NULL,
+                value TEXT,
+                UNIQUE(user_id, key),
+                FOREIGN KEY (user_id) REFERENCES users(id)
             )
         """
         )
@@ -105,6 +145,7 @@ class DatabaseManager:
             """
             CREATE TABLE IF NOT EXISTS recurring_transactions (
                 id INTEGER PRIMARY KEY,
+                user_id INTEGER NOT NULL,
                 description TEXT NOT NULL,
                 amount REAL NOT NULL,
                 category_id INTEGER,
@@ -116,6 +157,7 @@ class DatabaseManager:
                 end_date DATE,
                 last_generated DATE,
                 active BOOLEAN DEFAULT 1,
+                FOREIGN KEY (user_id) REFERENCES users(id),
                 FOREIGN KEY (category_id) REFERENCES categories(id)
             )
         """
@@ -123,16 +165,108 @@ class DatabaseManager:
 
         conn.commit()
 
-        # Insérer les catégories par défaut si elles n'existent pas
-        self._insert_default_categories()
+        # Appliquer les migrations si nécessaire
+        self._apply_migrations()
 
-    def _insert_default_categories(self):
-        """Insère les catégories par défaut uniquement si aucune catégorie n'existe."""
+        # Insérer les catégories par défaut si elles n'existent pas
+        if self.user_id is not None:
+            self._insert_default_categories()
+
+    def _apply_migrations(self):
+        """Applique les migrations nécessaires pour mettre à jour la base de données existante."""
         conn = self._get_connection()
         cursor = conn.cursor()
 
-        # Vérifier s'il y a déjà des catégories
-        cursor.execute("SELECT COUNT(*) FROM categories")
+        # Vérifier si les colonnes user_id existent
+        try:
+            cursor.execute("SELECT user_id FROM categories LIMIT 1")
+        except Exception:
+            # Les colonnes user_id n'existent pas, faire la migration
+            print("Migration: Ajout des colonnes user_id...")
+
+            # Créer un utilisateur par défaut pour les données existantes
+            try:
+                cursor.execute(
+                    "INSERT INTO users (username, password_hash) VALUES (?, ?)",
+                    ("default_user", PasswordManager.hash_password("password")),
+                )
+                conn.commit()
+                default_user_id = cursor.lastrowid
+            except sqlite3.IntegrityError:
+                # L'utilisateur par défaut existe déjà
+                cursor.execute(
+                    "SELECT id FROM users WHERE username = ?", ("default_user",)
+                )
+                result = cursor.fetchone()
+                default_user_id = result[0] if result else 1
+
+            # Ajouter la colonne user_id à categories
+            try:
+                cursor.execute(
+                    "ALTER TABLE categories ADD COLUMN user_id INTEGER DEFAULT ?",
+                    (default_user_id,),
+                )
+                # Ajouter la constraint NOT NULL et UNIQUE après migration
+                conn.commit()
+            except Exception as e:
+                print(f"Note: Categories may already have user_id column: {e}")
+
+            # Ajouter la colonne user_id à transactions
+            try:
+                cursor.execute(
+                    "ALTER TABLE transactions ADD COLUMN user_id INTEGER DEFAULT ?",
+                    (default_user_id,),
+                )
+                conn.commit()
+            except Exception as e:
+                print(f"Note: Transactions may already have user_id column: {e}")
+
+            # Ajouter la colonne user_id à imported_files
+            try:
+                cursor.execute(
+                    "ALTER TABLE imported_files ADD COLUMN user_id INTEGER DEFAULT ?",
+                    (default_user_id,),
+                )
+                conn.commit()
+            except Exception as e:
+                print(f"Note: Imported_files may already have user_id column: {e}")
+
+            # Ajouter la colonne user_id à settings
+            try:
+                cursor.execute(
+                    "ALTER TABLE settings ADD COLUMN user_id INTEGER DEFAULT ?",
+                    (default_user_id,),
+                )
+                conn.commit()
+            except Exception as e:
+                print(f"Note: Settings may already have user_id column: {e}")
+
+            # Ajouter la colonne user_id à recurring_transactions
+            try:
+                cursor.execute(
+                    "ALTER TABLE recurring_transactions ADD COLUMN user_id INTEGER DEFAULT ?",
+                    (default_user_id,),
+                )
+                conn.commit()
+            except Exception as e:
+                print(
+                    f"Note: Recurring_transactions may already have user_id column: {e}"
+                )
+
+            print("Migration complétée!")
+
+    def _insert_default_categories(self):
+        """Insère les catégories par défaut pour l'utilisateur actuel."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        if self.user_id is None:
+            return
+
+        # Vérifier s'il y a déjà des catégories pour cet utilisateur
+        cursor.execute(
+            "SELECT COUNT(*) FROM categories WHERE user_id = ?", (self.user_id,)
+        )
         count = cursor.fetchone()[0]
 
         if count > 0:
@@ -146,19 +280,137 @@ class DatabaseManager:
 
         for name, color, acc_type in default_categories:
             cursor.execute(
-                "INSERT INTO categories (name, color, type) VALUES (?, ?, ?)",
-                (name, color, acc_type),
+                "INSERT INTO categories (user_id, name, color, type) VALUES (?, ?, ?, ?)",
+                (self.user_id, name, color, acc_type),
             )
 
         conn.commit()
 
+    # ==================== AUTHENTIFICATION ====================
+
+    def user_exists(self, username: str) -> bool:
+        """Vérifie si un nom d'utilisateur existe déjà."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id FROM users WHERE username = ?",
+            (username,),
+        )
+        return cursor.fetchone() is not None
+
+    def register_user(self, username: str, password: str) -> bool:
+        """Crée un nouvel utilisateur.
+
+        Raises:
+            ValueError: Si le nom d'utilisateur existe déjà ou est invalide.
+        """
+        if not username or not password:
+            raise ValueError("Username and password are required.")
+
+        if self.user_exists(username):
+            raise ValueError(f"Username '{username}' already exists.")
+
+        password_hash = PasswordManager.hash_password(password)
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute(
+                "INSERT INTO users (username, password_hash) VALUES (?, ?)",
+                (username, password_hash),
+            )
+            conn.commit()
+            return True
+        except sqlite3.IntegrityError as e:
+            raise ValueError(f"Failed to register user: {str(e)}")
+
+    def authenticate_user(self, username: str, password: str) -> Optional[int]:
+        """Authentifie un utilisateur et retourne son ID, ou None si échoué."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, password_hash FROM users WHERE username = ?", (username,)
+        )
+        row = cursor.fetchone()
+
+        if row is None:
+            return None
+
+        user_id, password_hash = row[0], row[1]
+
+        if PasswordManager.verify_password(password, password_hash):
+            return user_id
+        return None
+
+    def get_all_usernames(self) -> List[str]:
+        """Récupère la liste de tous les noms d'utilisateurs."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT username FROM users ORDER BY username")
+        return [row[0] for row in cursor.fetchall()]
+
+    def get_current_username(self) -> str:
+        """Récupère le username de l'utilisateur actuel."""
+        if not self.user_id:
+            return ""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT username FROM users WHERE id = ?", (self.user_id,))
+        row = cursor.fetchone()
+        return row[0] if row else ""
+
+    def update_username(self, new_username: str) -> bool:
+        """Met à jour le username de l'utilisateur actuel.
+
+        Args:
+            new_username: Le nouveau nom d'utilisateur
+
+        Returns:
+            True si la mise à jour réussit
+
+        Raises:
+            ValueError: Si le nouveau username existe déjà ou si aucun utilisateur n'est défini
+        """
+        if not self.user_id:
+            raise ValueError("No user is currently set.")
+
+        if not new_username or not new_username.strip():
+            raise ValueError("Username cannot be empty.")
+
+        new_username = new_username.strip()
+
+        # Vérifier que le nouveau username n'existe pas
+        if self.user_exists(new_username):
+            raise ValueError(f"Username '{new_username}' already exists.")
+
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute(
+                "UPDATE users SET username = ? WHERE id = ?",
+                (new_username, self.user_id),
+            )
+            conn.commit()
+            return True
+        except sqlite3.IntegrityError as e:
+            raise ValueError(f"Failed to update username: {str(e)}")
+
+    def set_current_user(self, user_id: int):
+        """Définit l'utilisateur courant."""
+        self.user_id = user_id
+        # Créer les catégories par défaut si nécessaire
+        self._insert_default_categories()
+
     # ==================== CATÉGORIES ====================
 
     def get_all_categories(self) -> List[Dict[str, Any]]:
-        """Récupère toutes les catégories."""
+        """Récupère toutes les catégories de l'utilisateur."""
         conn = self._get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM categories ORDER BY name")
+        cursor.execute(
+            "SELECT * FROM categories WHERE user_id = ? ORDER BY name", (self.user_id,)
+        )
         return [dict(row) for row in cursor.fetchall()]
 
     def get_categories_with_balances(self) -> List[Dict[str, Any]]:
@@ -173,10 +425,12 @@ class DatabaseManager:
                                      WHEN t.transaction_type = 'expense' THEN -t.amount
                                      ELSE 0 END), 0) AS balance
             FROM categories c
-            LEFT JOIN transactions t ON t.category_id = c.id
+            LEFT JOIN transactions t ON t.category_id = c.id AND t.user_id = ?
+            WHERE c.user_id = ?
             GROUP BY c.id
             ORDER BY c.name
-            """
+            """,
+            (self.user_id, self.user_id),
         )
         return [dict(row) for row in cursor.fetchall()]
 
@@ -184,6 +438,15 @@ class DatabaseManager:
         """Fusionne la catégorie source vers la cible puis supprime la source."""
         conn = self._get_connection()
         cursor = conn.cursor()
+
+        # Vérifier que les deux catégories appartiennent à l'utilisateur actuel
+        cursor.execute(
+            "SELECT user_id FROM categories WHERE id = ? OR id = ?",
+            (source_id, target_id),
+        )
+        rows = cursor.fetchall()
+        if len(rows) != 2 or any(row[0] != self.user_id for row in rows):
+            return False
 
         # Déplacer les transactions
         cursor.execute(
@@ -203,8 +466,8 @@ class DatabaseManager:
         cursor = conn.cursor()
         try:
             cursor.execute(
-                "INSERT INTO categories (name, color, type) VALUES (?, ?, ?)",
-                (name, color, account_type),
+                "INSERT INTO categories (user_id, name, color, type) VALUES (?, ?, ?, ?)",
+                (self.user_id, name, color, account_type),
             )
             conn.commit()
             return cursor.lastrowid or 0
@@ -223,8 +486,11 @@ class DatabaseManager:
         conn = self._get_connection()
         cursor = conn.cursor()
 
-        # 1. Get old name
-        cursor.execute("SELECT name FROM categories WHERE id = ?", (category_id,))
+        # Vérifier que la catégorie appartient à l'utilisateur actuel
+        cursor.execute(
+            "SELECT name FROM categories WHERE id = ? AND user_id = ?",
+            (category_id, self.user_id),
+        )
         row = cursor.fetchone()
         if not row:
             return False
@@ -233,28 +499,32 @@ class DatabaseManager:
         try:
             if account_type:
                 cursor.execute(
-                    "UPDATE categories SET name = ?, color = ?, type = ? WHERE id = ?",
-                    (name, color, account_type, category_id),
+                    "UPDATE categories SET name = ?, color = ?, type = ? WHERE id = ? AND user_id = ?",
+                    (name, color, account_type, category_id, self.user_id),
                 )
             else:
                 cursor.execute(
-                    "UPDATE categories SET name = ?, color = ? WHERE id = ?",
-                    (name, color, category_id),
+                    "UPDATE categories SET name = ?, color = ? WHERE id = ? AND user_id = ?",
+                    (name, color, category_id, self.user_id),
                 )
 
             rows_affected = cursor.rowcount
 
-            # 2. Update transaction descriptions if name changed
+            # Mettre à jour les descriptions de transactions si le nom a changé
             if rows_affected > 0 and old_name != name:
                 # Update 'Transfer to ...'
                 cursor.execute(
-                    "UPDATE transactions SET description = ? WHERE description = ?",
-                    (f"Transfer to {name}", f"Transfer to {old_name}"),
+                    "UPDATE transactions SET description = ? WHERE description = ? AND user_id = ?",
+                    (f"Transfer to {name}", f"Transfer to {old_name}", self.user_id),
                 )
                 # Update 'Transfer from ...'
                 cursor.execute(
-                    "UPDATE transactions SET description = ? WHERE description = ?",
-                    (f"Transfer from {name}", f"Transfer from {old_name}"),
+                    "UPDATE transactions SET description = ? WHERE description = ? AND user_id = ?",
+                    (
+                        f"Transfer from {name}",
+                        f"Transfer from {old_name}",
+                        self.user_id,
+                    ),
                 )
 
             conn.commit()
@@ -273,17 +543,29 @@ class DatabaseManager:
         conn = self._get_connection()
         cursor = conn.cursor()
 
+        # Vérifier que la catégorie appartient à l'utilisateur actuel
+        cursor.execute(
+            "SELECT id FROM categories WHERE id = ? AND user_id = ?",
+            (category_id, self.user_id),
+        )
+        if not cursor.fetchone():
+            return False
+
         if delete_transactions:
             cursor.execute(
-                "DELETE FROM transactions WHERE category_id = ?", (category_id,)
+                "DELETE FROM transactions WHERE category_id = ? AND user_id = ?",
+                (category_id, self.user_id),
             )
         else:
             cursor.execute(
-                "UPDATE transactions SET category_id = NULL WHERE category_id = ?",
-                (category_id,),
+                "UPDATE transactions SET category_id = NULL WHERE category_id = ? AND user_id = ?",
+                (category_id, self.user_id),
             )
 
-        cursor.execute("DELETE FROM categories WHERE id = ?", (category_id,))
+        cursor.execute(
+            "DELETE FROM categories WHERE id = ? AND user_id = ?",
+            (category_id, self.user_id),
+        )
         conn.commit()
         return cursor.rowcount > 0
 
@@ -303,11 +585,12 @@ class DatabaseManager:
         cursor = conn.cursor()
         cursor.execute(
             """
-            INSERT INTO transactions (date, description, amount, transaction_type,
+            INSERT INTO transactions (user_id, date, description, amount, transaction_type,
                                       category_id, notes)
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
             (
+                self.user_id,
                 date,
                 description,
                 amount,
@@ -343,7 +626,7 @@ class DatabaseManager:
                 UPDATE recurring_transactions 
                 SET description = ?, amount = ?, transaction_type = ?, frequency = ?,
                     start_date = ?, interval = ?, category_id = ?, end_date = ?
-                WHERE id = ?
+                WHERE id = ? AND user_id = ?
                 """,
                 (
                     description,
@@ -355,6 +638,7 @@ class DatabaseManager:
                     category_id,
                     end_date,
                     id,
+                    self.user_id,
                 ),
             )
             conn.commit()
@@ -386,12 +670,13 @@ class DatabaseManager:
         cursor.execute(
             """
             INSERT INTO recurring_transactions (
-                description, amount, transaction_type, frequency, 
+                user_id, description, amount, transaction_type, frequency, 
                 interval, start_date, next_due_date, end_date, category_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
+                self.user_id,
                 description,
                 amount,
                 transaction_type,
@@ -407,21 +692,21 @@ class DatabaseManager:
         return cursor.lastrowid or 0
 
     def get_recurring_transactions(self) -> List[Dict[str, Any]]:
-        """Récupère toutes les transactions récurrentes."""
+        """Récupère toutes les transactions récurrentes de l'utilisateur."""
         conn = self._get_connection()
         cursor = conn.cursor()
         query = """
             SELECT r.*, c.name as category_name, c.color as category_color
             FROM recurring_transactions r
             LEFT JOIN categories c ON r.category_id = c.id
-            WHERE r.active = 1
+            WHERE r.active = 1 AND r.user_id = ?
         """
-        cursor.execute(query)
+        cursor.execute(query, (self.user_id,))
         return [dict(row) for row in cursor.fetchall()]
 
     def process_recurring_transactions(self):
         """
-        Vérifie et génère les transactions dues.
+        Vérifie et génère les transactions dues de l'utilisateur actuel.
         À appeler au démarrage de l'application.
         """
         conn = self._get_connection()
@@ -434,9 +719,9 @@ class DatabaseManager:
         cursor.execute(
             """
             SELECT * FROM recurring_transactions 
-            WHERE active = 1 AND next_due_date <= ?
+            WHERE active = 1 AND next_due_date <= ? AND user_id = ?
             """,
-            (today_str,),
+            (today_str, self.user_id),
         )
 
         due_transactions = [dict(row) for row in cursor.fetchall()]
@@ -547,11 +832,13 @@ class DatabaseManager:
         updates["updated_at"] = datetime.now().isoformat()
 
         set_clause = ", ".join([f"{k} = ?" for k in updates.keys()])
-        values = list(updates.values()) + [transaction_id]
+        values = list(updates.values()) + [transaction_id, self.user_id]
 
         conn = self._get_connection()
         cursor = conn.cursor()
-        cursor.execute(f"UPDATE transactions SET {set_clause} WHERE id = ?", values)
+        cursor.execute(
+            f"UPDATE transactions SET {set_clause} WHERE id = ? AND user_id = ?", values
+        )
         conn.commit()
         return cursor.rowcount > 0
 
@@ -559,7 +846,10 @@ class DatabaseManager:
         """Supprime une transaction."""
         conn = self._get_connection()
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM transactions WHERE id = ?", (transaction_id,))
+        cursor.execute(
+            "DELETE FROM transactions WHERE id = ? AND user_id = ?",
+            (transaction_id, self.user_id),
+        )
         conn.commit()
         return cursor.rowcount > 0
 
@@ -568,18 +858,18 @@ class DatabaseManager:
         limit: Optional[int] = None,
         offset: int = 0,
         search_query: str = "",
-        category_ids: Optional[set] = None,
+        category_ids: Optional[set[int]] = None,
     ) -> List[Dict[str, Any]]:
-        """Récupère toutes les transactions."""
+        """Récupère toutes les transactions de l'utilisateur."""
         conn = self._get_connection()
         cursor = conn.cursor()
         query = """
             SELECT t.*, c.name as category_name, c.color as category_color
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
-            WHERE 1=1
+            WHERE t.user_id = ?
         """
-        params = []
+        params: list[int | str | None] = [self.user_id]
 
         if search_query:
             query += " AND (LOWER(t.description) LIKE ? OR LOWER(c.name) LIKE ?)"
@@ -615,10 +905,10 @@ class DatabaseManager:
             SELECT t.*, c.name as category_name, c.color as category_color
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
-            WHERE t.date BETWEEN ? AND ?
+            WHERE t.date BETWEEN ? AND ? AND t.user_id = ?
             ORDER BY t.date DESC
         """,
-            (start_date, end_date),
+            (start_date, end_date, self.user_id),
         )
         return [dict(row) for row in cursor.fetchall()]
 
@@ -626,7 +916,9 @@ class DatabaseManager:
         """Récupère la date de la première transaction."""
         conn = self._get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT MIN(date) FROM transactions")
+        cursor.execute(
+            "SELECT MIN(date) FROM transactions WHERE user_id = ?", (self.user_id,)
+        )
         row = cursor.fetchone()
         return row[0] if row else None
 
@@ -644,8 +936,9 @@ class DatabaseManager:
                                   ELSE 0 END), 0)
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
-            WHERE c.type = 'savings'
-        """
+            WHERE c.type = 'savings' AND t.user_id = ?
+        """,
+            (self.user_id,),
         )
         result = cursor.fetchone()
         return result[0] if result else 0.0
@@ -661,7 +954,9 @@ class DatabaseManager:
                                   WHEN t.transaction_type = 'expense' THEN -t.amount 
                                   ELSE 0 END), 0)
             FROM transactions t
-        """
+            WHERE t.user_id = ?
+        """,
+            (self.user_id,),
         )
         result = cursor.fetchone()
         return result[0] if result else 0.0
@@ -678,8 +973,9 @@ class DatabaseManager:
                                   ELSE 0 END), 0)
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
-            WHERE c.type = 'checking'
-        """
+            WHERE c.type = 'checking' AND t.user_id = ?
+        """,
+            (self.user_id,),
         )
         result = cursor.fetchone()
         return result[0] if result else 0.0
@@ -695,9 +991,9 @@ class DatabaseManager:
                                   WHEN t.transaction_type = 'expense' THEN -t.amount 
                                   ELSE 0 END), 0)
             FROM transactions t
-            WHERE t.date < ?
+            WHERE t.date < ? AND t.user_id = ?
         """,
-            (date_limit,),
+            (date_limit, self.user_id),
         )
         result = cursor.fetchone()
         return result[0] if result else 0.0
@@ -714,9 +1010,9 @@ class DatabaseManager:
                                   ELSE 0 END), 0)
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
-            WHERE t.date < ? AND c.type = 'savings'
+            WHERE t.date < ? AND c.type = 'savings' AND t.user_id = ?
         """,
-            (date_limit,),
+            (date_limit, self.user_id),
         )
         result = cursor.fetchone()
         return result[0] if result else 0.0
@@ -733,9 +1029,9 @@ class DatabaseManager:
                                   ELSE 0 END), 0)
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
-            WHERE t.date < ? AND c.type = 'checking'
+            WHERE t.date < ? AND c.type = 'checking' AND t.user_id = ?
         """,
-            (date_limit,),
+            (date_limit, self.user_id),
         )
         result = cursor.fetchone()
         return result[0] if result else 0.0
@@ -765,9 +1061,9 @@ class DatabaseManager:
                 COALESCE(SUM(CASE WHEN t.transaction_type = 'expense' THEN t.amount ELSE 0 END), 0) as expenses
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
-            WHERE (t.date >= ? AND t.date < ?) AND (c.type = 'checking' OR t.category_id IS NULL)
+            WHERE (t.date >= ? AND t.date < ?) AND (c.type = 'checking' OR t.category_id IS NULL) AND t.user_id = ?
         """,
-            (start_date, end_date),
+            (start_date, end_date, self.user_id),
         )
 
         row = cursor.fetchone()
@@ -779,7 +1075,9 @@ class DatabaseManager:
         cursor = conn.cursor()
 
         # Récupérer les ID des comptes (categories)
-        cursor.execute("SELECT id, name FROM categories")
+        cursor.execute(
+            "SELECT id, name FROM categories WHERE user_id = ?", (self.user_id,)
+        )
         accounts = cursor.fetchall()
 
         distribution = []
@@ -791,9 +1089,9 @@ class DatabaseManager:
                                       WHEN t.transaction_type = 'expense' THEN -t.amount 
                                       ELSE 0 END), 0)
                 FROM transactions t
-                WHERE t.category_id = ?
+                WHERE t.category_id = ? AND t.user_id = ?
                 """,
-                (acc_id,),
+                (acc_id, self.user_id),
             )
             result = cursor.fetchone()
             balance = result[0] if result else 0.0
@@ -819,9 +1117,9 @@ class DatabaseManager:
                 COALESCE(SUM(CASE WHEN t.transaction_type = 'expense' THEN t.amount ELSE 0 END), 0) as expenses
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
-            WHERE (t.date >= ? AND t.date <= ?) AND (c.type = 'checking' OR t.category_id IS NULL)
+            WHERE (t.date >= ? AND t.date <= ?) AND (c.type = 'checking' OR t.category_id IS NULL) AND t.user_id = ?
         """,
-            (start_date, end_date),
+            (start_date, end_date, self.user_id),
         )
 
         row = cursor.fetchone()
@@ -830,7 +1128,7 @@ class DatabaseManager:
     # ==================== EXPORT ====================
 
     def export_to_json(self, filepath: str) -> bool:
-        """Exporte toutes les données en JSON."""
+        """Exporte toutes les données de l'utilisateur en JSON."""
         try:
             data = {
                 "categories": self.get_all_categories(),
@@ -846,7 +1144,7 @@ class DatabaseManager:
             return False
 
     def export_to_csv(self, filepath: str, data_type: str = "transactions") -> bool:
-        """Exporte les données en CSV."""
+        """Exporte les données de l'utilisateur en CSV."""
         try:
             if data_type == "transactions":
                 data = self.get_all_transactions()
@@ -868,11 +1166,12 @@ class DatabaseManager:
     # ==================== IMPORTS ====================
 
     def is_file_imported(self, file_hash: str) -> bool:
-        """Vérifie si un fichier a déjà été importé."""
+        """Vérifie si un fichier a déjà été importé par l'utilisateur."""
         conn = self._get_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT COUNT(*) FROM imported_files WHERE file_hash = ?", (file_hash,)
+            "SELECT COUNT(*) FROM imported_files WHERE file_hash = ? AND user_id = ?",
+            (file_hash, self.user_id),
         )
         return cursor.fetchone()[0] > 0
 
@@ -882,8 +1181,8 @@ class DatabaseManager:
         cursor = conn.cursor()
         try:
             cursor.execute(
-                "INSERT INTO imported_files (file_hash, filename) VALUES (?, ?)",
-                (file_hash, filename),
+                "INSERT INTO imported_files (user_id, file_hash, filename) VALUES (?, ?, ?)",
+                (self.user_id, file_hash, filename),
             )
             conn.commit()
         except Exception as e:
@@ -895,7 +1194,10 @@ class DatabaseManager:
         """Récupère un paramètre depuis la base de données."""
         conn = self._get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
+        cursor.execute(
+            "SELECT value FROM settings WHERE key = ? AND user_id = ?",
+            (key, self.user_id),
+        )
         result = cursor.fetchone()
         return result[0] if result else default
 
@@ -905,8 +1207,8 @@ class DatabaseManager:
         cursor = conn.cursor()
         try:
             cursor.execute(
-                "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-                (key, value),
+                "INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, ?, ?)",
+                (self.user_id, key, value),
             )
             conn.commit()
         except Exception as e:

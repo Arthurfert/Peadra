@@ -176,6 +176,7 @@ class ParametersView:
         on_toggle_theme: Callable,
         on_import: Callable,
         on_export: Callable,
+        on_account_deleted: Optional[Callable] = None,
     ):
         self.page = page
         self.is_dark = is_dark
@@ -183,6 +184,7 @@ class ParametersView:
         self.on_toggle_theme = on_toggle_theme
         self.on_import = on_import
         self.on_export = on_export
+        self.on_account_deleted = on_account_deleted or (lambda: None)
         # Charger le username depuis la base de données
         self.user_name = db.get_current_username() or ""
         # Charger le mode depuis la base de données
@@ -470,6 +472,72 @@ class ParametersView:
         self.remove_pwd_btn.visible = False
         self.page.update()
 
+    def _on_delete_account_click(self, e):
+        """Affiche une boîte de dialogue pour confirmer la suppression du compte."""
+        password_field = ft.TextField(
+            password=True,
+            can_reveal_password=True,
+            label="Password",
+            width=300,
+            height=45,
+        )
+        error_message = ft.Text(size=12, color=ft.Colors.ERROR)
+
+        def on_confirm(_):
+            pwd = password_field.value.strip()
+            if not pwd:
+                error_message.value = "Password is required"
+                self.page.update()
+                return
+
+            # Vérifier le mot de passe et supprimer le compte
+            if db.delete_user_account(pwd):
+                dialog.open = False
+                self.page.update()
+                self.on_account_deleted()
+            else:
+                error_message.value = "Incorrect password"
+                self.page.update()
+
+        def on_cancel(_):
+            dialog.open = False
+            self.page.update()
+
+        dialog = ft.AlertDialog(
+            title=ft.Text("Delete Account", size=20, weight=ft.FontWeight.BOLD),
+            content=ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Text(
+                            "This action is permanent and cannot be undone. All your data, transactions, and categories will be deleted.",
+                            size=14,
+                            color=ft.Colors.ERROR,
+                        ),
+                        ft.Container(height=16),
+                        ft.Text("Enter your password to confirm:", size=13, weight=ft.FontWeight.W_500),
+                        password_field,
+                        error_message,
+                    ],
+                    spacing=12,
+                ),
+                padding=20,
+                width=400,
+                height=220,
+            ),
+            actions=[
+                ft.TextButton("Cancel", on_click=on_cancel),
+                ft.TextButton(
+                    "Delete Account",
+                    on_click=on_confirm,
+                    style=ft.ButtonStyle(color=ft.Colors.RED),
+                ),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+
+        self.page.show_dialog(dialog)
+        self.page.update()
+
     def build(self) -> ft.Container:
         """Construit la vue paramètres."""
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
@@ -726,6 +794,31 @@ class ParametersView:
             ],
         )
 
+        # === Section Danger Zone ===
+        delete_account_btn = ft.ElevatedButton(
+            content="Delete Account",
+            icon=ft.Icons.DELETE_FOREVER,
+            on_click=self._on_delete_account_click,
+            style=ft.ButtonStyle(
+                bgcolor=ft.Colors.RED,
+                color=ft.Colors.WHITE,
+                padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                shape=ft.RoundedRectangleBorder(radius=10),
+            ),
+        )
+
+        danger_section = self._build_section_card(
+            "Danger Zone",
+            ft.Icons.WARNING_ROUNDED,
+            [
+                self._build_setting_row(
+                    "Delete Account",
+                    "Permanently delete your account and all associated data. This action cannot be undone.",
+                    delete_account_btn,
+                ),
+            ],
+        )
+
         # === Layout principal ===
         content = ft.Column(
             [
@@ -757,6 +850,8 @@ class ParametersView:
                 security_section,
                 ft.Container(height=12),
                 charts_section,
+                ft.Container(height=12),
+                danger_section,
             ],
             scroll=ft.ScrollMode.AUTO,
             expand=True,

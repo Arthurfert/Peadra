@@ -134,6 +134,7 @@ class PeadraApp:
             on_toggle_theme=self._toggle_theme,
             on_import=lambda: self.import_dialog.open(),
             on_export=self._export_data,
+            on_account_deleted=self._logout,
         )
         self.views = {
             0: DashboardView(

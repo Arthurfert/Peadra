@@ -1214,6 +1214,81 @@ class DatabaseManager:
         except Exception as e:
             print(f"Erreur sauvegarde paramètre {key}: {str(e)}")
 
+    def delete_user_account(self, password: str) -> bool:
+        """Supprime le compte utilisateur actuel après vérification du mot de passe.
+        
+        Args:
+            password: Le mot de passe de l'utilisateur pour confirmation
+            
+        Returns:
+            True si la suppression réussit, False sinon
+        """
+        if not self.user_id:
+            return False
+        
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        # Récupérer le hash du mot de passe de l'utilisateur
+        cursor.execute(
+            "SELECT password_hash FROM users WHERE id = ?",
+            (self.user_id,)
+        )
+        row = cursor.fetchone()
+        
+        if not row:
+            return False
+        
+        password_hash = row[0]
+        
+        # Vérifier le mot de passe
+        if not PasswordManager.verify_password(password, password_hash):
+            return False
+        
+        try:
+            # Supprimer les transactions
+            cursor.execute(
+                "DELETE FROM transactions WHERE user_id = ?",
+                (self.user_id,)
+            )
+            
+            # Supprimer les catégories
+            cursor.execute(
+                "DELETE FROM categories WHERE user_id = ?",
+                (self.user_id,)
+            )
+            
+            # Supprimer les fichiers importés
+            cursor.execute(
+                "DELETE FROM imported_files WHERE user_id = ?",
+                (self.user_id,)
+            )
+            
+            # Supprimer les paramètres
+            cursor.execute(
+                "DELETE FROM settings WHERE user_id = ?",
+                (self.user_id,)
+            )
+            
+            # Supprimer les transactions récurrentes
+            cursor.execute(
+                "DELETE FROM recurring_transactions WHERE user_id = ?",
+                (self.user_id,)
+            )
+            
+            # Supprimer l'utilisateur
+            cursor.execute(
+                "DELETE FROM users WHERE id = ?",
+                (self.user_id,)
+            )
+            
+            conn.commit()
+            return True
+            
+        except Exception as e:
+            print(f"Erreur lors de la suppression du compte: {str(e)}")
+            return False
+
     def close(self):
         """Ferme la connexion à la base de données."""
         if self.connection:

@@ -220,7 +220,7 @@ class SubscriptionsView:
                                 else None
                             )
                             frequency = tx["frequency"]
-                            interval = tx.get("interval", 1)
+                            interval = max(1, tx.get("interval", 1))
 
                             # Check if date_obj is in valid range
                             if date_obj < start_date or (

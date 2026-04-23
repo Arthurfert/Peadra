@@ -327,6 +327,10 @@ class DashboardView:
         nice_interval = nice_ceil(y_range / 4)
         import math
 
+        # Ensure nice_interval is at least 1 to prevent division by zero
+        if nice_interval <= 0:
+            nice_interval = 1
+
         min_y_patrimony = math.floor(min_y_patrimony / nice_interval) * nice_interval
         max_y_patrimony = math.ceil(max_y_patrimony / nice_interval) * nice_interval
         # Ensure at least the raw data fits

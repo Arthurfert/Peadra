@@ -18,9 +18,14 @@ If so, a peer-to-peer encrypted sync may be implemented.
 
 ## In development
 
-- Multi-accounts with authentication
+- Bug solving
 
 ## Future Improvements & ideas *(by priority)*
 
+- French translation (and maybe other languages)
+- Optional logging
+- Global stats option for pie charts
+- More statistics available (mainly per category)
+- Auto-fill with existing categories when typing it in transactions modals
 - Forcasting & trends
 - Onboarding & tutorial

@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 import calendar
 from ..components.theme import PeadraTheme
 from ..database import db
+from ..i18n import t
 
 
 class DashboardView:
@@ -414,7 +415,7 @@ class DashboardView:
                                 List[ft.Control],
                                 [
                                     ft.Text(
-                                        "Inflows / Outflows",
+                                        t("dash_inflows_outflows"),
                                         size=16,
                                         weight=ft.FontWeight.BOLD,
                                         color=text_color,
@@ -430,7 +431,7 @@ class DashboardView:
                                                     border_radius=5,
                                                 ),
                                                 ft.Text(
-                                                    "Inflows",
+                                                    t("dash_inflows"),
                                                     color=ft.Colors.GREY,
                                                     size=11,
                                                 ),
@@ -442,7 +443,7 @@ class DashboardView:
                                                     border_radius=5,
                                                 ),
                                                 ft.Text(
-                                                    "Outflows",
+                                                    t("dash_outflows"),
                                                     color=ft.Colors.GREY,
                                                     size=11,
                                                 ),
@@ -513,7 +514,7 @@ class DashboardView:
                                 List[ft.Control],
                                 [
                                     ft.Text(
-                                        "Total Assets",
+                                        t("dash_total_assets"),
                                         size=16,
                                         weight=ft.FontWeight.BOLD,
                                         color=text_color,
@@ -529,7 +530,7 @@ class DashboardView:
                                                     border_radius=5,
                                                 ),
                                                 ft.Text(
-                                                    "Total Assets",
+                                                    t("dash_total_assets"),
                                                     color=ft.Colors.GREY,
                                                     size=11,
                                                 ),
@@ -611,7 +612,7 @@ class DashboardView:
                 List[ft.Control],
                 [
                     ft.Text(
-                        "Cash Flow",
+                        t("dash_cash_flow"),
                         size=18,
                         weight=ft.FontWeight.BOLD,
                         color=text_color,
@@ -689,7 +690,7 @@ class DashboardView:
 
             data_points = [{"name": k, "value": v} for k, v in top_items]
             if other_value > 0:
-                data_points.append({"name": "Autres", "value": other_value})
+                data_points.append({"name": t("dash_other"), "value": other_value})
         else:
             data_points = [{"name": k, "value": v} for k, v in sorted_items]
 
@@ -833,20 +834,20 @@ class DashboardView:
 
     def _build_category_chart(self) -> ft.Container:
         return self._build_pie_chart(
-            "This Month Expenses",
+            t("dash_month_expenses"),
             self.category_expenses,
             "touched_index_expenses",
             "expenses_chart_container",
-            "No expenses this month",
+            t("dash_no_expenses"),
         )
 
     def _build_income_distribution_chart(self) -> ft.Container:
         return self._build_pie_chart(
-            "This Month Incomes",
+            t("dash_month_incomes"),
             self.category_incomes,
             "touched_index_income",
             "income_chart_container",
-            "No income this month",
+            t("dash_no_income"),
         )
 
     def _build_account_distribution_chart(self) -> ft.Container:
@@ -862,11 +863,11 @@ class DashboardView:
         data_dict = {d["name"]: d["value"] for d in data}
 
         return self._build_pie_chart(
-            "Assets Distribution",
+            t("dash_assets_distribution"),
             data_dict,
             "touched_index_assets",
             "assets_chart_container",
-            "No assets to display",
+            t("dash_no_assets"),
         )
 
     def build(self) -> ft.Container:
@@ -887,7 +888,7 @@ class DashboardView:
         card_row = ft.Row(
             [
                 self._build_stat_card(
-                    "Current Balance",
+                    t("dash_bank_balance"),
                     self.balance,
                     self.balance_trend,
                     ft.Icons.ACCOUNT_BALANCE_WALLET,
@@ -896,7 +897,7 @@ class DashboardView:
                     "normal",
                 ),
                 self._build_stat_card(
-                    "Income",
+                    t("trans_income"),
                     self.monthly_income,
                     self.income_trend,
                     ft.Icons.TRENDING_UP,
@@ -905,7 +906,7 @@ class DashboardView:
                     "normal",
                 ),
                 self._build_stat_card(
-                    "Expenses",
+                    t("trans_expense"),
                     self.monthly_expenses,
                     self.expenses_trend,
                     ft.Icons.TRENDING_DOWN,
@@ -914,7 +915,7 @@ class DashboardView:
                     "reverse",
                 ),
                 self._build_stat_card(
-                    "Savings Outside",
+                    t("dash_savings"),
                     self.monthly_savings,
                     self.savings_trend,
                     ft.Icons.SAVINGS,
@@ -949,9 +950,9 @@ class DashboardView:
 
         username = db.get_setting("user_name", "")
         welcome_text = (
-            f"Welcome back, {username}! Here's your financial overview."
+            f"{t('dash_welcome')} {username}! {t('dash_overview')}"
             if username
-            else "Welcome back! Here's your financial overview."
+            else f"{t('dash_welcome')} {t('dash_overview')}"
         )
 
         content = ft.Column(
@@ -960,7 +961,7 @@ class DashboardView:
                     content=ft.Column(
                         [
                             ft.Text(
-                                "Dashboard",
+                                t("dash_title"),
                                 size=32,
                                 weight=ft.FontWeight.BOLD,
                                 color=text_color,

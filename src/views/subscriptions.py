@@ -11,6 +11,7 @@ import calendar
 from ..components.theme import PeadraTheme
 from ..components.modals import TransactionModal, TransactionDetailsModal
 from ..database.db_manager import db
+from ..i18n import t
 
 
 class SubscriptionsView:
@@ -77,7 +78,7 @@ class SubscriptionsView:
         conn.commit()
 
         snack = ft.SnackBar(
-            ft.Text("Subscription deleted successfully", color=ft.Colors.WHITE),
+            ft.Text(t("msg_subscription_deleted"), color=ft.Colors.WHITE),
             bgcolor=ft.Colors.GREEN,
         )
         self.page.overlay.append(snack)

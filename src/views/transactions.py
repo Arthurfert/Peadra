@@ -9,6 +9,7 @@ from datetime import datetime
 from ..components.theme import PeadraTheme
 from ..components.modals import TransactionModal, TransactionDetailsModal
 from ..database import db
+from ..i18n import t
 
 
 class TransactionsView:
@@ -119,27 +120,27 @@ class TransactionsView:
             )
 
         dlg = ft.AlertDialog(
-            title=ft.Text("New Transaction", color=text_col),
+            title=ft.Text(t("trans_add_transaction"), color=text_col),
             content=ft.Container(
                 content=ft.Row(
                     [
                         create_option_card(
                             ft.Icons.CREDIT_CARD,
-                            "Expense",
+                            t("trans_expense"),
                             expense_icon_col,
                             expense_bg,
                             select_expense,
                         ),
                         create_option_card(
                             ft.Icons.MONETIZATION_ON,
-                            "Income",
+                            t("trans_income"),
                             income_icon_col,
                             income_bg,
                             select_income,
                         ),
                         create_option_card(
                             ft.Icons.SWAP_HORIZ,
-                            "Transfer",
+                            t("trans_transfer"),
                             transfer_icon_col,
                             transfer_bg,
                             select_transfer,
@@ -152,7 +153,7 @@ class TransactionsView:
                 height=140,
                 padding=10,
             ),
-            actions=[ft.TextButton("Cancel", on_click=close_dlg)],
+            actions=[ft.TextButton(t("btn_cancel"), on_click=close_dlg)],
             actions_alignment=ft.MainAxisAlignment.END,
         )
         self.page.overlay.append(dlg)

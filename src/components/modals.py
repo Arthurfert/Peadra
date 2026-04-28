@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Callable, List, Dict, Any, Optional
 from .theme import PeadraTheme
 from ..database.db_manager import db
+from ..i18n import t
 
 
 class TransactionModal:
@@ -39,7 +40,7 @@ class TransactionModal:
 
         # Date picker
         self.date_picker = ft.TextField(
-            label="Date",
+            label=t("trans_date"),
             value=datetime.now().strftime("%Y-%m-%d"),
             read_only=True,
             width=200,
@@ -55,7 +56,7 @@ class TransactionModal:
             hint = "Ex: Salary, Social Security..."
 
         self.description_field = ft.TextField(
-            label="Description",
+            label=t("trans_description"),
             hint_text=hint,
             width=350,
             autofocus=True,
@@ -63,7 +64,7 @@ class TransactionModal:
 
         # Amount
         self.amount_field = ft.TextField(
-            label=f"Amount ({currency})",
+            label=f"{t('trans_amount')} ({currency})",
             hint_text="0.00",
             width=150,
             keyboard_type=ft.KeyboardType.NUMBER,
@@ -75,7 +76,7 @@ class TransactionModal:
 
         # Recurring
         self.recurring_interval = ft.TextField(
-            label="Every",
+            label=t("trans_every"),
             value="1",
             width=80,
             keyboard_type=ft.KeyboardType.NUMBER,
@@ -83,7 +84,7 @@ class TransactionModal:
         )
 
         self.recurring_freq = ft.Dropdown(
-            label="Frequency",
+            label=t("trans_frequency_label"),
             width=200,
             options=[
                 ft.dropdown.Option("daily", "Days"),
@@ -95,7 +96,7 @@ class TransactionModal:
         )
 
         self.recurring_end_date = ft.TextField(
-            label="End Date (Optional)",
+            label=t("trans_end_date"),
             read_only=True,
             width=200,
             suffix=ft.IconButton(
@@ -115,7 +116,7 @@ class TransactionModal:
         )
 
         self.recurring_switch = ft.Switch(
-            label="Recurring Transaction",
+            label=t("trans_recurring"),
             value=False,
             on_change=lambda e: setattr(
                 self.recurring_container, "visible", e.control.value
@@ -143,12 +144,12 @@ class TransactionModal:
         if self.transaction_type == "transfer":
             # Two dropdowns: Source and Dest
             self.source_dropdown = ft.Dropdown(
-                label="Account Debited (From)",
+                label=t("trans_account_from"),
                 width=350,
                 options=options,
             )
             self.dest_dropdown = ft.Dropdown(
-                label="Account Credited (To)",
+                label=t("trans_account_to"),
                 width=350,
                 options=options,
             )
@@ -164,7 +165,7 @@ class TransactionModal:
 
         else:
             # Single dropdown
-            label = "Account / Category"
+            label = t("trans_category")
             self.category_dropdown = ft.Dropdown(
                 label=label,
                 width=350,
@@ -177,7 +178,7 @@ class TransactionModal:
 
         # Notes
         self.notes_field = ft.TextField(
-            label="Notes (optional)",
+            label=t("trans_notes"),
             hint_text="Additional information...",
             width=350,
             multiline=True,

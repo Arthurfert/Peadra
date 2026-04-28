@@ -386,3 +386,209 @@ def test_settings_management(db_manager):
     db_manager.set_setting("user_name", "Jean")
     val = db_manager.get_setting("user_name")
     assert val == "Jean"
+
+
+# ==========================================
+# Tests Transactions Récurrentes
+# ==========================================
+
+
+def test_get_recurring_transactions_without_display_month(db_manager):
+    """Test que get_recurring_transactions() sans paramètre retourne seulement les transactions actives."""
+    from datetime import date
+    
+    # Ajouter une transaction récurrente active
+    active_id = db_manager.add_recurring_transaction(
+        description="Active Subscription",
+        amount=50.0,
+        transaction_type="expense",
+        frequency="monthly",
+        start_date="2026-01-01",
+        interval=1,
+    )
+    
+    # Ajouter une transaction récurrente inactive avec end_date dans le futur
+    inactive_id = db_manager.add_recurring_transaction(
+        description="Inactive Subscription",
+        amount=30.0,
+        transaction_type="expense",
+        frequency="monthly",
+        start_date="2025-01-01",
+        end_date="2026-02-28",  # Ends in the past
+        interval=1,
+    )
+    
+    # Marquer la deuxième comme inactive
+    conn = db_manager._get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE recurring_transactions SET active = 0 WHERE id = ?", (inactive_id,))
+    conn.commit()
+    
+    # Appel sans display_month : devrait retourner uniquement les transactions actives
+    result = db_manager.get_recurring_transactions()
+    
+    assert len(result) == 1
+    assert result[0]["id"] == active_id
+    assert result[0]["description"] == "Active Subscription"
+
+
+def test_get_recurring_transactions_with_display_month_current(db_manager):
+    """Test que get_recurring_transactions(display_month) retourne les transactions applicables au mois."""
+    from datetime import date
+    
+    # Ajouter une transaction récurrente active
+    active_id = db_manager.add_recurring_transaction(
+        description="Active Subscription",
+        amount=50.0,
+        transaction_type="expense",
+        frequency="monthly",
+        start_date="2026-01-01",
+        interval=1,
+    )
+    
+    # Ajouter une transaction récurrente inactive avec end_date en avril 2026
+    inactive_april_id = db_manager.add_recurring_transaction(
+        description="Old Subscription (April)",
+        amount=30.0,
+        transaction_type="expense",
+        frequency="monthly",
+        start_date="2025-01-01",
+        end_date="2026-04-30",
+        interval=1,
+    )
+    
+    # Marquer comme inactive
+    conn = db_manager._get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE recurring_transactions SET active = 0 WHERE id = ?", (inactive_april_id,))
+    conn.commit()
+    
+    # Appel avec display_month=avril 2026
+    april_2026 = date(2026, 4, 1)
+    result = db_manager.get_recurring_transactions(display_month=april_2026)
+    
+    # Devrait retourner : active + inactive qui s'applique en avril
+    assert len(result) == 2
+    descriptions = [t["description"] for t in result]
+    assert "Active Subscription" in descriptions
+    assert "Old Subscription (April)" in descriptions
+
+
+def test_get_recurring_transactions_with_display_month_past_terminated(db_manager):
+    """Test que les transactions terminées avant le mois ne sont pas retournées."""
+    from datetime import date
+    
+    # Ajouter une transaction récurrente active
+    active_id = db_manager.add_recurring_transaction(
+        description="Active Subscription",
+        amount=50.0,
+        transaction_type="expense",
+        frequency="monthly",
+        start_date="2026-01-01",
+        interval=1,
+    )
+    
+    # Ajouter une transaction récurrente inactive avec end_date en février 2026
+    inactive_feb_id = db_manager.add_recurring_transaction(
+        description="Old Subscription (Feb)",
+        amount=30.0,
+        transaction_type="expense",
+        frequency="monthly",
+        start_date="2025-01-01",
+        end_date="2026-02-28",  # Ends February
+        interval=1,
+    )
+    
+    # Marquer comme inactive
+    conn = db_manager._get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE recurring_transactions SET active = 0 WHERE id = ?", (inactive_feb_id,))
+    conn.commit()
+    
+    # Appel avec display_month=avril 2026 (après février)
+    april_2026 = date(2026, 4, 1)
+    result = db_manager.get_recurring_transactions(display_month=april_2026)
+    
+    # Devrait retourner seulement la transaction active (pas la février)
+    assert len(result) == 1
+    assert result[0]["id"] == active_id
+
+
+def test_get_recurring_transactions_with_display_month_old_past(db_manager):
+    """Test que les transactions applicables à un mois ancien sont retournées même si terminées."""
+    from datetime import date
+    
+    # Ajouter une transaction récurrente active
+    active_id = db_manager.add_recurring_transaction(
+        description="Active Subscription",
+        amount=50.0,
+        transaction_type="expense",
+        frequency="monthly",
+        start_date="2026-01-01",
+        interval=1,
+    )
+    
+    # Ajouter une transaction récurrente inactive avec end_date en février 2026
+    inactive_feb_id = db_manager.add_recurring_transaction(
+        description="Old Subscription (Feb)",
+        amount=30.0,
+        transaction_type="expense",
+        frequency="monthly",
+        start_date="2025-01-01",
+        end_date="2026-02-28",
+        interval=1,
+    )
+    
+    # Marquer comme inactive
+    conn = db_manager._get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE recurring_transactions SET active = 0 WHERE id = ?", (inactive_feb_id,))
+    conn.commit()
+    
+    # Appel avec display_month=février 2026 (au moment où elle se termine)
+    feb_2026 = date(2026, 2, 1)
+    result = db_manager.get_recurring_transactions(display_month=feb_2026)
+    
+    # Devrait retourner : active + inactive qui s'applique en février
+    assert len(result) == 2
+    descriptions = [t["description"] for t in result]
+    assert "Active Subscription" in descriptions
+    assert "Old Subscription (Feb)" in descriptions
+
+
+def test_recurring_transaction_crud(db_manager):
+    """Test des opérations CRUD pour les transactions récurrentes."""
+    from datetime import date
+    
+    # 1. Create
+    tx_id = db_manager.add_recurring_transaction(
+        description="Netflix",
+        amount=12.99,
+        transaction_type="expense",
+        frequency="monthly",
+        start_date="2026-01-01",
+        interval=1,
+        category_id=1,
+    )
+    assert tx_id > 0
+    
+    # 2. Read
+    result = db_manager.get_recurring_transactions()
+    assert len(result) == 1
+    assert result[0]["description"] == "Netflix"
+    
+    # 3. Update
+    success = db_manager.update_recurring_transaction(
+        id=tx_id,
+        description="Netflix Updated",
+        amount=15.99,
+        transaction_type="expense",
+        frequency="monthly",
+        start_date="2026-01-01",
+        interval=1,
+    )
+    assert success is True
+    
+    result = db_manager.get_recurring_transactions()
+    assert result[0]["description"] == "Netflix Updated"
+    assert result[0]["amount"] == 15.99

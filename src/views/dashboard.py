@@ -628,7 +628,7 @@ class DashboardView:
                             ft.Segment(value="3", label=ft.Text("3M")),
                             ft.Segment(value="6", label=ft.Text("6M")),
                             ft.Segment(value="12", label=ft.Text("1Y")),
-                            ft.Segment(value="all", label=ft.Text("All")),
+                            ft.Segment(value="all", label=ft.Text(t("segment_all"))),
                         ],
                         show_selected_icon=False,
                         style=ft.ButtonStyle(

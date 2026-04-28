@@ -691,17 +691,41 @@ class DatabaseManager:
         conn.commit()
         return cursor.lastrowid or 0
 
-    def get_recurring_transactions(self) -> List[Dict[str, Any]]:
-        """Récupère toutes les transactions récurrentes de l'utilisateur."""
+    def get_recurring_transactions(self, display_month: Optional[date] = None) -> List[Dict[str, Any]]:
+        """
+        Récupère les transactions récurrentes de l'utilisateur.
+        
+        Si display_month est fourni, inclut aussi les transactions inactives qui s'appliquent 
+        au mois spécifié (pour afficher les anciennes transactions récurrentes dans le calendrier).
+        """
         conn = self._get_connection()
         cursor = conn.cursor()
-        query = """
-            SELECT r.*, c.name as category_name, c.color as category_color
-            FROM recurring_transactions r
-            LEFT JOIN categories c ON r.category_id = c.id
-            WHERE r.active = 1 AND r.user_id = ?
-        """
-        cursor.execute(query, (self.user_id,))
+        
+        if display_month is None:
+            # Mode par défaut : charger seulement les transactions actives
+            query = """
+                SELECT r.*, c.name as category_name, c.color as category_color
+                FROM recurring_transactions r
+                LEFT JOIN categories c ON r.category_id = c.id
+                WHERE r.active = 1 AND r.user_id = ?
+            """
+            cursor.execute(query, (self.user_id,))
+        else:
+            # Mode calendrier : charger les transactions applicables au mois
+            # Incluure les transactions inactives qui s'appliquent à ce mois
+            query = """
+                SELECT r.*, c.name as category_name, c.color as category_color
+                FROM recurring_transactions r
+                LEFT JOIN categories c ON r.category_id = c.id
+                WHERE r.user_id = ? AND (
+                    r.active = 1 OR 
+                    (r.end_date IS NOT NULL AND r.end_date >= ?)
+                )
+            """
+            # Utiliser le premier jour du mois comme date de comparaison
+            first_day_of_month = display_month.replace(day=1)
+            cursor.execute(query, (self.user_id, first_day_of_month.isoformat()))
+        
         return [dict(row) for row in cursor.fetchall()]
 
     def process_recurring_transactions(self):

@@ -31,7 +31,7 @@ class SubscriptionsView:
         self._load_data()
 
     def _load_data(self):
-        self.recurring_transactions = db.get_recurring_transactions()
+        self.recurring_transactions = db.get_recurring_transactions(display_month=self.current_month.date())
         self.categories = db.get_all_categories()
         self.currency = db.get_setting("currency", "€") or "€"
 
@@ -159,8 +159,12 @@ class SubscriptionsView:
                     on_click=self._prev_month,
                     icon_color=text_color,
                 ),
-                ft.Text(
-                    month_name, size=20, weight=ft.FontWeight.BOLD, color=text_color
+                ft.Container(
+                    content=ft.Text(
+                        month_name, size=20, weight=ft.FontWeight.BOLD, color=text_color
+                    ),
+                    width=200,
+                    alignment=ft.Alignment.CENTER,
                 ),
                 ft.IconButton(
                     ft.Icons.CHEVRON_RIGHT,
@@ -490,7 +494,7 @@ class SubscriptionsView:
         if not grid_items:
             grid_items.append(
                 ft.Text(
-                    "No recurring transactions found.",
+                    "No current recurring transactions found.",
                     color=ft.Colors.with_opacity(0.5, text_color),
                 )
             )

@@ -950,7 +950,7 @@ class DashboardView:
 
         username = db.get_setting("user_name", "")
         welcome_text = (
-            f"{t('dash_welcome')} {username}! {t('dash_overview')}"
+            f"{t('dash_welcome')} {username}{t('dash_overview')}"
             if username
             else f"{t('dash_welcome')} {t('dash_overview')}"
         )

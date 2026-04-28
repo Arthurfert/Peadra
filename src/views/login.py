@@ -184,7 +184,7 @@ class LoginView:
         password = self.password_field.value
 
         if not password:
-            self.error_text.value = "Password is required."
+            self.error_text.value = t("msg_password_required")
             self.page.update()
             return
 
@@ -196,7 +196,7 @@ class LoginView:
             assert self.username_dropdown is not None
             username = self.username_dropdown.value
             if not username:
-                self.error_text.value = "Please select a user."
+                self.error_text.value = t("msg_user_select_required")
                 self.page.update()
                 return
             self._login(username, password)
@@ -209,19 +209,19 @@ class LoginView:
 
         # Validation
         if not username:
-            self.error_text.value = "Please select a user."
+            self.error_text.value = t("msg_user_select_required")
             self.page.update()
             return
 
         if len(password) < 6:
-            self.error_text.value = "Password must have at least 6 characters."
+            self.error_text.value = t("msg_password_min_length")
             self.page.update()
             return
 
         user_id = db.authenticate_user(username, password)
 
         if user_id is None:
-            self.error_text.value = "Incorrect username or password."
+            self.error_text.value = t("msg_incorrect_credentials")
             self.password_field.value = ""
             _ = self.password_field.focus()
             self.page.update()
@@ -241,22 +241,22 @@ class LoginView:
 
         # Validations
         if len(username) < 3:
-            self.error_text.value = "Username must have at least 3 characters."
+            self.error_text.value = t("msg_username_min_length")
             self.page.update()
             return
 
         if len(password) < 6:
-            self.error_text.value = "Password must have at least 6 characters."
+            self.error_text.value = t("msg_password_min_length")
             self.page.update()
             return
 
         if password != password_confirm:
-            self.error_text.value = "Passwords do not match."
+            self.error_text.value = t("msg_passwords_not_match")
             self.page.update()
             return
 
         if db.user_exists(username):
-            self.error_text.value = f"Username '{username}' already exists."
+            self.error_text.value = f"{t('msg_username_exists').format(username=username)}"
             self.page.update()
             return
 

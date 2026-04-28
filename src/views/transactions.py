@@ -757,20 +757,20 @@ class TransactionsView:
                 ft.Column(
                     [
                         ft.Text(
-                            "Transactions",
+                            t("trans_title"),
                             size=32,
                             weight=ft.FontWeight.BOLD,
                             color=text_color,
                         ),
                         ft.Text(
-                            "View and manage your recent transactions.",
+                            t("trans_subtitle"),
                             size=16,
                             color=ft.Colors.GREY,
                         ),
                     ]
                 ),
                 ft.ElevatedButton(
-                    "Add Transaction",
+                    t("trans_add_transaction"),
                     icon=ft.Icons.ADD,
                     bgcolor=PeadraTheme.ACCENT,
                     color=ft.Colors.WHITE,
@@ -784,7 +784,7 @@ class TransactionsView:
         search_bar = ft.Row(
             [
                 ft.TextField(
-                    hint_text="Search transactions...",
+                    hint_text=t("trans_search_placeholder"),
                     value=self.search_query,
                     prefix_icon=ft.Icons.SEARCH,
                     border_radius=8,
@@ -795,7 +795,7 @@ class TransactionsView:
                 ),
                 ft.Container(width=10),
                 ft.OutlinedButton(
-                    "Filter",
+                    t("btn_filter"),
                     icon=ft.Icons.FILTER_LIST,
                     style=ft.ButtonStyle(
                         shape=ft.RoundedRectangleBorder(radius=8),
@@ -811,7 +811,7 @@ class TransactionsView:
                 [
                     ft.Container(
                         ft.Text(
-                            "Description",
+                            t("trans_description"),
                             weight=ft.FontWeight.BOLD,
                             color=ft.Colors.GREY_700,
                         ),
@@ -819,7 +819,7 @@ class TransactionsView:
                     ),
                     ft.Container(
                         ft.Text(
-                            "Category",
+                            t("trans_category"),
                             weight=ft.FontWeight.BOLD,
                             color=ft.Colors.GREY_700,
                         ),
@@ -828,13 +828,13 @@ class TransactionsView:
                     ),
                     ft.Container(
                         ft.Text(
-                            "Date", weight=ft.FontWeight.BOLD, color=ft.Colors.GREY_700
+                            t("trans_date"), weight=ft.FontWeight.BOLD, color=ft.Colors.GREY_700
                         ),
                         expand=2,
                     ),
                     ft.Container(
                         ft.Text(
-                            "Amount",
+                            t("trans_amount"),
                             weight=ft.FontWeight.BOLD,
                             color=ft.Colors.GREY_700,
                             text_align=ft.TextAlign.RIGHT,

@@ -31,6 +31,12 @@ class SubscriptionsView:
     def refresh(self):
         self._load_data()
 
+    def _get_translated_month(self, dt: datetime) -> str:
+        """Retourne le mois et l'année traduits."""
+        month_key = f"month_{dt.strftime('%B').lower()}"
+        month_name = t(month_key)
+        return f"{month_name} {dt.year}"
+
     def _load_data(self):
         self.recurring_transactions = db.get_recurring_transactions(display_month=self.current_month.date())
         self.categories = db.get_all_categories()
@@ -97,7 +103,7 @@ class SubscriptionsView:
             "amount": tx.get("amount", 0),
             "transaction_type": tx.get("transaction_type", "expense"),
             "category_name": tx.get("category_name", "Recurring"),
-            "notes": f"Frequency : {tx.get('frequency', '')}\nStart Date : {tx.get('start_date', '')}\nNext Due Date : {tx.get('next_due_date', '')}",
+            "notes": f"{t('sub_frequency_label')}: {tx.get('frequency', '')}\n{t('sub_start_date_label')}: {tx.get('start_date', '')}\n{t('sub_next_due_label')}: {tx.get('next_due_date', '')}",
         }
 
         def on_edit():
@@ -151,7 +157,7 @@ class SubscriptionsView:
         )
         border_color = ft.Colors.with_opacity(0.1, text_color)
 
-        month_name = self.current_month.strftime("%B %Y")
+        month_name = self._get_translated_month(self.current_month)
 
         header = ft.Row(
             [

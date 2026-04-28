@@ -159,8 +159,12 @@ class SubscriptionsView:
                     on_click=self._prev_month,
                     icon_color=text_color,
                 ),
-                ft.Text(
-                    month_name, size=20, weight=ft.FontWeight.BOLD, color=text_color
+                ft.Container(
+                    content=ft.Text(
+                        month_name, size=20, weight=ft.FontWeight.BOLD, color=text_color
+                    ),
+                    width=200,
+                    alignment=ft.Alignment.CENTER,
                 ),
                 ft.IconButton(
                     ft.Icons.CHEVRON_RIGHT,

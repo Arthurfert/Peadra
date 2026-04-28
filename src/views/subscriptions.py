@@ -55,7 +55,7 @@ class SubscriptionsView:
             db.process_recurring_transactions()
 
             snack = ft.SnackBar(
-                ft.Text("Subscription updated successfully", color=ft.Colors.WHITE),
+                ft.Text(t("sub_update_success"), color=ft.Colors.WHITE),
                 bgcolor=PeadraTheme.SUCCESS,
             )
             self.page.overlay.append(snack)
@@ -176,7 +176,15 @@ class SubscriptionsView:
             alignment=ft.MainAxisAlignment.CENTER,
         )
 
-        days_of_week = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        days_of_week = [
+            t("day_mon"),
+            t("day_tue"),
+            t("day_wed"),
+            t("day_thu"),
+            t("day_fri"),
+            t("day_sat"),
+            t("day_sun"),
+        ]
         dow_row = ft.Row(
             [
                 ft.Container(
@@ -415,7 +423,9 @@ class SubscriptionsView:
 
         yearly_total = amount * occ
         projection_label = (
-            "Total projection" if is_total_projection else f"Projection {year}"
+            t("sub_total_projection")
+            if is_total_projection
+            else t("sub_projection_year").format(year=year)
         )
 
         return yearly_total, projection_label, True
@@ -474,7 +484,7 @@ class SubscriptionsView:
                             italic=True,
                         ),
                         ft.Text(
-                            f"{tx.get('frequency', '')}, Next: {tx.get('next_due_date', '')}",
+                            f"{t('sub_frequency_next')} {tx.get('next_due_date', '')}",
                             color=ft.Colors.with_opacity(0.5, text_color),
                             size=10,
                         ),
@@ -495,7 +505,7 @@ class SubscriptionsView:
         if not grid_items:
             grid_items.append(
                 ft.Text(
-                    "No current recurring transactions found.",
+                    t("sub_no_recurring"),
                     color=ft.Colors.with_opacity(0.5, text_color),
                 )
             )
@@ -504,7 +514,7 @@ class SubscriptionsView:
             content=ft.Column(
                 [
                     ft.Text(
-                        "All Subscriptions",
+                        t("sub_all_subscriptions"),
                         size=20,
                         weight=ft.FontWeight.BOLD,
                         color=text_color,
@@ -531,7 +541,7 @@ class SubscriptionsView:
             content=ft.Column(
                 [
                     ft.Text(
-                        "Subscriptions & Recurring",
+                        t("sub_page_title"),
                         size=28,
                         weight=ft.FontWeight.BOLD,
                         color=text_color,

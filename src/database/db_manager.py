@@ -1238,6 +1238,45 @@ class DatabaseManager:
         except Exception as e:
             print(f"Erreur sauvegarde paramètre {key}: {str(e)}")
 
+    def get_app_setting(self, key: str, default: str | None = None) -> str | None:
+        """Récupère un paramètre global de l'application (user_id = 0).
+        
+        Args:
+            key: Clé du paramètre
+            default: Valeur par défaut si non trouvée
+            
+        Returns:
+            Valeur du paramètre ou la valeur par défaut
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT value FROM settings WHERE key = ? AND user_id = ?",
+            (key, 0),
+        )
+        result = cursor.fetchone()
+        return result[0] if result else default
+
+    def set_app_setting(self, key: str, value: str):
+        """Enregistre un paramètre global de l'application (user_id = 0).
+        
+        Args:
+            key: Clé du paramètre
+            value: Valeur du paramètre
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        try:
+            # Avant de sauvegarder, il faut s'assurer que user_id = 0 existe
+            # On va directement insérer/remplacer
+            cursor.execute(
+                "INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, ?, ?)",
+                (0, key, value),
+            )
+            conn.commit()
+        except Exception as e:
+            print(f"Erreur sauvegarde paramètre global {key}: {str(e)}")
+
     def delete_user_account(self, password: str) -> bool:
         """Supprime le compte utilisateur actuel après vérification du mot de passe.
         

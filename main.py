@@ -37,6 +37,11 @@ class PeadraApp:
 
     def _logout(self):
         """Déconnecte l'utilisateur et revient à la vue de login."""
+        # Sauvegarder la langue actuelle globalement avant de réinitialiser
+        from src.i18n import get_translator
+        current_language = get_translator().get_language()
+        db.set_app_setting("language", current_language)
+        
         self.page.controls.clear()
 
         # Réinitialiser l'user_id
@@ -185,6 +190,8 @@ class PeadraApp:
     def _on_language_change(self, language: str):
         """Gère le changement de langue."""
         set_language(language)
+        # Sauvegarder la langue globalement pour la prochaine session
+        db.set_app_setting("language", language)
         # Reconstruire l'interface pour appliquer les nouvelles traductions
         self._build_ui()
         self._refresh_all_views()
@@ -366,6 +373,9 @@ def main(page: ft.Page):
         # Charger la langue depuis la base de données pour l'utilisateur
         language_setting = db.get_setting("language", "en") or "en"
         set_language(language_setting)
+        
+        # Sauvegarder aussi la langue globalement pour la prochaine session
+        db.set_app_setting("language", language_setting)
 
         # Traiter les transactions récurrentes au démarrage
         try:
@@ -394,6 +404,10 @@ def main(page: ft.Page):
     page.window.icon = "icon.ico"
     page.vertical_alignment = ft.MainAxisAlignment.CENTER
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
+
+    # Charger la langue globale de l'application (paramètre global)
+    global_language = db.get_app_setting("language", "en") or "en"
+    set_language(global_language)
 
     # Récupérer la liste des utilisateurs existants
     existing_users = db.get_all_usernames()

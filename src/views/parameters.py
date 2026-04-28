@@ -9,6 +9,7 @@ import flet as ft
 from typing import Callable, Any, cast, List, Optional
 from ..components.theme import PeadraTheme
 from ..database import db
+from ..i18n import get_translator
 
 
 def get_asset_path(filename: str) -> str:
@@ -177,6 +178,7 @@ class ParametersView:
         on_import: Callable,
         on_export: Callable,
         on_account_deleted: Optional[Callable] = None,
+        on_language_change: Optional[Callable] = None,
     ):
         self.page = page
         self.is_dark = is_dark
@@ -185,12 +187,15 @@ class ParametersView:
         self.on_import = on_import
         self.on_export = on_export
         self.on_account_deleted = on_account_deleted or (lambda: None)
+        self.on_language_change = on_language_change or (lambda language: None)
         # Charger le username depuis la base de données
         self.user_name = db.get_current_username() or ""
         # Charger le mode depuis la base de données
         self.month_mode = db.get_setting("month_mode", "strict") or "strict"
         self.display_limit = db.get_setting("transactions_display_limit", "30") or "30"
         self.currency = db.get_setting("currency", "€") or "€"
+        # Charger la langue depuis la base de données
+        self.language = db.get_setting("language", "en") or "en"
 
         self._pending_export_format = ""
         self.save_picker = CustomSavePicker(
@@ -414,6 +419,14 @@ class ParametersView:
         db.set_setting("currency", self.currency)
         self.on_data_change()
 
+    def _on_language_change(self, e):
+        """Gère le changement de langue."""
+        selected_language = e.control.value
+        if selected_language and selected_language != self.language:
+            self.language = selected_language
+            db.set_setting("language", self.language)
+            self.on_language_change(self.language)
+
     def _on_export_json(self, e):
         """Lance l'export JSON."""
         self._pending_export_format = "json"
@@ -575,6 +588,16 @@ class ParametersView:
             on_select=self._on_currency_change,
         )
 
+        language_dropdown = ft.Dropdown(
+            value=self.language,
+            options=[
+                ft.dropdown.Option("en", "English"),
+                ft.dropdown.Option("fr", "Français"),
+            ],
+            width=200,
+            on_select=self._on_language_change,
+        )
+
         general_section = self._build_section_card(
             "General",
             ft.Icons.SETTINGS_OUTLINED,
@@ -583,6 +606,11 @@ class ParametersView:
                     "Currency",
                     "Choose the display currency for the application.",
                     currency_dropdown,
+                ),
+                self._build_setting_row(
+                    "Language",
+                    "Choose your preferred language.",
+                    language_dropdown,
                 ),
                 ft.Container(height=8),
                 ft.Column(

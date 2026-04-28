@@ -5,6 +5,7 @@ Composant de login et enregistrement.
 import flet as ft
 from src.database import db
 from src.components.theme import PeadraTheme
+from src.i18n import t
 
 
 class LoginView:
@@ -62,14 +63,14 @@ class LoginView:
         """Construit le formulaire."""
         # Champs de password
         self.password_field = ft.TextField(
-            label="Password",
+            label=t("login_password"),
             password=True,
             can_reveal_password=True,
             width=300,
         )
 
         self.password_confirm_field = ft.TextField(
-            label="Confirm Password",
+            label=t("login_confirm_password"),
             password=True,
             can_reveal_password=True,
             width=300,
@@ -80,7 +81,9 @@ class LoginView:
 
         # Boutons
         self.action_button = ft.ElevatedButton(
-            content=ft.Text("Sign Up" if self.is_registration_mode else "Log In"),
+            content=ft.Text(
+                t("login_signup") if self.is_registration_mode else t("login_signin")
+            ),
             width=300,
             height=50,
             on_click=self._on_action_click,
@@ -88,9 +91,9 @@ class LoginView:
 
         self.toggle_button = ft.TextButton(
             content=ft.Text(
-                "Connect to an existing account"
+                t("login_connect_account")
                 if self.is_registration_mode
-                else "Create a new account"
+                else t("login_create_account")
             ),
             on_click=self._on_toggle_mode,
         )
@@ -99,12 +102,12 @@ class LoginView:
         fields = [
             ft.Icon(ft.Icons.LOCK, size=64),
             ft.Text(
-                "Peadra",
+                t("login_title"),
                 theme_style=ft.TextThemeStyle.HEADLINE_LARGE,
                 weight=ft.FontWeight.BOLD,
             ),
             ft.Text(
-                "Financial Asset Tracker",
+                t("login_subtitle"),
                 theme_style=ft.TextThemeStyle.TITLE_MEDIUM,
             ),
             ft.Container(height=20),
@@ -113,7 +116,7 @@ class LoginView:
         if self.is_registration_mode:
             # Mode enregistrement : champ username
             self.username_field = ft.TextField(
-                label="Username",
+                label=t("login_username"),
                 width=300,
             )
             fields.append(self.username_field)
@@ -123,7 +126,7 @@ class LoginView:
                 ft.dropdown.Option(username) for username in self.existing_users
             ]
             self.username_dropdown = ft.Dropdown(
-                label="User",
+                label=t("login_user"),
                 options=dropdown_options,
                 width=300,
                 focused_border_color=PeadraTheme.PRIMARY_LIGHT,

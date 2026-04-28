@@ -7,6 +7,7 @@ import flet as ft
 from src.components.theme import PeadraTheme
 from src.components.navigation import NavigationRailComponent
 from src.database import db
+from src.i18n import set_language, get_translator
 from src.views.dashboard import DashboardView
 from src.views.transactions import TransactionsView
 from src.views.accounts import AccountsView
@@ -135,6 +136,7 @@ class PeadraApp:
             on_import=lambda: self.import_dialog.open(),
             on_export=self._export_data,
             on_account_deleted=self._logout,
+            on_language_change=self._on_language_change,
         )
         self.views = {
             0: DashboardView(
@@ -179,6 +181,13 @@ class PeadraApp:
 
         # Reconstruire l'interface
         self._build_ui()
+
+    def _on_language_change(self, language: str):
+        """Gère le changement de langue."""
+        set_language(language)
+        # Reconstruire l'interface pour appliquer les nouvelles traductions
+        self._build_ui()
+        self._refresh_all_views()
 
     def _refresh_all_views(self):
         """Rafraîchit toutes les vues (appelé après une modification de données)."""
@@ -353,6 +362,10 @@ def main(page: ft.Page):
         # Charger le thème depuis la base de données pour l'utilisateur
         theme_setting = db.get_setting("theme_mode", "dark")
         is_dark_user = theme_setting == "dark"
+
+        # Charger la langue depuis la base de données pour l'utilisateur
+        language_setting = db.get_setting("language", "en") or "en"
+        set_language(language_setting)
 
         # Traiter les transactions récurrentes au démarrage
         try:

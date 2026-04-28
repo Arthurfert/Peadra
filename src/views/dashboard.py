@@ -198,7 +198,7 @@ class DashboardView:
             PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
         )
 
-        is_positive = trend >= 0
+        is_positive = trend > 0
         if trend_semantic == "reverse":
             is_good = not is_positive
         else:

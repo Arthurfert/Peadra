@@ -9,7 +9,7 @@ from datetime import datetime
 from ..components.theme import PeadraTheme
 from ..components.modals import TransactionModal, TransactionDetailsModal
 from ..database import db
-from ..i18n import t
+from ..i18n import t, get_translator
 
 
 class TransactionsView:
@@ -399,6 +399,18 @@ class TransactionsView:
         self.page.update()
 
     def _group_transactions(self, transactions):
+        transfer_to_prefixes = (f"{t('trans_transfer_to')} ", "Transfer to ")
+        transfer_from_prefixes = (f"{t('trans_transfer_from')} ", "Transfer from ")
+
+        def starts_with_any(text: str, prefixes: tuple[str, ...]) -> bool:
+            return any(text.startswith(prefix) for prefix in prefixes)
+
+        def strip_known_prefix(text: str, prefixes: tuple[str, ...]) -> str:
+            for prefix in prefixes:
+                if text.startswith(prefix):
+                    return text[len(prefix) :]
+            return text
+
         grouped = []
         i = 0
         while i < len(transactions):
@@ -406,9 +418,9 @@ class TransactionsView:
 
             # Transfer signatures
             desc1 = t1["description"] or ""
-            is_transfer_candidate = desc1.startswith(
-                "Transfer to "
-            ) or desc1.startswith("Transfer from ")
+            is_transfer_candidate = starts_with_any(
+                desc1, transfer_to_prefixes
+            ) or starts_with_any(desc1, transfer_from_prefixes)
 
             if is_transfer_candidate and i + 1 < len(transactions):
                 t2 = transactions[i + 1]
@@ -429,27 +441,27 @@ class TransactionsView:
                     id_income = None
 
                     # Determine which is which
-                    if t1["transaction_type"] == "expense" and desc1.startswith(
-                        "Transfer to "
+                    if t1["transaction_type"] == "expense" and starts_with_any(
+                        desc1, transfer_to_prefixes
                     ):
-                        if t2["transaction_type"] == "income" and desc2.startswith(
-                            "Transfer from "
+                        if t2["transaction_type"] == "income" and starts_with_any(
+                            desc2, transfer_from_prefixes
                         ):
-                            dest = desc1[12:]
-                            source = desc2[14:]
+                            dest = strip_known_prefix(desc1, transfer_to_prefixes)
+                            source = strip_known_prefix(desc2, transfer_from_prefixes)
                             source_id = t1["category_id"]
                             dest_id = t2["category_id"]
                             id_expense = t1["id"]
                             id_income = t2["id"]
                             match = True
-                    elif t1["transaction_type"] == "income" and desc1.startswith(
-                        "Transfer from "
+                    elif t1["transaction_type"] == "income" and starts_with_any(
+                        desc1, transfer_from_prefixes
                     ):
-                        if t2["transaction_type"] == "expense" and desc2.startswith(
-                            "Transfer to "
+                        if t2["transaction_type"] == "expense" and starts_with_any(
+                            desc2, transfer_to_prefixes
                         ):
-                            source = desc1[14:]
-                            dest = desc2[12:]
+                            source = strip_known_prefix(desc1, transfer_from_prefixes)
+                            dest = strip_known_prefix(desc2, transfer_to_prefixes)
                             source_id = t2["category_id"]
                             dest_id = t1["category_id"]
                             id_expense = t2["id"]
@@ -463,9 +475,11 @@ class TransactionsView:
                             id_expense  # Use expense ID as primary for editing
                         )
                         combined["other_id"] = id_income
-                        combined["description"] = f"Transfer from {source} to {dest}"
+                        combined["description"] = t("trans_transfer_from_to").format(
+                            source=source, dest=dest
+                        )
                         combined["transaction_type"] = "transfer_group"
-                        combined["category_name"] = "Transfer"
+                        combined["category_name"] = t("trans_category_transfer")
                         combined["category_id"] = None
                         combined["category_color"] = ft.Colors.BLUE_GREY_100
                         combined["source_id"] = source_id
@@ -549,6 +563,33 @@ class TransactionsView:
         modal = TransactionDetailsModal(self.page, t, on_edit, on_delete)
         modal.show()
 
+    def _format_display_date(self, raw_date: str) -> str:
+        """Formate une date ISO (YYYY-MM-DD) selon la langue active."""
+        try:
+            date_obj = datetime.strptime(raw_date, "%Y-%m-%d")
+        except ValueError:
+            return raw_date
+
+        month_keys = {
+            1: "month_january",
+            2: "month_february",
+            3: "month_march",
+            4: "month_april",
+            5: "month_may",
+            6: "month_june",
+            7: "month_july",
+            8: "month_august",
+            9: "month_september",
+            10: "month_october",
+            11: "month_november",
+            12: "month_december",
+        }
+        month_name = t(month_keys[date_obj.month])
+
+        if get_translator().get_language() == "fr":
+            return f"{date_obj.day:02d} {month_name} {date_obj.year}"
+        return f"{month_name} {date_obj.day:02d}, {date_obj.year}"
+
     def _generate_rows(self):
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
         rows = []
@@ -595,11 +636,7 @@ class TransactionsView:
                 edit_action = lambda e, trans=transaction: self._edit_transaction(trans)
                 delete_action = lambda e, id=transaction["id"]: self._confirm_delete(id)
 
-            try:
-                date_obj = datetime.strptime(transaction["date"], "%Y-%m-%d")
-                date_str = date_obj.strftime("%b %d, %Y")
-            except ValueError:
-                date_str = transaction["date"]
+            date_str = self._format_display_date(transaction["date"])
 
             row = ft.Container(
                 content=ft.Row(

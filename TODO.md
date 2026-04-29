@@ -18,14 +18,13 @@ If so, a peer-to-peer encrypted sync may be implemented.
 
 ## In development
 
-- French translation
+- General user experience enhancement
 
 ## Future Improvements & ideas *(by priority)*
 
 - Optional logging
-- Global stats option for pie charts
-- More statistics available (mainly per category)
+- Global stats for categories (new view)
 - Auto-fill with existing categories when typing it in transactions modals
-- Forcasting & trends
+- Forcasting & trends ?
 - Onboarding & tutorial
 - Automatic update

@@ -24,6 +24,7 @@ Peadra (*"wealth" in Breton*) is a desktop application designed to help you trac
 - View recurring transactions and subscriptions
 - Import data from CSV files, export in JSON & CSV
 - Multi accounts & authentification
+- French translation
 
 > A lot of features [to come](TODO.md) !
 
@@ -49,6 +50,7 @@ Peadra/
 ├── README.md                 # This file
 └── src/
     ├── __init__.py
+    ├── i18n.py               # Translation
     ├── components/           # Reusable UI components
     │   ├── __init__.py
     │   ├── modals.py         # Transaction and Asset modals

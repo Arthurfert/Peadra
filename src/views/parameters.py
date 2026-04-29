@@ -9,6 +9,7 @@ import flet as ft
 from typing import Callable, Any, cast, List, Optional
 from ..components.theme import PeadraTheme
 from ..database import db
+from ..i18n import t
 
 
 def get_asset_path(filename: str) -> str:
@@ -42,11 +43,11 @@ class CustomSavePicker:
         self.path_text = ft.Text(value=self.current_path, size=12, color=ft.Colors.GREY)
         self.file_list = ft.ListView(expand=True, spacing=2)
         self.filename_field = ft.TextField(
-            label="File name", expand=True, height=40, text_size=13
+            label=t("param_file_name"), expand=True, height=40, text_size=13
         )
 
         self.dialog = ft.AlertDialog(
-            title=ft.Text("Save As"),
+            title=ft.Text(t("param_file_picker_title")),
             content=ft.Container(
                 content=ft.Column(
                     [
@@ -55,7 +56,7 @@ class CustomSavePicker:
                                 ft.IconButton(
                                     icon=ft.Icons.ARROW_UPWARD,
                                     on_click=self._go_up,
-                                    tooltip="Go up",
+                                    tooltip=t("param_file_go_up"),
                                 ),
                                 ft.Container(
                                     content=self.path_text, expand=True, padding=5
@@ -77,8 +78,8 @@ class CustomSavePicker:
                 padding=10,
             ),
             actions=[
-                ft.TextButton("Cancel", on_click=lambda _: self._cancel()),
-                ft.ElevatedButton("Save", on_click=lambda _: self._save()),
+                ft.TextButton(t("btn_cancel"), on_click=lambda _: self._cancel()),
+                ft.ElevatedButton(t("btn_save"), on_click=lambda _: self._save()),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
@@ -149,7 +150,7 @@ class CustomSavePicker:
 
         except Exception as e:
             self.file_list.controls.append(
-                ft.Text(f"Error accessing directory: {e}", color=ft.Colors.ERROR)
+                ft.Text(f"{t('param_file_error')} {e}", color=ft.Colors.ERROR)
             )
 
         self.page.update()
@@ -177,6 +178,7 @@ class ParametersView:
         on_import: Callable,
         on_export: Callable,
         on_account_deleted: Optional[Callable] = None,
+        on_language_change: Optional[Callable] = None,
     ):
         self.page = page
         self.is_dark = is_dark
@@ -185,12 +187,15 @@ class ParametersView:
         self.on_import = on_import
         self.on_export = on_export
         self.on_account_deleted = on_account_deleted or (lambda: None)
+        self.on_language_change = on_language_change or (lambda language: None)
         # Charger le username depuis la base de données
         self.user_name = db.get_current_username() or ""
         # Charger le mode depuis la base de données
         self.month_mode = db.get_setting("month_mode", "strict") or "strict"
         self.display_limit = db.get_setting("transactions_display_limit", "30") or "30"
         self.currency = db.get_setting("currency", "€") or "€"
+        # Charger la langue depuis la base de données
+        self.language = db.get_setting("language", "en") or "en"
 
         self._pending_export_format = ""
         self.save_picker = CustomSavePicker(
@@ -414,6 +419,14 @@ class ParametersView:
         db.set_setting("currency", self.currency)
         self.on_data_change()
 
+    def _on_language_change(self, e):
+        """Gère le changement de langue."""
+        selected_language = e.control.value
+        if selected_language and selected_language != self.language:
+            self.language = selected_language
+            db.set_setting("language", self.language)
+            self.on_language_change(self.language)
+
     def _on_export_json(self, e):
         """Lance l'export JSON."""
         self._pending_export_format = "json"
@@ -442,12 +455,12 @@ class ParametersView:
         pwd = self.password_field.value
         confirm = self.password_confirm_field.value
         if not pwd:
-            self.password_message.value = "Password cannot be empty"
+            self.password_message.value = t("param_password_empty")
             self.password_message.color = ft.Colors.RED
             self.page.update()
             return
         if pwd != confirm:
-            self.password_message.value = "Passwords do not match"
+            self.password_message.value = t("param_password_mismatch")
             self.password_message.color = ft.Colors.RED
             self.page.update()
             return
@@ -456,7 +469,7 @@ class ParametersView:
 
         hashed = hashlib.sha256(pwd.encode()).hexdigest()
         db.set_setting("app_password_hash", hashed)
-        self.password_message.value = "Password saved"
+        self.password_message.value = t("param_password_saved")
         self.password_message.color = ft.Colors.GREEN
         self.password_field.value = ""
         self.password_confirm_field.value = ""
@@ -467,7 +480,7 @@ class ParametersView:
         from src.database import db
 
         db.set_setting("app_password_hash", "")
-        self.password_message.value = "Password removed"
+        self.password_message.value = t("param_password_removed")
         self.password_message.color = ft.Colors.GREEN
         self.remove_pwd_btn.visible = False
         self.page.update()
@@ -477,7 +490,7 @@ class ParametersView:
         password_field = ft.TextField(
             password=True,
             can_reveal_password=True,
-            label="Password",
+            label=t("param_password"),
             width=300,
             height=45,
         )
@@ -486,7 +499,7 @@ class ParametersView:
         def on_confirm(_):
             pwd = password_field.value.strip()
             if not pwd:
-                error_message.value = "Password is required"
+                error_message.value = t("param_delete_password_required")
                 self.page.update()
                 return
 
@@ -496,7 +509,7 @@ class ParametersView:
                 self.page.update()
                 self.on_account_deleted()
             else:
-                error_message.value = "Incorrect password"
+                error_message.value = t("param_delete_password_incorrect")
                 self.page.update()
 
         def on_cancel(_):
@@ -504,17 +517,17 @@ class ParametersView:
             self.page.update()
 
         dialog = ft.AlertDialog(
-            title=ft.Text("Delete Account", size=20, weight=ft.FontWeight.BOLD),
+            title=ft.Text(t("param_delete_confirm"), size=20, weight=ft.FontWeight.BOLD),
             content=ft.Container(
                 content=ft.Column(
                     [
                         ft.Text(
-                            "This action is permanent and cannot be undone. All your data, transactions, and categories will be deleted.",
+                            t("param_delete_warning"),
                             size=14,
                             color=ft.Colors.ERROR,
                         ),
                         ft.Container(height=16),
-                        ft.Text("Enter your password to confirm:", size=13, weight=ft.FontWeight.W_500),
+                        ft.Text(t("param_delete_password_prompt"), size=13, weight=ft.FontWeight.W_500),
                         password_field,
                         error_message,
                     ],
@@ -525,9 +538,9 @@ class ParametersView:
                 height=220,
             ),
             actions=[
-                ft.TextButton("Cancel", on_click=on_cancel),
+                ft.TextButton(t("btn_cancel"), on_click=on_cancel),
                 ft.TextButton(
-                    "Delete Account",
+                    t("param_delete_confirm"),
                     on_click=on_confirm,
                     style=ft.ButtonStyle(color=ft.Colors.RED),
                 ),
@@ -545,7 +558,7 @@ class ParametersView:
         # === Section Général ===
         user_name_field = ft.TextField(
             value=self.user_name,
-            label="User Name",
+            label=t("param_username"),
             width=250,
             on_change=self._on_user_name_change,
             on_blur=self._on_user_name_blur,
@@ -555,9 +568,9 @@ class ParametersView:
         theme_options = ft.Row(
             [
                 self._build_theme_option(
-                    "Light Theme", get_asset_path("assets/Dashboard_Light.jpg"), False
+                    t("param_light_theme"), get_asset_path("assets/Dashboard_Light.jpg"), False
                 ),
-                self._build_theme_option("Dark Theme", get_asset_path("assets/Dashboard.jpg"), True),
+                self._build_theme_option(t("param_dark_theme"), get_asset_path("assets/Dashboard.jpg"), True),
             ],
             spacing=20,
             alignment=ft.MainAxisAlignment.START,
@@ -566,35 +579,50 @@ class ParametersView:
         currency_dropdown = ft.Dropdown(
             value=self.currency,
             options=[
-                ft.dropdown.Option("€", "Euro (€)"),
-                ft.dropdown.Option("$", "US Dollar ($)"),
-                ft.dropdown.Option("£", "Pound Sterling (£)"),
-                ft.dropdown.Option("¥", "Yen (¥)"),
+                ft.dropdown.Option("€", t("param_currency_euro")),
+                ft.dropdown.Option("$", t("param_currency_usd")),
+                ft.dropdown.Option("£", t("param_currency_gbp")),
+                ft.dropdown.Option("¥", t("param_currency_jpy")),
             ],
             width=200,
             on_select=self._on_currency_change,
         )
 
+        language_dropdown = ft.Dropdown(
+            value=self.language,
+            options=[
+                ft.dropdown.Option("en", t("param_language_en")),
+                ft.dropdown.Option("fr", t("param_language_fr")),
+            ],
+            width=200,
+            on_select=self._on_language_change,
+        )
+
         general_section = self._build_section_card(
-            "General",
+            t("param_general"),
             ft.Icons.SETTINGS_OUTLINED,
             [
                 self._build_setting_row(
-                    "Currency",
-                    "Choose the display currency for the application.",
+                    t("param_currency"),
+                    t("param_currency_desc"),
                     currency_dropdown,
+                ),
+                self._build_setting_row(
+                    t("param_language_label"),
+                    t("param_language_desc"),
+                    language_dropdown,
                 ),
                 ft.Container(height=8),
                 ft.Column(
                     [
                         ft.Text(
-                            "Theme",
+                            t("param_theme_label"),
                             size=15,
                             weight=ft.FontWeight.W_500,
                             color=text_color,
                         ),
                         ft.Text(
-                            "Choose your preferred theme.",
+                            t("param_theme_desc"),
                             size=12,
                             color=ft.Colors.GREY,
                         ),
@@ -608,7 +636,7 @@ class ParametersView:
 
         # === Section Données ===
         import_btn = ft.ElevatedButton(
-            content="Import CSV",
+            content=t("param_import_csv"),
             icon=ft.Icons.UPLOAD_FILE,
             on_click=self._on_import_csv,
             style=ft.ButtonStyle(
@@ -620,7 +648,7 @@ class ParametersView:
         )
 
         export_json_btn = ft.OutlinedButton(
-            content="Export JSON",
+            content=t("param_export_json"),
             icon=ft.Icons.DATA_OBJECT,
             on_click=self._on_export_json,
             style=ft.ButtonStyle(
@@ -633,7 +661,7 @@ class ParametersView:
 
         export_csv_btn = ft.OutlinedButton(
             content=ft.Row(
-                [ft.Icon(ft.Icons.TABLE_CHART, size=18), ft.Text("Export CSV")],
+                [ft.Icon(ft.Icons.TABLE_CHART, size=18), ft.Text(t("param_export_csv"))],
                 spacing=8,
             ),
             on_click=self._on_export_csv,
@@ -646,17 +674,17 @@ class ParametersView:
         )
 
         data_section = self._build_section_card(
-            "Data",
+            t("param_data"),
             ft.Icons.STORAGE_OUTLINED,
             [
                 self._build_setting_row(
-                    "Import",
-                    "Import transactions from a CSV file.",
+                    t("param_import"),
+                    t("param_import_desc"),
                     import_btn,
                 ),
                 self._build_setting_row(
-                    "Export",
-                    "Export your data in JSON or CSV format.",
+                    t("param_export"),
+                    t("param_export_desc"),
                     ft.Row([export_json_btn, export_csv_btn], spacing=10),
                 ),
             ],
@@ -676,12 +704,12 @@ class ParametersView:
         )
 
         transactions_section = self._build_section_card(
-            "Transactions",
+            t("param_transactions"),
             ft.Icons.ACCOUNT_BALANCE_WALLET,
             [
                 self._build_setting_row(
-                    "Display limit",
-                    "Number of transactions loaded by default.",
+                    t("param_display_limit"),
+                    t("param_display_limit_desc"),
                     display_limit_field,
                 ),
             ],
@@ -694,12 +722,12 @@ class ParametersView:
             segments=[
                 ft.Segment(
                     value="strict",
-                    label=ft.Text("Calendar month"),
+                    label=ft.Text(t("param_calendar_month")),
                     icon=ft.Icon(ft.Icons.CALENDAR_MONTH),
                 ),
                 ft.Segment(
                     value="rolling",
-                    label=ft.Text("Rolling 30 days"),
+                    label=ft.Text(t("param_rolling_30")),
                     icon=ft.Icon(ft.Icons.UPDATE),
                 ),
             ],
@@ -715,7 +743,7 @@ class ParametersView:
         self.password_field = ft.TextField(
             password=True,
             can_reveal_password=True,
-            label="New",
+            label=t("param_password_new"),
             width=180,
             height=45,
             text_size=13,
@@ -723,7 +751,7 @@ class ParametersView:
         self.password_confirm_field = ft.TextField(
             password=True,
             can_reveal_password=True,
-            label="Confirm",
+            label=t("param_password_confirm"),
             width=180,
             height=45,
             text_size=13,
@@ -736,13 +764,13 @@ class ParametersView:
         )
 
         save_pwd_btn = ft.ElevatedButton(
-            "Save",
+            t("param_btn_save"),
             icon=ft.Icons.SAVE_OUTLINED,
             on_click=self._on_save_password,
             style=btn_style,
         )
         self.remove_pwd_btn = ft.ElevatedButton(
-            "Remove",
+            t("param_btn_remove"),
             icon=ft.Icons.DELETE_OUTLINED,
             on_click=self._on_remove_password,
             color=ft.Colors.RED,
@@ -751,17 +779,17 @@ class ParametersView:
         )
 
         security_section = self._build_section_card(
-            "Security",
+            t("param_security"),
             ft.Icons.SECURITY_OUTLINED,
             [
                 self._build_setting_row(
-                    "User Name",
-                    "Your login username. Changing this will update your account username.",
+                    t("param_username"),
+                    t("param_username_desc"),
                     user_name_field,
                 ),
                 self._build_setting_row(
-                    "Password",
-                    "Require a password to open the application.",
+                    t("param_password"),
+                    t("param_password_desc"),
                     ft.Column(
                         [
                             ft.Row(
@@ -783,12 +811,12 @@ class ParametersView:
         )
 
         charts_section = self._build_section_card(
-            "Charts",
+            t("param_charts"),
             ft.Icons.BAR_CHART_OUTLINED,
             [
                 self._build_setting_row(
-                    "Month calculation mode",
-                    "Calendar month: Jan 1-31. Rolling: last 30 days from today.",
+                    t("param_month_mode"),
+                    t("param_month_mode_desc"),
                     month_mode_selector,
                 ),
             ],
@@ -796,7 +824,7 @@ class ParametersView:
 
         # === Section Danger Zone ===
         delete_account_btn = ft.ElevatedButton(
-            content="Delete Account",
+            content=t("param_delete_account"),
             icon=ft.Icons.DELETE_FOREVER,
             on_click=self._on_delete_account_click,
             style=ft.ButtonStyle(
@@ -808,12 +836,12 @@ class ParametersView:
         )
 
         danger_section = self._build_section_card(
-            "Danger Zone",
+            t("param_danger_zone"),
             ft.Icons.WARNING_ROUNDED,
             [
                 self._build_setting_row(
-                    "Delete Account",
-                    "Permanently delete your account and all associated data. This action cannot be undone.",
+                    t("param_delete_account"),
+                    t("param_delete_account_desc"),
                     delete_account_btn,
                 ),
             ],
@@ -826,13 +854,13 @@ class ParametersView:
                     content=ft.Column(
                         [
                             ft.Text(
-                                "Parameters",
+                                t("param_page_title"),
                                 size=32,
                                 weight=ft.FontWeight.BOLD,
                                 color=text_color,
                             ),
                             ft.Text(
-                                "Customize your experience.",
+                                t("param_page_subtitle"),
                                 size=16,
                                 color=ft.Colors.GREY,
                             ),

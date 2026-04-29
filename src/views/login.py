@@ -5,6 +5,7 @@ Composant de login et enregistrement.
 import flet as ft
 from src.database import db
 from src.components.theme import PeadraTheme
+from src.i18n import t
 
 
 class LoginView:
@@ -62,14 +63,14 @@ class LoginView:
         """Construit le formulaire."""
         # Champs de password
         self.password_field = ft.TextField(
-            label="Password",
+            label=t("login_password"),
             password=True,
             can_reveal_password=True,
             width=300,
         )
 
         self.password_confirm_field = ft.TextField(
-            label="Confirm Password",
+            label=t("login_confirm_password"),
             password=True,
             can_reveal_password=True,
             width=300,
@@ -80,7 +81,9 @@ class LoginView:
 
         # Boutons
         self.action_button = ft.ElevatedButton(
-            content=ft.Text("Sign Up" if self.is_registration_mode else "Log In"),
+            content=ft.Text(
+                t("login_signup") if self.is_registration_mode else t("login_signin")
+            ),
             width=300,
             height=50,
             on_click=self._on_action_click,
@@ -88,9 +91,9 @@ class LoginView:
 
         self.toggle_button = ft.TextButton(
             content=ft.Text(
-                "Connect to an existing account"
+                t("login_connect_account")
                 if self.is_registration_mode
-                else "Create a new account"
+                else t("login_create_account")
             ),
             on_click=self._on_toggle_mode,
         )
@@ -99,12 +102,12 @@ class LoginView:
         fields = [
             ft.Icon(ft.Icons.LOCK, size=64),
             ft.Text(
-                "Peadra",
+                t("login_title"),
                 theme_style=ft.TextThemeStyle.HEADLINE_LARGE,
                 weight=ft.FontWeight.BOLD,
             ),
             ft.Text(
-                "Financial Asset Tracker",
+                t("login_subtitle"),
                 theme_style=ft.TextThemeStyle.TITLE_MEDIUM,
             ),
             ft.Container(height=20),
@@ -113,7 +116,7 @@ class LoginView:
         if self.is_registration_mode:
             # Mode enregistrement : champ username
             self.username_field = ft.TextField(
-                label="Username",
+                label=t("login_username"),
                 width=300,
             )
             fields.append(self.username_field)
@@ -123,7 +126,7 @@ class LoginView:
                 ft.dropdown.Option(username) for username in self.existing_users
             ]
             self.username_dropdown = ft.Dropdown(
-                label="User",
+                label=t("login_user"),
                 options=dropdown_options,
                 width=300,
                 focused_border_color=PeadraTheme.PRIMARY_LIGHT,
@@ -172,7 +175,7 @@ class LoginView:
         self.page.add(self.build())
         self.page.update()
 
-    def _on_action_click(self, e):
+    async def _on_action_click(self, e):
         """Gère l'action (login ou registration)."""
         # Type assertions pour Pylance
         assert self.error_text is not None
@@ -181,7 +184,7 @@ class LoginView:
         password = self.password_field.value
 
         if not password:
-            self.error_text.value = "Password is required."
+            self.error_text.value = t("msg_password_required")
             self.page.update()
             return
 
@@ -193,12 +196,12 @@ class LoginView:
             assert self.username_dropdown is not None
             username = self.username_dropdown.value
             if not username:
-                self.error_text.value = "Please select a user."
+                self.error_text.value = t("msg_user_select_required")
                 self.page.update()
                 return
-            self._login(username, password)
+            await self._login(username, password)
 
-    def _login(self, username: str, password: str):
+    async def _login(self, username: str, password: str):
         """Connecte l'utilisateur."""
         # Type assertions pour Pylance
         assert self.error_text is not None
@@ -206,21 +209,21 @@ class LoginView:
 
         # Validation
         if not username:
-            self.error_text.value = "Please select a user."
+            self.error_text.value = t("msg_user_select_required")
             self.page.update()
             return
 
         if len(password) < 6:
-            self.error_text.value = "Password must have at least 6 characters."
+            self.error_text.value = t("msg_password_min_length")
             self.page.update()
             return
 
         user_id = db.authenticate_user(username, password)
 
         if user_id is None:
-            self.error_text.value = "Incorrect username or password."
+            self.error_text.value = t("msg_incorrect_credentials")
             self.password_field.value = ""
-            _ = self.password_field.focus()
+            await self.password_field.focus()
             self.page.update()
             return
 
@@ -238,22 +241,22 @@ class LoginView:
 
         # Validations
         if len(username) < 3:
-            self.error_text.value = "Username must have at least 3 characters."
+            self.error_text.value = t("msg_username_min_length")
             self.page.update()
             return
 
         if len(password) < 6:
-            self.error_text.value = "Password must have at least 6 characters."
+            self.error_text.value = t("msg_password_min_length")
             self.page.update()
             return
 
         if password != password_confirm:
-            self.error_text.value = "Passwords do not match."
+            self.error_text.value = t("msg_passwords_not_match")
             self.page.update()
             return
 
         if db.user_exists(username):
-            self.error_text.value = f"Username '{username}' already exists."
+            self.error_text.value = f"{t('msg_username_exists').format(username=username)}"
             self.page.update()
             return
 

@@ -13,6 +13,7 @@ import hashlib
 from datetime import datetime
 from ..components.theme import PeadraTheme
 from ..database import db
+from ..i18n import t
 
 
 def calculate_file_hash(file_path: str) -> str:
@@ -45,7 +46,7 @@ class CustomFilePicker:
         self.file_list = ft.ListView(expand=True, spacing=2)
 
         self.dialog = ft.AlertDialog(
-            title=ft.Text("Select File"),
+            title=ft.Text(t("file_select_file")),
             content=ft.Container(
                 content=ft.Column(
                     [
@@ -54,7 +55,7 @@ class CustomFilePicker:
                                 ft.IconButton(
                                     icon=ft.Icons.ARROW_UPWARD,
                                     on_click=self._go_up,
-                                    tooltip="Go up",
+                                    tooltip=t("param_file_go_up"),
                                 ),
                                 ft.Container(
                                     content=self.path_text, expand=True, padding=5
@@ -71,7 +72,7 @@ class CustomFilePicker:
                 height=400,
                 padding=10,
             ),
-            actions=[ft.TextButton("Cancel", on_click=lambda _: self._cancel())],
+            actions=[ft.TextButton(t("btn_cancel"), on_click=lambda _: self._cancel())],
         )
 
     def _cancel(self):
@@ -140,7 +141,7 @@ class CustomFilePicker:
                 )
 
         except Exception as e:
-            self.file_list.controls.append(ft.Text(f"Error: {e}", color=ft.Colors.RED))
+            self.file_list.controls.append(ft.Text(f"{t('msg_error_file')}: {e}", color=ft.Colors.RED))
 
         self.page.update()
 
@@ -185,20 +186,20 @@ class ImportDialog:
         # Account Selection Components
         self.selected_account_id: Optional[int] = None
         self.account_dropdown = ft.Dropdown(
-            label="Target Account",
+            label=t("import_target_account"),
             width=300,
         )
         # attach handler after construction because Dropdown constructor may not accept on_change as a parameter
         setattr(self.account_dropdown, "on_change", self._on_account_change)
         self.new_account_name = ft.TextField(
-            label="New Account Name",
+            label=t("import_new_account"),
             width=300,
             visible=False,
             on_change=self._validate_import_readiness,
         )
         self.account_container = ft.Column(
             [
-                ft.Text("Account Selection", weight=ft.FontWeight.BOLD),
+                ft.Text(t("import_account_selection"), weight=ft.FontWeight.BOLD),
                 self.account_dropdown,
                 self.new_account_name,
             ]
@@ -209,18 +210,18 @@ class ImportDialog:
         self.csv_headers: List[str] = []
 
         # UI Components
-        self.status_text = ft.Text("No file selected", color=ft.Colors.GREY)
+        self.status_text = ft.Text(t("import_no_file"), color=ft.Colors.GREY)
 
         # Initialize with at least one column to avoid "ValueError" if accidentally shown
         self.preview_table = ft.DataTable(
-            columns=[ft.DataColumn(label=ft.Text("Preview"))],
+            columns=[ft.DataColumn(label=ft.Text(t("import_preview")))],
             rows=[],
             visible=False,
             heading_row_height=80,
         )
 
         self.import_btn = ft.ElevatedButton(
-            "Confirm Import",
+            t("btn_confirm_import"),
             icon=ft.Icons.UPLOAD_FILE,
             on_click=self._import_data,
             disabled=True,
@@ -232,12 +233,11 @@ class ImportDialog:
             ),
         )
 
-        self.cancel_btn = ft.TextButton("Cancel", on_click=self._close_dialog)
+        self.cancel_btn = ft.TextButton(t("btn_cancel"), on_click=self._close_dialog)
 
         # Dialog
         self.dialog = ft.AlertDialog(
-            modal=True,
-            title=ft.Text("Import Transactions"),
+            title=ft.Text(t("import_title")),
             content=ft.Container(content=self._build_content(), width=700, padding=10),
             actions=[
                 self.cancel_btn,
@@ -250,7 +250,7 @@ class ImportDialog:
         return ft.Column(
             [
                 ft.Text(
-                    "Select a CSV file to import your bank transactions.",
+                    t("import_select_csv_desc"),
                     size=14,
                     color=ft.Colors.GREY,
                 ),
@@ -259,7 +259,7 @@ class ImportDialog:
                 ft.Row(
                     [
                         ft.ElevatedButton(
-                            "Select File",
+                            t("import_select_file_btn"),
                             icon=ft.Icons.FOLDER_OPEN,
                             on_click=self._on_pick_files,
                         ),
@@ -271,7 +271,7 @@ class ImportDialog:
                 # Preview Area
                 ft.Column(
                     [
-                        ft.Text("Preview", weight=ft.FontWeight.BOLD),
+                        ft.Text(t("import_preview"), weight=ft.FontWeight.BOLD),
                         ft.Container(
                             content=ft.Row(
                                 [
@@ -312,7 +312,7 @@ class ImportDialog:
         options = [
             ft.dropdown.Option(key=str(acc["id"]), text=acc["name"]) for acc in accounts
         ]
-        options.append(ft.dropdown.Option(key="new", text="+ Create New Account"))
+        options.append(ft.dropdown.Option(key="new", text=t("import_create_new_account")))
 
         self.account_dropdown.options = options
         # Select first account by default if available and not set
@@ -418,14 +418,14 @@ class ImportDialog:
             self.page.update()
 
         warning_dialog = ft.AlertDialog(
-            title=ft.Text("Warning: Duplicate Import"),
+            title=ft.Text(t("import_duplicate_warning")),
             content=ft.Text(
-                "This file appears to have been imported already.\nDo you want to continue?"
+                t("import_duplicate_content")
             ),
             actions=[
-                ft.TextButton("Cancel", on_click=on_cancel),
+                ft.TextButton(t("btn_cancel"), on_click=on_cancel),
                 ft.TextButton(
-                    "Import Anyway",
+                    t("import_anyway"),
                     on_click=on_continue,
                     style=ft.ButtonStyle(color=ft.Colors.ERROR),
                 ),
@@ -483,7 +483,7 @@ class ImportDialog:
             elif rows:
                 for i in range(len(rows[0])):
                     columns.append(
-                        ft.DataColumn(label=self._create_header_content(f"Col {i + 1}"))
+                        ft.DataColumn(label=self._create_header_content(f"{t('import_col_header')} {i + 1}"))
                     )
             else:
                 # No data
@@ -513,7 +513,7 @@ class ImportDialog:
             }
 
         except Exception as ex:
-            self.status_text.value = f"Error: {str(ex)}"
+            self.status_text.value = f"{t('msg_error')}: {str(ex)}"
             self.status_text.color = PeadraTheme.ERROR
             self.import_btn.disabled = True
             self.preview_table.visible = False
@@ -523,10 +523,10 @@ class ImportDialog:
     def _create_header_content(self, header_text: str) -> ft.Column:
         """Crée le contenu de l'en-tête avec le dropdown de mapping."""
         # Mapping options
-        options = ["Unused", "Date", "Description", "Amount"]
+        options = [t("import_mapping_unused"), "Date", "Description", "Amount"]
 
         # Auto-select logic
-        selected_val = "Unused"
+        selected_val = t("import_mapping_unused")
         lower_header = header_text.lower()
         if "date" in lower_header or "time" in lower_header:
             selected_val = "Date"
@@ -639,7 +639,7 @@ class ImportDialog:
     def _import_data(self, _):
         """Insère les données dans la base."""
         self.import_btn.disabled = True
-        self.import_btn.content = ft.Text("Processing...", color=ft.Colors.WHITE)
+        self.import_btn.content = ft.Text(t("import_processing"), color=ft.Colors.WHITE)
         self.page.update()
 
         # Handle New Account Creation
@@ -650,8 +650,8 @@ class ImportDialog:
             if new_id and new_id > 0:
                 self.selected_account_id = new_id
             else:
-                self.status_text.value = "Error creating account"
-                self.import_btn.content = ft.Text("Confirm Import")
+                self.status_text.value = t("import_error_account")
+                self.import_btn.content = ft.Text(t("btn_confirm_import"))
                 self.import_btn.disabled = False
                 self.page.update()
                 return
@@ -660,13 +660,13 @@ class ImportDialog:
         self._prepare_transactions()
 
         count = 0
-        for t in self.parsed_transactions:
+        for parsed_trans in self.parsed_transactions:
             try:
                 # Try common formats
                 date_iso = None
                 for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%Y-%m-%d %H:%M:%S"]:
                     try:
-                        dt = datetime.strptime(t["date"], fmt)
+                        dt = datetime.strptime(parsed_trans["date"], fmt)
                         date_iso = dt.strftime("%Y-%m-%d")
                         break
                     except ValueError:
@@ -679,9 +679,9 @@ class ImportDialog:
 
                 db.add_transaction(
                     date=date_iso,
-                    description=t["description"],
-                    amount=t["amount"],
-                    transaction_type=t["type"],
+                    description=parsed_trans["description"],
+                    amount=parsed_trans["amount"],
+                    transaction_type=parsed_trans["type"],
                     category_id=self.selected_account_id,
                 )
                 count += 1
@@ -700,7 +700,7 @@ class ImportDialog:
 
         # Reset UI
         # Use content completely to avoid Pylance errors on text property
-        self.import_btn.content = ft.Text("Confirm Import")
+        self.import_btn.content = ft.Text(t("btn_confirm_import"))
         # self.import_btn.text = "Confirm Import" # Avoid Pylance error
 
         # Close dialog and notify
@@ -710,7 +710,7 @@ class ImportDialog:
         bg_col = PeadraTheme.SUCCESS
         snack = ft.SnackBar(
             content=ft.Text(
-                f"Successfully imported {count} transactions!", color=ft.Colors.WHITE
+                t("import_success").format(count=count), color=ft.Colors.WHITE
             ),
             bgcolor=bg_col,
         )

@@ -11,6 +11,7 @@ import calendar
 from ..components.theme import PeadraTheme
 from ..components.modals import TransactionModal, TransactionDetailsModal
 from ..database.db_manager import db
+from ..i18n import t
 
 
 class SubscriptionsView:
@@ -29,6 +30,12 @@ class SubscriptionsView:
 
     def refresh(self):
         self._load_data()
+
+    def _get_translated_month(self, dt: datetime) -> str:
+        """Retourne le mois et l'année traduits."""
+        month_key = f"month_{dt.strftime('%B').lower()}"
+        month_name = t(month_key)
+        return f"{month_name} {dt.year}"
 
     def _load_data(self):
         self.recurring_transactions = db.get_recurring_transactions(display_month=self.current_month.date())
@@ -54,7 +61,7 @@ class SubscriptionsView:
             db.process_recurring_transactions()
 
             snack = ft.SnackBar(
-                ft.Text("Subscription updated successfully", color=ft.Colors.WHITE),
+                ft.Text(t("sub_update_success"), color=ft.Colors.WHITE),
                 bgcolor=PeadraTheme.SUCCESS,
             )
             self.page.overlay.append(snack)
@@ -77,7 +84,7 @@ class SubscriptionsView:
         conn.commit()
 
         snack = ft.SnackBar(
-            ft.Text("Subscription deleted successfully", color=ft.Colors.WHITE),
+            ft.Text(t("msg_subscription_deleted"), color=ft.Colors.WHITE),
             bgcolor=ft.Colors.GREEN,
         )
         self.page.overlay.append(snack)
@@ -96,7 +103,7 @@ class SubscriptionsView:
             "amount": tx.get("amount", 0),
             "transaction_type": tx.get("transaction_type", "expense"),
             "category_name": tx.get("category_name", "Recurring"),
-            "notes": f"Frequency : {tx.get('frequency', '')}\nStart Date : {tx.get('start_date', '')}\nNext Due Date : {tx.get('next_due_date', '')}",
+            "notes": f"{t('sub_frequency_label')}: {tx.get('frequency', '')}\n{t('sub_start_date_label')}: {tx.get('start_date', '')}\n{t('sub_next_due_label')}: {tx.get('next_due_date', '')}",
         }
 
         def on_edit():
@@ -150,7 +157,7 @@ class SubscriptionsView:
         )
         border_color = ft.Colors.with_opacity(0.1, text_color)
 
-        month_name = self.current_month.strftime("%B %Y")
+        month_name = self._get_translated_month(self.current_month)
 
         header = ft.Row(
             [
@@ -175,7 +182,15 @@ class SubscriptionsView:
             alignment=ft.MainAxisAlignment.CENTER,
         )
 
-        days_of_week = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        days_of_week = [
+            t("day_mon"),
+            t("day_tue"),
+            t("day_wed"),
+            t("day_thu"),
+            t("day_fri"),
+            t("day_sat"),
+            t("day_sun"),
+        ]
         dow_row = ft.Row(
             [
                 ft.Container(
@@ -414,7 +429,9 @@ class SubscriptionsView:
 
         yearly_total = amount * occ
         projection_label = (
-            "Total projection" if is_total_projection else f"Projection {year}"
+            t("sub_total_projection")
+            if is_total_projection
+            else t("sub_projection_year").format(year=year)
         )
 
         return yearly_total, projection_label, True
@@ -473,7 +490,7 @@ class SubscriptionsView:
                             italic=True,
                         ),
                         ft.Text(
-                            f"{tx.get('frequency', '')}, Next: {tx.get('next_due_date', '')}",
+                            f"{t('sub_frequency_next')} {tx.get('next_due_date', '')}",
                             color=ft.Colors.with_opacity(0.5, text_color),
                             size=10,
                         ),
@@ -494,7 +511,7 @@ class SubscriptionsView:
         if not grid_items:
             grid_items.append(
                 ft.Text(
-                    "No current recurring transactions found.",
+                    t("sub_no_recurring"),
                     color=ft.Colors.with_opacity(0.5, text_color),
                 )
             )
@@ -503,7 +520,7 @@ class SubscriptionsView:
             content=ft.Column(
                 [
                     ft.Text(
-                        "All Subscriptions",
+                        t("sub_all_subscriptions"),
                         size=20,
                         weight=ft.FontWeight.BOLD,
                         color=text_color,
@@ -530,7 +547,7 @@ class SubscriptionsView:
             content=ft.Column(
                 [
                     ft.Text(
-                        "Subscriptions & Recurring",
+                        t("sub_page_title"),
                         size=28,
                         weight=ft.FontWeight.BOLD,
                         color=text_color,

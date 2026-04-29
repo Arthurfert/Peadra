@@ -7,6 +7,7 @@ import flet as ft
 from typing import Callable
 from .theme import PeadraTheme
 from ..database.db_manager import db
+from ..i18n import t
 
 
 class NavigationRailComponent:
@@ -94,25 +95,25 @@ class NavigationRailComponent:
                             nav_item(
                                 ft.Icons.GRID_VIEW,
                                 ft.Icons.GRID_VIEW_ROUNDED,
-                                "Dashboard",
+                                t("nav_dashboard"),
                                 0,
                             ),
                             nav_item(
                                 ft.Icons.RECEIPT_LONG_OUTLINED,
                                 ft.Icons.RECEIPT_LONG,
-                                "Transactions",
+                                t("nav_transactions"),
                                 1,
                             ),
                             nav_item(
                                 ft.Icons.ACCOUNT_BALANCE_WALLET_OUTLINED,
                                 ft.Icons.ACCOUNT_BALANCE_WALLET,
-                                "Accounts",
+                                t("nav_accounts"),
                                 2,
                             ),
                             nav_item(
                                 ft.Icons.CALENDAR_MONTH_OUTLINED,
                                 ft.Icons.CALENDAR_MONTH,
-                                "Subscriptions",
+                                t("nav_subscriptions"),
                                 3,
                             ),
                         ],
@@ -124,7 +125,7 @@ class NavigationRailComponent:
                         content=ft.Column(
                             [
                                 ft.Text(
-                                    "Total Assets", size=14, color=ft.Colors.GREY_500
+                                    t("dash_total_assets"), size=14, color=ft.Colors.GREY_500
                                 ),
                                 ft.Text(
                                     f"{total_patrimony:,.2f} {currency}",

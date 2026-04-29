@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Callable, List, Dict, Any, Optional
 from .theme import PeadraTheme
 from ..database.db_manager import db
+from ..i18n import t as translate
 
 
 class TransactionModal:
@@ -39,7 +40,7 @@ class TransactionModal:
 
         # Date picker
         self.date_picker = ft.TextField(
-            label="Date",
+            label=translate("trans_date"),
             value=datetime.now().strftime("%Y-%m-%d"),
             read_only=True,
             width=200,
@@ -50,12 +51,12 @@ class TransactionModal:
         )
 
         # Description
-        hint = "Ex: Groceries, Rent..."
+        hint = translate("hint_expense")
         if self.transaction_type == "income":
-            hint = "Ex: Salary, Social Security..."
+            hint = translate("hint_income")
 
         self.description_field = ft.TextField(
-            label="Description",
+            label=translate("trans_description"),
             hint_text=hint,
             width=350,
             autofocus=True,
@@ -63,8 +64,8 @@ class TransactionModal:
 
         # Amount
         self.amount_field = ft.TextField(
-            label=f"Amount ({currency})",
-            hint_text="0.00",
+            label=f"{translate('trans_amount')} ({currency})",
+            hint_text=translate("hint_amount"),
             width=150,
             keyboard_type=ft.KeyboardType.NUMBER,
             input_filter=ft.InputFilter(
@@ -75,7 +76,7 @@ class TransactionModal:
 
         # Recurring
         self.recurring_interval = ft.TextField(
-            label="Every",
+            label=translate("trans_every"),
             value="1",
             width=80,
             keyboard_type=ft.KeyboardType.NUMBER,
@@ -83,19 +84,19 @@ class TransactionModal:
         )
 
         self.recurring_freq = ft.Dropdown(
-            label="Frequency",
+            label=translate("trans_frequency_label"),
             width=200,
             options=[
-                ft.dropdown.Option("daily", "Days"),
-                ft.dropdown.Option("weekly", "Weeks"),
-                ft.dropdown.Option("monthly", "Months"),
-                ft.dropdown.Option("yearly", "Years"),
+                ft.dropdown.Option("daily", translate("freq_daily")),
+                ft.dropdown.Option("weekly", translate("freq_weekly")),
+                ft.dropdown.Option("monthly", translate("freq_monthly")),
+                ft.dropdown.Option("yearly", translate("freq_yearly")),
             ],
             value="monthly",
         )
 
         self.recurring_end_date = ft.TextField(
-            label="End Date (Optional)",
+            label=translate("trans_end_date"),
             read_only=True,
             width=200,
             suffix=ft.IconButton(
@@ -115,7 +116,7 @@ class TransactionModal:
         )
 
         self.recurring_switch = ft.Switch(
-            label="Recurring Transaction",
+            label=translate("trans_recurring"),
             value=False,
             on_change=lambda e: setattr(
                 self.recurring_container, "visible", e.control.value
@@ -143,12 +144,12 @@ class TransactionModal:
         if self.transaction_type == "transfer":
             # Two dropdowns: Source and Dest
             self.source_dropdown = ft.Dropdown(
-                label="Account Debited (From)",
+                label=translate("trans_account_from"),
                 width=350,
                 options=options,
             )
             self.dest_dropdown = ft.Dropdown(
-                label="Account Credited (To)",
+                label=translate("trans_account_to"),
                 width=350,
                 options=options,
             )
@@ -164,7 +165,7 @@ class TransactionModal:
 
         else:
             # Single dropdown
-            label = "Account / Category"
+            label = translate("trans_category")
             self.category_dropdown = ft.Dropdown(
                 label=label,
                 width=350,
@@ -177,8 +178,8 @@ class TransactionModal:
 
         # Notes
         self.notes_field = ft.TextField(
-            label="Notes (optional)",
-            hint_text="Additional information...",
+            label=translate("trans_notes"),
+            hint_text=translate("hint_notes"),
             width=350,
             multiline=True,
             min_lines=2,
@@ -210,11 +211,16 @@ class TransactionModal:
                 field.value = e.control.value.strftime("%Y-%m-%d")
                 field.update()
 
+        def on_dismiss(e):
+            # DatePicker closed, no need to remove from overlay
+            pass
+
         date_picker = ft.DatePicker(
             first_date=datetime(2000, 1, 1),
             last_date=datetime(2100, 12, 31),
             value=d,
             on_change=on_change,
+            on_dismiss=on_dismiss,
         )
 
         self.page.overlay.append(date_picker)
@@ -230,30 +236,30 @@ class TransactionModal:
                 not self.description_field.value
                 or not self.description_field.value.strip()
             ):
-                errors.append("Description is required")
-                self.description_field.error = "Required"
+                errors.append(translate("trans_description") + " " + translate("val_required").lower())
+                self.description_field.error = translate("val_required")
             else:
                 self.description_field.error = None
 
         if not self.amount_field.value:
-            errors.append("Amount is required")
-            self.amount_field.error = "Required"
+            errors.append(translate("trans_amount") + " " + translate("val_required").lower())
+            self.amount_field.error = translate("val_required")
         else:
             try:
                 amount = float(self.amount_field.value)
                 if amount <= 0:
-                    errors.append("Amount must be positive")
-                    self.amount_field.error = "Must be positive"
+                    errors.append(translate("trans_amount") + " " + translate("val_must_be_positive").lower())
+                    self.amount_field.error = translate("val_must_be_positive")
                 else:
                     self.amount_field.error = None
             except ValueError:
-                errors.append("Invalid amount")
-                self.amount_field.error = "Invalid amount"
+                errors.append(translate("val_invalid_amount"))
+                self.amount_field.error = translate("val_invalid_amount")
 
         if self.transaction_type == "transfer":
             if self.source_dropdown.value == self.dest_dropdown.value:
-                errors.append("Identical accounts")
-                self.dest_dropdown.error_text = "Identical accounts"
+                errors.append(translate("val_identical_accounts"))
+                self.dest_dropdown.error_text = translate("val_identical_accounts")
             else:
                 self.dest_dropdown.error_text = None
 
@@ -267,7 +273,7 @@ class TransactionModal:
 
         description = self.description_field.value or ""
         if self.transaction_type == "transfer":
-            description = "Transfer"  # Placeholder, will be overwritten
+            description = translate("trans_transfer_placeholder")  # Placeholder, will be overwritten
         amount_str = self.amount_field.value or "0"
 
         transaction_data = {
@@ -382,16 +388,15 @@ class TransactionModal:
                     )
 
         type_map = {
-            "income": "New Income",
-            "expense": "New Expense",
-            "transfer": "New Transfer",
+            "income": translate("modal_new_income"),
+            "expense": translate("modal_new_expense"),
+            "transfer": translate("modal_new_transfer"),
         }
-        title = type_map.get(self.transaction_type, "New Transaction")
+        title = type_map.get(self.transaction_type, translate("modal_new_transaction"))
         if transaction_data:
-            title = "Edit Transaction"
+            title = translate("modal_edit_transaction")
 
         self.dialog = ft.AlertDialog(
-            modal=True,
             title=ft.Text(title, weight=ft.FontWeight.BOLD),
             content=ft.Container(
                 content=ft.Column(
@@ -403,9 +408,9 @@ class TransactionModal:
                 padding=ft.padding.only(top=10),
             ),
             actions=[
-                ft.TextButton("Cancel", on_click=self._on_cancel_click),
+                ft.TextButton(translate("btn_cancel"), on_click=self._on_cancel_click),
                 ft.ElevatedButton(
-                    "Save",
+                    translate("btn_save"),
                     icon=ft.Icons.SAVE,
                     on_click=self._on_save_click,
                     bgcolor=PeadraTheme.PRIMARY_MEDIUM,
@@ -444,19 +449,19 @@ class TransactionDetailsModal:
 
     def show(self):
         """Affiche le modal."""
-        t = self.transaction
+        transaction = self.transaction
 
         # Format date
         try:
-            date_obj = datetime.strptime(t["date"], "%Y-%m-%d")
+            date_obj = datetime.strptime(transaction["date"], "%Y-%m-%d")
             date_str = date_obj.strftime("%d %B %Y")
         except ValueError:
-            date_str = t["date"]
+            date_str = transaction["date"]
 
         # Determine colors and icon
-        is_income = t["transaction_type"] == "income"
-        is_expense = t["transaction_type"] == "expense"
-        is_transfer = "transfer" in t["transaction_type"]
+        is_income = transaction["transaction_type"] == "income"
+        is_expense = transaction["transaction_type"] == "expense"
+        is_transfer = "transfer" in transaction["transaction_type"]
 
         if is_income:
             color = ft.Colors.GREEN
@@ -477,10 +482,10 @@ class TransactionDetailsModal:
         currency = db.get_setting("currency", "€") or "€"
 
         # Amount formatting
-        amount_txt = f"{amount_prefix}{t['amount']:,.2f} {currency}"
+        amount_txt = f"{amount_prefix}{transaction['amount']:,.2f} {currency}"
 
         # Category info
-        full_category = t.get("category_name") or "Uncategorized"
+        full_category = transaction.get("category_name") or translate("modal_uncategorized")
 
         # Content controls
         content_controls = [
@@ -501,28 +506,28 @@ class TransactionDetailsModal:
             ft.Divider(),
             ft.ListTile(
                 leading=ft.Icon(ft.Icons.DESCRIPTION),
-                title=ft.Text("Description", size=12, color=ft.Colors.GREY),
-                subtitle=ft.Text(t["description"], size=16, weight=ft.FontWeight.W_500),
+                title=ft.Text(translate("modal_description_label"), size=12, color=ft.Colors.GREY),
+                subtitle=ft.Text(transaction["description"], size=16, weight=ft.FontWeight.W_500),
             ),
             ft.ListTile(
                 leading=ft.Icon(ft.Icons.CATEGORY),
-                title=ft.Text("Category", size=12, color=ft.Colors.GREY),
+                title=ft.Text(translate("modal_category_label"), size=12, color=ft.Colors.GREY),
                 subtitle=ft.Text(full_category, size=16),
             ),
         ]
 
         # Add Notes if present
-        if t.get("notes"):
+        if transaction.get("notes"):
             content_controls.append(
                 ft.ListTile(
                     leading=ft.Icon(ft.Icons.NOTE),
-                    title=ft.Text("Notes", size=12, color=ft.Colors.GREY),
-                    subtitle=ft.Text(t["notes"], size=16),
+                    title=ft.Text(translate("modal_notes_label"), size=12, color=ft.Colors.GREY),
+                    subtitle=ft.Text(transaction["notes"], size=16),
                 )
             )
 
         self.dialog = ft.AlertDialog(
-            title=ft.Text("Transaction Details"),
+            title=ft.Text(translate("modal_transaction_details")),
             content=ft.Container(
                 content=ft.Column(
                     content_controls,
@@ -533,12 +538,12 @@ class TransactionDetailsModal:
                 padding=10,
             ),
             actions=[
-                ft.TextButton("Close", on_click=self.close),
+                ft.TextButton(translate("modal_close"), on_click=self.close),
                 ft.TextButton(
-                    "Modify", icon=ft.Icons.EDIT, on_click=self._on_edit_click
+                    translate("btn_modify"), icon=ft.Icons.EDIT, on_click=self._on_edit_click
                 ),
                 ft.TextButton(
-                    "Delete",
+                    translate("modal_delete"),
                     icon=ft.Icons.DELETE,
                     on_click=self._on_delete_click,
                     style=ft.ButtonStyle(color=ft.Colors.RED),

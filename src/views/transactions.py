@@ -9,6 +9,7 @@ from datetime import datetime
 from ..components.theme import PeadraTheme
 from ..components.modals import TransactionModal, TransactionDetailsModal
 from ..database import db
+from ..i18n import t
 
 
 class TransactionsView:
@@ -119,27 +120,27 @@ class TransactionsView:
             )
 
         dlg = ft.AlertDialog(
-            title=ft.Text("New Transaction", color=text_col),
+            title=ft.Text(t("trans_add_transaction"), color=text_col),
             content=ft.Container(
                 content=ft.Row(
                     [
                         create_option_card(
                             ft.Icons.CREDIT_CARD,
-                            "Expense",
+                            t("trans_expense"),
                             expense_icon_col,
                             expense_bg,
                             select_expense,
                         ),
                         create_option_card(
                             ft.Icons.MONETIZATION_ON,
-                            "Income",
+                            t("trans_income"),
                             income_icon_col,
                             income_bg,
                             select_income,
                         ),
                         create_option_card(
                             ft.Icons.SWAP_HORIZ,
-                            "Transfer",
+                            t("trans_transfer"),
                             transfer_icon_col,
                             transfer_bg,
                             select_transfer,
@@ -152,7 +153,7 @@ class TransactionsView:
                 height=140,
                 padding=10,
             ),
-            actions=[ft.TextButton("Cancel", on_click=close_dlg)],
+            actions=[ft.TextButton(t("btn_cancel"), on_click=close_dlg)],
             actions_alignment=ft.MainAxisAlignment.END,
         )
         self.page.overlay.append(dlg)
@@ -205,11 +206,11 @@ class TransactionsView:
             dlg.update()
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Filter by categories"),
+            title=ft.Text(t("trans_filter_categories")),
             content=ft.Container(
                 content=ft.Column(
                     [
-                        ft.TextButton("Deselect All", on_click=clear_filter),
+                        ft.TextButton(t("btn_deselect_all"), on_click=clear_filter),
                         ft.Column(checkboxes, scroll=ft.ScrollMode.AUTO, expand=True),
                     ],
                 ),
@@ -217,9 +218,9 @@ class TransactionsView:
                 height=400,
             ),
             actions=[
-                ft.TextButton("Cancel", on_click=close_dlg),
+                ft.TextButton(t("btn_cancel"), on_click=close_dlg),
                 ft.ElevatedButton(
-                    "Apply Filters",
+                    t("btn_apply_filters"),
                     on_click=apply_filter,
                     bgcolor=PeadraTheme.ACCENT,
                     color=ft.Colors.WHITE,
@@ -270,7 +271,7 @@ class TransactionsView:
                 # Process immediately so user sees it if it starts today
                 db.process_recurring_transactions()
 
-                snack = ft.SnackBar(ft.Text("Recurring transaction added"))
+                snack = ft.SnackBar(ft.Text(t("msg_recurring_added")))
                 self.page.overlay.append(snack)
                 snack.open = True
                 self.on_data_change()
@@ -284,7 +285,7 @@ class TransactionsView:
                 db.update_transaction(
                     data["id"],
                     date=data["date"],
-                    description=f"Transfer to {data.get('dest_name', 'compte')}",
+                    description=f"{t('trans_transfer_to')} {data.get('dest_name', t('trans_account_default'))}",
                     amount=data["amount"],
                     category_id=data.get("source_id"),
                     notes=data.get("notes"),
@@ -293,12 +294,12 @@ class TransactionsView:
                 db.update_transaction(
                     data["other_id"],
                     date=data["date"],
-                    description=f"Transfer from {data.get('source_name', 'compte')}",
+                    description=f"{t('trans_transfer_from')} {data.get('source_name', t('trans_account_default'))}",
                     amount=data["amount"],
                     category_id=data.get("dest_id"),
                     notes=data.get("notes"),
                 )
-                msg = "Transfer modified"
+                msg = t("msg_transfer_modified")
             else:
                 db.update_transaction(
                     data["id"],
@@ -309,7 +310,7 @@ class TransactionsView:
                     category_id=data.get("category_id"),
                     notes=data.get("notes"),
                 )
-                msg = "Transaction modified"
+                msg = t("msg_transaction_modified")
 
         elif data["transaction_type"] == "transfer":
             # Création - Transfert (2 transactions)
@@ -317,7 +318,7 @@ class TransactionsView:
             # 1. Expense from source
             db.add_transaction(
                 date=data["date"],
-                description=f"Transfer to {data.get('dest_name', 'compte')}",
+                description=f"{t('trans_transfer_to')} {data.get('dest_name', t('trans_account_default'))}",
                 amount=data["amount"],
                 transaction_type="expense",
                 category_id=data.get("source_id"),
@@ -327,14 +328,14 @@ class TransactionsView:
             # 2. Income to dest
             db.add_transaction(
                 date=data["date"],
-                description=f"Transfer from {data.get('source_name', 'compte')}",
+                description=f"{t('trans_transfer_from')} {data.get('source_name', t('trans_account_default'))}",
                 amount=data["amount"],
                 transaction_type="income",
                 category_id=data.get("dest_id"),
                 notes=data.get("notes"),
             )
 
-            msg = "Transfer completed"
+            msg = t("msg_transfer_completed")
 
         else:
             # Création - Standard
@@ -346,7 +347,7 @@ class TransactionsView:
                 category_id=data.get("category_id"),
                 notes=data.get("notes"),
             )
-            msg = "Transaction added"
+            msg = t("msg_transaction_added")
 
         snack = ft.SnackBar(ft.Text(msg))
         self.page.overlay.append(snack)
@@ -375,18 +376,18 @@ class TransactionsView:
             db.delete_transaction(transaction_id)
             close_dlg(e)
             self.on_data_change()
-            snack = ft.SnackBar(ft.Text("Transaction deleted"))
+            snack = ft.SnackBar(ft.Text(t("msg_transaction_deleted")))
             self.page.overlay.append(snack)
             snack.open = True
             self.page.update()
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Confirm delete"),
-            content=ft.Text("Are you sure you want to delete this transaction ?"),
+            title=ft.Text(t("msg_confirm_delete")),
+            content=ft.Text(t("trans_delete_confirm")),
             actions=[
-                ft.TextButton("Cancel", on_click=close_dlg),
+                ft.TextButton(t("btn_cancel"), on_click=close_dlg),
                 ft.TextButton(
-                    "Delete",
+                    t("btn_delete"),
                     on_click=delete,
                     style=ft.ButtonStyle(color=ft.Colors.RED),
                 ),
@@ -510,20 +511,20 @@ class TransactionsView:
                 db.delete_transaction(tid)
             close_dlg(e)
             self.on_data_change()
-            snack = ft.SnackBar(ft.Text("Transfer deleted"))
+            snack = ft.SnackBar(ft.Text(t("msg_transfer_deleted")))
             self.page.overlay.append(snack)
             snack.open = True
             self.page.update()
 
         dlg = ft.AlertDialog(
-            title=ft.Text("Confirm delete"),
+            title=ft.Text(t("msg_confirm_delete")),
             content=ft.Text(
-                "Are you sure you want to delete this transfer (2 transactions) ?"
+                t("trans_delete_transfer_confirm")
             ),
             actions=[
-                ft.TextButton("Cancel", on_click=close_dlg),
+                ft.TextButton(t("btn_cancel"), on_click=close_dlg),
                 ft.TextButton(
-                    "Delete",
+                    t("btn_delete"),
                     on_click=delete,
                     style=ft.ButtonStyle(color=ft.Colors.RED),
                 ),
@@ -554,8 +555,8 @@ class TransactionsView:
 
         display_transactions = self._group_transactions(self.transactions)
 
-        for t in display_transactions:
-            is_group = t.get("transaction_type") == "transfer_group"
+        for transaction in display_transactions:
+            is_group = transaction.get("transaction_type") == "transfer_group"
 
             if is_group:
                 # TRANSFER ROW
@@ -568,16 +569,16 @@ class TransactionsView:
                 )
                 amount_color = text_color
                 amount_prefix = ""
-                cat_name = "Transfer"
+                cat_name = t("trans_category_transfer")
                 cat_bg = ft.Colors.BLUE_GREY_100
                 cat_text_col = ft.Colors.BLUE_GREY_900
 
-                edit_action = lambda e, t=t: self._edit_transfer_group(t)
-                delete_action = lambda e, ids=t["ids"]: self._confirm_delete_group(ids)
+                edit_action = lambda e, trans=transaction: self._edit_transfer_group(trans)
+                delete_action = lambda e, ids=transaction["ids"]: self._confirm_delete_group(ids)
 
             else:
                 # STANDARD ROW
-                is_income = t["transaction_type"] == "income"
+                is_income = transaction["transaction_type"] == "income"
                 amount_color = ft.Colors.GREEN if is_income else text_color
                 amount_prefix = "+" if is_income else ""
 
@@ -587,18 +588,18 @@ class TransactionsView:
                 if self.is_dark:
                     icon_bg = ft.Colors.with_opacity(0.1, icon_color)
 
-                cat_name = t.get("category_name", "") or ""
-                cat_bg = t.get("category_color") or ft.Colors.GREY_300
+                cat_name = transaction.get("category_name", "") or ""
+                cat_bg = transaction.get("category_color") or ft.Colors.GREY_300
                 cat_text_col = ft.Colors.WHITE
 
-                edit_action = lambda e, t=t: self._edit_transaction(t)
-                delete_action = lambda e, id=t["id"]: self._confirm_delete(id)
+                edit_action = lambda e, trans=transaction: self._edit_transaction(trans)
+                delete_action = lambda e, id=transaction["id"]: self._confirm_delete(id)
 
             try:
-                date_obj = datetime.strptime(t["date"], "%Y-%m-%d")
+                date_obj = datetime.strptime(transaction["date"], "%Y-%m-%d")
                 date_str = date_obj.strftime("%b %d, %Y")
             except ValueError:
-                date_str = t["date"]
+                date_str = transaction["date"]
 
             row = ft.Container(
                 content=ft.Row(
@@ -616,7 +617,7 @@ class TransactionsView:
                                         border_radius=8,
                                     ),
                                     ft.Text(
-                                        t["description"],
+                                        transaction["description"],
                                         weight=ft.FontWeight.W_500,
                                         color=text_color,
                                     ),
@@ -646,7 +647,7 @@ class TransactionsView:
                         # Amount
                         ft.Container(
                             ft.Text(
-                                f"{amount_prefix}{t['amount']:,.2f} {self.currency}",
+                                f"{amount_prefix}{transaction['amount']:,.2f} {self.currency}",
                                 weight=ft.FontWeight.BOLD,
                                 color=amount_color,
                                 text_align=ft.TextAlign.RIGHT,
@@ -660,17 +661,17 @@ class TransactionsView:
                                 icon=ft.Icons.MORE_VERT,
                                 items=[
                                     ft.PopupMenuItem(
-                                        content=ft.Text("Modify"),
+                                        content=ft.Text(t("btn_modify")),
                                         icon=ft.Icons.EDIT,
                                         on_click=edit_action,
                                     ),
                                     ft.PopupMenuItem(
-                                        content=ft.Text("Delete"),
+                                        content=ft.Text(t("btn_delete")),
                                         icon=ft.Icons.DELETE,
                                         on_click=delete_action,
                                     ),
                                 ],
-                                tooltip="Actions",
+                                tooltip=t("tooltip_actions"),
                             ),
                             width=50,
                             alignment=ft.Alignment.CENTER_RIGHT,
@@ -678,7 +679,7 @@ class TransactionsView:
                     ]
                 ),
                 padding=ft.padding.symmetric(horizontal=16, vertical=16),
-                on_click=lambda e, t=t: self._open_transaction_details(t),
+                on_click=lambda e, trans=transaction: self._open_transaction_details(trans),
                 border=ft.border.only(
                     bottom=ft.border.BorderSide(
                         1, ft.Colors.with_opacity(0.1, ft.Colors.GREY)
@@ -696,7 +697,7 @@ class TransactionsView:
         if not rows:
             rows.append(
                 ft.Container(
-                    content=ft.Text("No recent transactions", color=ft.Colors.GREY),
+                    content=ft.Text(t("trans_no_recent"), color=ft.Colors.GREY),
                     padding=20,
                     alignment=ft.Alignment.CENTER,
                 )
@@ -722,8 +723,8 @@ class TransactionsView:
                 ft.Container(
                     content=ft.Row(
                         [
-                            ft.TextButton("Load More", on_click=load_more),
-                            ft.TextButton("Load All", on_click=load_all),
+                            ft.TextButton(t("btn_load_more"), on_click=load_more),
+                            ft.TextButton(t("btn_load_all"), on_click=load_all),
                         ],
                         alignment=ft.MainAxisAlignment.CENTER,
                         spacing=20,
@@ -756,20 +757,20 @@ class TransactionsView:
                 ft.Column(
                     [
                         ft.Text(
-                            "Transactions",
+                            t("trans_title"),
                             size=32,
                             weight=ft.FontWeight.BOLD,
                             color=text_color,
                         ),
                         ft.Text(
-                            "View and manage your recent transactions.",
+                            t("trans_subtitle"),
                             size=16,
                             color=ft.Colors.GREY,
                         ),
                     ]
                 ),
                 ft.ElevatedButton(
-                    "Add Transaction",
+                    t("trans_add_transaction"),
                     icon=ft.Icons.ADD,
                     bgcolor=PeadraTheme.ACCENT,
                     color=ft.Colors.WHITE,
@@ -783,7 +784,7 @@ class TransactionsView:
         search_bar = ft.Row(
             [
                 ft.TextField(
-                    hint_text="Search transactions...",
+                    hint_text=t("trans_search_placeholder"),
                     value=self.search_query,
                     prefix_icon=ft.Icons.SEARCH,
                     border_radius=8,
@@ -794,7 +795,7 @@ class TransactionsView:
                 ),
                 ft.Container(width=10),
                 ft.OutlinedButton(
-                    "Filter",
+                    t("btn_filter"),
                     icon=ft.Icons.FILTER_LIST,
                     style=ft.ButtonStyle(
                         shape=ft.RoundedRectangleBorder(radius=8),
@@ -810,7 +811,7 @@ class TransactionsView:
                 [
                     ft.Container(
                         ft.Text(
-                            "Description",
+                            t("trans_description"),
                             weight=ft.FontWeight.BOLD,
                             color=ft.Colors.GREY_700,
                         ),
@@ -818,7 +819,7 @@ class TransactionsView:
                     ),
                     ft.Container(
                         ft.Text(
-                            "Category",
+                            t("trans_category"),
                             weight=ft.FontWeight.BOLD,
                             color=ft.Colors.GREY_700,
                         ),
@@ -827,13 +828,13 @@ class TransactionsView:
                     ),
                     ft.Container(
                         ft.Text(
-                            "Date", weight=ft.FontWeight.BOLD, color=ft.Colors.GREY_700
+                            t("trans_date"), weight=ft.FontWeight.BOLD, color=ft.Colors.GREY_700
                         ),
                         expand=2,
                     ),
                     ft.Container(
                         ft.Text(
-                            "Amount",
+                            t("trans_amount"),
                             weight=ft.FontWeight.BOLD,
                             color=ft.Colors.GREY_700,
                             text_align=ft.TextAlign.RIGHT,

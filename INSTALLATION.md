@@ -35,7 +35,19 @@ python main.py
 > ```
 > If it doesn't work, try fixing it with this [stack overflow post](https://stackoverflow.com/questions/78007193/error-while-loading-shared-libraries-libmpv-so-1-cannot-open-shared-object-fil).
 
-# Build
+> [!TIP]
+> Use the Makefile to make all this easier ! (run `make help` for all available commands)
+
+# Package
+
+**You need to install the project before.**
+
+To package the app in one executable file (all OS) : 
+``` bash
+make pack
+```
+
+# Build (with entire dependencies files)
 
 **You need to install the project before.**
 

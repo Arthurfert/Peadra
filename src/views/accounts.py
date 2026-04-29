@@ -7,6 +7,7 @@ import flet as ft
 from typing import Callable, Optional
 from ..components.theme import PeadraTheme
 from ..database import db
+from ..i18n import t
 
 
 class AccountsView:
@@ -21,101 +22,101 @@ class AccountsView:
 
         # Dialog components
         self.dialog = None
-        self.name_field = ft.TextField(label="Account Name", width=300)
+        self.name_field = ft.TextField(label=t("acc_name"), width=300)
         self.update_history_checkbox = ft.Checkbox(
-            label="Update name in past transactions",
+            label=t("acc_update_history"),
             value=True,
             label_style=ft.TextStyle(size=14),
         )
         self.type_dropdown = ft.Dropdown(
-            label="Account Type",
+            label=t("acc_type"),
             options=[
-                ft.dropdown.Option("savings", "Savings Account"),
-                ft.dropdown.Option("checking", "Checking Account"),
+                ft.dropdown.Option("savings", t("acc_savings")),
+                ft.dropdown.Option("checking", t("acc_checking")),
             ],
             value="savings",
             width=300,
         )
         self.color_dropdown = ft.Dropdown(
-            label="Color",
+            label=t("acc_color"),
             options=[
                 ft.dropdown.Option(
                     "#4CAF50",
-                    "Green",
+                    t("acc_green"),
                     content=ft.Row(
                         [
                             ft.Container(width=20, height=20, bgcolor="#4CAF50"),
-                            ft.Text("Green"),
+                            ft.Text(t("acc_green")),
                         ]
                     ),
                 ),
                 ft.dropdown.Option(
                     "#2196F3",
-                    "Blue",
+                    t("acc_blue"),
                     content=ft.Row(
                         [
                             ft.Container(width=20, height=20, bgcolor="#2196F3"),
-                            ft.Text("Blue"),
+                            ft.Text(t("acc_blue")),
                         ]
                     ),
                 ),
                 ft.dropdown.Option(
                     "#009688",
-                    "Teal",
+                    t("acc_teal"),
                     content=ft.Row(
                         [
                             ft.Container(width=20, height=20, bgcolor="#009688"),
-                            ft.Text("Teal"),
+                            ft.Text(t("acc_teal")),
                         ]
                     ),
                 ),
                 ft.dropdown.Option(
                     "#FF9800",
-                    "Orange",
+                    t("acc_orange"),
                     content=ft.Row(
                         [
                             ft.Container(width=20, height=20, bgcolor="#FF9800"),
-                            ft.Text("Orange"),
+                            ft.Text(t("acc_orange")),
                         ]
                     ),
                 ),
                 ft.dropdown.Option(
                     "#E91E63",
-                    "Pink",
+                    t("acc_pink"),
                     content=ft.Row(
                         [
                             ft.Container(width=20, height=20, bgcolor="#E91E63"),
-                            ft.Text("Pink"),
+                            ft.Text(t("acc_pink")),
                         ]
                     ),
                 ),
                 ft.dropdown.Option(
                     "#9C27B0",
-                    "Purple",
+                    t("acc_purple"),
                     content=ft.Row(
                         [
                             ft.Container(width=20, height=20, bgcolor="#9C27B0"),
-                            ft.Text("Purple"),
+                            ft.Text(t("acc_purple")),
                         ]
                     ),
                 ),
                 ft.dropdown.Option(
                     "#F44336",
-                    "Red",
+                    t("acc_red"),
                     content=ft.Row(
                         [
                             ft.Container(width=20, height=20, bgcolor="#F44336"),
-                            ft.Text("Red"),
+                            ft.Text(t("acc_red")),
                         ]
                     ),
                 ),
                 ft.dropdown.Option(
                     "#607D8B",
-                    "Gray",
+                    t("acc_gray"),
                     content=ft.Row(
                         [
                             ft.Container(width=20, height=20, bgcolor="#607D8B"),
-                            ft.Text("Gray"),
+                            ft.Text(t("acc_gray")),
                         ]
                     ),
                 ),
@@ -151,14 +152,14 @@ class AccountsView:
             self.type_dropdown.value = account.get("type", "savings")
             self.update_history_checkbox.visible = True
             self.update_history_checkbox.value = True
-            title = "Edit Account"
+            title = t("acc_edit_account")
         else:
             self.editing_id = None
             self.name_field.value = ""
             self.color_dropdown.value = "#2196F3"  # Default color
-            self.type_dropdown.value = "savings"
+            self.type_dropdown.value = t("acc_savings")
             self.update_history_checkbox.visible = False
-            title = "New Account"
+            title = t("acc_add_account")
 
         self.dialog = ft.AlertDialog(
             title=ft.Text(title),
@@ -173,8 +174,8 @@ class AccountsView:
                 spacing=20,
             ),
             actions=[
-                ft.TextButton("Cancel", on_click=self._close_dialog),
-                ft.TextButton("Save", on_click=self._save_account),
+                ft.TextButton(t("btn_cancel"), on_click=self._close_dialog),
+                ft.TextButton(t("btn_save"), on_click=self._save_account),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
@@ -217,21 +218,21 @@ class AccountsView:
                 self.on_data_change()
 
                 snack = ft.SnackBar(
-                    content=ft.Text(f"Accounts merged into '{target_name}'")
+                    content=ft.Text(t("acc_merge_success").format(target_name=target_name))
                 )
                 self.page.overlay.append(snack)
                 snack.open = True
                 self.page.update()
 
         self.merge_dialog = ft.AlertDialog(
-            title=ft.Text("Merge Accounts?"),
+            title=ft.Text(t("acc_merge_title")),
             content=ft.Text(
-                f"An account named '{target_name}' already exists.\nDo you want to merge this account into it?\n\nAll transactions will be moved to '{target_name}'."
+                t("acc_merge_message").format(target_name=target_name)
             ),
             actions=[
-                ft.TextButton("Cancel", on_click=close_merge_dlg),
+                ft.TextButton(t("btn_cancel"), on_click=close_merge_dlg),
                 ft.TextButton(
-                    "Merge",
+                    t("btn_merge"),
                     on_click=confirm_merge,
                     style=ft.ButtonStyle(color=ft.Colors.BLUE),
                 ),
@@ -246,11 +247,11 @@ class AccountsView:
         raw_name = self.name_field.value or ""
         name = raw_name.strip()
         color = self.color_dropdown.value or "#2196F3"
-        account_type = self.type_dropdown.value or "savings"
+        account_type = self.type_dropdown.value or t("acc_savings")
         update_history = self.update_history_checkbox.value
 
         if not name:
-            setattr(self.name_field, "error_text", "Please enter a name")
+            setattr(self.name_field, "error_text", t("acc_error_no_name"))
             self.name_field.update()
             return
 
@@ -275,7 +276,7 @@ class AccountsView:
 
             # Case 2: New account (or Edit with History Off) and name taken
             elif not is_edit_mode:
-                setattr(self.name_field, "error_text", "Account already exists")
+                setattr(self.name_field, "error_text", t("acc_error_exists"))
                 self.name_field.update()
                 return
 
@@ -293,7 +294,7 @@ class AccountsView:
             self.refresh()
             self.on_data_change()
         else:
-            setattr(self.name_field, "error_text", "Error (Name may already be in use)")
+            setattr(self.name_field, "error_text", t("acc_error_save"))
             self.name_field.update()
 
     def _delete_account(self, account_id):
@@ -312,7 +313,7 @@ class AccountsView:
                 self.on_data_change()
 
         self.delete_history_checkbox = ft.Checkbox(
-            label="Also delete associated transactions",
+            label=t("acc_delete_transactions"),
             value=False,
             label_style=ft.TextStyle(
                 color=PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
@@ -320,18 +321,18 @@ class AccountsView:
         )
 
         self.confirm_dialog = ft.AlertDialog(
-            title=ft.Text("Delete Account?"),
+            title=ft.Text(t("acc_delete_confirm")),
             content=ft.Column(
                 [
-                    ft.Text("You are about to delete this account."),
+                    ft.Text(t("acc_delete_message")),
                     self.delete_history_checkbox,
                 ],
                 tight=True,
             ),
             actions=[
-                ft.TextButton("Cancel", on_click=close_delete_dlg),
+                ft.TextButton(t("btn_cancel"), on_click=close_delete_dlg),
                 ft.TextButton(
-                    "Delete",
+                    t("btn_delete"),
                     on_click=confirm_delete,
                     style=ft.ButtonStyle(color=ft.Colors.RED),
                 ),
@@ -373,7 +374,7 @@ class AccountsView:
                                         content=ft.Row(
                                             [
                                                 ft.Icon(ft.Icons.EDIT),
-                                                ft.Text("Edit"),
+                                                ft.Text(t("btn_edit")),
                                             ]
                                         ),
                                         on_click=lambda _: self._open_dialog(account),
@@ -382,7 +383,7 @@ class AccountsView:
                                         content=ft.Row(
                                             [
                                                 ft.Icon(ft.Icons.DELETE),
-                                                ft.Text("Delete"),
+                                                ft.Text(t("btn_delete")),
                                             ]
                                         ),
                                         on_click=lambda _: self._delete_account(
@@ -437,15 +438,13 @@ class AccountsView:
         for account in self.accounts:
             grid.controls.append(self._build_account_card(account))
 
-        # Add "Add Card" button as a special card or FAB
-        # To match "is cards and not a list" request, we can add a special card for adding
         add_container = ft.Container(
             content=ft.Column(
                 [
                     ft.Icon(
                         ft.Icons.ADD_CIRCLE_OUTLINE, size=40, color=ft.Colors.GREY_500
                     ),
-                    ft.Text("Add Account", color=ft.Colors.GREY_500),
+                    ft.Text(t("acc_add_account"), color=ft.Colors.GREY_500),
                 ],
                 alignment=ft.MainAxisAlignment.CENTER,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -467,7 +466,7 @@ class AccountsView:
         return ft.Column(
             [
                 ft.Text(
-                    "Accounts",
+                    t("acc_title"),
                     size=32,
                     weight=ft.FontWeight.BOLD,
                     color=PeadraTheme.DARK_TEXT

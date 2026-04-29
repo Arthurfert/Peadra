@@ -7,6 +7,7 @@ import flet as ft
 from src.components.theme import PeadraTheme
 from src.components.navigation import NavigationRailComponent
 from src.database import db
+from src.i18n import set_language, get_translator, t
 from src.views.dashboard import DashboardView
 from src.views.transactions import TransactionsView
 from src.views.accounts import AccountsView
@@ -36,6 +37,11 @@ class PeadraApp:
 
     def _logout(self):
         """Déconnecte l'utilisateur et revient à la vue de login."""
+        # Sauvegarder la langue actuelle globalement avant de réinitialiser
+        from src.i18n import get_translator
+        current_language = get_translator().get_language()
+        db.set_app_setting("language", current_language)
+        
         self.page.controls.clear()
 
         # Réinitialiser l'user_id
@@ -135,6 +141,7 @@ class PeadraApp:
             on_import=lambda: self.import_dialog.open(),
             on_export=self._export_data,
             on_account_deleted=self._logout,
+            on_language_change=self._on_language_change,
         )
         self.views = {
             0: DashboardView(
@@ -180,6 +187,15 @@ class PeadraApp:
         # Reconstruire l'interface
         self._build_ui()
 
+    def _on_language_change(self, language: str):
+        """Gère le changement de langue."""
+        set_language(language)
+        # Sauvegarder la langue globalement pour la prochaine session
+        db.set_app_setting("language", language)
+        # Reconstruire l'interface pour appliquer les nouvelles traductions
+        self._build_ui()
+        self._refresh_all_views()
+
     def _refresh_all_views(self):
         """Rafraîchit toutes les vues (appelé après une modification de données)."""
         for view in self.views.values():
@@ -207,9 +223,9 @@ class PeadraApp:
             success = db.export_to_csv(file_path, "transactions")
 
         if success:
-            self._show_snackbar(f"Export succeeded : {file_path}", success=True)
+            self._show_snackbar(t("msg_export_success").format(file_path=file_path), success=True)
         else:
-            self._show_snackbar("Error during export", success=False)
+            self._show_snackbar(t("msg_export_error"), success=False)
 
     def _show_snackbar(self, message: str, success: bool = True):
         """Affiche une notification."""
@@ -267,13 +283,13 @@ class PeadraApp:
                     # Bouton des paramètres
                     ft.IconButton(
                         icon=ft.Icons.SETTINGS,
-                        tooltip="Settings",
+                        tooltip=t("tooltip_settings"),
                         on_click=lambda e: self._open_settings(e),
                     ),
                     # Bouton logout
                     ft.IconButton(
                         icon=ft.Icons.LOGOUT,
-                        tooltip="Logout",
+                        tooltip=t("tooltip_logout"),
                         on_click=lambda e: self._logout(),
                     ),
                 ],
@@ -354,6 +370,13 @@ def main(page: ft.Page):
         theme_setting = db.get_setting("theme_mode", "dark")
         is_dark_user = theme_setting == "dark"
 
+        # Charger la langue depuis la base de données pour l'utilisateur
+        language_setting = db.get_setting("language", "en") or "en"
+        set_language(language_setting)
+        
+        # Sauvegarder aussi la langue globalement pour la prochaine session
+        db.set_app_setting("language", language_setting)
+
         # Traiter les transactions récurrentes au démarrage
         try:
             db.process_recurring_transactions()
@@ -381,6 +404,10 @@ def main(page: ft.Page):
     page.window.icon = "icon.ico"
     page.vertical_alignment = ft.MainAxisAlignment.CENTER
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
+
+    # Charger la langue globale de l'application (paramètre global)
+    global_language = db.get_app_setting("language", "en") or "en"
+    set_language(global_language)
 
     # Récupérer la liste des utilisateurs existants
     existing_users = db.get_all_usernames()

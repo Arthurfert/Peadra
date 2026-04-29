@@ -4,7 +4,7 @@ Welcome to the technical documentation of the **Peadra** project. This document 
 
 ## 1. Overview
 
-Peadra is a personal wealth management application built in **Python**, using the **Flet** framework for the user interface (GUI) and **SQLite** for data persistence.
+Peadra is a personal wealth management application built in **Python**, using the **Flet** framework for the user interface (GUI) and **SQLite** for data storage.
 
 ### Key Technologies
 - **Language**: Python 3.10+
@@ -56,22 +56,29 @@ The project structure follows a logical separation of concerns (simplified MVC):
 
 ```
 Peadra/
-├── main.py                    # Entry point. Initializes Flet app and navigation.
-├── requirements.txt           # Production dependencies list.
+├── main.py                   # Application entry point
+├── requirements.txt          # Python dependencies
+├── LICENSE                   # GNU-GPL License
+├── README.md                 # This file
 └── src/
-    ├── components/            # Reusable UI widgets
-    │   ├── modals.py          # Modal windows (Transaction, Asset).
-    │   ├── navigation.py      # Sidebar navigation (Rail).
-    │   └── theme.py           # Theme configuration (Light/Dark).
-    ├── database/              # Data access layer
-    │   └── db_manager.py      # SQLite manager (Singleton recommended).
-    └── views/                 # Application pages
-        ├── dashboard.py       # View (0): Overview (Charts, KPI).
-        ├── transactions.py    # View (1): Transaction list and addition.
-        ├── accounts.py        # View (2): Accounts management.
-        ├── parameters.py      # View (4): User configuration.
-        ├── subscriptions.py   # View (3): Subscriptions calendar view and bento grid with financial projections.
-        └── import_data.py     # File import (CSV/Bank exports).
+    ├── __init__.py
+    ├── i18n.py               # Translation
+    ├── components/           # Reusable UI components
+    │   ├── __init__.py
+    │   ├── modals.py         # Transaction and Asset modals
+    │   ├── navigation.py     # Navigation rail component
+    │   └── theme.py          # Theme configuration and styling
+    ├── database/             # Database layer
+    │   ├── __init__.py
+    │   └── db_manager.py     # SQLite database manager
+    └── views/                # Application views
+        ├── __init__.py
+        ├── accounts.py       # Accounts view
+        ├── dashboard.py      # Dashboard view
+        ├── import_data.py    # Import data view
+        ├── parameters.py     # Parameters view
+        ├── subscriptions.py  # Parameters view
+        └── transactions.py   # Transactions management view
 ```
 
 ### Data Flow
@@ -154,6 +161,7 @@ To add a new page to the application (e.g., `ReportsView`):
 3.  **Add to navigation**:
     - Open `src/components/navigation.py`.
     - Add a destination (`NavigationRailDestination`) in the list of destinations to match your new index.
+4. **Translate**: Add every displayed text's translations in the `i18n` file.
 
 ### Modifying the Theme
 The theme is centralized in `src/components/theme.py`.

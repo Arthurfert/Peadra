@@ -248,13 +248,13 @@ class TransactionModal:
                 else:
                     self.amount_field.error = None
             except ValueError:
-                errors.append("Invalid amount")
-                self.amount_field.error = "Invalid amount"
+                errors.append(translate("val_invalid_amount"))
+                self.amount_field.error = translate("val_invalid_amount")
 
         if self.transaction_type == "transfer":
             if self.source_dropdown.value == self.dest_dropdown.value:
-                errors.append("Identical accounts")
-                self.dest_dropdown.error_text = "Identical accounts"
+                errors.append(translate("val_identical_accounts"))
+                self.dest_dropdown.error_text = translate("val_identical_accounts")
             else:
                 self.dest_dropdown.error_text = None
 
@@ -268,7 +268,7 @@ class TransactionModal:
 
         description = self.description_field.value or ""
         if self.transaction_type == "transfer":
-            description = "Transfer"  # Placeholder, will be overwritten
+            description = translate("trans_transfer_placeholder")  # Placeholder, will be overwritten
         amount_str = self.amount_field.value or "0"
 
         transaction_data = {
@@ -387,7 +387,7 @@ class TransactionModal:
             "expense": translate("modal_new_expense"),
             "transfer": translate("modal_new_transfer"),
         }
-        title = type_map.get(self.transaction_type, "New Transaction")
+        title = type_map.get(self.transaction_type, translate("modal_new_transaction"))
         if transaction_data:
             title = translate("modal_edit_transaction")
 

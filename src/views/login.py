@@ -175,7 +175,7 @@ class LoginView:
         self.page.add(self.build())
         self.page.update()
 
-    def _on_action_click(self, e):
+    async def _on_action_click(self, e):
         """Gère l'action (login ou registration)."""
         # Type assertions pour Pylance
         assert self.error_text is not None
@@ -199,9 +199,9 @@ class LoginView:
                 self.error_text.value = t("msg_user_select_required")
                 self.page.update()
                 return
-            self._login(username, password)
+            await self._login(username, password)
 
-    def _login(self, username: str, password: str):
+    async def _login(self, username: str, password: str):
         """Connecte l'utilisateur."""
         # Type assertions pour Pylance
         assert self.error_text is not None
@@ -223,7 +223,7 @@ class LoginView:
         if user_id is None:
             self.error_text.value = t("msg_incorrect_credentials")
             self.password_field.value = ""
-            _ = self.password_field.focus()
+            await self.password_field.focus()
             self.page.update()
             return
 

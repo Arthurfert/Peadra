@@ -7,7 +7,7 @@ import flet as ft
 from src.components.theme import PeadraTheme
 from src.components.navigation import NavigationRailComponent
 from src.database import db
-from src.i18n import set_language, get_translator
+from src.i18n import set_language, get_translator, t
 from src.views.dashboard import DashboardView
 from src.views.transactions import TransactionsView
 from src.views.accounts import AccountsView
@@ -223,9 +223,9 @@ class PeadraApp:
             success = db.export_to_csv(file_path, "transactions")
 
         if success:
-            self._show_snackbar(f"Export succeeded : {file_path}", success=True)
+            self._show_snackbar(t("msg_export_success").format(file_path=file_path), success=True)
         else:
-            self._show_snackbar("Error during export", success=False)
+            self._show_snackbar(t("msg_export_error"), success=False)
 
     def _show_snackbar(self, message: str, success: bool = True):
         """Affiche une notification."""
@@ -283,13 +283,13 @@ class PeadraApp:
                     # Bouton des paramètres
                     ft.IconButton(
                         icon=ft.Icons.SETTINGS,
-                        tooltip="Settings",
+                        tooltip=t("tooltip_settings"),
                         on_click=lambda e: self._open_settings(e),
                     ),
                     # Bouton logout
                     ft.IconButton(
                         icon=ft.Icons.LOGOUT,
-                        tooltip="Logout",
+                        tooltip=t("tooltip_logout"),
                         on_click=lambda e: self._logout(),
                     ),
                 ],

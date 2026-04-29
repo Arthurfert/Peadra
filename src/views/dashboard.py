@@ -166,19 +166,19 @@ class DashboardView:
         txs = db.get_transactions_by_period(start_date, end_date)
         self.category_expenses = {}
         self.category_incomes = {}
-        for t in txs:
-            desc = (t["description"] or "Autre").strip()
+        for transaction in txs:
+            desc = (transaction["description"] or t("dash_other_category")).strip()
             # Filter out transfers
             if desc.startswith("Transfer to ") or desc.startswith("Transfer from "):
                 continue
 
-            if t["transaction_type"] == "expense":
+            if transaction["transaction_type"] == "expense":
                 self.category_expenses[desc] = (
-                    self.category_expenses.get(desc, 0) + t["amount"]
+                    self.category_expenses.get(desc, 0) + transaction["amount"]
                 )
-            elif t["transaction_type"] == "income":
+            elif transaction["transaction_type"] == "income":
                 self.category_incomes[desc] = (
-                    self.category_incomes.get(desc, 0) + t["amount"]
+                    self.category_incomes.get(desc, 0) + transaction["amount"]
                 )
 
         # Account Distribution Data

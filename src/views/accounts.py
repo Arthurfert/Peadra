@@ -441,8 +441,6 @@ class AccountsView:
         for account in self.accounts:
             grid.controls.append(self._build_account_card(account))
 
-        # Add "Add Card" button as a special card or FAB
-        # To match "is cards and not a list" request, we can add a special card for adding
         add_container = ft.Container(
             content=ft.Column(
                 [

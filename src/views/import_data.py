@@ -55,7 +55,7 @@ class CustomFilePicker:
                                 ft.IconButton(
                                     icon=ft.Icons.ARROW_UPWARD,
                                     on_click=self._go_up,
-                                    tooltip="Go up",
+                                    tooltip=t("param_file_go_up"),
                                 ),
                                 ft.Container(
                                     content=self.path_text, expand=True, padding=5
@@ -141,7 +141,7 @@ class CustomFilePicker:
                 )
 
         except Exception as e:
-            self.file_list.controls.append(ft.Text(f"Error: {e}", color=ft.Colors.RED))
+            self.file_list.controls.append(ft.Text(f"{t('msg_error_file')}: {e}", color=ft.Colors.RED))
 
         self.page.update()
 
@@ -251,7 +251,7 @@ class ImportDialog:
         return ft.Column(
             [
                 ft.Text(
-                    "Select a CSV file to import your bank transactions.",
+                    t("import_select_csv_desc"),
                     size=14,
                     color=ft.Colors.GREY,
                 ),
@@ -260,7 +260,7 @@ class ImportDialog:
                 ft.Row(
                     [
                         ft.ElevatedButton(
-                            "Select File",
+                            t("import_select_file_btn"),
                             icon=ft.Icons.FOLDER_OPEN,
                             on_click=self._on_pick_files,
                         ),
@@ -313,7 +313,7 @@ class ImportDialog:
         options = [
             ft.dropdown.Option(key=str(acc["id"]), text=acc["name"]) for acc in accounts
         ]
-        options.append(ft.dropdown.Option(key="new", text="+ Create New Account"))
+        options.append(ft.dropdown.Option(key="new", text=t("import_create_new_account")))
 
         self.account_dropdown.options = options
         # Select first account by default if available and not set
@@ -484,7 +484,7 @@ class ImportDialog:
             elif rows:
                 for i in range(len(rows[0])):
                     columns.append(
-                        ft.DataColumn(label=self._create_header_content(f"Col {i + 1}"))
+                        ft.DataColumn(label=self._create_header_content(f"{t('import_col_header')} {i + 1}"))
                     )
             else:
                 # No data
@@ -514,7 +514,7 @@ class ImportDialog:
             }
 
         except Exception as ex:
-            self.status_text.value = f"Error: {str(ex)}"
+            self.status_text.value = f"{t('msg_error')}: {str(ex)}"
             self.status_text.color = PeadraTheme.ERROR
             self.import_btn.disabled = True
             self.preview_table.visible = False
@@ -524,10 +524,10 @@ class ImportDialog:
     def _create_header_content(self, header_text: str) -> ft.Column:
         """Crée le contenu de l'en-tête avec le dropdown de mapping."""
         # Mapping options
-        options = ["Unused", "Date", "Description", "Amount"]
+        options = [t("import_mapping_unused"), "Date", "Description", "Amount"]
 
         # Auto-select logic
-        selected_val = "Unused"
+        selected_val = t("import_mapping_unused")
         lower_header = header_text.lower()
         if "date" in lower_header or "time" in lower_header:
             selected_val = "Date"

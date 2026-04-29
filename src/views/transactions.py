@@ -285,7 +285,7 @@ class TransactionsView:
                 db.update_transaction(
                     data["id"],
                     date=data["date"],
-                    description=f"Transfer to {data.get('dest_name', 'compte')}",
+                    description=f"{t('trans_transfer_to')} {data.get('dest_name', t('trans_account_default'))}",
                     amount=data["amount"],
                     category_id=data.get("source_id"),
                     notes=data.get("notes"),
@@ -294,7 +294,7 @@ class TransactionsView:
                 db.update_transaction(
                     data["other_id"],
                     date=data["date"],
-                    description=f"Transfer from {data.get('source_name', 'compte')}",
+                    description=f"{t('trans_transfer_from')} {data.get('source_name', t('trans_account_default'))}",
                     amount=data["amount"],
                     category_id=data.get("dest_id"),
                     notes=data.get("notes"),
@@ -318,7 +318,7 @@ class TransactionsView:
             # 1. Expense from source
             db.add_transaction(
                 date=data["date"],
-                description=f"Transfer to {data.get('dest_name', 'compte')}",
+                description=f"{t('trans_transfer_to')} {data.get('dest_name', t('trans_account_default'))}",
                 amount=data["amount"],
                 transaction_type="expense",
                 category_id=data.get("source_id"),
@@ -328,7 +328,7 @@ class TransactionsView:
             # 2. Income to dest
             db.add_transaction(
                 date=data["date"],
-                description=f"Transfer from {data.get('source_name', 'compte')}",
+                description=f"{t('trans_transfer_from')} {data.get('source_name', t('trans_account_default'))}",
                 amount=data["amount"],
                 transaction_type="income",
                 category_id=data.get("dest_id"),
@@ -519,7 +519,7 @@ class TransactionsView:
         dlg = ft.AlertDialog(
             title=ft.Text(t("msg_confirm_delete")),
             content=ft.Text(
-                "Are you sure you want to delete this transfer (2 transactions) ?"
+                t("trans_delete_transfer_confirm")
             ),
             actions=[
                 ft.TextButton(t("btn_cancel"), on_click=close_dlg),
@@ -569,7 +569,7 @@ class TransactionsView:
                 )
                 amount_color = text_color
                 amount_prefix = ""
-                cat_name = "Transfer"
+                cat_name = t("trans_category_transfer")
                 cat_bg = ft.Colors.BLUE_GREY_100
                 cat_text_col = ft.Colors.BLUE_GREY_900
 
@@ -671,7 +671,7 @@ class TransactionsView:
                                         on_click=delete_action,
                                     ),
                                 ],
-                                tooltip="Actions",
+                                tooltip=t("tooltip_actions"),
                             ),
                             width=50,
                             alignment=ft.Alignment.CENTER_RIGHT,

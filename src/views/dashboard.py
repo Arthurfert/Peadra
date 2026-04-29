@@ -7,7 +7,6 @@ import flet as ft
 import flet_charts as fch
 from typing import Callable, Union, Any, cast, List, Optional
 from datetime import datetime, timedelta
-import calendar
 from ..components.theme import PeadraTheme
 from ..database import db
 from ..i18n import t
@@ -139,7 +138,21 @@ class DashboardView:
                 year -= 1
 
             s = db.get_monthly_summary(year, month)
-            month_abbr = calendar.month_abbr[month]
+            month_keys = {
+                1: "month_january",
+                2: "month_february",
+                3: "month_march",
+                4: "month_april",
+                5: "month_may",
+                6: "month_june",
+                7: "month_july",
+                8: "month_august",
+                9: "month_september",
+                10: "month_october",
+                11: "month_november",
+                12: "month_december",
+            }
+            month_label = t(month_keys[month]).capitalize()[:3]  # Jan, Feb, etc.
 
             # Calculate patrimony at the end of this month
             # End of month is the first day of next month
@@ -152,7 +165,7 @@ class DashboardView:
 
             self.chart_data.append(
                 {
-                    "month": month_abbr,
+                    "month": month_label,
                     "income": s.get("income", 0) or 0,
                     "expenses": s.get("expenses", 0) or 0,
                     "patrimony": patrimony,

@@ -182,9 +182,6 @@ class AccountsView:
         self.page.overlay.append(self.dialog)
         self.dialog.open = True
         self.page.update()
-        self.page.overlay.append(self.dialog)
-        self.dialog.open = True
-        self.page.update()
 
     def _close_dialog(self, e):
         if self.dialog:

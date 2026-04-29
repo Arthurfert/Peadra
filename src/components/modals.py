@@ -211,11 +211,16 @@ class TransactionModal:
                 field.value = e.control.value.strftime("%Y-%m-%d")
                 field.update()
 
+        def on_dismiss(e):
+            # DatePicker closed, no need to remove from overlay
+            pass
+
         date_picker = ft.DatePicker(
             first_date=datetime(2000, 1, 1),
             last_date=datetime(2100, 12, 31),
             value=d,
             on_change=on_change,
+            on_dismiss=on_dismiss,
         )
 
         self.page.overlay.append(date_picker)
@@ -392,7 +397,6 @@ class TransactionModal:
             title = translate("modal_edit_transaction")
 
         self.dialog = ft.AlertDialog(
-            modal=True,
             title=ft.Text(title, weight=ft.FontWeight.BOLD),
             content=ft.Container(
                 content=ft.Column(

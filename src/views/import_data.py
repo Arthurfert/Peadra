@@ -237,7 +237,6 @@ class ImportDialog:
 
         # Dialog
         self.dialog = ft.AlertDialog(
-            modal=True,
             title=ft.Text(t("import_title")),
             content=ft.Container(content=self._build_content(), width=700, padding=10),
             actions=[

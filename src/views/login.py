@@ -67,6 +67,7 @@ class LoginView:
             password=True,
             can_reveal_password=True,
             width=300,
+            on_submit=self._on_enter_submit,
         )
 
         self.password_confirm_field = ft.TextField(
@@ -75,6 +76,7 @@ class LoginView:
             can_reveal_password=True,
             width=300,
             visible=self.is_registration_mode,
+            on_submit=self._on_enter_submit,
         )
 
         self.error_text = ft.Text(color=ft.Colors.ERROR)
@@ -154,6 +156,10 @@ class LoginView:
         )
 
         return self.form_column
+
+    def _on_enter_submit(self, e):
+        """Soumet le formulaire avec la touche Entrée."""
+        self.page.run_task(self._on_action_click, e)
 
     def _on_toggle_mode(self, e):
         """Bascule entre mode login et registration."""

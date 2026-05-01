@@ -208,7 +208,12 @@ class TransactionModal:
 
         def on_change(e):
             if e.control.value:
-                field.value = e.control.value.strftime("%Y-%m-%d")
+                selected_date = e.control.value
+                # DatePicker peut renvoyer une datetime avec fuseau UTC.
+                # On convertit en heure locale pour conserver le jour choisi.
+                if selected_date.tzinfo is not None:
+                    selected_date = selected_date.astimezone()
+                field.value = selected_date.date().isoformat()
                 field.update()
 
         def on_dismiss(e):

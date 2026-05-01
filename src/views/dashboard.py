@@ -345,10 +345,10 @@ class DashboardView:
             PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
         )
 
-        dates = [d["month"] for d in self.chart_data]
-        incomes = [d["income"] for d in self.chart_data]
-        expenses = [d["expenses"] for d in self.chart_data]
-        patrimonies = [d["patrimony"] for d in self.chart_data]
+        dates = [round(d["month"], 2) for d in self.chart_data]
+        incomes = [round(d["income"], 2) for d in self.chart_data]
+        expenses = [round(d["expenses"], 2) for d in self.chart_data]
+        patrimonies = [round(d["patrimony"], 2) for d in self.chart_data]
 
         if not dates:
             return ft.Container()
@@ -829,7 +829,7 @@ class DashboardView:
 
                 # Show title (amount) only if touched
                 section_title = (
-                    f"{item['value']:.0f}{self.currency}" if is_touched else ""
+                    f"{item['value']:.2f}{self.currency}" if is_touched else ""
                 )
 
                 sections.append(

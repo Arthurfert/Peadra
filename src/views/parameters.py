@@ -888,7 +888,7 @@ class ParametersView:
 
         return ft.Container(
             content=content,
-            padding=30,
+            padding=ft.padding.only(left=30, right=30, top=30, bottom=8),
             expand=True,
             alignment=ft.Alignment.TOP_RIGHT,
         )

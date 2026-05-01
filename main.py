@@ -314,6 +314,11 @@ class PeadraApp:
             PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
         )
 
+        # Pour la vue principale, on évite le centrage global de la page afin
+        # que le layout occupe toute la hauteur disponible.
+        self.page.vertical_alignment = ft.MainAxisAlignment.START
+        self.page.horizontal_alignment = ft.CrossAxisAlignment.STRETCH
+
         # Zone de contenu
         self.content_area = ft.Container(
             content=self.views[self.current_view_index].build(),

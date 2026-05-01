@@ -558,6 +558,6 @@ class SubscriptionsView:
                 spacing=20,
                 scroll=ft.ScrollMode.AUTO,
             ),
-            padding=30,
+            padding=ft.padding.only(left=30, right=30, top=30, bottom=8),
             expand=True,
         )

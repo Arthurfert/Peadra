@@ -926,6 +926,6 @@ class TransactionsView:
                 ],
                 expand=True,
             ),
-            padding=30,
+            padding=ft.padding.only(left=30, right=30, top=30, bottom=8),
             expand=True,
         )

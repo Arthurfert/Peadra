@@ -484,7 +484,7 @@ class AccountsView:
         """Retourne la vue."""
         self.content = ft.Container(
             content=self._build_content(),
-            padding=30,
+            padding=ft.padding.only(left=30, right=30, top=30, bottom=8),
             expand=True,
         )
         return self.content

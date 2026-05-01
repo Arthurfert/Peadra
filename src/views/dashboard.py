@@ -1063,4 +1063,8 @@ class DashboardView:
             spacing=0,
         )
 
-        return ft.Container(content=content, padding=30, expand=True)
+        return ft.Container(
+            content=content,
+            padding=ft.padding.only(left=30, right=30, top=30, bottom=8),
+            expand=True,
+        )

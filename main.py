@@ -294,9 +294,11 @@ class PeadraApp:
                     ),
                 ],
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            padding=ft.Padding(left=24, right=24, top=16, bottom=16),
+            padding=ft.Padding(left=24, right=24, top=0, bottom=0),
             bgcolor=bg_color,
+            height=90,
         )
 
     def _update_content(self):
@@ -336,7 +338,9 @@ class PeadraApp:
         )
 
         # Conteneur de navigation pour permettre les mises à jour
-        self.nav_container = ft.Container(content=self.navigation.build())
+        self.nav_container = ft.Container(
+            content=self.navigation.build(),
+        )
 
         # Layout du corps (Navigation + Contenu)
         body_layout = ft.Row(
@@ -348,6 +352,7 @@ class PeadraApp:
             ],
             spacing=0,
             expand=True,
+            vertical_alignment=ft.CrossAxisAlignment.START,
         )
 
         # Layout principal (Header + Body)

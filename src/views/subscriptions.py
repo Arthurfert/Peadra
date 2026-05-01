@@ -133,8 +133,6 @@ class SubscriptionsView:
         if hasattr(self, "calendar_container"):
             self.calendar_container.content = self._build_calendar()
             self.calendar_container.update()
-        else:
-            self.page.update()
 
     def _next_month(self, e):
         days_in_month = calendar.monthrange(
@@ -147,8 +145,6 @@ class SubscriptionsView:
         if hasattr(self, "calendar_container"):
             self.calendar_container.content = self._build_calendar()
             self.calendar_container.update()
-        else:
-            self.page.update()
 
     def _build_calendar(self) -> ft.Container:
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
@@ -532,18 +528,22 @@ class SubscriptionsView:
             padding=20,
             bgcolor=bg_color,
             border_radius=16,
-            expand=True,
         )
 
-    def build(self) -> ft.Container:
+    def build(self):
         """Construit l'interface de la vue."""
 
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        bg_color = PeadraTheme.DARK_BG if self.is_dark else PeadraTheme.LIGHT_BG
 
-        self.calendar_container = ft.Container(content=self._build_calendar())
-        self.list_container = ft.Container(content=self._build_list())
+        self.calendar_container = ft.Container(
+            content=self._build_calendar(), expand=False
+        )
+        self.list_container = ft.Container(
+            content=self._build_list(), expand=False
+        )
 
-        return ft.Container(
+        self.content = ft.Container(
             content=ft.Column(
                 [
                     ft.Text(
@@ -557,7 +557,10 @@ class SubscriptionsView:
                 ],
                 spacing=20,
                 scroll=ft.ScrollMode.AUTO,
+                expand=True,
             ),
             padding=ft.padding.only(left=30, right=30, top=30, bottom=8),
+            bgcolor=bg_color,
             expand=True,
         )
+        return self.content

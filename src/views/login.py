@@ -130,6 +130,7 @@ class LoginView:
                 options=dropdown_options,
                 width=300,
                 focused_border_color=PeadraTheme.PRIMARY_LIGHT,
+                value=self.existing_users[0] if self.existing_users else None,
             )
             fields.append(self.username_dropdown)
 

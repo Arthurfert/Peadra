@@ -47,6 +47,53 @@ class DashboardView:
             self.chart_container_main.content = self._build_income_expense_chart()
             self.chart_container_main.update()
 
+    def _get_month_bounds(self, year: int, month: int) -> tuple[str, str]:
+        """Retourne les bornes inclusives d'un mois (YYYY-MM-DD)."""
+        start_dt = datetime(year, month, 1)
+        if month == 12:
+            next_month_dt = datetime(year + 1, 1, 1)
+        else:
+            next_month_dt = datetime(year, month + 1, 1)
+        end_dt = next_month_dt - timedelta(days=1)
+        return start_dt.strftime("%Y-%m-%d"), end_dt.strftime("%Y-%m-%d")
+
+    def _is_transfer_transaction(self, transaction: dict[str, Any]) -> bool:
+        """Détecte les transferts, y compris les entrées legacy basées sur description."""
+        tx_type = (transaction.get("transaction_type") or "").strip().lower()
+        if tx_type == "transfer":
+            return True
+
+        desc = (transaction.get("description") or "").strip().lower()
+        transfer_to = (t("trans_transfer_to") or "").strip().lower()
+        transfer_from = (t("trans_transfer_from") or "").strip().lower()
+
+        prefixes = ["transfer to ", "transfer from "]
+        if transfer_to:
+            prefixes.append(f"{transfer_to} ")
+        if transfer_from:
+            prefixes.append(f"{transfer_from} ")
+
+        return any(desc.startswith(prefix) for prefix in prefixes)
+
+    def _get_filtered_totals(self, start_date: str, end_date: str) -> tuple[float, float]:
+        """Somme revenus/dépenses d'une période en excluant les transferts."""
+        txs = db.get_transactions_by_period(start_date, end_date)
+        income = 0.0
+        expenses = 0.0
+
+        for transaction in txs:
+            if self._is_transfer_transaction(transaction):
+                continue
+
+            tx_type = transaction.get("transaction_type")
+            amount = float(transaction.get("amount") or 0)
+            if tx_type == "income":
+                income += amount
+            elif tx_type == "expense":
+                expenses += amount
+
+        return income, expenses
+
     def _load_data(self):
         self.currency = db.get_setting("currency", "€") or "€"
         # Now reflects Bank Balance
@@ -58,40 +105,42 @@ class DashboardView:
 
         if month_mode == "rolling":
             # Rolling: last 30 days
-            current_summary = db.get_rolling_summary(30)
-            self.monthly_income = current_summary.get("income", 0) or 0
-            self.monthly_expenses = current_summary.get("expenses", 0) or 0
+            rolling_start_dt = now - timedelta(days=30)
+            rolling_end_dt = now
+            rolling_start = rolling_start_dt.strftime("%Y-%m-%d")
+            rolling_end = rolling_end_dt.strftime("%Y-%m-%d")
+
+            self.monthly_income, self.monthly_expenses = self._get_filtered_totals(
+                rolling_start, rolling_end
+            )
             self.monthly_savings = db.get_savings_total()
 
             # Previous period for trends: 30 days before the rolling window
-            prev_summary = db.get_rolling_summary(60)
-            prev_income = (prev_summary.get("income", 0) or 0) - self.monthly_income
-            prev_expenses = (
-                prev_summary.get("expenses", 0) or 0
-            ) - self.monthly_expenses
+            prev_end_dt = rolling_start_dt - timedelta(days=1)
+            prev_start_dt = prev_end_dt - timedelta(days=30)
+            prev_income, prev_expenses = self._get_filtered_totals(
+                prev_start_dt.strftime("%Y-%m-%d"),
+                prev_end_dt.strftime("%Y-%m-%d"),
+            )
 
             # Rolling period dates for category breakdown
-            category_start_date = (now - timedelta(days=30)).strftime("%Y-%m-%d")
-            category_end_date = now.strftime("%Y-%m-%d")
+            category_start_date = rolling_start
+            category_end_date = rolling_end
         else:
             # Strict: calendar month
-            current_summary = db.get_monthly_summary(now.year, now.month)
-            self.monthly_income = current_summary.get("income", 0) or 0
-            self.monthly_expenses = current_summary.get("expenses", 0) or 0
+            current_start, current_end = self._get_month_bounds(now.year, now.month)
+            self.monthly_income, self.monthly_expenses = self._get_filtered_totals(
+                current_start, current_end
+            )
             self.monthly_savings = db.get_savings_total()
 
             # Previous month for trends
             prev_month = now.replace(day=1) - timedelta(days=1)
-            prev_summary = db.get_monthly_summary(prev_month.year, prev_month.month)
-            prev_income = prev_summary.get("income", 0) or 0
-            prev_expenses = prev_summary.get("expenses", 0) or 0
+            prev_start, prev_end = self._get_month_bounds(prev_month.year, prev_month.month)
+            prev_income, prev_expenses = self._get_filtered_totals(prev_start, prev_end)
 
             # Calendar month dates for category breakdown
-            category_start_date = now.strftime("%Y-%m-01")
-            if now.month == 12:
-                category_end_date = f"{now.year + 1}-01-01"
-            else:
-                category_end_date = f"{now.year}-{now.month + 1:02d}-01"
+            category_start_date, category_end_date = current_start, current_end
 
         # For Stocks (Savings/Balance), we compare Current Value vs Value at Start of Month (History)
         start_of_month_str = now.replace(day=1).strftime("%Y-%m-%d")
@@ -128,6 +177,8 @@ class DashboardView:
         if num_months < 1:
             num_months = 6
 
+        chart_months = []
+
         for i in range(num_months - 1, -1, -1):
             date_calc = now.replace(day=1)
             # Subtract i months
@@ -137,7 +188,10 @@ class DashboardView:
                 month += 12
                 year -= 1
 
-            s = db.get_monthly_summary(year, month)
+            period_start, period_end = self._get_month_bounds(year, month)
+            month_income, month_expenses = self._get_filtered_totals(
+                period_start, period_end
+            )
             month_keys = {
                 1: "month_january",
                 2: "month_february",
@@ -154,23 +208,32 @@ class DashboardView:
             }
             month_label = t(month_keys[month]).capitalize()[:3]  # Jan, Feb, etc.
 
-            # Calculate patrimony at the end of this month
-            # End of month is the first day of next month
+            # Patrimony is the total assets line, so it must include all transactions.
             if month == 12:
-                end_date = f"{year + 1}-01-01"
+                patrimony_end_date = f"{year + 1}-01-01"
             else:
-                end_date = f"{year}-{month + 1:02d}-01"
+                patrimony_end_date = f"{year}-{month + 1:02d}-01"
+            patrimony = db.get_history_patrimony(patrimony_end_date)
 
-            patrimony = db.get_history_patrimony(end_date)
-
-            self.chart_data.append(
+            chart_months.append(
                 {
                     "month": month_label,
-                    "income": s.get("income", 0) or 0,
-                    "expenses": s.get("expenses", 0) or 0,
+                    "income": month_income,
+                    "expenses": month_expenses,
                     "patrimony": patrimony,
                 }
             )
+
+        if chart_months:
+            for month_data in chart_months:
+                self.chart_data.append(
+                    {
+                        "month": month_data["month"],
+                        "income": month_data["income"],
+                        "expenses": month_data["expenses"],
+                        "patrimony": month_data["patrimony"],
+                    }
+                )
 
         # Simplified category logic for Expenses logic
         start_date = category_start_date
@@ -180,10 +243,10 @@ class DashboardView:
         self.category_expenses = {}
         self.category_incomes = {}
         for transaction in txs:
-            desc = (transaction["description"] or t("dash_other_category")).strip()
-            # Filter out transfers
-            if desc.startswith("Transfer to ") or desc.startswith("Transfer from "):
+            if self._is_transfer_transaction(transaction):
                 continue
+
+            desc = (transaction["description"] or t("dash_other_category")).strip()
 
             if transaction["transaction_type"] == "expense":
                 self.category_expenses[desc] = (

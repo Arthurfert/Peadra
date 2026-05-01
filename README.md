@@ -38,7 +38,7 @@ Peadra (*"wealth" in Breton*) is a desktop application designed to help you trac
 
 Download the executable file (**Windows & Linux**) on the release section on your right !
 
-For developers or MacOS users *(I don't have one so I can't package it for you)*, please refer to [the install tutorial](./INSTALLATION.md).
+For developers or MacOS users, please refer to [the install tutorial](./INSTALLATION.md).
 
 ## Project Structure
 

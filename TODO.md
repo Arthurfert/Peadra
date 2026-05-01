@@ -16,15 +16,12 @@ Peadra aims to become a local version of existing apps like *[Finary](https://fi
 It is currently delevoped with desktop in mind, but may come to smartphones later.
 If so, a peer-to-peer encrypted sync may be implemented.
 
-## In development
-
-- General user experience enhancement
-
-## Future Improvements & ideas *(by priority)*
+## Future Improvements & ideas
 
 - Optional logging
-- Global stats for categories (new view)
-- Auto-fill with existing categories when typing it in transactions modals
+- Categories view, with global stats per category
+    - Auto-fill with existing categories when typing it in transactions modals
+- Budget view, with budget insights in dashboard/categories view
 - Forcasting & trends ?
-- Onboarding & tutorial
-- Automatic update
+- Onboarding & tutorial ?
+- Automatic/in-app update

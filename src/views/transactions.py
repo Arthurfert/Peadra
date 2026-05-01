@@ -620,8 +620,15 @@ class TransactionsView:
             else:
                 # STANDARD ROW
                 is_income = transaction["transaction_type"] == "income"
-                amount_color = ft.Colors.GREEN if is_income else text_color
-                amount_prefix = "+" if is_income else ""
+                is_expense = transaction["transaction_type"] == "expense"
+                amount_color = (
+                    ft.Colors.GREEN
+                    if is_income
+                    else ft.Colors.RED
+                    if is_expense
+                    else text_color
+                )
+                amount_prefix = "+" if is_income else "-" if is_expense else ""
 
                 icon = ft.Icons.NORTH_EAST if is_income else ft.Icons.SOUTH_WEST
                 icon_color = ft.Colors.GREEN if is_income else ft.Colors.RED
@@ -919,6 +926,6 @@ class TransactionsView:
                 ],
                 expand=True,
             ),
-            padding=30,
+            padding=ft.padding.only(left=30, right=30, top=30, bottom=8),
             expand=True,
         )

@@ -44,44 +44,37 @@ class SubscriptionsView:
 
     def _save_transaction(self, data: dict):
         """Met à jour une transaction récurrente."""
-        if "id" in data:
-            db.update_recurring_transaction(
-                id=data["id"],
-                description=data["description"],
-                amount=data["amount"],
-                transaction_type=data["transaction_type"],
-                frequency=data.get("frequency", "monthly"),  # fallback par défaut
-                start_date=data["date"],
-                interval=data.get("interval", 1),
-                category_id=data.get("category_id"),
-                end_date=data.get("end_date"),
-            )
+        if "id" not in data:
+            return
 
-            # Recalculer les prochaines échéances
-            db.process_recurring_transactions()
+        db.update_recurring_transaction(
+            id=data["id"],
+            description=data["description"],
+            amount=data["amount"],
+            transaction_type=data["transaction_type"],
+            frequency=data.get("frequency", "monthly"),
+            start_date=data["date"],
+            interval=data.get("interval", 1),
+            category_id=data.get("category_id"),
+            end_date=data.get("end_date"),
+        )
 
-            snack = ft.SnackBar(
-                ft.Text(t("sub_update_success"), color=ft.Colors.WHITE),
-                bgcolor=PeadraTheme.SUCCESS,
-            )
-            self.page.overlay.append(snack)
-            snack.open = True
+        db.process_recurring_transactions()
 
-            self.on_data_change()
-            self.refresh()
-            self.page.update()
-        else:
-            # S'il s'agit d'une création depuis la vue (pas utilisé actuellement car le bouton plus est ailleurs)
-            pass
+        snack = ft.SnackBar(
+            ft.Text(t("sub_update_success"), color=ft.Colors.WHITE),
+            bgcolor=PeadraTheme.SUCCESS,
+        )
+        self.page.overlay.append(snack)
+        snack.open = True
+        self.page.update()
+
+        self.on_data_change()
+        self.refresh()
 
     def _delete_transaction(self, id: int):
         """Désactive / Supprime une transaction récurrente."""
-        conn = db._get_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "UPDATE recurring_transactions SET active = 0 WHERE id = ?", (id,)
-        )
-        conn.commit()
+        db.delete_transaction(id)
 
         snack = ft.SnackBar(
             ft.Text(t("msg_subscription_deleted"), color=ft.Colors.WHITE),

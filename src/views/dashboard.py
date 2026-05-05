@@ -5,6 +5,7 @@ Affiche un résumé visuel du patrimoine total.
 
 import flet as ft
 import flet_charts as fch
+import math
 from typing import Callable, Union, Any, cast, List, Optional
 from datetime import datetime, timedelta
 from ..components.theme import PeadraTheme
@@ -94,6 +95,92 @@ class DashboardView:
 
         return income, expenses
 
+    def _build_chart_data(self, start_year: int, start_month: int, num_months: int):
+        """Construit les données du graphique mensuel à partir d'un seul lot de transactions."""
+        month_labels = {
+            1: "month_january",
+            2: "month_february",
+            3: "month_march",
+            4: "month_april",
+            5: "month_may",
+            6: "month_june",
+            7: "month_july",
+            8: "month_august",
+            9: "month_september",
+            10: "month_october",
+            11: "month_november",
+            12: "month_december",
+        }
+
+        months = []
+        year = start_year
+        month = start_month
+        for _ in range(num_months):
+            months.append((year, month))
+            month += 1
+            if month > 12:
+                month = 1
+                year += 1
+
+        if not months:
+            return []
+
+        last_year, last_month = months[-1]
+        _, chart_end = self._get_month_bounds(last_year, last_month)
+        chart_start = f"{months[0][0]}-{months[0][1]:02d}-01"
+
+        chart_txs = db.get_transactions_by_period(chart_start, chart_end)
+        chart_txs.sort(key=lambda tx: (tx.get("date") or "", tx.get("id") or 0))
+
+        series = {
+            (year, month): {"income": 0.0, "expenses": 0.0, "delta": 0.0}
+            for year, month in months
+        }
+
+        for transaction in chart_txs:
+            date_value = transaction.get("date") or ""
+            if len(date_value) < 7:
+                continue
+
+            year = int(date_value[:4])
+            month = int(date_value[5:7])
+            bucket = series.get((year, month))
+            if bucket is None:
+                continue
+
+            amount = float(transaction.get("amount") or 0)
+            tx_type = (transaction.get("transaction_type") or "").strip().lower()
+
+            if tx_type == "income":
+                bucket["delta"] += amount
+            elif tx_type == "expense":
+                bucket["delta"] -= amount
+
+            if self._is_transfer_transaction(transaction):
+                continue
+
+            if tx_type == "income":
+                bucket["income"] += amount
+            elif tx_type == "expense":
+                bucket["expenses"] += amount
+
+        patrimony = db.get_history_patrimony(chart_start)
+        chart_data = []
+
+        for year, month in months:
+            bucket = series[(year, month)]
+            patrimony += bucket["delta"]
+            chart_data.append(
+                {
+                    "month_label": t(month_labels[month]).capitalize()[:3],
+                    "income": bucket["income"],
+                    "expenses": bucket["expenses"],
+                    "patrimony": patrimony,
+                }
+            )
+
+        return chart_data
+
     def _load_data(self):
         self.currency = db.get_setting("currency", "€") or "€"
         # Now reflects Bank Balance
@@ -159,8 +246,6 @@ class DashboardView:
         self.balance_trend = calc_trend(self.balance, prev_balance)
 
         # Chart Data (Income vs Expenses)
-        self.chart_data = []
-
         num_months = 6
         if self.chart_duration == "all":
             earliest_date = db.get_earliest_transaction_date()
@@ -177,63 +262,13 @@ class DashboardView:
         if num_months < 1:
             num_months = 6
 
-        chart_months = []
+        start_year = now.year
+        start_month = now.month - (num_months - 1)
+        while start_month <= 0:
+            start_month += 12
+            start_year -= 1
 
-        for i in range(num_months - 1, -1, -1):
-            date_calc = now.replace(day=1)
-            # Subtract i months
-            year = date_calc.year
-            month = date_calc.month - i
-            while month <= 0:
-                month += 12
-                year -= 1
-
-            period_start, period_end = self._get_month_bounds(year, month)
-            month_income, month_expenses = self._get_filtered_totals(
-                period_start, period_end
-            )
-            month_keys = {
-                1: "month_january",
-                2: "month_february",
-                3: "month_march",
-                4: "month_april",
-                5: "month_may",
-                6: "month_june",
-                7: "month_july",
-                8: "month_august",
-                9: "month_september",
-                10: "month_october",
-                11: "month_november",
-                12: "month_december",
-            }
-            month_label = t(month_keys[month]).capitalize()[:3]  # Jan, Feb, etc.
-
-            # Patrimony is the total assets line, so it must include all transactions.
-            if month == 12:
-                patrimony_end_date = f"{year + 1}-01-01"
-            else:
-                patrimony_end_date = f"{year}-{month + 1:02d}-01"
-            patrimony = db.get_history_patrimony(patrimony_end_date)
-
-            chart_months.append(
-                {
-                    "month": month_label,
-                    "income": month_income,
-                    "expenses": month_expenses,
-                    "patrimony": patrimony,
-                }
-            )
-
-        if chart_months:
-            for month_data in chart_months:
-                self.chart_data.append(
-                    {
-                        "month": month_data["month"],
-                        "income": month_data["income"],
-                        "expenses": month_data["expenses"],
-                        "patrimony": month_data["patrimony"],
-                    }
-                )
+        self.chart_data = self._build_chart_data(start_year, start_month, num_months)
 
         # Simplified category logic for Expenses logic
         start_date = category_start_date
@@ -345,7 +380,7 @@ class DashboardView:
             PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
         )
 
-        dates = [round(d["month"], 2) for d in self.chart_data]
+        dates = [d["month_label"] for d in self.chart_data]
         incomes = [round(d["income"], 2) for d in self.chart_data]
         expenses = [round(d["expenses"], 2) for d in self.chart_data]
         patrimonies = [round(d["patrimony"], 2) for d in self.chart_data]
@@ -363,7 +398,6 @@ class DashboardView:
             """Round up to the nearest nice number."""
             if val <= 0:
                 return 0
-            import math
 
             exp = math.floor(math.log10(val))
             base = 10**exp
@@ -402,7 +436,6 @@ class DashboardView:
         # Snap min/max to nice round numbers so axis labels are clean (e.g. 0, 2K, 4K, 6K)
         y_range = max_y_patrimony - min_y_patrimony
         nice_interval = nice_ceil(y_range / 4)
-        import math
 
         # Ensure nice_interval is at least 1 to prevent division by zero
         if nice_interval <= 0:

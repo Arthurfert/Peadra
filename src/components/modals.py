@@ -217,7 +217,8 @@ class TransactionModal:
                 field.update()
 
         def on_dismiss(e):
-            # DatePicker closed, no need to remove from overlay
+            # Le DatePicker reste dans l'overlay mais est fermé.
+            # Flet gère mieux les overlays qui ne sont pas supprimés/réajoutés
             pass
 
         date_picker = ft.DatePicker(

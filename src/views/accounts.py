@@ -162,6 +162,7 @@ class AccountsView:
             title = t("acc_add_account")
 
         self.dialog = ft.AlertDialog(
+            modal=True,
             title=ft.Text(title),
             content=ft.Column(
                 [
@@ -225,6 +226,7 @@ class AccountsView:
                 self.page.update()
 
         self.merge_dialog = ft.AlertDialog(
+            modal=True,
             title=ft.Text(t("acc_merge_title")),
             content=ft.Text(
                 t("acc_merge_message").format(target_name=target_name)
@@ -321,6 +323,7 @@ class AccountsView:
         )
 
         self.confirm_dialog = ft.AlertDialog(
+            modal=True,
             title=ft.Text(t("acc_delete_confirm")),
             content=ft.Column(
                 [

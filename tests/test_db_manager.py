@@ -211,6 +211,44 @@ def test_account_discrimination(db_manager):
     assert total == 6000.0, f"Attendu 6000.0 pour le patrimoine total, reçu {total}"
 
 
+def test_accounts_distribution(db_manager):
+    """Test que la répartition des comptes retourne les soldes attendus."""
+    checking_id = db_manager.add_category(
+        "Distribution Checking", "#111111", account_type="checking"
+    )
+    savings_id = db_manager.add_category(
+        "Distribution Savings", "#222222", account_type="savings"
+    )
+
+    db_manager.add_transaction(
+        "2023-01-01",
+        "Checking income",
+        1200.0,
+        "income",
+        category_id=checking_id,
+    )
+    db_manager.add_transaction(
+        "2023-01-02",
+        "Checking expense",
+        450.0,
+        "expense",
+        category_id=checking_id,
+    )
+    db_manager.add_transaction(
+        "2023-01-03",
+        "Savings income",
+        3000.0,
+        "income",
+        category_id=savings_id,
+    )
+
+    distribution = db_manager.get_accounts_distribution()
+    balances = {item["name"]: item["value"] for item in distribution}
+
+    assert balances["Distribution Checking"] == 750.0
+    assert balances["Distribution Savings"] == 3000.0
+
+
 def test_rename_category_propagates_to_transactions(db_manager):
     """Test que renommer une catégorie met à jour les descriptions de virement 'Transfer to/from'."""
 

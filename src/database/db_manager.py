@@ -49,6 +49,8 @@ class DatabaseManager:
         self.db_path = db_path
         self.user_id = user_id  # ID de l'utilisateur actuel
         self.connection: Optional[sqlite3.Connection] = None
+        self._setting_cache: Dict[tuple[Optional[int], str], str] = {}
+        self._app_setting_cache: Dict[str, str] = {}
         self._init_database()
 
     def _get_connection(self) -> sqlite3.Connection:
@@ -1097,32 +1099,21 @@ class DatabaseManager:
         """Calcule la répartition des soldes par compte."""
         conn = self._get_connection()
         cursor = conn.cursor()
-
-        # Récupérer les ID des comptes (categories)
         cursor.execute(
-            "SELECT id, name FROM categories WHERE user_id = ?", (self.user_id,)
+            """
+            SELECT c.name,
+                   COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
+                                     WHEN t.transaction_type = 'expense' THEN -t.amount
+                                     ELSE 0 END), 0) AS balance
+            FROM categories c
+            LEFT JOIN transactions t ON t.category_id = c.id AND t.user_id = ?
+            WHERE c.user_id = ?
+            GROUP BY c.id
+            ORDER BY c.name
+            """,
+            (self.user_id, self.user_id),
         )
-        accounts = cursor.fetchall()
-
-        distribution = []
-        for acc_id, acc_name in accounts:
-            cursor.execute(
-                """
-                SELECT 
-                    COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount 
-                                      WHEN t.transaction_type = 'expense' THEN -t.amount 
-                                      ELSE 0 END), 0)
-                FROM transactions t
-                WHERE t.category_id = ? AND t.user_id = ?
-                """,
-                (acc_id, self.user_id),
-            )
-            result = cursor.fetchone()
-            balance = result[0] if result else 0.0
-
-            distribution.append({"name": acc_name, "value": balance})
-
-        return distribution
+        return [{"name": row[0], "value": row[1]} for row in cursor.fetchall()]
 
     def get_rolling_summary(self, days: int = 30) -> Dict[str, float]:
         """Récupère le résumé des transactions des N derniers jours (Compte Courant)."""
@@ -1216,6 +1207,10 @@ class DatabaseManager:
 
     def get_setting(self, key: str, default: str | None = None) -> str | None:
         """Récupère un paramètre depuis la base de données."""
+        cache_key = (self.user_id, key)
+        if cache_key in self._setting_cache:
+            return self._setting_cache[cache_key]
+
         conn = self._get_connection()
         cursor = conn.cursor()
         cursor.execute(
@@ -1223,7 +1218,11 @@ class DatabaseManager:
             (key, self.user_id),
         )
         result = cursor.fetchone()
-        return result[0] if result else default
+        if result:
+            value = result[0]
+            self._setting_cache[cache_key] = value
+            return value
+        return default
 
     def set_setting(self, key: str, value: str):
         """Enregistre un paramètre dans la base de données."""
@@ -1235,6 +1234,7 @@ class DatabaseManager:
                 (self.user_id, key, value),
             )
             conn.commit()
+            self._setting_cache[(self.user_id, key)] = value
         except Exception as e:
             print(f"Erreur sauvegarde paramètre {key}: {str(e)}")
 
@@ -1248,6 +1248,9 @@ class DatabaseManager:
         Returns:
             Valeur du paramètre ou la valeur par défaut
         """
+        if key in self._app_setting_cache:
+            return self._app_setting_cache[key]
+
         conn = self._get_connection()
         cursor = conn.cursor()
         cursor.execute(
@@ -1255,7 +1258,11 @@ class DatabaseManager:
             (key, 0),
         )
         result = cursor.fetchone()
-        return result[0] if result else default
+        if result:
+            value = result[0]
+            self._app_setting_cache[key] = value
+            return value
+        return default
 
     def set_app_setting(self, key: str, value: str):
         """Enregistre un paramètre global de l'application (user_id = 0).
@@ -1274,6 +1281,7 @@ class DatabaseManager:
                 (0, key, value),
             )
             conn.commit()
+            self._app_setting_cache[key] = value
         except Exception as e:
             print(f"Erreur sauvegarde paramètre global {key}: {str(e)}")
 

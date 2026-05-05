@@ -250,7 +250,9 @@ class ParametersView:
         self.is_dark = is_dark
 
     def refresh(self):
-        """Rafraîchit la vue."""
+        """Rafraîchit la vue (gérée par la reconstruction globale de l'UI)."""
+        # ParametersView n'a pas de contenu réutilisable interne.
+        # La reconstruction globale dans main.py gère le refresh complet.
         pass
 
     def get_month_mode(self) -> str:

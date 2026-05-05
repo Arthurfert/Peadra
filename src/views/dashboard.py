@@ -5,6 +5,7 @@ Affiche un résumé visuel du patrimoine total.
 
 import flet as ft
 import flet_charts as fch
+import math
 from typing import Callable, Union, Any, cast, List, Optional
 from datetime import datetime, timedelta
 from ..components.theme import PeadraTheme
@@ -397,7 +398,6 @@ class DashboardView:
             """Round up to the nearest nice number."""
             if val <= 0:
                 return 0
-            import math
 
             exp = math.floor(math.log10(val))
             base = 10**exp
@@ -436,7 +436,6 @@ class DashboardView:
         # Snap min/max to nice round numbers so axis labels are clean (e.g. 0, 2K, 4K, 6K)
         y_range = max_y_patrimony - min_y_patrimony
         nice_interval = nice_ceil(y_range / 4)
-        import math
 
         # Ensure nice_interval is at least 1 to prevent division by zero
         if nice_interval <= 0:

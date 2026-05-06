@@ -724,6 +724,53 @@ class ParametersView:
             ),
         )
 
+        update_btn = ft.OutlinedButton(
+            content=t("param_check_updates"),
+            icon=ft.Icons.SYSTEM_UPDATE_ALT,
+            on_click=self._on_check_updates,
+            style=ft.ButtonStyle(
+                padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                shape=ft.RoundedRectangleBorder(radius=10),
+                side=ft.BorderSide(1, PeadraTheme.ACCENT),
+                color=PeadraTheme.ACCENT,
+            ),
+        )
+
+        quick_update_panel = ft.Container(
+            content=ft.Row(
+                [
+                    ft.Column(
+                        [
+                            ft.Text(
+                                t("param_updates"),
+                                size=15,
+                                weight=ft.FontWeight.W_600,
+                                color=text_color,
+                            ),
+                            ft.Text(
+                                f"{t('param_version')} {self.current_version}",
+                                size=12,
+                                color=ft.Colors.GREY,
+                            ),
+                            self.update_status_text,
+                        ],
+                        spacing=2,
+                        expand=True,
+                    ),
+                    update_btn,
+                ],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            padding=ft.padding.symmetric(horizontal=16, vertical=14),
+            border_radius=12,
+            bgcolor=(
+                PeadraTheme.DARK_SURFACE
+                if self.is_dark
+                else ft.Colors.with_opacity(0.35, PeadraTheme.LIGHT_SURFACE)
+            ),
+        )
+
         data_section = self._build_section_card(
             t("param_data"),
             ft.Icons.STORAGE_OUTLINED,
@@ -738,25 +785,6 @@ class ParametersView:
                     t("param_export_desc"),
                     ft.Row([export_json_btn, export_csv_btn], spacing=10),
                 ),
-            ],
-        )
-
-        update_btn = ft.OutlinedButton(
-            content=t("param_check_updates"),
-            icon=ft.Icons.SYSTEM_UPDATE_ALT,
-            on_click=self._on_check_updates,
-            style=ft.ButtonStyle(
-                padding=ft.padding.symmetric(horizontal=20, vertical=12),
-                shape=ft.RoundedRectangleBorder(radius=10),
-                side=ft.BorderSide(1, PeadraTheme.ACCENT),
-                color=PeadraTheme.ACCENT,
-            ),
-        )
-
-        updates_section = self._build_section_card(
-            t("param_updates"),
-            ft.Icons.SYSTEM_UPDATE_ALT_OUTLINED,
-            [
                 self._build_setting_row(
                     t("param_version"),
                     self.update_status_text,
@@ -953,11 +981,11 @@ class ParametersView:
                     ),
                     margin=ft.margin.only(bottom=20),
                 ),
+                quick_update_panel,
+                ft.Container(height=12),
                 general_section,
                 ft.Container(height=12),
                 data_section,
-                ft.Container(height=12),
-                updates_section,
                 ft.Container(height=12),
                 transactions_section,
                 ft.Container(height=12),

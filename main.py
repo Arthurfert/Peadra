@@ -11,7 +11,7 @@ from src.components.navigation import NavigationRailComponent
 from src.database import db
 from src.i18n import set_language, t
 from src.views.dashboard import DashboardView
-from src.update_manager import auto_update_if_needed, run_update_mode
+from src.update_manager import run_update_mode
 from src.views.transactions import TransactionsView
 from src.views.accounts import AccountsView
 from src.views.parameters import ParametersView
@@ -421,13 +421,6 @@ def main(page: ft.Page):
     # Charger la langue globale de l'application (paramètre global)
     global_language = db.get_app_setting("language", "en") or "en"
     set_language(global_language)
-
-    try:
-        auto_update_if_needed()
-    except SystemExit:
-        raise
-    except Exception as exc:
-        print(f"Update check skipped: {exc}")
 
     # Récupérer la liste des utilisateurs existants
     existing_users = db.get_all_usernames()

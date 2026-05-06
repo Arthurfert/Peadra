@@ -13,6 +13,7 @@ from ..i18n import t
 from ..update_manager import (
     auto_update_if_needed,
     check_for_update,
+    fetch_latest_release,
     get_current_version,
     is_frozen_app,
 )
@@ -205,10 +206,16 @@ class ParametersView:
         self.current_version = get_current_version()
 
         self._pending_export_format = ""
-        self.update_status = t("param_update_status_idle")
+        # Stocke la clé et les paramètres pour les mises à jour de statut
+        self.update_status_key = "param_update_status_idle"
+        self.update_status_params: dict = {}
+        self.update_status = t(self.update_status_key)
         self.update_status_text = ft.Text(
             self.update_status, size=12, color=ft.Colors.GREY
         )
+        self.update_available = False
+        self.update_button: Optional[ft.OutlinedButton] = None
+        self.changelog_button: Optional[ft.OutlinedButton] = None
         self.save_picker = CustomSavePicker(
             page=self.page,
             on_select=self._on_save_file_selected,
@@ -439,6 +446,8 @@ class ParametersView:
         if selected_language and selected_language != self.language:
             self.language = selected_language
             db.set_setting("language", self.language)
+            # Mettre à jour le texte de statut avec la nouvelle langue
+            self._refresh_update_status()
             self.on_language_change(self.language)
 
     def _on_export_json(self, e):
@@ -465,42 +474,134 @@ class ParametersView:
         """Lance l'import CSV."""
         self.on_import()
 
-    def _set_update_status(self, message: str):
-        self.update_status = message
+    def _set_update_status(self, key: str, **params):
+        """Met à jour le statut de mise à jour avec la clé de traduction et ses paramètres."""
+        self.update_status_key = key
+        self.update_status_params = params
+        self.update_status = t(key).format(**params) if params else t(key)
         if hasattr(self, "update_status_text"):
-            self.update_status_text.value = message
+            self.update_status_text.value = self.update_status
         self.page.update()
 
-    def _on_check_updates(self, e):
-        """Vérifie si une version plus récente est disponible et lance la mise à jour."""
-        if not is_frozen_app():
-            self._set_update_status(t("param_update_status_not_supported"))
+    def _refresh_update_status(self):
+        """Rafraîchit le texte de statut avec la langue actuelle."""
+        self.update_status = t(self.update_status_key).format(**self.update_status_params) if self.update_status_params else t(self.update_status_key)
+        if hasattr(self, "update_status_text"):
+            self.update_status_text.value = self.update_status
+
+    def _set_update_button_mode(self, install_mode: bool):
+        self.update_available = install_mode
+        if self.update_button is None:
             return
 
-        self._set_update_status(t("param_update_status_checking"))
+        if install_mode:
+            self.update_button.content = ft.Text(t("param_install_update"))
+            self.update_button.icon = ft.Icons.DOWNLOAD
+        else:
+            self.update_button.content = ft.Text(t("param_check_updates"))
+            self.update_button.icon = ft.Icons.SYSTEM_UPDATE_ALT
+
+        try:
+            self.update_button.update()
+        except RuntimeError:
+            pass
+
+        if self.changelog_button is not None:
+            self.changelog_button.visible = install_mode
+            try:
+                self.changelog_button.update()
+            except RuntimeError:
+                pass
+
+    def _show_changelog_dialog(self, title: str, body: str, url: str | None = None):
+        content_children: List[ft.Control] = [
+            ft.Text(body or t("param_changelog_empty"), selectable=True),
+        ]
+
+        if url:
+            content_children.append(ft.Text(url, size=12, color=ft.Colors.GREY))
+
+        dialog = ft.AlertDialog(
+            title=ft.Text(title, weight=ft.FontWeight.BOLD),
+            content=ft.Container(
+                content=ft.Column(
+                    content_children,
+                    spacing=12,
+                    scroll=ft.ScrollMode.AUTO,
+                    tight=True,
+                ),
+                width=700,
+                height=500,
+                padding=8,
+            ),
+            actions=[ft.TextButton(t("btn_close"), on_click=lambda _: self._close_dialog(dialog))],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        self.page.show_dialog(dialog)
+        self.page.update()
+
+    def _close_dialog(self, dialog: ft.AlertDialog):
+        dialog.open = False
+        self.page.update()
+
+    def _on_see_whats_new(self, e):
+        """Affiche le changelog de la dernière release GitHub."""
+        if not is_frozen_app():
+            self._show_changelog_dialog(
+                t("param_changelog_title"),
+                t("param_changelog_not_supported"),
+            )
+            return
+
+        try:
+            release = fetch_latest_release()
+        except Exception as exc:
+            self._show_changelog_dialog(
+                t("param_changelog_title"),
+                t("param_changelog_error").format(error=exc),
+            )
+            return
+
+        header = f"{release.name} ({release.version})"
+        body = release.body.strip() or t("param_changelog_empty")
+        self._show_changelog_dialog(header, body, release.url or None)
+
+    def _on_check_updates(self, e):
+        """Vérifie si une MAJ est dispo, puis propose l'installation au clic suivant."""
+        if not is_frozen_app():
+            self._set_update_status("param_update_status_not_supported")
+            return
+
+        if self.update_available:
+            self._set_update_status("param_update_status_installing")
+            install_result = auto_update_if_needed()
+            if install_result.error:
+                self._set_update_status(
+                    "param_update_status_error", error=install_result.error
+                )
+                self._set_update_button_mode(False)
+            return
+
+        self._set_update_status("param_update_status_checking")
         result = check_for_update()
 
         if result.error and not result.available:
             self._set_update_status(
-                t("param_update_status_error").format(error=result.error)
+                "param_update_status_error", error=result.error
             )
+            self._set_update_button_mode(False)
             return
 
         if not result.available:
-            self._set_update_status(t("param_update_status_up_to_date"))
+            self._set_update_status("param_update_status_up_to_date")
+            self._set_update_button_mode(False)
             return
 
         self._set_update_status(
-            t("param_update_status_available").format(
-                version=result.latest_version or "?"
-            )
+            "param_update_status_available",
+            version=result.latest_version or "?"
         )
-        self._set_update_status(t("param_update_status_installing"))
-        install_result = auto_update_if_needed()
-        if install_result.error:
-            self._set_update_status(
-                t("param_update_status_error").format(error=install_result.error)
-            )
+        self._set_update_button_mode(True)
 
     def _on_save_password(self, e):
         pwd = self.password_field.value
@@ -724,8 +825,8 @@ class ParametersView:
             ),
         )
 
-        update_btn = ft.OutlinedButton(
-            content=t("param_check_updates"),
+        self.update_button = ft.OutlinedButton(
+            content=ft.Text(t("param_check_updates")),
             icon=ft.Icons.SYSTEM_UPDATE_ALT,
             on_click=self._on_check_updates,
             style=ft.ButtonStyle(
@@ -735,6 +836,23 @@ class ParametersView:
                 color=PeadraTheme.ACCENT,
             ),
         )
+
+        self.changelog_button = ft.OutlinedButton(
+            content=ft.Text(t("param_see_whats_new")),
+            icon=ft.Icons.INFO_OUTLINED,
+            on_click=self._on_see_whats_new,
+            visible=False,
+            style=ft.ButtonStyle(
+                padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                shape=ft.RoundedRectangleBorder(radius=10),
+                side=ft.BorderSide(1, PeadraTheme.ACCENT),
+                color=PeadraTheme.ACCENT,
+            ),
+        )
+
+        # Restaurer l'état du panneau après une reconstruction de la vue,
+        # notamment lors d'un changement de langue.
+        self._set_update_button_mode(self.update_available)
 
         quick_update_panel = ft.Container(
             content=ft.Row(
@@ -757,7 +875,11 @@ class ParametersView:
                         spacing=2,
                         expand=True,
                     ),
-                    update_btn,
+                            ft.Column(
+                                [self.update_button, self.changelog_button],
+                                spacing=8,
+                                horizontal_alignment=ft.CrossAxisAlignment.END,
+                            ),
                 ],
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -784,20 +906,6 @@ class ParametersView:
                     t("param_export"),
                     t("param_export_desc"),
                     ft.Row([export_json_btn, export_csv_btn], spacing=10),
-                ),
-                self._build_setting_row(
-                    t("param_version"),
-                    self.update_status_text,
-                    ft.Text(
-                        self.current_version,
-                        size=14,
-                        weight=ft.FontWeight.BOLD,
-                    ),
-                ),
-                self._build_setting_row(
-                    t("param_check_updates"),
-                    t("param_update_status_idle"),
-                    update_btn,
                 ),
             ],
         )

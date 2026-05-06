@@ -10,6 +10,12 @@ from typing import Callable, Any, cast, List, Optional
 from ..components.theme import PeadraTheme
 from ..database import db
 from ..i18n import t
+from ..update_manager import (
+    auto_update_if_needed,
+    check_for_update,
+    get_current_version,
+    is_frozen_app,
+)
 
 
 def get_asset_path(filename: str) -> str:
@@ -196,8 +202,13 @@ class ParametersView:
         self.currency = db.get_setting("currency", "€") or "€"
         # Charger la langue depuis la base de données
         self.language = db.get_setting("language", "en") or "en"
+        self.current_version = get_current_version()
 
         self._pending_export_format = ""
+        self.update_status = t("param_update_status_idle")
+        self.update_status_text = ft.Text(
+            self.update_status, size=12, color=ft.Colors.GREY
+        )
         self.save_picker = CustomSavePicker(
             page=self.page,
             on_select=self._on_save_file_selected,
@@ -305,11 +316,16 @@ class ParametersView:
     def _build_setting_row(
         self,
         label: str,
-        description: str,
+        description: Any,
         control: ft.Control,
     ) -> ft.Container:
         """Construit une ligne de paramètre."""
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+
+        if isinstance(description, ft.Control):
+            description_control = description
+        else:
+            description_control = ft.Text(description, size=12, color=ft.Colors.GREY)
 
         return ft.Container(
             content=ft.Row(
@@ -322,11 +338,7 @@ class ParametersView:
                                 weight=ft.FontWeight.W_500,
                                 color=text_color,
                             ),
-                            ft.Text(
-                                description,
-                                size=12,
-                                color=ft.Colors.GREY,
-                            ),
+                            description_control,
                         ],
                         spacing=2,
                         expand=True,
@@ -452,6 +464,43 @@ class ParametersView:
     def _on_import_csv(self, e):
         """Lance l'import CSV."""
         self.on_import()
+
+    def _set_update_status(self, message: str):
+        self.update_status = message
+        if hasattr(self, "update_status_text"):
+            self.update_status_text.value = message
+        self.page.update()
+
+    def _on_check_updates(self, e):
+        """Vérifie si une version plus récente est disponible et lance la mise à jour."""
+        if not is_frozen_app():
+            self._set_update_status(t("param_update_status_not_supported"))
+            return
+
+        self._set_update_status(t("param_update_status_checking"))
+        result = check_for_update()
+
+        if result.error and not result.available:
+            self._set_update_status(
+                t("param_update_status_error").format(error=result.error)
+            )
+            return
+
+        if not result.available:
+            self._set_update_status(t("param_update_status_up_to_date"))
+            return
+
+        self._set_update_status(
+            t("param_update_status_available").format(
+                version=result.latest_version or "?"
+            )
+        )
+        self._set_update_status(t("param_update_status_installing"))
+        install_result = auto_update_if_needed()
+        if install_result.error:
+            self._set_update_status(
+                t("param_update_status_error").format(error=install_result.error)
+            )
 
     def _on_save_password(self, e):
         pwd = self.password_field.value
@@ -692,6 +741,39 @@ class ParametersView:
             ],
         )
 
+        update_btn = ft.OutlinedButton(
+            content=t("param_check_updates"),
+            icon=ft.Icons.SYSTEM_UPDATE_ALT,
+            on_click=self._on_check_updates,
+            style=ft.ButtonStyle(
+                padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                shape=ft.RoundedRectangleBorder(radius=10),
+                side=ft.BorderSide(1, PeadraTheme.ACCENT),
+                color=PeadraTheme.ACCENT,
+            ),
+        )
+
+        updates_section = self._build_section_card(
+            t("param_updates"),
+            ft.Icons.SYSTEM_UPDATE_ALT_OUTLINED,
+            [
+                self._build_setting_row(
+                    t("param_version"),
+                    self.update_status_text,
+                    ft.Text(
+                        self.current_version,
+                        size=14,
+                        weight=ft.FontWeight.BOLD,
+                    ),
+                ),
+                self._build_setting_row(
+                    t("param_check_updates"),
+                    t("param_update_status_idle"),
+                    update_btn,
+                ),
+            ],
+        )
+
         # === Section Transactions ===
 
         display_limit_field = ft.TextField(
@@ -874,6 +956,8 @@ class ParametersView:
                 general_section,
                 ft.Container(height=12),
                 data_section,
+                ft.Container(height=12),
+                updates_section,
                 ft.Container(height=12),
                 transactions_section,
                 ft.Container(height=12),

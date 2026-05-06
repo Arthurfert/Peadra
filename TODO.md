@@ -24,4 +24,4 @@ If so, a peer-to-peer encrypted sync may be implemented.
 - Budget view, with budget insights in dashboard/categories view
 - Forcasting & trends ?
 - Onboarding & tutorial ?
-- Automatic/in-app update
+- Automatic/in-app update ✅

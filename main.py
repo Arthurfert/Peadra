@@ -3,12 +3,15 @@ Peadra - Application de gestion de patrimoine
 Point d'entrée principal de l'application.
 """
 
+import argparse
+import json
 import flet as ft
 from src.components.theme import PeadraTheme
 from src.components.navigation import NavigationRailComponent
 from src.database import db
-from src.i18n import set_language, get_translator, t
+from src.i18n import set_language, t
 from src.views.dashboard import DashboardView
+from src.update_manager import auto_update_if_needed, run_update_mode
 from src.views.transactions import TransactionsView
 from src.views.accounts import AccountsView
 from src.views.parameters import ParametersView
@@ -419,6 +422,13 @@ def main(page: ft.Page):
     global_language = db.get_app_setting("language", "en") or "en"
     set_language(global_language)
 
+    try:
+        auto_update_if_needed()
+    except SystemExit:
+        raise
+    except Exception as exc:
+        print(f"Update check skipped: {exc}")
+
     # Récupérer la liste des utilisateurs existants
     existing_users = db.get_all_usernames()
 
@@ -432,4 +442,20 @@ def main(page: ft.Page):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--apply-update", action="store_true")
+    parser.add_argument("--source")
+    parser.add_argument("--target")
+    parser.add_argument("--restart-args")
+    args, _ = parser.parse_known_args()
+
+    if args.apply_update and args.source and args.target:
+        restart_args = []
+        if args.restart_args:
+            try:
+                restart_args = json.loads(args.restart_args)
+            except json.JSONDecodeError:
+                restart_args = []
+        raise SystemExit(run_update_mode(args.source, args.target, restart_args))
+
     ft.run(main, assets_dir="assets")

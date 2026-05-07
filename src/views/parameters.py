@@ -6,10 +6,25 @@ Permet de configurer le thème, l'import/export et le mode de calcul mensuel.
 import os
 import sys
 import flet as ft
+import threading
+import tempfile
+import time
+from datetime import datetime
 from typing import Callable, Any, cast, List, Optional
+from pathlib import Path
 from ..components.theme import PeadraTheme
 from ..database import db
 from ..i18n import t
+from ..update_manager import (
+    _copy_current_executable_to_temp,
+    auto_update_if_needed,
+    check_for_update,
+    download_file_with_progress,
+    fetch_latest_release,
+    get_current_version,
+    is_frozen_app,
+    run_update_mode,
+)
 
 
 def get_asset_path(filename: str) -> str:
@@ -196,8 +211,19 @@ class ParametersView:
         self.currency = db.get_setting("currency", "€") or "€"
         # Charger la langue depuis la base de données
         self.language = db.get_setting("language", "en") or "en"
+        self.current_version = get_current_version()
 
         self._pending_export_format = ""
+        # Stocke la clé et les paramètres pour les mises à jour de statut
+        self.update_status_key = "param_update_status_idle"
+        self.update_status_params: dict = {}
+        self.update_status = t(self.update_status_key)
+        self.update_status_text = ft.Text(
+            self.update_status, size=12, color=ft.Colors.GREY
+        )
+        self.update_available = False
+        self.update_button: Optional[ft.OutlinedButton] = None
+        self.changelog_button: Optional[ft.OutlinedButton] = None
         self.save_picker = CustomSavePicker(
             page=self.page,
             on_select=self._on_save_file_selected,
@@ -305,11 +331,16 @@ class ParametersView:
     def _build_setting_row(
         self,
         label: str,
-        description: str,
+        description: Any,
         control: ft.Control,
     ) -> ft.Container:
         """Construit une ligne de paramètre."""
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+
+        if isinstance(description, ft.Control):
+            description_control = description
+        else:
+            description_control = ft.Text(description, size=12, color=ft.Colors.GREY)
 
         return ft.Container(
             content=ft.Row(
@@ -322,11 +353,7 @@ class ParametersView:
                                 weight=ft.FontWeight.W_500,
                                 color=text_color,
                             ),
-                            ft.Text(
-                                description,
-                                size=12,
-                                color=ft.Colors.GREY,
-                            ),
+                            description_control,
                         ],
                         spacing=2,
                         expand=True,
@@ -427,6 +454,8 @@ class ParametersView:
         if selected_language and selected_language != self.language:
             self.language = selected_language
             db.set_setting("language", self.language)
+            # Mettre à jour le texte de statut avec la nouvelle langue
+            self._refresh_update_status()
             self.on_language_change(self.language)
 
     def _on_export_json(self, e):
@@ -452,6 +481,367 @@ class ParametersView:
     def _on_import_csv(self, e):
         """Lance l'import CSV."""
         self.on_import()
+
+    def _set_update_status(self, key: str, **params):
+        """Met à jour le statut de mise à jour avec la clé de traduction et ses paramètres."""
+        self.update_status_key = key
+        self.update_status_params = params
+        self.update_status = t(key).format(**params) if params else t(key)
+        if hasattr(self, "update_status_text"):
+            self.update_status_text.value = self.update_status
+        self.page.update()
+
+    def _refresh_update_status(self):
+        """Rafraîchit le texte de statut avec la langue actuelle."""
+        self.update_status = t(self.update_status_key).format(**self.update_status_params) if self.update_status_params else t(self.update_status_key)
+        if hasattr(self, "update_status_text"):
+            self.update_status_text.value = self.update_status
+
+    def _set_update_button_mode(self, install_mode: bool):
+        self.update_available = install_mode
+        if self.update_button is None:
+            return
+
+        if install_mode:
+            self.update_button.content = ft.Text(t("param_install_update"))
+            self.update_button.icon = ft.Icons.DOWNLOAD
+        else:
+            self.update_button.content = ft.Text(t("param_check_updates"))
+            self.update_button.icon = ft.Icons.SYSTEM_UPDATE_ALT
+
+        try:
+            self.update_button.update()
+        except RuntimeError:
+            pass
+
+        if self.changelog_button is not None:
+            self.changelog_button.visible = install_mode
+            try:
+                self.changelog_button.update()
+            except RuntimeError:
+                pass
+
+    def _show_changelog_dialog(self, title: str, body: str, url: str | None = None):
+        content_children: List[ft.Control] = [
+            ft.Text(body or t("param_changelog_empty"), selectable=True),
+        ]
+
+        if url:
+            content_children.append(ft.Text(url, size=12, color=ft.Colors.GREY))
+
+        dialog = ft.AlertDialog(
+            title=ft.Text(title, weight=ft.FontWeight.BOLD),
+            content=ft.Container(
+                content=ft.Column(
+                    content_children,
+                    spacing=12,
+                    scroll=ft.ScrollMode.AUTO,
+                    tight=True,
+                ),
+                width=700,
+                height=500,
+                padding=8,
+            ),
+            actions=[ft.TextButton(t("btn_close"), on_click=lambda _: self._close_dialog(dialog))],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        self.page.show_dialog(dialog)
+        self.page.update()
+
+    def _close_dialog(self, dialog: ft.AlertDialog):
+        dialog.open = False
+        self.page.update()
+
+    def _on_see_whats_new(self, e):
+        """Affiche le changelog de la dernière release GitHub."""
+        if not is_frozen_app():
+            self._show_changelog_dialog(
+                t("param_changelog_title"),
+                t("param_changelog_not_supported"),
+            )
+            return
+
+        try:
+            release = fetch_latest_release()
+        except Exception as exc:
+            self._show_changelog_dialog(
+                t("param_changelog_title"),
+                t("param_changelog_error").format(error=exc),
+            )
+            return
+
+        header = f"{release.name} ({release.version})"
+        body = release.body.strip() or t("param_changelog_empty")
+        self._show_changelog_dialog(header, body, release.url or None)
+
+    def _on_check_updates(self, e):
+        """Vérifie si une MAJ est dispo, puis propose l'installation au clic suivant."""
+        if not is_frozen_app():
+            self._set_update_status("param_update_status_not_supported")
+            return
+
+        if self.update_available:
+            # Lancer le téléchargement et l'installation dans un thread
+            self._show_update_progress_dialog()
+            return
+
+        self._set_update_status("param_update_status_checking")
+        result = check_for_update()
+
+        if result.error and not result.available:
+            self._set_update_status(
+                "param_update_status_error", error=result.error
+            )
+            self._set_update_button_mode(False)
+            return
+
+        if not result.available:
+            self._set_update_status("param_update_status_up_to_date")
+            self._set_update_button_mode(False)
+            return
+
+        self._set_update_status(
+            "param_update_status_available",
+            version=result.latest_version or "?"
+        )
+        self._set_update_button_mode(True)
+
+    def _show_update_progress_dialog(self):
+        """Affiche un dialog de progression pour la mise à jour."""
+        progress_text = ft.Text(
+            t("param_update_status_downloading").format(percent=0),
+            size=14,
+            color=PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        )
+        progress_bar = ft.ProgressBar(value=0, width=400)
+        instructions_text = ft.Text(
+            t("param_update_instructions").format(percent=0),
+            size=14,
+            color=PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        )
+        
+        dialog = ft.AlertDialog(
+            title=ft.Text(t("param_updates")),
+            content=ft.Container(
+                content=ft.Column(
+                    [progress_text, progress_bar, instructions_text],
+                    spacing=16,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    tight=True,
+                ),
+                padding=16,
+            ),
+            modal=True,
+        )
+        
+        self.page.show_dialog(dialog)
+        self.page.update()
+
+        progress_session = f"update-{int(time.time() * 1000)}"
+
+        def on_progress_message(message):
+            if not isinstance(message, dict):
+                return
+            if message.get("session") != progress_session:
+                return
+
+            msg_type = message.get("type")
+            if msg_type == "progress":
+                progress_text.value = message.get("message", "")
+                progress_bar.value = message.get("value", 0)
+            elif msg_type == "error":
+                progress_text.value = message.get("message", "Erreur")
+                progress_bar.value = 0
+            elif msg_type == "complete":
+                progress_text.value = t("param_update_status_installing")
+                progress_bar.value = 1.0
+            elif msg_type == "shutdown":
+                dialog.open = False
+
+            try:
+                self.page.update()
+            except RuntimeError:
+                pass
+
+            if msg_type in ("error", "shutdown"):
+                try:
+                    self.page.pubsub.unsubscribe()
+                except Exception:
+                    pass
+
+        try:
+            self.page.pubsub.subscribe(on_progress_message)
+        except Exception:
+            pass
+        
+        # Lancer le téléchargement et l'installation dans un autre thread
+        thread = threading.Thread(
+            target=self._perform_update_with_progress,
+            args=(progress_session,)
+        )
+        thread.daemon = False
+        thread.start()
+
+    def _perform_update_with_progress(self, progress_session: str):
+        """Effectue la mise à jour en affichant la progression et journalise pour le debug."""
+        def _append_update_log(msg: str):
+            try:
+                log_dir = Path(tempfile.gettempdir())
+                log_file = log_dir / "peadra-update.log"
+                ts = datetime.utcnow().isoformat() + "Z"
+                with open(log_file, "a", encoding="utf-8") as f:
+                    f.write(f"{ts} - {msg}\n")
+            except Exception:
+                pass
+
+        _append_update_log("_perform_update_with_progress: started")
+
+        try:
+            import json
+            import subprocess
+            import tempfile
+            import time
+            from pathlib import Path
+
+            # Récupérer les infos de la mise à jour
+            result = check_for_update()
+            _append_update_log(f"check_for_update: available={result.available} latest={result.latest_version} asset={result.asset_name}")
+
+            if not result.available or not result.asset_url or not result.asset_name:
+                self.page.pubsub.send_all({
+                    "session": progress_session,
+                    "type": "error",
+                    "message": t("param_update_status_error").format(error="Impossible de récupérer la mise à jour"),
+                })
+                _append_update_log("no update available or missing asset")
+                return
+
+            # Chemin de destination pour le téléchargement
+            downloaded_path = Path(tempfile.gettempdir()) / "peadra-update" / result.asset_name
+            _append_update_log(f"download destination: {downloaded_path}")
+
+            # Callback de progression
+            last_logged_step = {"value": -1}
+
+            def on_progress(downloaded: int, total: int):
+                if total > 0:
+                    percent = int((downloaded / total) * 100)
+                    self.page.pubsub.send_all({
+                        "session": progress_session,
+                        "type": "progress",
+                        "message": t("param_update_status_downloading").format(percent=percent),
+                        "value": min(percent / 100.0, 0.99),
+                    })
+                    # Log uniquement quand on passe une nouvelle tranche de 5%
+                    step = percent // 5
+                    if step != last_logged_step["value"]:
+                        last_logged_step["value"] = step
+                        _append_update_log(f"download progress: {percent}% ({downloaded}/{total})")
+
+            # Télécharger le fichier
+            _append_update_log(f"starting download from: {result.asset_url}")
+            download_file_with_progress(result.asset_url, downloaded_path, on_progress=on_progress)
+            _append_update_log("download finished")
+
+            # Afficher "Downloaded, installing..."
+            self.page.pubsub.send_all({
+                "session": progress_session,
+                "type": "progress",
+                "message": t("param_update_status_downloaded"),
+                "value": 0.95,
+            })
+            _append_update_log("queued downloaded->installing message")
+
+            # Préparer la mise à jour
+            current_executable = Path(sys.executable)
+            updater_copy = _copy_current_executable_to_temp(current_executable)
+            _append_update_log(f"copied updater to: {updater_copy}")
+
+            # Passer le contrôle au updater
+            restart_args = [arg for arg in sys.argv[1:] if arg != "--apply-update"]
+            try:
+                p = subprocess.Popen(
+                    [
+                        str(updater_copy),
+                        "--apply-update",
+                        "--source",
+                        str(downloaded_path),
+                        "--target",
+                        str(current_executable),
+                        "--terminate-pid",
+                        str(os.getpid()),
+                        "--restart-args",
+                        json.dumps(restart_args),
+                    ],
+                    cwd=str(current_executable.parent),
+                )
+                _append_update_log(f"launched updater pid={getattr(p, 'pid', None)}")
+            except Exception as e:
+                self.page.pubsub.send_all({
+                    "session": progress_session,
+                    "type": "error",
+                    "message": t("param_update_status_error").format(error=f"Erreur subprocess: {str(e)}"),
+                })
+                _append_update_log(f"subprocess launch failed: {str(e)}")
+                return
+
+            # Afficher "Installing" à 100% avant de quitter
+            self.page.pubsub.send_all({
+                "session": progress_session,
+                "type": "complete",
+                "message": t("param_update_status_installing"),
+                "value": 1.0,
+            })
+            _append_update_log("queued complete message")
+
+            # Demander la fermeture de la fenêtre depuis le thread UI
+            self.page.pubsub.send_all({"session": progress_session, "type": "shutdown"})
+
+            # Attendre que les messages soient traités
+            time.sleep(0.15)
+
+            # Tentative de fermeture locale (en secours) puis sortie forcée.
+            try:
+                _append_update_log("attempting graceful shutdown (SIGTERM)")
+                import signal, platform
+                os.kill(os.getpid(), signal.SIGTERM)
+                time.sleep(0.05)
+            except Exception as e:
+                _append_update_log(f"SIGTERM failed: {e}")
+
+            # On Windows, SIGTERM may not terminate the process; attempt TerminateProcess
+            try:
+                if sys.platform.startswith("win"):
+                    _append_update_log("attempting Windows TerminateProcess fallback")
+                    import ctypes
+                    try:
+                        ctypes.windll.kernel32.TerminateProcess(ctypes.windll.kernel32.GetCurrentProcess(), 0)
+                    except Exception as ce:
+                        _append_update_log(f"TerminateProcess failed: {ce}")
+            except Exception:
+                pass
+
+            try:
+                _append_update_log("final os._exit(0)")
+                os._exit(0)
+            except Exception as e:
+                _append_update_log(f"os._exit failed: {e}")
+
+        except Exception as exc:
+            self.page.pubsub.send_all({
+                "session": progress_session,
+                "type": "error",
+                "message": t("param_update_status_error").format(error=str(exc)),
+            })
+            try:
+                _append_update_log(f"exception in update flow: {str(exc)}")
+            except Exception:
+                pass
+            try:
+                self._set_update_status("param_update_status_error", error=str(exc))
+                self._set_update_button_mode(False)
+            except RuntimeError:
+                pass
 
     def _on_save_password(self, e):
         pwd = self.password_field.value
@@ -675,6 +1065,74 @@ class ParametersView:
             ),
         )
 
+        self.update_button = ft.OutlinedButton(
+            content=ft.Text(t("param_check_updates")),
+            icon=ft.Icons.SYSTEM_UPDATE_ALT,
+            on_click=self._on_check_updates,
+            style=ft.ButtonStyle(
+                padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                shape=ft.RoundedRectangleBorder(radius=10),
+                side=ft.BorderSide(1, PeadraTheme.ACCENT),
+                color=PeadraTheme.ACCENT,
+            ),
+        )
+
+        self.changelog_button = ft.OutlinedButton(
+            content=ft.Text(t("param_see_whats_new")),
+            icon=ft.Icons.INFO_OUTLINED,
+            on_click=self._on_see_whats_new,
+            visible=False,
+            style=ft.ButtonStyle(
+                padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                shape=ft.RoundedRectangleBorder(radius=10),
+                side=ft.BorderSide(1, PeadraTheme.ACCENT),
+                color=PeadraTheme.ACCENT,
+            ),
+        )
+
+        # Restaurer l'état du panneau après une reconstruction de la vue,
+        # notamment lors d'un changement de langue.
+        self._set_update_button_mode(self.update_available)
+
+        quick_update_panel = ft.Container(
+            content=ft.Row(
+                [
+                    ft.Column(
+                        [
+                            ft.Text(
+                                t("param_updates"),
+                                size=15,
+                                weight=ft.FontWeight.W_600,
+                                color=text_color,
+                            ),
+                            ft.Text(
+                                f"{t('param_version')} {self.current_version}",
+                                size=12,
+                                color=ft.Colors.GREY,
+                            ),
+                            self.update_status_text,
+                        ],
+                        spacing=2,
+                        expand=True,
+                    ),
+                            ft.Column(
+                                [self.update_button, self.changelog_button],
+                                spacing=8,
+                                horizontal_alignment=ft.CrossAxisAlignment.END,
+                            ),
+                ],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            padding=ft.padding.symmetric(horizontal=16, vertical=14),
+            border_radius=12,
+            bgcolor=(
+                PeadraTheme.DARK_SURFACE
+                if self.is_dark
+                else ft.Colors.with_opacity(0.35, PeadraTheme.LIGHT_SURFACE)
+            ),
+        )
+
         data_section = self._build_section_card(
             t("param_data"),
             ft.Icons.STORAGE_OUTLINED,
@@ -871,6 +1329,8 @@ class ParametersView:
                     ),
                     margin=ft.margin.only(bottom=20),
                 ),
+                quick_update_panel,
+                ft.Container(height=12),
                 general_section,
                 ft.Container(height=12),
                 data_section,

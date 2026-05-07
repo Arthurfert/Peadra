@@ -23,22 +23,23 @@ help:
 	@echo "Detected OS: $(DETECTED_OS_NAME)"
 	@echo ""
 	@echo "Available targets:"
-	@echo "  make pack        - Package the app (auto-detects OS and icon)"
+	@echo "  make pack         - Package the app (auto-detects OS and icon)"
 	@echo "  make pack-windows - Force Windows packaging with .ico icon"
 	@echo "  make pack-linux   - Force Linux packaging with .png icon"
-	@echo "  make run         - Run the app in development mode"
-	@echo "  make clean       - Remove build and dist directories"
-	@echo "  make test        - Run tests"
-	@echo "  make install     - Install dependencies"
-	@echo "  make install-dev - Install development dependencies"
-	@echo "  make help        - Show this help message"
+	@echo "  make run          - Run the app in development mode"
+	@echo "  make clean        - Remove build and dist directories"
+	@echo "  make test         - Run tests"
+	@echo "  make install      - Install dependencies"
+	@echo "  make install-dev  - Install development dependencies"
+	@echo "  make help         - Show this help message"
 
 pack:
 	@echo "Packaging $(APP_NAME) for $(DETECTED_OS_NAME) with icon $(ICON_PATH)..."
 	flet pack -i $(ICON_PATH) -n $(APP_NAME) $(MAIN_FILE) \
 		--add-data "$(ASSETS_DIR):$(ASSETS_DIR)" \
 		--add-data "$(ASSETS_DIR)/Dashboard_Light.jpg:$(ASSETS_DIR)" \
-		--add-data "$(ASSETS_DIR)/Dashboard.jpg:$(ASSETS_DIR)"
+		--add-data "$(ASSETS_DIR)/Dashboard.jpg:$(ASSETS_DIR)" \
+		--hidden-import src.version src.update_manager
 	@echo "Packaging complete for $(DETECTED_OS_NAME)"
 
 pack-windows:
@@ -46,7 +47,8 @@ pack-windows:
 	flet pack -i $(ICON_WINDOWS) -n $(APP_NAME) $(MAIN_FILE) \
 		--add-data "$(ASSETS_DIR):$(ASSETS_DIR)" \
 		--add-data "$(ASSETS_DIR)/Dashboard_Light.jpg:$(ASSETS_DIR)" \
-		--add-data "$(ASSETS_DIR)/Dashboard.jpg:$(ASSETS_DIR)"
+		--add-data "$(ASSETS_DIR)/Dashboard.jpg:$(ASSETS_DIR)" \
+		--hidden-import src.version src.update_manager
 	@echo "Windows packaging complete"
 
 pack-linux:
@@ -54,7 +56,8 @@ pack-linux:
 	flet pack -i $(ICON_LINUX) -n $(APP_NAME) $(MAIN_FILE) \
 		--add-data "$(ASSETS_DIR):$(ASSETS_DIR)" \
 		--add-data "$(ASSETS_DIR)/Dashboard_Light.jpg:$(ASSETS_DIR)" \
-		--add-data "$(ASSETS_DIR)/Dashboard.jpg:$(ASSETS_DIR)"
+		--add-data "$(ASSETS_DIR)/Dashboard.jpg:$(ASSETS_DIR)" \
+		--hidden-import src.version src.update_manager
 	@echo "Linux packaging complete"
 
 run:

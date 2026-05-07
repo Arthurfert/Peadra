@@ -3,12 +3,16 @@ Peadra - Application de gestion de patrimoine
 Point d'entrée principal de l'application.
 """
 
+import argparse
+import json
+import os
 import flet as ft
 from src.components.theme import PeadraTheme
 from src.components.navigation import NavigationRailComponent
 from src.database import db
-from src.i18n import set_language, get_translator, t
+from src.i18n import set_language, t
 from src.views.dashboard import DashboardView
+from src.update_manager import run_update_mode
 from src.views.transactions import TransactionsView
 from src.views.accounts import AccountsView
 from src.views.parameters import ParametersView
@@ -432,4 +436,34 @@ def main(page: ft.Page):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--apply-update", action="store_true")
+    parser.add_argument("--source")
+    parser.add_argument("--target")
+    parser.add_argument("--terminate-pid")
+    parser.add_argument("--restart-args")
+    args, _ = parser.parse_known_args()
+
+    if args.apply_update and args.source and args.target:
+        restart_args = []
+        if args.restart_args:
+            try:
+                restart_args = json.loads(args.restart_args)
+            except json.JSONDecodeError:
+                restart_args = []
+        terminate_pid = None
+        if args.terminate_pid:
+            try:
+                terminate_pid = int(args.terminate_pid)
+            except ValueError:
+                terminate_pid = None
+        exit_code = run_update_mode(
+            args.source,
+            args.target,
+            restart_args,
+            terminate_pid=terminate_pid,
+        )
+        # Sortie forcée du helper onefile pour éviter toute instance résiduelle.
+        os._exit(exit_code)
+
     ft.run(main, assets_dir="assets")

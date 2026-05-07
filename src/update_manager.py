@@ -7,10 +7,12 @@ l'exécutable standalone généré par PyInstaller.
 from __future__ import annotations
 
 import json
+import errno
 import os
 import platform
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -258,9 +260,44 @@ def download_file_with_progress(
 def _copy_current_executable_to_temp(executable_path: Path) -> Path:
     updater_dir = Path(tempfile.gettempdir()) / "peadra-updater"
     updater_dir.mkdir(parents=True, exist_ok=True)
-    updater_copy = updater_dir / "peadra-updater-helper.exe"
+    helper_name = (
+        "peadra-updater-helper.exe"
+        if platform.system().lower() == "windows"
+        else "peadra-updater-helper"
+    )
+    updater_copy = updater_dir / helper_name
     shutil.copy2(executable_path, updater_copy)
+    _ensure_executable(updater_copy)
     return updater_copy
+
+
+def _ensure_executable(path: Path) -> None:
+    if platform.system().lower() == "windows":
+        return
+    try:
+        mode = path.stat().st_mode
+        path.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    except OSError:
+        pass
+
+
+def _replace_file_with_fallback(source: Path, target: Path) -> None:
+    try:
+        os.replace(source, target)
+        return
+    except OSError as exc:
+        # Cas classique Linux: /tmp est sur un autre filesystem que l'app.
+        if exc.errno != errno.EXDEV:
+            raise
+
+    staged_target = target.with_name(f"{target.name}.new")
+    if staged_target.exists():
+        staged_target.unlink(missing_ok=True)
+
+    shutil.copy2(source, staged_target)
+    _ensure_executable(staged_target)
+    os.replace(staged_target, target)
+    source.unlink(missing_ok=True)
 
 
 def _wait_for_file_unlock(path: Path, timeout: int = 120) -> bool:
@@ -345,9 +382,10 @@ def run_update_mode(
         return 2
 
     try:
-        os.replace(source, target)
-    except OSError:
-        _append_update_log("os.replace failed")
+        _replace_file_with_fallback(source, target)
+        _ensure_executable(target)
+    except OSError as exc:
+        _append_update_log(f"file replace failed: {exc}")
         return 3
 
     try:

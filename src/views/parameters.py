@@ -16,6 +16,7 @@ from ..components.theme import PeadraTheme
 from ..database import db
 from ..i18n import t
 from ..update_manager import (
+    _copy_current_executable_to_temp,
     auto_update_if_needed,
     check_for_update,
     download_file_with_progress,
@@ -701,7 +702,6 @@ class ParametersView:
             import tempfile
             import time
             from pathlib import Path
-            import shutil
 
             # Récupérer les infos de la mise à jour
             result = check_for_update()
@@ -754,9 +754,7 @@ class ParametersView:
 
             # Préparer la mise à jour
             current_executable = Path(sys.executable)
-            updater_copy = Path(tempfile.gettempdir()) / "peadra-updater" / "peadra-updater-helper.exe"
-            updater_copy.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(current_executable, updater_copy)
+            updater_copy = _copy_current_executable_to_temp(current_executable)
             _append_update_log(f"copied updater to: {updater_copy}")
 
             # Passer le contrôle au updater

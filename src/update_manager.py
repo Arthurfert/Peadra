@@ -19,7 +19,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Callable
 
 from .version import __version__
 
@@ -217,10 +217,48 @@ def download_file(url: str, destination: Path, timeout: int = 30) -> Path:
     return destination
 
 
+def download_file_with_progress(
+    url: str,
+    destination: Path,
+    on_progress: Callable[[int, int], None] | None = None,
+    timeout: int = 30,
+) -> Path:
+    """Télécharge un fichier avec callback de progression.
+    
+    Args:
+        url: URL du fichier à télécharger
+        destination: Chemin de destination
+        on_progress: Callback appelé avec (bytes_downloaded, total_bytes)
+        timeout: Timeout en secondes
+    
+    Returns:
+        Chemin du fichier téléchargé
+    """
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    request = _build_request(url)
+    
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        total_size = int(response.headers.get("content-length", 0))
+        chunk_size = 8192
+        downloaded = 0
+        
+        with destination.open("wb") as output:
+            while True:
+                chunk = response.read(chunk_size)
+                if not chunk:
+                    break
+                output.write(chunk)
+                downloaded += len(chunk)
+                if on_progress and total_size > 0:
+                    on_progress(downloaded, total_size)
+    
+    return destination
+
+
 def _copy_current_executable_to_temp(executable_path: Path) -> Path:
     updater_dir = Path(tempfile.gettempdir()) / "peadra-updater"
     updater_dir.mkdir(parents=True, exist_ok=True)
-    updater_copy = updater_dir / executable_path.name
+    updater_copy = updater_dir / "peadra-updater-helper.exe"
     shutil.copy2(executable_path, updater_copy)
     return updater_copy
 
@@ -236,26 +274,99 @@ def _wait_for_file_unlock(path: Path, timeout: int = 120) -> bool:
     return False
 
 
-def run_update_mode(source_path: str, target_path: str, restart_args: list[str] | None = None) -> int:
+def run_update_mode(
+    source_path: str,
+    target_path: str,
+    restart_args: list[str] | None = None,
+    terminate_pid: int | None = None,
+) -> int:
+    def _append_update_log(msg: str):
+        try:
+            log_file = Path(tempfile.gettempdir()) / "peadra-update.log"
+            ts = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime())
+            with open(log_file, "a", encoding="utf-8") as f:
+                f.write(f"{ts}Z - updater_mode: {msg}\n")
+        except OSError:
+            pass
+
     source = Path(source_path)
     target = Path(target_path)
     restart_args = restart_args or []
 
+    _append_update_log(
+        f"start source={source} target={target} terminate_pid={terminate_pid}"
+    )
+
     if not source.exists() or not target.exists():
+        _append_update_log("source or target missing")
         return 1
 
+    if platform.system().lower() == "windows":
+        # Le helper s'appelle peadra-updater-helper.exe, on peut donc tuer
+        # sans risque toutes les instances Peadra.exe restantes (parent + child).
+        try:
+            result = subprocess.run(
+                ["taskkill", "/IM", "Peadra.exe", "/T", "/F"],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            stdout = (result.stdout or "").strip().replace("\n", " | ")
+            stderr = (result.stderr or "").strip().replace("\n", " | ")
+            _append_update_log(
+                f"taskkill /IM returncode={result.returncode} stdout='{stdout}' stderr='{stderr}'"
+            )
+
+            # Fallback: si /IM échoue mais qu'on a un PID initial, tenter un kill direct.
+            if result.returncode != 0 and terminate_pid:
+                pid_result = subprocess.run(
+                    ["taskkill", "/PID", str(terminate_pid), "/T", "/F"],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+                pid_stdout = (pid_result.stdout or "").strip().replace("\n", " | ")
+                pid_stderr = (pid_result.stderr or "").strip().replace("\n", " | ")
+                _append_update_log(
+                    f"taskkill /PID returncode={pid_result.returncode} stdout='{pid_stdout}' stderr='{pid_stderr}'"
+                )
+        except OSError as exc:
+            _append_update_log(f"taskkill /IM failed: {exc}")
+
+    elif terminate_pid:
+        try:
+            os.kill(terminate_pid, 15)
+            _append_update_log(f"sent SIGTERM to pid={terminate_pid}")
+        except OSError as exc:
+            _append_update_log(f"SIGTERM failed for pid={terminate_pid}: {exc}")
+
     if not _wait_for_file_unlock(target):
+        _append_update_log("target remained locked after wait")
         return 2
 
     try:
         os.replace(source, target)
     except OSError:
+        _append_update_log("os.replace failed")
         return 3
 
     try:
-        subprocess.Popen([str(target), *restart_args], cwd=str(target.parent))
+        if platform.system().lower() == "windows":
+            subprocess.Popen(
+                [str(target), *restart_args],
+                cwd=str(target.parent),
+                creationflags=(
+                    subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
+                ),
+            )
+        else:
+            subprocess.Popen([str(target), *restart_args], cwd=str(target.parent))
+        _append_update_log("restart subprocess started")
     except OSError:
+        _append_update_log("restart subprocess failed")
         return 4
+
+    _append_update_log("update applied and restart launched")
 
     return 0
 

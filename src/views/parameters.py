@@ -6,16 +6,23 @@ Permet de configurer le thème, l'import/export et le mode de calcul mensuel.
 import os
 import sys
 import flet as ft
+import threading
+import tempfile
+import time
+from datetime import datetime
 from typing import Callable, Any, cast, List, Optional
+from pathlib import Path
 from ..components.theme import PeadraTheme
 from ..database import db
 from ..i18n import t
 from ..update_manager import (
     auto_update_if_needed,
     check_for_update,
+    download_file_with_progress,
     fetch_latest_release,
     get_current_version,
     is_frozen_app,
+    run_update_mode,
 )
 
 
@@ -573,13 +580,8 @@ class ParametersView:
             return
 
         if self.update_available:
-            self._set_update_status("param_update_status_installing")
-            install_result = auto_update_if_needed()
-            if install_result.error:
-                self._set_update_status(
-                    "param_update_status_error", error=install_result.error
-                )
-                self._set_update_button_mode(False)
+            # Lancer le téléchargement et l'installation dans un thread
+            self._show_update_progress_dialog()
             return
 
         self._set_update_status("param_update_status_checking")
@@ -602,6 +604,246 @@ class ParametersView:
             version=result.latest_version or "?"
         )
         self._set_update_button_mode(True)
+
+    def _show_update_progress_dialog(self):
+        """Affiche un dialog de progression pour la mise à jour."""
+        progress_text = ft.Text(
+            t("param_update_status_downloading").format(percent=0),
+            size=14,
+            color=PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        )
+        progress_bar = ft.ProgressBar(value=0, width=400)
+        instructions_text = ft.Text(
+            t("param_update_instructions").format(percent=0),
+            size=14,
+            color=PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        )
+        
+        dialog = ft.AlertDialog(
+            title=ft.Text(t("param_updates")),
+            content=ft.Container(
+                content=ft.Column(
+                    [progress_text, progress_bar, instructions_text],
+                    spacing=16,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    tight=True,
+                ),
+                padding=16,
+            ),
+            modal=True,
+        )
+        
+        self.page.show_dialog(dialog)
+        self.page.update()
+
+        progress_session = f"update-{int(time.time() * 1000)}"
+
+        def on_progress_message(message):
+            if not isinstance(message, dict):
+                return
+            if message.get("session") != progress_session:
+                return
+
+            msg_type = message.get("type")
+            if msg_type == "progress":
+                progress_text.value = message.get("message", "")
+                progress_bar.value = message.get("value", 0)
+            elif msg_type == "error":
+                progress_text.value = message.get("message", "Erreur")
+                progress_bar.value = 0
+            elif msg_type == "complete":
+                progress_text.value = t("param_update_status_installing")
+                progress_bar.value = 1.0
+            elif msg_type == "shutdown":
+                dialog.open = False
+
+            try:
+                self.page.update()
+            except RuntimeError:
+                pass
+
+            if msg_type in ("error", "shutdown"):
+                try:
+                    self.page.pubsub.unsubscribe()
+                except Exception:
+                    pass
+
+        try:
+            self.page.pubsub.subscribe(on_progress_message)
+        except Exception:
+            pass
+        
+        # Lancer le téléchargement et l'installation dans un autre thread
+        thread = threading.Thread(
+            target=self._perform_update_with_progress,
+            args=(progress_session,)
+        )
+        thread.daemon = False
+        thread.start()
+
+    def _perform_update_with_progress(self, progress_session: str):
+        """Effectue la mise à jour en affichant la progression et journalise pour le debug."""
+        def _append_update_log(msg: str):
+            try:
+                log_dir = Path(tempfile.gettempdir())
+                log_file = log_dir / "peadra-update.log"
+                ts = datetime.utcnow().isoformat() + "Z"
+                with open(log_file, "a", encoding="utf-8") as f:
+                    f.write(f"{ts} - {msg}\n")
+            except Exception:
+                pass
+
+        _append_update_log("_perform_update_with_progress: started")
+
+        try:
+            import json
+            import subprocess
+            import tempfile
+            import time
+            from pathlib import Path
+            import shutil
+
+            # Récupérer les infos de la mise à jour
+            result = check_for_update()
+            _append_update_log(f"check_for_update: available={result.available} latest={result.latest_version} asset={result.asset_name}")
+
+            if not result.available or not result.asset_url or not result.asset_name:
+                self.page.pubsub.send_all({
+                    "session": progress_session,
+                    "type": "error",
+                    "message": t("param_update_status_error").format(error="Impossible de récupérer la mise à jour"),
+                })
+                _append_update_log("no update available or missing asset")
+                return
+
+            # Chemin de destination pour le téléchargement
+            downloaded_path = Path(tempfile.gettempdir()) / "peadra-update" / result.asset_name
+            _append_update_log(f"download destination: {downloaded_path}")
+
+            # Callback de progression
+            last_logged_step = {"value": -1}
+
+            def on_progress(downloaded: int, total: int):
+                if total > 0:
+                    percent = int((downloaded / total) * 100)
+                    self.page.pubsub.send_all({
+                        "session": progress_session,
+                        "type": "progress",
+                        "message": t("param_update_status_downloading").format(percent=percent),
+                        "value": min(percent / 100.0, 0.99),
+                    })
+                    # Log uniquement quand on passe une nouvelle tranche de 5%
+                    step = percent // 5
+                    if step != last_logged_step["value"]:
+                        last_logged_step["value"] = step
+                        _append_update_log(f"download progress: {percent}% ({downloaded}/{total})")
+
+            # Télécharger le fichier
+            _append_update_log(f"starting download from: {result.asset_url}")
+            download_file_with_progress(result.asset_url, downloaded_path, on_progress=on_progress)
+            _append_update_log("download finished")
+
+            # Afficher "Downloaded, installing..."
+            self.page.pubsub.send_all({
+                "session": progress_session,
+                "type": "progress",
+                "message": t("param_update_status_downloaded"),
+                "value": 0.95,
+            })
+            _append_update_log("queued downloaded->installing message")
+
+            # Préparer la mise à jour
+            current_executable = Path(sys.executable)
+            updater_copy = Path(tempfile.gettempdir()) / "peadra-updater" / "peadra-updater-helper.exe"
+            updater_copy.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(current_executable, updater_copy)
+            _append_update_log(f"copied updater to: {updater_copy}")
+
+            # Passer le contrôle au updater
+            restart_args = [arg for arg in sys.argv[1:] if arg != "--apply-update"]
+            try:
+                p = subprocess.Popen(
+                    [
+                        str(updater_copy),
+                        "--apply-update",
+                        "--source",
+                        str(downloaded_path),
+                        "--target",
+                        str(current_executable),
+                        "--terminate-pid",
+                        str(os.getpid()),
+                        "--restart-args",
+                        json.dumps(restart_args),
+                    ],
+                    cwd=str(current_executable.parent),
+                )
+                _append_update_log(f"launched updater pid={getattr(p, 'pid', None)}")
+            except Exception as e:
+                self.page.pubsub.send_all({
+                    "session": progress_session,
+                    "type": "error",
+                    "message": t("param_update_status_error").format(error=f"Erreur subprocess: {str(e)}"),
+                })
+                _append_update_log(f"subprocess launch failed: {str(e)}")
+                return
+
+            # Afficher "Installing" à 100% avant de quitter
+            self.page.pubsub.send_all({
+                "session": progress_session,
+                "type": "complete",
+                "message": t("param_update_status_installing"),
+                "value": 1.0,
+            })
+            _append_update_log("queued complete message")
+
+            # Demander la fermeture de la fenêtre depuis le thread UI
+            self.page.pubsub.send_all({"session": progress_session, "type": "shutdown"})
+
+            # Attendre que les messages soient traités
+            time.sleep(0.15)
+
+            # Tentative de fermeture locale (en secours) puis sortie forcée.
+            try:
+                _append_update_log("attempting graceful shutdown (SIGTERM)")
+                import signal, platform
+                os.kill(os.getpid(), signal.SIGTERM)
+                time.sleep(0.05)
+            except Exception as e:
+                _append_update_log(f"SIGTERM failed: {e}")
+
+            # On Windows, SIGTERM may not terminate the process; attempt TerminateProcess
+            try:
+                if sys.platform.startswith("win"):
+                    _append_update_log("attempting Windows TerminateProcess fallback")
+                    import ctypes
+                    try:
+                        ctypes.windll.kernel32.TerminateProcess(ctypes.windll.kernel32.GetCurrentProcess(), 0)
+                    except Exception as ce:
+                        _append_update_log(f"TerminateProcess failed: {ce}")
+            except Exception:
+                pass
+
+            try:
+                _append_update_log("final os._exit(0)")
+                os._exit(0)
+            except Exception as e:
+                _append_update_log(f"os._exit failed: {e}")
+
+        except Exception as exc:
+            self.page.pubsub.send_all({
+                "session": progress_session,
+                "type": "error",
+                "message": t("param_update_status_error").format(error=str(exc)),
+            })
+            try:
+                _append_update_log(f"exception in update flow: {str(exc)}")
+            except Exception:
+                pass
+            try:
+                self._set_update_status("param_update_status_error", error=str(exc))
+                self._set_update_button_mode(False)
+            except RuntimeError:
+                pass
 
     def _on_save_password(self, e):
         pwd = self.password_field.value

@@ -1146,6 +1146,97 @@ class DatabaseManager:
         )
         return [{"name": row[0], "value": row[1]} for row in cursor.fetchall()]
 
+    def get_description_monthly_data(
+        self, start_date: str, end_date: str
+    ) -> Dict[str, Dict[str, Dict[str, Any]]]:
+        """Récupère les données mensuelles agrégées par description (dépenses et revenus).
+
+        Args:
+            start_date: Date de début (YYYY-MM-DD)
+            end_date: Date de fin (YYYY-MM-DD)
+
+        Returns:
+            Dict avec descriptions comme clé et dictionnaire mois -> {'income','expense','total'}
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        query = """
+            SELECT 
+                LOWER(COALESCE(t.description, 'Uncategorized')) as desc,
+                strftime('%Y-%m', t.date) as month,
+                t.transaction_type,
+                SUM(t.amount) as total
+            FROM transactions t
+            WHERE t.date >= ? AND t.date <= ? AND t.user_id = ?
+            GROUP BY desc, strftime('%Y-%m', t.date), t.transaction_type
+            ORDER BY desc, month
+        """
+
+        cursor.execute(query, (start_date, end_date, self.user_id))
+        rows = cursor.fetchall()
+
+        result: Dict[str, Dict[str, Dict[str, Any]]] = {}
+        for row in rows:
+            desc = row[0] or "uncategorized"
+            month = row[1]
+            transaction_type = row[2]
+            total = row[3]
+
+            if desc not in result:
+                result[desc] = {}
+
+            if month not in result[desc]:
+                result[desc][month] = {"income": 0, "expense": 0, "total": 0}
+
+            if transaction_type == "income":
+                result[desc][month]["income"] += total
+            elif transaction_type == "expense":
+                result[desc][month]["expense"] += total
+
+            result[desc][month]["total"] += total
+
+        return result
+
+    def get_top_descriptions(
+        self, transaction_type: str = "expense", num_months: int = 6
+    ) -> List[Dict[str, Any]]:
+        """Récupère les descriptions les plus importantes par dépenses ou revenus.
+
+        Args:
+            transaction_type: Type de transaction ('expense' ou 'income')
+            num_months: Nombre de mois à considérer
+
+        Returns:
+            Liste des descriptions triées par montant total
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        now = datetime.now()
+        start_date = (now - timedelta(days=num_months * 30)).strftime("%Y-%m-%d")
+        end_date = now.strftime("%Y-%m-%d")
+
+        query = """
+            SELECT 
+                LOWER(COALESCE(t.description, 'Uncategorized')) as desc,
+                SUM(t.amount) as total,
+                COUNT(t.id) as count
+            FROM transactions t
+            WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
+            GROUP BY desc
+            ORDER BY total DESC
+            LIMIT 5
+        """
+
+        cursor.execute(query, (transaction_type, start_date, end_date, self.user_id))
+        rows = cursor.fetchall()
+
+        return [
+            {"description": row[0] or "Uncategorized", "total": row[1], "count": row[2]}
+            for row in rows
+        ]
+
     def get_rolling_summary(self, days: int = 30) -> Dict[str, float]:
         """Récupère le résumé des transactions des N derniers jours (Compte Courant)."""
         from datetime import timedelta

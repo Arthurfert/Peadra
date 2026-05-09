@@ -116,6 +116,12 @@ class NavigationRailComponent:
                                 t("nav_subscriptions"),
                                 3,
                             ),
+                            nav_item(
+                                ft.Icons.CATEGORY_OUTLINED,
+                                ft.Icons.CATEGORY,
+                                t("nav_categories") if hasattr(t, "__call__") else "Catégories",
+                                4,
+                            ),
                         ],
                         spacing=8,
                     ),

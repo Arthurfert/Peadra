@@ -938,6 +938,37 @@ class DatabaseManager:
         )
         return [dict(row) for row in cursor.fetchall()]
 
+    def get_unique_descriptions(
+        self, transaction_type: str = "expense", search_term: str = ""
+    ) -> List[str]:
+        """Récupère les descriptions uniques pour un type de transaction.
+        
+        Args:
+            transaction_type: Type de transaction ('expense', 'income')
+            search_term: Terme de recherche pour filtrer les descriptions
+            
+        Returns:
+            Liste des descriptions uniques triées alphabétiquement
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        query = """
+            SELECT DISTINCT LOWER(t.description) as description
+            FROM transactions t
+            WHERE t.user_id = ? AND t.transaction_type = ?
+        """
+        params: list[int | str | None] = [self.user_id, transaction_type]
+        
+        if search_term:
+            query += " AND LOWER(t.description) LIKE ?"
+            params.append(f"%{search_term.lower()}%")
+        
+        query += " ORDER BY t.description ASC"
+        
+        cursor.execute(query, tuple(params))
+        return [row[0] for row in cursor.fetchall() if row[0]]
+
     def get_earliest_transaction_date(self) -> Optional[str]:
         """Récupère la date de la première transaction."""
         conn = self._get_connection()

@@ -60,6 +60,18 @@ class TransactionModal:
             hint_text=hint,
             width=350,
             autofocus=True,
+            on_change=self._on_description_change,
+        )
+
+        # Container pour les suggestions de description
+        self.suggestions_list_view = ft.ListView(expand=True, spacing=0)
+        self.suggestions_container = ft.Container(
+            content=self.suggestions_list_view,
+            visible=False,
+            height=150,
+            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border_radius=5,
+            clip_behavior=ft.ClipBehavior.HARD_EDGE,
         )
 
         # Amount
@@ -138,6 +150,7 @@ class TransactionModal:
         # Description (only for non-transfer)
         if self.transaction_type != "transfer":
             self.controls_list.append(self.description_field)
+            self.controls_list.append(self.suggestions_container)
 
         self.controls_list.append(self.amount_field)
 
@@ -192,6 +205,52 @@ class TransactionModal:
             self.controls_list.append(ft.Divider())
             self.controls_list.append(self.recurring_switch)
             self.controls_list.append(self.recurring_container)
+
+    def _on_description_change(self, e):
+        """Gère les changements dans le champ description."""
+        search_term = self.description_field.value.strip()
+        
+        if search_term:
+            # Récupérer les suggestions depuis la base de données
+            suggestions = db.get_unique_descriptions(
+                transaction_type=self.transaction_type,
+                search_term=search_term
+            )
+            self._update_suggestions_ui(suggestions, search_term)
+        else:
+            # Masquer les suggestions si le champ est vide
+            self.suggestions_container.visible = False
+            self.suggestions_list_view.controls.clear()
+            self.page.update()
+
+    def _update_suggestions_ui(self, suggestions: List[str], search_term: str):
+        """Met à jour l'affichage des suggestions."""
+        self.suggestions_list_view.controls.clear()
+        
+        if not suggestions:
+            self.suggestions_container.visible = False
+            self.page.update()
+            return
+        
+        # Créer des boutons pour chaque suggestion
+        for suggestion in suggestions:
+            suggestion_btn = ft.ListTile(
+                title=ft.Text(suggestion.capitalize(), size=14),
+                on_click=lambda e, s=suggestion: self._on_suggestion_selected(s),
+                dense=True,
+                height=30,
+            )
+            self.suggestions_list_view.controls.append(suggestion_btn)
+        
+        self.suggestions_container.visible = True
+        self.page.update()
+
+    def _on_suggestion_selected(self, suggestion: str):
+        """Gère la sélection d'une suggestion."""
+        self.description_field.value = suggestion.capitalize()
+        self.suggestions_container.visible = False
+        self.suggestions_list_view.controls.clear()
+        self.page.update()
 
     def _open_date_picker(self, e):
         """Ouvre le sélecteur de date principal."""

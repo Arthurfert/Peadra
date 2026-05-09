@@ -136,7 +136,12 @@ class AccountsView:
         self._load_data()
         if hasattr(self, "content"):
             self.content.content = self._build_content()
-            self.content.update()
+            try:
+                self.content.update()
+            except RuntimeError:
+                # Le control peut exister mais ne pas être monté sur la page.
+                # Ignorer la mise à jour graphique dans ce cas.
+                pass
 
     def _load_data(self):
         self.accounts = db.get_categories_with_balances()

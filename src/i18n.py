@@ -17,6 +17,7 @@ class Translator:
             "nav_transactions": "Transactions",
             "nav_accounts": "Accounts",
             "nav_subscriptions": "Subscriptions",
+            "nav_categories": "Categories",
             "nav_parameters": "Settings",
             # Login
             "login_title": "Peadra",
@@ -67,6 +68,16 @@ class Translator:
             "dash_assets_distribution": "Assets Distribution",
             "dash_no_assets": "No assets to display",
             "dash_other": "Other",
+            # Categories
+            "cat_top_expenses": "Top expense categories",
+            "cat_top_incomes": "Top income categories",
+            "cat_no_data_period": "No data to display for this period.",
+            "cat_period_label": "Period:",
+            "cat_3_months": "3 months",
+            "cat_6_months": "6 months",
+            "cat_12_months": "1 year",
+            "cat_avg_per_month": "Average / month",
+            "cat_transactions_count": "{count} transactions",
             # Transactions
             "trans_title": "Transactions",
             "trans_subtitle": "View and manage your recent transactions.",
@@ -349,6 +360,7 @@ class Translator:
             "nav_transactions": "Transactions",
             "nav_accounts": "Comptes",
             "nav_subscriptions": "Abonnements",
+            "nav_categories": "Catégories",
             "nav_parameters": "Paramètres",
             # Login
             "login_title": "Peadra",
@@ -399,6 +411,16 @@ class Translator:
             "dash_assets_distribution": "Distribution du patrimoine",
             "dash_no_assets": "Aucun actif à afficher",
             "dash_other": "Autres",
+            # Categories
+            "cat_top_expenses": "Catégories de dépenses principales",
+            "cat_top_incomes": "Catégories de revenus principales",
+            "cat_no_data_period": "Aucune donnée à afficher pour cette période.",
+            "cat_period_label": "Période :",
+            "cat_3_months": "3 mois",
+            "cat_6_months": "6 mois",
+            "cat_12_months": "1 an",
+            "cat_avg_per_month": "Moyenne / mois",
+            "cat_transactions_count": "{count} transactions",
             # Transactions
             "trans_title": "Transactions",
             "trans_subtitle": "Consultez et gérez vos transactions récentes.",

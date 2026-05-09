@@ -119,7 +119,7 @@ class NavigationRailComponent:
                             nav_item(
                                 ft.Icons.CATEGORY_OUTLINED,
                                 ft.Icons.CATEGORY,
-                                t("nav_categories") if hasattr(t, "__call__") else "Catégories",
+                                t("nav_categories"),
                                 4,
                             ),
                         ],

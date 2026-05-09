@@ -14,7 +14,11 @@
 
 ## Overview
 
-Peadra (*"wealth" in Breton*) is a desktop application designed to help you track and manage your personal finances and assets.
+Peadra (*"wealth" in Breton*) is a desktop application designed to help you track and manage your personal finances and assets. 
+
+> [!NOTE]
+> It is not connected to any banking system and organization, as it is just a local accounting app.  
+> It aims to enhance the typical excel sheets you are maybe using.
 
 ## Features
 
@@ -25,6 +29,7 @@ Peadra (*"wealth" in Breton*) is a desktop application designed to help you trac
 - Import data from CSV files, export in JSON & CSV
 - Multi accounts & authentification
 - French translation
+- In-app updates
 
 > A lot of features [to come](TODO.md) !
 

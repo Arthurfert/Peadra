@@ -40,7 +40,7 @@ python main.py
 
 # Package
 
-**You need to install the project before.**
+**You need to download the project before.**
 
 To package the app in one executable file (all OS) : 
 ``` bash
@@ -49,7 +49,7 @@ make pack
 
 # Build (with entire dependencies files)
 
-**You need to install the project before.**
+**You need to download the project before.**
 
 ## Windows
 

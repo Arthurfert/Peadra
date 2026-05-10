@@ -371,12 +371,12 @@ class CategoriesView:
                                     [
                                         ft.Text(
                                             t("cat_avg_per_month"),
-                                            size=9,
+                                            size=12,
                                             color=color,
                                         ),
                                         ft.Text(
                                             self._format_currency(average_monthly),
-                                            size=12,
+                                            size=14,
                                             weight=ft.FontWeight.BOLD,
                                             color=color,
                                         ),

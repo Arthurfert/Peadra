@@ -8,6 +8,7 @@ import flet_charts as fch
 from typing import Callable, List, Dict, Any, Optional, cast
 from datetime import datetime
 from ..components.theme import PeadraTheme
+from ..components.modals import MergeDescriptionsModal, RenameDescriptionModal
 from ..database import db
 from ..i18n import t
 
@@ -43,6 +44,9 @@ class CategoriesView:
         self.content_container: Optional[ft.Container] = None
         self.category_monthly_data: Dict[str, Dict[str, Dict[str, Any]]] = {}
         self.visible_counts: Dict[str, int] = {"expense": 4, "income": 4}
+        self.merge_modal: Optional[MergeDescriptionsModal] = None
+        self.rename_modal: Optional[RenameDescriptionModal] = None
+        self.current_transaction_type: Optional[str] = None
         self._load_data()
 
     def update_theme(self, is_dark: bool):
@@ -274,23 +278,50 @@ class CategoriesView:
                     pass
             self.page.update()
         
-        # Construire les contrôles (titre + boutons Load more/Load all si nécessaire)
+        def on_merge_click(e):
+            self._show_merge_modal(transaction_type)
+        
+        def on_rename_click(e):
+            self._show_rename_modal(transaction_type)
+        
+        # Construire les contrôles (titre + boutons)
         title_row_controls: List[ft.Control] = [ft.Text(title, size=18, weight=ft.FontWeight.BOLD, color=text_color)]
+        
+        # Ajouter les boutons d'action
+        action_buttons = [
+            ft.TextButton(
+                t("btn_merge"),
+                icon=ft.Icons.MERGE,
+                on_click=on_merge_click,
+                style=ft.ButtonStyle(color=color),
+            ),
+            ft.TextButton(
+                t("btn_rename"),
+                icon=ft.Icons.EDIT,
+                on_click=on_rename_click,
+                style=ft.ButtonStyle(color=color),
+            ),
+        ]
+        
+        # Ajouter les boutons Load more/Load all si nécessaire
         if len(categories) > visible_count:
+            action_buttons.extend([
+                ft.TextButton(
+                    t("btn_load_more"),
+                    on_click=on_load_more,
+                    style=ft.ButtonStyle(color=color),
+                ),
+                ft.TextButton(
+                    t("btn_load_all"),
+                    on_click=on_load_all,
+                    style=ft.ButtonStyle(color=color),
+                ),
+            ])
+        
+        if action_buttons:
             button_row = ft.Row(
-                [
-                    ft.TextButton(
-                        t("btn_load_more"),
-                        on_click=on_load_more,
-                        style=ft.ButtonStyle(color=color),
-                    ),
-                    ft.TextButton(
-                        t("btn_load_all"),
-                        on_click=on_load_all,
-                        style=ft.ButtonStyle(color=color),
-                    ),
-                ],
-                spacing=8,
+                cast(List[ft.Control], action_buttons),
+                spacing=8
             )
             title_row_controls.append(button_row)
         
@@ -461,3 +492,107 @@ class CategoriesView:
                 else None
             ),
         )
+
+    def _show_merge_modal(self, transaction_type: str):
+        """Affiche le modal de fusion de descriptions."""
+        self.current_transaction_type = transaction_type
+        descriptions = db.get_all_unique_descriptions(transaction_type)
+        
+        if len(descriptions) < 2:
+            snack = ft.SnackBar(
+                ft.Text(t("cat_need_at_least_two_descriptions")),
+                bgcolor=ft.Colors.WARNING,
+            )
+            self.page.overlay.append(snack)
+            snack.open = True
+            self.page.update()
+            return
+        
+        self.merge_modal = MergeDescriptionsModal(
+            page=self.page,
+            descriptions=descriptions,
+            transaction_type=transaction_type,
+            on_merge=self._on_merge_descriptions,
+        )
+        self.merge_modal.show()
+
+    def _show_rename_modal(self, transaction_type: str):
+        """Affiche le modal de renommage de description."""
+        self.current_transaction_type = transaction_type
+        descriptions = db.get_all_unique_descriptions(transaction_type)
+        
+        if not descriptions:
+            snack = ft.SnackBar(
+                ft.Text(t("cat_no_descriptions")),
+                bgcolor=ft.Colors.WARNING,
+            )
+            self.page.overlay.append(snack)
+            snack.open = True
+            self.page.update()
+            return
+        
+        self.rename_modal = RenameDescriptionModal(
+            page=self.page,
+            descriptions=descriptions,
+            transaction_type=transaction_type,
+            on_rename=self._on_rename_description,
+        )
+        self.rename_modal.show()
+
+    def _on_merge_descriptions(self, source: str, target: str):
+        """Callback pour la fusion de descriptions."""
+        try:
+            success = db.merge_descriptions(source, target)
+            
+            if success:
+                snack = ft.SnackBar(
+                    ft.Text(t("cat_merge_success").format(source=source, target=target)),
+                    bgcolor=ft.Colors.GREEN,
+                )
+                # Rafraîchir les données et l'affichage
+                self.refresh()
+                if self.on_data_change:
+                    self.on_data_change()
+            else:
+                snack = ft.SnackBar(
+                    ft.Text(t("cat_merge_failed")),
+                    bgcolor=ft.Colors.ERROR,
+                )
+        except Exception as e:
+            snack = ft.SnackBar(
+                ft.Text(f"Erreur: {str(e)}"),
+                bgcolor=ft.Colors.ERROR,
+            )
+        
+        self.page.overlay.append(snack)
+        snack.open = True
+        self.page.update()
+
+    def _on_rename_description(self, old_description: str, new_description: str):
+        """Callback pour le renommage de description."""
+        try:
+            success = db.rename_description(old_description, new_description)
+            
+            if success:
+                snack = ft.SnackBar(
+                    ft.Text(t("cat_rename_success").format(old=old_description, new=new_description)),
+                    bgcolor=ft.Colors.GREEN,
+                )
+                # Rafraîchir les données et l'affichage
+                self.refresh()
+                if self.on_data_change:
+                    self.on_data_change()
+            else:
+                snack = ft.SnackBar(
+                    ft.Text(t("cat_rename_failed")),
+                    bgcolor=ft.Colors.ERROR,
+                )
+        except Exception as e:
+            snack = ft.SnackBar(
+                ft.Text(f"Erreur: {str(e)}"),
+                bgcolor=ft.Colors.ERROR,
+            )
+        
+        self.page.overlay.append(snack)
+        snack.open = True
+        self.page.update()

@@ -1434,6 +1434,107 @@ class DatabaseManager:
         except Exception as e:
             print(f"Erreur sauvegarde paramètre global {key}: {str(e)}")
 
+    def merge_descriptions(self, source_description: str, target_description: str) -> bool:
+        """Fusionne deux descriptions en renommant toutes les transactions avec la description source vers la cible.
+        
+        Args:
+            source_description: Description à fusionner (sera renommée)
+            target_description: Description cible (vers laquelle fusionner)
+            
+        Returns:
+            True si la fusion a été successful, False sinon
+        """
+        if not source_description or not target_description:
+            return False
+            
+        source_description = source_description.strip()
+        target_description = target_description.strip()
+
+        # Éviter de fusionner une description avec elle-même, mais autoriser les changements de casse
+        if source_description == target_description:
+            return False
+            
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Mettre à jour toutes les transactions avec la description source
+            cursor.execute(
+                "UPDATE transactions SET description = ? WHERE description = ? AND user_id = ?",
+                (target_description, source_description, self.user_id),
+            )
+            
+            conn.commit()
+            return cursor.rowcount > 0
+        except Exception as e:
+            print(f"Erreur lors de la fusion des descriptions: {str(e)}")
+            return False
+
+    def rename_description(self, old_description: str, new_description: str) -> bool:
+        """Renomme une description en mettant à jour toutes les transactions associées.
+        
+        Args:
+            old_description: Ancienne description
+            new_description: Nouvelle description
+            
+        Returns:
+            True si le renomage a été successful, False sinon
+        """
+        if not old_description or not new_description:
+            return False
+            
+        old_description = old_description.strip()
+        new_description = new_description.strip()
+
+        # Éviter le renommage sans changement réel, mais autoriser les variations de casse
+        if old_description == new_description:
+            return False
+            
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Mettre à jour toutes les transactions avec l'ancienne description
+            cursor.execute(
+                "UPDATE transactions SET description = ? WHERE description = ? AND user_id = ?",
+                (new_description, old_description, self.user_id),
+            )
+            
+            conn.commit()
+            return cursor.rowcount > 0
+        except Exception as e:
+            print(f"Erreur lors du renomage de la description: {str(e)}")
+            return False
+
+    def get_all_unique_descriptions(self, transaction_type: Optional[str] = None) -> List[str]:
+        """Récupère toutes les descriptions uniques, optionnellement filtrées par type de transaction.
+        
+        Args:
+            transaction_type: Type de transaction ("income", "expense", ou None pour tous)
+            
+        Returns:
+            Liste des descriptions uniques triées
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        if transaction_type:
+            cursor.execute(
+                "SELECT DISTINCT description FROM transactions WHERE user_id = ? AND transaction_type = ? ORDER BY description",
+                (self.user_id, transaction_type),
+            )
+        else:
+            cursor.execute(
+                "SELECT DISTINCT description FROM transactions WHERE user_id = ? ORDER BY description",
+                (self.user_id,),
+            )
+        
+        return [
+            row[0]
+            for row in cursor.fetchall()
+            if row[0] and not self._is_transfer_description(row[0])
+        ]
+
     def delete_user_account(self, password: str) -> bool:
         """Supprime le compte utilisateur actuel après vérification du mot de passe.
         

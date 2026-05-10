@@ -1149,7 +1149,7 @@ class DatabaseManager:
     def get_description_monthly_data(
         self, start_date: str, end_date: str
     ) -> Dict[str, Dict[str, Dict[str, Any]]]:
-        """Récupère les données mensuelles agrégées par description (dépenses et revenus).
+        """Récupère les données mensuelles agrégées par description (dépenses et revenus, exclut transferts).
 
         Args:
             start_date: Date de début (YYYY-MM-DD)
@@ -1183,6 +1183,10 @@ class DatabaseManager:
             transaction_type = row[2]
             total = row[3]
 
+            # Exclure les transferts
+            if self._is_transfer_description(desc):
+                continue
+
             if desc not in result:
                 result[desc] = {}
 
@@ -1201,10 +1205,10 @@ class DatabaseManager:
     def get_top_descriptions(
         self, transaction_type: str = "expense", num_months: int = 6, limit: int = 5
     ) -> List[Dict[str, Any]]:
-        """Récupère les descriptions triées par dépenses ou revenus.
+        """Récupère les descriptions triées par dépenses ou revenus (exclut les transferts).
 
         Args:
-            transaction_type: Type de transaction ('expense' ou 'income')
+            transaction_type: Type de transaction ('expense' ou 'income', exclut 'transfer')
             num_months: Nombre de mois à considérer
             limit: Nombre maximal de résultats (0 = pas de limite)
 
@@ -1229,16 +1233,36 @@ class DatabaseManager:
             ORDER BY total DESC
         """
         
-        if limit > 0:
-            query += f" LIMIT {limit}"
-
         cursor.execute(query, (transaction_type, start_date, end_date, self.user_id))
         rows = cursor.fetchall()
 
-        return [
-            {"description": row[0] or "Uncategorized", "total": row[1], "count": row[2]}
-            for row in rows
-        ]
+        # Filtrer les transferts et appliquer la limite
+        results = []
+        for row in rows:
+            desc = row[0] or "Uncategorized"
+            # Exclure les transferts basés sur la description
+            if not self._is_transfer_description(desc):
+                results.append({"description": desc, "total": row[1], "count": row[2]})
+                if limit > 0 and len(results) >= limit:
+                    break
+
+        return results
+
+    def _is_transfer_description(self, description: str) -> bool:
+        """Détecte si une description est un transfert basé sur les patterns de description."""
+        from ..i18n import t
+        
+        desc = (description or "").strip().lower()
+        transfer_to = (t("trans_transfer_to") or "").strip().lower()
+        transfer_from = (t("trans_transfer_from") or "").strip().lower()
+
+        prefixes = ["transfer to ", "transfer from "]
+        if transfer_to:
+            prefixes.append(f"{transfer_to} ")
+        if transfer_from:
+            prefixes.append(f"{transfer_from} ")
+
+        return any(desc.startswith(prefix) for prefix in prefixes)
 
     def get_rolling_summary(self, days: int = 30) -> Dict[str, float]:
         """Récupère le résumé des transactions des N derniers jours (Compte Courant)."""

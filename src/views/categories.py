@@ -42,7 +42,7 @@ class CategoriesView:
         self.chart_duration = 6
         self.content_container: Optional[ft.Container] = None
         self.category_monthly_data: Dict[str, Dict[str, Dict[str, Any]]] = {}
-        self.expanded_sections: Dict[str, bool] = {"expense": False, "income": False}
+        self.visible_counts: Dict[str, int] = {"expense": 4, "income": 4}
         self._load_data()
 
     def update_theme(self, is_dark: bool):
@@ -239,14 +239,14 @@ class CategoriesView:
     def _build_category_section(
         self, title: str, categories: List[Dict[str, Any]], color: str, transaction_type: str
     ) -> ft.Container:
-        """Construit une section de cartes de catégories avec bouton d'expansion."""
+        """Construit une section de cartes de catégories avec chargement incrémental."""
         bg_card = (
             PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
         )
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
 
-        is_expanded = self.expanded_sections.get(transaction_type, False)
-        max_cards = len(categories) if is_expanded else min(4, len(categories))
+        visible_count = self.visible_counts.get(transaction_type, 4)
+        max_cards = min(visible_count, len(categories))
         
         cards = []
         for category in categories[:max_cards]:
@@ -254,8 +254,8 @@ class CategoriesView:
             if card:
                 cards.append(card)
         
-        def on_expand_click(e):
-            self.expanded_sections[transaction_type] = not is_expanded
+        def on_load_more(e):
+            self.visible_counts[transaction_type] = self.visible_counts.get(transaction_type, 4) + 4
             if self.content_container is not None:
                 self.content_container.content = self._build_content_column()
                 try:
@@ -264,27 +264,45 @@ class CategoriesView:
                     pass
             self.page.update()
         
-        # Déterminer l'icône et label du bouton
-        expand_icon = ft.Icons.EXPAND_MORE if not is_expanded else ft.Icons.EXPAND_LESS
-        expand_label = t("cat_show_more") if not is_expanded else t("cat_show_less")
+        def on_load_all(e):
+            self.visible_counts[transaction_type] = len(categories)
+            if self.content_container is not None:
+                self.content_container.content = self._build_content_column()
+                try:
+                    self.content_container.update()
+                except RuntimeError:
+                    pass
+            self.page.update()
+        
+        # Construire les contrôles (titre + boutons Load more/Load all si nécessaire)
+        title_row_controls: List[ft.Control] = [ft.Text(title, size=18, weight=ft.FontWeight.BOLD, color=text_color)]
+        if len(categories) > visible_count:
+            button_row = ft.Row(
+                [
+                    ft.TextButton(
+                        t("btn_load_more"),
+                        on_click=on_load_more,
+                        style=ft.ButtonStyle(color=color),
+                    ),
+                    ft.TextButton(
+                        t("btn_load_all"),
+                        on_click=on_load_all,
+                        style=ft.ButtonStyle(color=color),
+                    ),
+                ],
+                spacing=8,
+            )
+            title_row_controls.append(button_row)
         
         return ft.Container(
             content=ft.Column(
-                [
-                    ft.Row(
-                        [
-                            ft.Text(title, size=18, weight=ft.FontWeight.BOLD, color=text_color),
-                            ft.IconButton(
-                                icon=expand_icon,
-                                icon_color=color,
-                                tooltip=expand_label,
-                                on_click=on_expand_click,
-                            ) if len(categories) > 4 else ft.Container(),
-                        ],
-                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                    ),
-                    ft.ResponsiveRow(cards, run_spacing=12),
-                ],
+                cast(
+                    List[ft.Control],
+                    [
+                        ft.Row(title_row_controls, alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                        ft.ResponsiveRow(cards, run_spacing=12),
+                    ],
+                ),
                 spacing=12,
             ),
             padding=20,

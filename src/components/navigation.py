@@ -117,8 +117,8 @@ class NavigationRailComponent:
                                 3,
                             ),
                             nav_item(
-                                ft.Icons.CATEGORY_OUTLINED,
-                                ft.Icons.CATEGORY,
+                                ft.Icons.BUBBLE_CHART_OUTLINED,
+                                ft.Icons.BUBBLE_CHART,
                                 t("nav_categories"),
                                 4,
                             ),

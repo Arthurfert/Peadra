@@ -42,6 +42,7 @@ class CategoriesView:
         self.chart_duration = 6
         self.content_container: Optional[ft.Container] = None
         self.category_monthly_data: Dict[str, Dict[str, Dict[str, Any]]] = {}
+        self.expanded_sections: Dict[str, bool] = {"expense": False, "income": False}
         self._load_data()
 
     def update_theme(self, is_dark: bool):
@@ -109,8 +110,8 @@ class CategoriesView:
             start_date = datetime.now().strftime("%Y-%m-01")
         end_date = datetime.now().strftime("%Y-%m-%d")
 
-        self.top_expenses = db.get_top_descriptions("expense", len(month_keys))
-        self.top_incomes = db.get_top_descriptions("income", len(month_keys))
+        self.top_expenses = db.get_top_descriptions("expense", len(month_keys), limit=0)
+        self.top_incomes = db.get_top_descriptions("income", len(month_keys), limit=0)
         self.category_monthly_data = db.get_description_monthly_data(start_date, end_date)
 
     def _build_content_column(self) -> ft.Column:
@@ -238,22 +239,50 @@ class CategoriesView:
     def _build_category_section(
         self, title: str, categories: List[Dict[str, Any]], color: str, transaction_type: str
     ) -> ft.Container:
-        """Construit une section de cartes de catégories."""
+        """Construit une section de cartes de catégories avec bouton d'expansion."""
         bg_card = (
             PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
         )
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
 
+        is_expanded = self.expanded_sections.get(transaction_type, False)
+        max_cards = len(categories) if is_expanded else min(4, len(categories))
+        
         cards = []
-        for category in categories[:4]:
+        for category in categories[:max_cards]:
             card = self._build_category_card(category, color, transaction_type)
             if card:
                 cards.append(card)
         
+        def on_expand_click(e):
+            self.expanded_sections[transaction_type] = not is_expanded
+            if self.content_container is not None:
+                self.content_container.content = self._build_content_column()
+                try:
+                    self.content_container.update()
+                except RuntimeError:
+                    pass
+            self.page.update()
+        
+        # Déterminer l'icône et label du bouton
+        expand_icon = ft.Icons.EXPAND_MORE if not is_expanded else ft.Icons.EXPAND_LESS
+        expand_label = t("cat_show_more") if not is_expanded else t("cat_show_less")
+        
         return ft.Container(
             content=ft.Column(
                 [
-                    ft.Text(title, size=18, weight=ft.FontWeight.BOLD, color=text_color),
+                    ft.Row(
+                        [
+                            ft.Text(title, size=18, weight=ft.FontWeight.BOLD, color=text_color),
+                            ft.IconButton(
+                                icon=expand_icon,
+                                icon_color=color,
+                                tooltip=expand_label,
+                                on_click=on_expand_click,
+                            ) if len(categories) > 4 else ft.Container(),
+                        ],
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                    ),
                     ft.ResponsiveRow(cards, run_spacing=12),
                 ],
                 spacing=12,
@@ -398,7 +427,7 @@ class CategoriesView:
                     ),
                     ft.Container(
                         content=chart,
-                        height=120,
+                        height=100,
                         padding=ft.padding.only(top=4),
                     ),
                 ],

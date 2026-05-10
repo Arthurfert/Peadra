@@ -78,6 +78,8 @@ class Translator:
             "cat_12_months": "1 year",
             "cat_avg_per_month": "Average / month",
             "cat_transactions_count": "{count} transactions",
+            "cat_show_more": "Show more",
+            "cat_show_less": "Show less",
             # Transactions
             "trans_title": "Transactions",
             "trans_subtitle": "View and manage your recent transactions.",
@@ -421,6 +423,8 @@ class Translator:
             "cat_12_months": "1 an",
             "cat_avg_per_month": "Moyenne / mois",
             "cat_transactions_count": "{count} transactions",
+            "cat_show_more": "Afficher plus",
+            "cat_show_less": "Afficher moins",
             # Transactions
             "trans_title": "Transactions",
             "trans_subtitle": "Consultez et gérez vos transactions récentes.",

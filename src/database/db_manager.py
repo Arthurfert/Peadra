@@ -1199,13 +1199,14 @@ class DatabaseManager:
         return result
 
     def get_top_descriptions(
-        self, transaction_type: str = "expense", num_months: int = 6
+        self, transaction_type: str = "expense", num_months: int = 6, limit: int = 5
     ) -> List[Dict[str, Any]]:
-        """Récupère les descriptions les plus importantes par dépenses ou revenus.
+        """Récupère les descriptions triées par dépenses ou revenus.
 
         Args:
             transaction_type: Type de transaction ('expense' ou 'income')
             num_months: Nombre de mois à considérer
+            limit: Nombre maximal de résultats (0 = pas de limite)
 
         Returns:
             Liste des descriptions triées par montant total
@@ -1226,8 +1227,10 @@ class DatabaseManager:
             WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
             GROUP BY desc
             ORDER BY total DESC
-            LIMIT 5
         """
+        
+        if limit > 0:
+            query += f" LIMIT {limit}"
 
         cursor.execute(query, (transaction_type, start_date, end_date, self.user_id))
         rows = cursor.fetchall()

@@ -4,7 +4,7 @@ Modal de saisie rapide pour les transactions.
 
 import flet as ft
 from datetime import datetime
-from typing import Callable, List, Dict, Any, Optional
+from typing import Callable, List, Dict, Any, Optional, cast
 from .theme import PeadraTheme
 from ..database.db_manager import db
 from ..i18n import t as translate
@@ -60,6 +60,18 @@ class TransactionModal:
             hint_text=hint,
             width=350,
             autofocus=True,
+            on_change=self._on_description_change,
+        )
+
+        # Container pour les suggestions de description
+        self.suggestions_list_view = ft.ListView(expand=True, spacing=0)
+        self.suggestions_container = ft.Container(
+            content=self.suggestions_list_view,
+            visible=False,
+            height=150,
+            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border_radius=5,
+            clip_behavior=ft.ClipBehavior.HARD_EDGE,
         )
 
         # Amount
@@ -138,6 +150,7 @@ class TransactionModal:
         # Description (only for non-transfer)
         if self.transaction_type != "transfer":
             self.controls_list.append(self.description_field)
+            self.controls_list.append(self.suggestions_container)
 
         self.controls_list.append(self.amount_field)
 
@@ -193,6 +206,51 @@ class TransactionModal:
             self.controls_list.append(self.recurring_switch)
             self.controls_list.append(self.recurring_container)
 
+    def _on_description_change(self, e):
+        """Gère les changements dans le champ description."""
+        search_term = self.description_field.value.strip()
+
+        if search_term:
+            # Récupérer les suggestions depuis la base de données
+            suggestions = db.get_unique_descriptions(
+                transaction_type=self.transaction_type, search_term=search_term
+            )
+            self._update_suggestions_ui(suggestions, search_term)
+        else:
+            # Masquer les suggestions si le champ est vide
+            self.suggestions_container.visible = False
+            self.suggestions_list_view.controls.clear()
+            self.page.update()
+
+    def _update_suggestions_ui(self, suggestions: List[str], search_term: str):
+        """Met à jour l'affichage des suggestions."""
+        self.suggestions_list_view.controls.clear()
+
+        if not suggestions:
+            self.suggestions_container.visible = False
+            self.page.update()
+            return
+
+        # Créer des boutons pour chaque suggestion
+        for suggestion in suggestions:
+            suggestion_btn = ft.ListTile(
+                title=ft.Text(suggestion.capitalize(), size=14),
+                on_click=lambda e, s=suggestion: self._on_suggestion_selected(s),
+                dense=True,
+                height=30,
+            )
+            self.suggestions_list_view.controls.append(suggestion_btn)
+
+        self.suggestions_container.visible = True
+        self.page.update()
+
+    def _on_suggestion_selected(self, suggestion: str):
+        """Gère la sélection d'une suggestion."""
+        self.description_field.value = suggestion.capitalize()
+        self.suggestions_container.visible = False
+        self.suggestions_list_view.controls.clear()
+        self.page.update()
+
     def _open_date_picker(self, e):
         """Ouvre le sélecteur de date principal."""
         self._open_date_picker_generic(e, self.date_picker)
@@ -242,19 +300,29 @@ class TransactionModal:
                 not self.description_field.value
                 or not self.description_field.value.strip()
             ):
-                errors.append(translate("trans_description") + " " + translate("val_required").lower())
+                errors.append(
+                    translate("trans_description")
+                    + " "
+                    + translate("val_required").lower()
+                )
                 self.description_field.error = translate("val_required")
             else:
                 self.description_field.error = None
 
         if not self.amount_field.value:
-            errors.append(translate("trans_amount") + " " + translate("val_required").lower())
+            errors.append(
+                translate("trans_amount") + " " + translate("val_required").lower()
+            )
             self.amount_field.error = translate("val_required")
         else:
             try:
                 amount = float(self.amount_field.value)
                 if amount <= 0:
-                    errors.append(translate("trans_amount") + " " + translate("val_must_be_positive").lower())
+                    errors.append(
+                        translate("trans_amount")
+                        + " "
+                        + translate("val_must_be_positive").lower()
+                    )
                     self.amount_field.error = translate("val_must_be_positive")
                 else:
                     self.amount_field.error = None
@@ -279,7 +347,9 @@ class TransactionModal:
 
         description = self.description_field.value or ""
         if self.transaction_type == "transfer":
-            description = translate("trans_transfer_placeholder")  # Placeholder, will be overwritten
+            description = translate(
+                "trans_transfer_placeholder"
+            )  # Placeholder, will be overwritten
         amount_str = self.amount_field.value or "0"
 
         transaction_data = {
@@ -491,7 +561,9 @@ class TransactionDetailsModal:
         amount_txt = f"{amount_prefix}{transaction['amount']:,.2f} {currency}"
 
         # Category info
-        full_category = transaction.get("category_name") or translate("modal_uncategorized")
+        full_category = transaction.get("category_name") or translate(
+            "modal_uncategorized"
+        )
 
         # Content controls
         content_controls = [
@@ -512,12 +584,18 @@ class TransactionDetailsModal:
             ft.Divider(),
             ft.ListTile(
                 leading=ft.Icon(ft.Icons.DESCRIPTION),
-                title=ft.Text(translate("modal_description_label"), size=12, color=ft.Colors.GREY),
-                subtitle=ft.Text(transaction["description"], size=16, weight=ft.FontWeight.W_500),
+                title=ft.Text(
+                    translate("modal_description_label"), size=12, color=ft.Colors.GREY
+                ),
+                subtitle=ft.Text(
+                    transaction["description"], size=16, weight=ft.FontWeight.W_500
+                ),
             ),
             ft.ListTile(
                 leading=ft.Icon(ft.Icons.CATEGORY),
-                title=ft.Text(translate("modal_category_label"), size=12, color=ft.Colors.GREY),
+                title=ft.Text(
+                    translate("modal_category_label"), size=12, color=ft.Colors.GREY
+                ),
                 subtitle=ft.Text(full_category, size=16),
             ),
         ]
@@ -527,7 +605,9 @@ class TransactionDetailsModal:
             content_controls.append(
                 ft.ListTile(
                     leading=ft.Icon(ft.Icons.NOTE),
-                    title=ft.Text(translate("modal_notes_label"), size=12, color=ft.Colors.GREY),
+                    title=ft.Text(
+                        translate("modal_notes_label"), size=12, color=ft.Colors.GREY
+                    ),
                     subtitle=ft.Text(transaction["notes"], size=16),
                 )
             )
@@ -546,7 +626,9 @@ class TransactionDetailsModal:
             actions=[
                 ft.TextButton(translate("modal_close"), on_click=self.close),
                 ft.TextButton(
-                    translate("btn_modify"), icon=ft.Icons.EDIT, on_click=self._on_edit_click
+                    translate("btn_modify"),
+                    icon=ft.Icons.EDIT,
+                    on_click=self._on_edit_click,
                 ),
                 ft.TextButton(
                     translate("modal_delete"),
@@ -573,6 +655,281 @@ class TransactionDetailsModal:
             self.on_delete()
 
     def close(self, e=None):
+        if self.dialog:
+            self.dialog.open = False
+            self.page.update()
+
+
+class MergeDescriptionsModal:
+    """Modal pour fusionner deux descriptions."""
+
+    def __init__(
+        self,
+        page: ft.Page,
+        descriptions: List[str],
+        transaction_type: str,
+        on_merge: Callable,
+    ):
+        self.page = page
+        self.descriptions = sorted(descriptions)
+        self.transaction_type = transaction_type
+        self.on_merge = on_merge
+        self.dialog = None
+        self.source_dropdown = None
+        self.target_dropdown = None
+
+    def _on_merge_click(self, e):
+        """Gère le clic sur le bouton Fusionner."""
+        if not self.source_dropdown or not self.target_dropdown:
+            return
+
+        if not self.source_dropdown.value or not self.target_dropdown.value:
+            snack = ft.SnackBar(
+                ft.Text(translate("val_required")),
+                bgcolor=ft.Colors.ERROR,
+            )
+            self.page.overlay.append(snack)
+            snack.open = True
+            self.page.update()
+            return
+
+        source_val = self.source_dropdown.value
+        target_val = self.target_dropdown.value
+
+        if source_val == target_val:
+            snack = ft.SnackBar(
+                ft.Text(translate("val_invalid_operation")),
+                bgcolor=ft.Colors.ERROR,
+            )
+            self.page.overlay.append(snack)
+            snack.open = True
+            self.page.update()
+            return
+
+        self.close()
+
+        if self.on_merge:
+            self.on_merge(
+                source=source_val,
+                target=target_val,
+            )
+
+    def _on_cancel_click(self, e):
+        """Gère le clic sur le bouton Annuler."""
+        self.close()
+
+    def show(self):
+        """Affiche le modal."""
+        options = [ft.dropdown.Option(d, d) for d in self.descriptions]
+
+        self.source_dropdown = ft.Dropdown(
+            label=translate("cat_merge_source"),
+            width=350,
+            options=options,
+        )
+
+        self.target_dropdown = ft.Dropdown(
+            label=translate("cat_merge_target"),
+            width=350,
+            options=options,
+        )
+
+        self.dialog = ft.AlertDialog(
+            title=ft.Text(
+                translate("cat_merge_descriptions"),
+                weight=ft.FontWeight.BOLD,
+            ),
+            content=ft.Container(
+                content=ft.Column(
+                    cast(
+                        List[ft.Control],
+                        [
+                            ft.Text(
+                                translate("cat_merge_hint"),
+                                size=13,
+                                color=ft.Colors.GREY_600,
+                            ),
+                            ft.Divider(),
+                            ft.Text(
+                                translate("cat_merge_from"),
+                                size=12,
+                                weight=ft.FontWeight.W_600,
+                            ),
+                            self.source_dropdown,
+                            ft.Container(height=16),
+                            ft.Text(
+                                translate("cat_merge_to"),
+                                size=12,
+                                weight=ft.FontWeight.W_600,
+                            ),
+                            self.target_dropdown,
+                        ],
+                    ),
+                    spacing=12,
+                    tight=True,
+                ),
+                width=400,
+                padding=10,
+            ),
+            actions=[
+                ft.TextButton(translate("btn_cancel"), on_click=self._on_cancel_click),
+                ft.ElevatedButton(
+                    translate("btn_merge"),
+                    icon=ft.Icons.MERGE,
+                    on_click=self._on_merge_click,
+                    bgcolor=PeadraTheme.PRIMARY_MEDIUM,
+                    color=ft.Colors.WHITE,
+                ),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+
+        self.page.overlay.append(self.dialog)
+        self.dialog.open = True
+        self.page.update()
+
+    def close(self):
+        """Ferme le modal."""
+        if self.dialog:
+            self.dialog.open = False
+            self.page.update()
+
+
+class RenameDescriptionModal:
+    """Modal pour renommer une description."""
+
+    def __init__(
+        self,
+        page: ft.Page,
+        descriptions: List[str],
+        transaction_type: str,
+        on_rename: Callable,
+    ):
+        self.page = page
+        self.descriptions = sorted(descriptions)
+        self.transaction_type = transaction_type
+        self.on_rename = on_rename
+        self.dialog = None
+        self.description_dropdown = None
+        self.new_name_field = None
+
+    def _on_rename_click(self, e):
+        """Gère le clic sur le bouton Renommer."""
+        if not self.description_dropdown or not self.new_name_field:
+            return
+
+        if not self.description_dropdown.value or not self.new_name_field.value:
+            snack = ft.SnackBar(
+                ft.Text(translate("val_required")),
+                bgcolor=ft.Colors.ERROR,
+            )
+            self.page.overlay.append(snack)
+            snack.open = True
+            self.page.update()
+            return
+
+        old_name = self.description_dropdown.value
+        new_name_raw = self.new_name_field.value
+
+        if not new_name_raw:
+            return
+
+        new_name = new_name_raw.strip()
+
+        if old_name.lower() == new_name.lower():
+            snack = ft.SnackBar(
+                ft.Text(translate("val_invalid_operation")),
+                bgcolor=ft.Colors.ERROR,
+            )
+            self.page.overlay.append(snack)
+            snack.open = True
+            self.page.update()
+            return
+
+        self.close()
+
+        if self.on_rename:
+            self.on_rename(
+                old_description=old_name,
+                new_description=new_name,
+            )
+
+    def _on_cancel_click(self, e):
+        """Gère le clic sur le bouton Annuler."""
+        self.close()
+
+    def show(self):
+        """Affiche le modal."""
+        options = [ft.dropdown.Option(d, d) for d in self.descriptions]
+
+        self.description_dropdown = ft.Dropdown(
+            label=translate("cat_select_description"),
+            width=350,
+            options=options,
+        )
+
+        self.new_name_field = ft.TextField(
+            label=translate("cat_new_name"),
+            hint_text=translate("hint_description"),
+            width=350,
+        )
+
+        self.dialog = ft.AlertDialog(
+            title=ft.Text(
+                translate("cat_rename_description"),
+                weight=ft.FontWeight.BOLD,
+            ),
+            content=ft.Container(
+                content=ft.Column(
+                    cast(
+                        List[ft.Control],
+                        [
+                            ft.Text(
+                                translate("cat_rename_hint"),
+                                size=13,
+                                color=ft.Colors.GREY_600,
+                            ),
+                            ft.Divider(),
+                            ft.Text(
+                                translate("cat_select_description_to_rename"),
+                                size=12,
+                                weight=ft.FontWeight.W_600,
+                            ),
+                            self.description_dropdown,
+                            ft.Container(height=16),
+                            ft.Text(
+                                translate("cat_new_name_label"),
+                                size=12,
+                                weight=ft.FontWeight.W_600,
+                            ),
+                            self.new_name_field,
+                        ],
+                    ),
+                    spacing=12,
+                    tight=True,
+                ),
+                width=400,
+                padding=10,
+            ),
+            actions=[
+                ft.TextButton(translate("btn_cancel"), on_click=self._on_cancel_click),
+                ft.ElevatedButton(
+                    translate("btn_rename"),
+                    icon=ft.Icons.EDIT,
+                    on_click=self._on_rename_click,
+                    bgcolor=PeadraTheme.PRIMARY_MEDIUM,
+                    color=ft.Colors.WHITE,
+                ),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+
+        self.page.overlay.append(self.dialog)
+        self.dialog.open = True
+        self.page.update()
+
+    def close(self):
+        """Ferme le modal."""
         if self.dialog:
             self.dialog.open = False
             self.page.update()

@@ -26,8 +26,12 @@ def test_select_release_asset_prefers_exe_on_windows_like_release():
         url="https://example.com",
         body="",
         assets=(
-            ReleaseAsset(name="notes.txt", download_url="https://example.com/notes.txt"),
-            ReleaseAsset(name="Peadra.exe", download_url="https://example.com/Peadra.exe"),
+            ReleaseAsset(
+                name="notes.txt", download_url="https://example.com/notes.txt"
+            ),
+            ReleaseAsset(
+                name="Peadra.exe", download_url="https://example.com/Peadra.exe"
+            ),
         ),
     )
 

@@ -136,7 +136,12 @@ class AccountsView:
         self._load_data()
         if hasattr(self, "content"):
             self.content.content = self._build_content()
-            self.content.update()
+            try:
+                self.content.update()
+            except RuntimeError:
+                # Le control peut exister mais ne pas être monté sur la page.
+                # Ignorer la mise à jour graphique dans ce cas.
+                pass
 
     def _load_data(self):
         self.accounts = db.get_categories_with_balances()
@@ -219,7 +224,9 @@ class AccountsView:
                 self.on_data_change()
 
                 snack = ft.SnackBar(
-                    content=ft.Text(t("acc_merge_success").format(target_name=target_name))
+                    content=ft.Text(
+                        t("acc_merge_success").format(target_name=target_name)
+                    )
                 )
                 self.page.overlay.append(snack)
                 snack.open = True
@@ -228,9 +235,7 @@ class AccountsView:
         self.merge_dialog = ft.AlertDialog(
             modal=True,
             title=ft.Text(t("acc_merge_title")),
-            content=ft.Text(
-                t("acc_merge_message").format(target_name=target_name)
-            ),
+            content=ft.Text(t("acc_merge_message").format(target_name=target_name)),
             actions=[
                 ft.TextButton(t("btn_cancel"), on_click=close_merge_dlg),
                 ft.TextButton(

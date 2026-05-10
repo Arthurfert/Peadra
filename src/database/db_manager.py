@@ -693,16 +693,18 @@ class DatabaseManager:
         conn.commit()
         return cursor.lastrowid or 0
 
-    def get_recurring_transactions(self, display_month: Optional[date] = None) -> List[Dict[str, Any]]:
+    def get_recurring_transactions(
+        self, display_month: Optional[date] = None
+    ) -> List[Dict[str, Any]]:
         """
         Récupère les transactions récurrentes de l'utilisateur.
-        
-        Si display_month est fourni, inclut aussi les transactions inactives qui s'appliquent 
+
+        Si display_month est fourni, inclut aussi les transactions inactives qui s'appliquent
         au mois spécifié (pour afficher les anciennes transactions récurrentes dans le calendrier).
         """
         conn = self._get_connection()
         cursor = conn.cursor()
-        
+
         if display_month is None:
             # Mode par défaut : charger seulement les transactions actives
             query = """
@@ -727,7 +729,7 @@ class DatabaseManager:
             # Utiliser le premier jour du mois comme date de comparaison
             first_day_of_month = display_month.replace(day=1)
             cursor.execute(query, (self.user_id, first_day_of_month.isoformat()))
-        
+
         return [dict(row) for row in cursor.fetchall()]
 
     def process_recurring_transactions(self):
@@ -938,6 +940,37 @@ class DatabaseManager:
         )
         return [dict(row) for row in cursor.fetchall()]
 
+    def get_unique_descriptions(
+        self, transaction_type: str = "expense", search_term: str = ""
+    ) -> List[str]:
+        """Récupère les descriptions uniques pour un type de transaction.
+
+        Args:
+            transaction_type: Type de transaction ('expense', 'income')
+            search_term: Terme de recherche pour filtrer les descriptions
+
+        Returns:
+            Liste des descriptions uniques triées alphabétiquement
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        query = """
+            SELECT DISTINCT LOWER(t.description) as description
+            FROM transactions t
+            WHERE t.user_id = ? AND t.transaction_type = ?
+        """
+        params: list[int | str | None] = [self.user_id, transaction_type]
+
+        if search_term:
+            query += " AND LOWER(t.description) LIKE ?"
+            params.append(f"%{search_term.lower()}%")
+
+        query += " ORDER BY t.description ASC"
+
+        cursor.execute(query, tuple(params))
+        return [row[0] for row in cursor.fetchall() if row[0]]
+
     def get_earliest_transaction_date(self) -> Optional[str]:
         """Récupère la date de la première transaction."""
         conn = self._get_connection()
@@ -1115,6 +1148,124 @@ class DatabaseManager:
         )
         return [{"name": row[0], "value": row[1]} for row in cursor.fetchall()]
 
+    def get_description_monthly_data(
+        self, start_date: str, end_date: str
+    ) -> Dict[str, Dict[str, Dict[str, Any]]]:
+        """Récupère les données mensuelles agrégées par description (dépenses et revenus, exclut transferts).
+
+        Args:
+            start_date: Date de début (YYYY-MM-DD)
+            end_date: Date de fin (YYYY-MM-DD)
+
+        Returns:
+            Dict avec descriptions comme clé et dictionnaire mois -> {'income','expense','total'}
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        query = """
+            SELECT 
+                LOWER(COALESCE(t.description, 'Uncategorized')) as desc,
+                strftime('%Y-%m', t.date) as month,
+                t.transaction_type,
+                SUM(t.amount) as total
+            FROM transactions t
+            WHERE t.date >= ? AND t.date <= ? AND t.user_id = ?
+            GROUP BY desc, strftime('%Y-%m', t.date), t.transaction_type
+            ORDER BY desc, month
+        """
+
+        cursor.execute(query, (start_date, end_date, self.user_id))
+        rows = cursor.fetchall()
+
+        result: Dict[str, Dict[str, Dict[str, Any]]] = {}
+        for row in rows:
+            desc = row[0] or "uncategorized"
+            month = row[1]
+            transaction_type = row[2]
+            total = row[3]
+
+            # Exclure les transferts
+            if self._is_transfer_description(desc):
+                continue
+
+            if desc not in result:
+                result[desc] = {}
+
+            if month not in result[desc]:
+                result[desc][month] = {"income": 0, "expense": 0, "total": 0}
+
+            if transaction_type == "income":
+                result[desc][month]["income"] += total
+            elif transaction_type == "expense":
+                result[desc][month]["expense"] += total
+
+            result[desc][month]["total"] += total
+
+        return result
+
+    def get_top_descriptions(
+        self, transaction_type: str = "expense", num_months: int = 6, limit: int = 5
+    ) -> List[Dict[str, Any]]:
+        """Récupère les descriptions triées par dépenses ou revenus (exclut les transferts).
+
+        Args:
+            transaction_type: Type de transaction ('expense' ou 'income', exclut 'transfer')
+            num_months: Nombre de mois à considérer
+            limit: Nombre maximal de résultats (0 = pas de limite)
+
+        Returns:
+            Liste des descriptions triées par montant total
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        now = datetime.now()
+        start_date = (now - timedelta(days=num_months * 30)).strftime("%Y-%m-%d")
+        end_date = now.strftime("%Y-%m-%d")
+
+        query = """
+            SELECT 
+                LOWER(COALESCE(t.description, 'Uncategorized')) as desc,
+                SUM(t.amount) as total,
+                COUNT(t.id) as count
+            FROM transactions t
+            WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
+            GROUP BY desc
+            ORDER BY total DESC
+        """
+
+        cursor.execute(query, (transaction_type, start_date, end_date, self.user_id))
+        rows = cursor.fetchall()
+
+        # Filtrer les transferts et appliquer la limite
+        results = []
+        for row in rows:
+            desc = row[0] or "Uncategorized"
+            # Exclure les transferts basés sur la description
+            if not self._is_transfer_description(desc):
+                results.append({"description": desc, "total": row[1], "count": row[2]})
+                if limit > 0 and len(results) >= limit:
+                    break
+
+        return results
+
+    def _is_transfer_description(self, description: str) -> bool:
+        """Détecte si une description est un transfert basé sur les patterns de description."""
+        from ..i18n import t
+
+        desc = (description or "").strip().lower()
+        transfer_to = (t("trans_transfer_to") or "").strip().lower()
+        transfer_from = (t("trans_transfer_from") or "").strip().lower()
+
+        prefixes = ["transfer to ", "transfer from "]
+        if transfer_to:
+            prefixes.append(f"{transfer_to} ")
+        if transfer_from:
+            prefixes.append(f"{transfer_from} ")
+
+        return any(desc.startswith(prefix) for prefix in prefixes)
+
     def get_rolling_summary(self, days: int = 30) -> Dict[str, float]:
         """Récupère le résumé des transactions des N derniers jours (Compte Courant)."""
         from datetime import timedelta
@@ -1240,11 +1391,11 @@ class DatabaseManager:
 
     def get_app_setting(self, key: str, default: str | None = None) -> str | None:
         """Récupère un paramètre global de l'application (user_id = 0).
-        
+
         Args:
             key: Clé du paramètre
             default: Valeur par défaut si non trouvée
-            
+
         Returns:
             Valeur du paramètre ou la valeur par défaut
         """
@@ -1266,7 +1417,7 @@ class DatabaseManager:
 
     def set_app_setting(self, key: str, value: str):
         """Enregistre un paramètre global de l'application (user_id = 0).
-        
+
         Args:
             key: Clé du paramètre
             value: Valeur du paramètre
@@ -1285,77 +1436,167 @@ class DatabaseManager:
         except Exception as e:
             print(f"Erreur sauvegarde paramètre global {key}: {str(e)}")
 
+    def merge_descriptions(
+        self, source_description: str, target_description: str
+    ) -> bool:
+        """Fusionne deux descriptions en renommant toutes les transactions avec la description source vers la cible.
+
+        Args:
+            source_description: Description à fusionner (sera renommée)
+            target_description: Description cible (vers laquelle fusionner)
+
+        Returns:
+            True si la fusion a été successful, False sinon
+        """
+        if not source_description or not target_description:
+            return False
+
+        source_description = source_description.strip()
+        target_description = target_description.strip()
+
+        # Éviter de fusionner une description avec elle-même, mais autoriser les changements de casse
+        if source_description == target_description:
+            return False
+
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        try:
+            # Mettre à jour toutes les transactions avec la description source
+            cursor.execute(
+                "UPDATE transactions SET description = ? WHERE description = ? AND user_id = ?",
+                (target_description, source_description, self.user_id),
+            )
+
+            conn.commit()
+            return cursor.rowcount > 0
+        except Exception as e:
+            print(f"Erreur lors de la fusion des descriptions: {str(e)}")
+            return False
+
+    def rename_description(self, old_description: str, new_description: str) -> bool:
+        """Renomme une description en mettant à jour toutes les transactions associées.
+
+        Args:
+            old_description: Ancienne description
+            new_description: Nouvelle description
+
+        Returns:
+            True si le renomage a été successful, False sinon
+        """
+        if not old_description or not new_description:
+            return False
+
+        old_description = old_description.strip()
+        new_description = new_description.strip()
+
+        # Éviter le renommage sans changement réel, mais autoriser les variations de casse
+        if old_description == new_description:
+            return False
+
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        try:
+            # Mettre à jour toutes les transactions avec l'ancienne description
+            cursor.execute(
+                "UPDATE transactions SET description = ? WHERE description = ? AND user_id = ?",
+                (new_description, old_description, self.user_id),
+            )
+
+            conn.commit()
+            return cursor.rowcount > 0
+        except Exception as e:
+            print(f"Erreur lors du renomage de la description: {str(e)}")
+            return False
+
+    def get_all_unique_descriptions(
+        self, transaction_type: Optional[str] = None
+    ) -> List[str]:
+        """Récupère toutes les descriptions uniques, optionnellement filtrées par type de transaction.
+
+        Args:
+            transaction_type: Type de transaction ("income", "expense", ou None pour tous)
+
+        Returns:
+            Liste des descriptions uniques triées
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        if transaction_type:
+            cursor.execute(
+                "SELECT DISTINCT description FROM transactions WHERE user_id = ? AND transaction_type = ? ORDER BY description",
+                (self.user_id, transaction_type),
+            )
+        else:
+            cursor.execute(
+                "SELECT DISTINCT description FROM transactions WHERE user_id = ? ORDER BY description",
+                (self.user_id,),
+            )
+
+        return [
+            row[0]
+            for row in cursor.fetchall()
+            if row[0] and not self._is_transfer_description(row[0])
+        ]
+
     def delete_user_account(self, password: str) -> bool:
         """Supprime le compte utilisateur actuel après vérification du mot de passe.
-        
+
         Args:
             password: Le mot de passe de l'utilisateur pour confirmation
-            
+
         Returns:
             True si la suppression réussit, False sinon
         """
         if not self.user_id:
             return False
-        
+
         conn = self._get_connection()
         cursor = conn.cursor()
-        
+
         # Récupérer le hash du mot de passe de l'utilisateur
-        cursor.execute(
-            "SELECT password_hash FROM users WHERE id = ?",
-            (self.user_id,)
-        )
+        cursor.execute("SELECT password_hash FROM users WHERE id = ?", (self.user_id,))
         row = cursor.fetchone()
-        
+
         if not row:
             return False
-        
+
         password_hash = row[0]
-        
+
         # Vérifier le mot de passe
         if not PasswordManager.verify_password(password, password_hash):
             return False
-        
+
         try:
             # Supprimer les transactions
             cursor.execute(
-                "DELETE FROM transactions WHERE user_id = ?",
-                (self.user_id,)
+                "DELETE FROM transactions WHERE user_id = ?", (self.user_id,)
             )
-            
+
             # Supprimer les catégories
-            cursor.execute(
-                "DELETE FROM categories WHERE user_id = ?",
-                (self.user_id,)
-            )
-            
+            cursor.execute("DELETE FROM categories WHERE user_id = ?", (self.user_id,))
+
             # Supprimer les fichiers importés
             cursor.execute(
-                "DELETE FROM imported_files WHERE user_id = ?",
-                (self.user_id,)
+                "DELETE FROM imported_files WHERE user_id = ?", (self.user_id,)
             )
-            
+
             # Supprimer les paramètres
-            cursor.execute(
-                "DELETE FROM settings WHERE user_id = ?",
-                (self.user_id,)
-            )
-            
+            cursor.execute("DELETE FROM settings WHERE user_id = ?", (self.user_id,))
+
             # Supprimer les transactions récurrentes
             cursor.execute(
-                "DELETE FROM recurring_transactions WHERE user_id = ?",
-                (self.user_id,)
+                "DELETE FROM recurring_transactions WHERE user_id = ?", (self.user_id,)
             )
-            
+
             # Supprimer l'utilisateur
-            cursor.execute(
-                "DELETE FROM users WHERE id = ?",
-                (self.user_id,)
-            )
-            
+            cursor.execute("DELETE FROM users WHERE id = ?", (self.user_id,))
+
             conn.commit()
             return True
-            
+
         except Exception as e:
             print(f"Erreur lors de la suppression du compte: {str(e)}")
             return False
@@ -1363,8 +1604,12 @@ class DatabaseManager:
     def close(self):
         """Ferme la connexion à la base de données."""
         if self.connection:
-            self.connection.close()
-            self.connection = None
+            try:
+                self.connection.close()
+            except Exception as e:
+                print(f"Warning: Error closing database connection: {e}")
+            finally:
+                self.connection = None
 
 
 # Instance globale du gestionnaire de base de données

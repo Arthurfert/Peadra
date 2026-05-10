@@ -434,7 +434,7 @@ def test_settings_management(db_manager):
 def test_get_recurring_transactions_without_display_month(db_manager):
     """Test que get_recurring_transactions() sans paramètre retourne seulement les transactions actives."""
     from datetime import date
-    
+
     # Ajouter une transaction récurrente active
     active_id = db_manager.add_recurring_transaction(
         description="Active Subscription",
@@ -444,7 +444,7 @@ def test_get_recurring_transactions_without_display_month(db_manager):
         start_date="2026-01-01",
         interval=1,
     )
-    
+
     # Ajouter une transaction récurrente inactive avec end_date dans le futur
     inactive_id = db_manager.add_recurring_transaction(
         description="Inactive Subscription",
@@ -455,16 +455,18 @@ def test_get_recurring_transactions_without_display_month(db_manager):
         end_date="2026-02-28",  # Ends in the past
         interval=1,
     )
-    
+
     # Marquer la deuxième comme inactive
     conn = db_manager._get_connection()
     cursor = conn.cursor()
-    cursor.execute("UPDATE recurring_transactions SET active = 0 WHERE id = ?", (inactive_id,))
+    cursor.execute(
+        "UPDATE recurring_transactions SET active = 0 WHERE id = ?", (inactive_id,)
+    )
     conn.commit()
-    
+
     # Appel sans display_month : devrait retourner uniquement les transactions actives
     result = db_manager.get_recurring_transactions()
-    
+
     assert len(result) == 1
     assert result[0]["id"] == active_id
     assert result[0]["description"] == "Active Subscription"
@@ -473,7 +475,7 @@ def test_get_recurring_transactions_without_display_month(db_manager):
 def test_get_recurring_transactions_with_display_month_current(db_manager):
     """Test que get_recurring_transactions(display_month) retourne les transactions applicables au mois."""
     from datetime import date
-    
+
     # Ajouter une transaction récurrente active
     active_id = db_manager.add_recurring_transaction(
         description="Active Subscription",
@@ -483,7 +485,7 @@ def test_get_recurring_transactions_with_display_month_current(db_manager):
         start_date="2026-01-01",
         interval=1,
     )
-    
+
     # Ajouter une transaction récurrente inactive avec end_date en avril 2026
     inactive_april_id = db_manager.add_recurring_transaction(
         description="Old Subscription (April)",
@@ -494,17 +496,20 @@ def test_get_recurring_transactions_with_display_month_current(db_manager):
         end_date="2026-04-30",
         interval=1,
     )
-    
+
     # Marquer comme inactive
     conn = db_manager._get_connection()
     cursor = conn.cursor()
-    cursor.execute("UPDATE recurring_transactions SET active = 0 WHERE id = ?", (inactive_april_id,))
+    cursor.execute(
+        "UPDATE recurring_transactions SET active = 0 WHERE id = ?",
+        (inactive_april_id,),
+    )
     conn.commit()
-    
+
     # Appel avec display_month=avril 2026
     april_2026 = date(2026, 4, 1)
     result = db_manager.get_recurring_transactions(display_month=april_2026)
-    
+
     # Devrait retourner : active + inactive qui s'applique en avril
     assert len(result) == 2
     descriptions = [t["description"] for t in result]
@@ -515,7 +520,7 @@ def test_get_recurring_transactions_with_display_month_current(db_manager):
 def test_get_recurring_transactions_with_display_month_past_terminated(db_manager):
     """Test que les transactions terminées avant le mois ne sont pas retournées."""
     from datetime import date
-    
+
     # Ajouter une transaction récurrente active
     active_id = db_manager.add_recurring_transaction(
         description="Active Subscription",
@@ -525,7 +530,7 @@ def test_get_recurring_transactions_with_display_month_past_terminated(db_manage
         start_date="2026-01-01",
         interval=1,
     )
-    
+
     # Ajouter une transaction récurrente inactive avec end_date en février 2026
     inactive_feb_id = db_manager.add_recurring_transaction(
         description="Old Subscription (Feb)",
@@ -536,17 +541,19 @@ def test_get_recurring_transactions_with_display_month_past_terminated(db_manage
         end_date="2026-02-28",  # Ends February
         interval=1,
     )
-    
+
     # Marquer comme inactive
     conn = db_manager._get_connection()
     cursor = conn.cursor()
-    cursor.execute("UPDATE recurring_transactions SET active = 0 WHERE id = ?", (inactive_feb_id,))
+    cursor.execute(
+        "UPDATE recurring_transactions SET active = 0 WHERE id = ?", (inactive_feb_id,)
+    )
     conn.commit()
-    
+
     # Appel avec display_month=avril 2026 (après février)
     april_2026 = date(2026, 4, 1)
     result = db_manager.get_recurring_transactions(display_month=april_2026)
-    
+
     # Devrait retourner seulement la transaction active (pas la février)
     assert len(result) == 1
     assert result[0]["id"] == active_id
@@ -555,7 +562,7 @@ def test_get_recurring_transactions_with_display_month_past_terminated(db_manage
 def test_get_recurring_transactions_with_display_month_old_past(db_manager):
     """Test que les transactions applicables à un mois ancien sont retournées même si terminées."""
     from datetime import date
-    
+
     # Ajouter une transaction récurrente active
     active_id = db_manager.add_recurring_transaction(
         description="Active Subscription",
@@ -565,7 +572,7 @@ def test_get_recurring_transactions_with_display_month_old_past(db_manager):
         start_date="2026-01-01",
         interval=1,
     )
-    
+
     # Ajouter une transaction récurrente inactive avec end_date en février 2026
     inactive_feb_id = db_manager.add_recurring_transaction(
         description="Old Subscription (Feb)",
@@ -576,17 +583,19 @@ def test_get_recurring_transactions_with_display_month_old_past(db_manager):
         end_date="2026-02-28",
         interval=1,
     )
-    
+
     # Marquer comme inactive
     conn = db_manager._get_connection()
     cursor = conn.cursor()
-    cursor.execute("UPDATE recurring_transactions SET active = 0 WHERE id = ?", (inactive_feb_id,))
+    cursor.execute(
+        "UPDATE recurring_transactions SET active = 0 WHERE id = ?", (inactive_feb_id,)
+    )
     conn.commit()
-    
+
     # Appel avec display_month=février 2026 (au moment où elle se termine)
     feb_2026 = date(2026, 2, 1)
     result = db_manager.get_recurring_transactions(display_month=feb_2026)
-    
+
     # Devrait retourner : active + inactive qui s'applique en février
     assert len(result) == 2
     descriptions = [t["description"] for t in result]
@@ -597,7 +606,7 @@ def test_get_recurring_transactions_with_display_month_old_past(db_manager):
 def test_recurring_transaction_crud(db_manager):
     """Test des opérations CRUD pour les transactions récurrentes."""
     from datetime import date
-    
+
     # 1. Create
     tx_id = db_manager.add_recurring_transaction(
         description="Netflix",
@@ -609,12 +618,12 @@ def test_recurring_transaction_crud(db_manager):
         category_id=1,
     )
     assert tx_id > 0
-    
+
     # 2. Read
     result = db_manager.get_recurring_transactions()
     assert len(result) == 1
     assert result[0]["description"] == "Netflix"
-    
+
     # 3. Update
     success = db_manager.update_recurring_transaction(
         id=tx_id,
@@ -626,7 +635,369 @@ def test_recurring_transaction_crud(db_manager):
         interval=1,
     )
     assert success is True
-    
+
     result = db_manager.get_recurring_transactions()
     assert result[0]["description"] == "Netflix Updated"
     assert result[0]["amount"] == 15.99
+
+
+# ==========================================
+# Tests Merge/Rename Descriptions
+# ==========================================
+
+
+def test_merge_descriptions_basic(db_manager):
+    """Test la fusion basique de deux descriptions en une seule."""
+    # Ajouter des transactions avec descriptions différentes
+    db_manager.add_transaction(
+        date="2023-01-01",
+        description="Restaurant A",
+        amount=25.0,
+        transaction_type="expense",
+        category_id=1,
+    )
+    db_manager.add_transaction(
+        date="2023-01-02",
+        description="Restaurant B",
+        amount=30.0,
+        transaction_type="expense",
+        category_id=1,
+    )
+
+    # Fusionner "Restaurant A" dans "Restaurant B"
+    result = db_manager.merge_descriptions("Restaurant A", "Restaurant B")
+    assert result is True
+
+    # Vérifier que toutes les transactions ont la description cible
+    transactions = db_manager.get_all_transactions()
+    descriptions = [tx["description"] for tx in transactions]
+    assert "Restaurant A" not in descriptions
+    assert all(desc == "Restaurant B" for desc in descriptions)
+    assert len(transactions) == 2
+
+
+def test_merge_descriptions_same_exact_description_fails(db_manager):
+    """Test que la fusion échoue si source et cible sont identiques."""
+    db_manager.add_transaction(
+        date="2023-01-01",
+        description="Restaurant",
+        amount=25.0,
+        transaction_type="expense",
+        category_id=1,
+    )
+
+    # Tentative de fusionner la même description
+    result = db_manager.merge_descriptions("Restaurant", "Restaurant")
+    assert result is False
+
+
+def test_merge_descriptions_case_sensitive_difference(db_manager):
+    """Test que la fusion fonctionne avec des différences de casse."""
+    db_manager.add_transaction(
+        date="2023-01-01",
+        description="restaurant",
+        amount=25.0,
+        transaction_type="expense",
+        category_id=1,
+    )
+    db_manager.add_transaction(
+        date="2023-01-02",
+        description="Restaurant",
+        amount=30.0,
+        transaction_type="expense",
+        category_id=1,
+    )
+
+    # Fusionner "restaurant" dans "Restaurant"
+    result = db_manager.merge_descriptions("restaurant", "Restaurant")
+    assert result is True
+
+    # Vérifier que tous les enregistrements ont la casse correcte
+    transactions = db_manager.get_all_transactions()
+    assert all(tx["description"] == "Restaurant" for tx in transactions)
+
+
+def test_merge_descriptions_updates_all_transactions(db_manager):
+    """Test que toutes les transactions avec la source sont mises à jour."""
+    # Ajouter plusieurs transactions avec même description
+    for i in range(5):
+        db_manager.add_transaction(
+            date="2023-01-01",
+            description="Old Name",
+            amount=10.0 + i,
+            transaction_type="expense",
+            category_id=1,
+        )
+
+    # Fusionner
+    result = db_manager.merge_descriptions("Old Name", "New Name")
+    assert result is True
+
+    # Vérifier que exactement 5 transactions ont "New Name"
+    transactions = db_manager.get_all_transactions()
+    assert len(transactions) == 5
+    new_name_count = sum(1 for tx in transactions if tx["description"] == "New Name")
+    assert new_name_count == 5
+
+
+def test_rename_description_basic(db_manager):
+    """Test le renommage basique d'une description."""
+    db_manager.add_transaction(
+        date="2023-01-01",
+        description="Old Description",
+        amount=50.0,
+        transaction_type="expense",
+        category_id=1,
+    )
+
+    result = db_manager.rename_description("Old Description", "New Description")
+    assert result is True
+
+    transactions = db_manager.get_all_transactions()
+    assert len(transactions) == 1
+    assert transactions[0]["description"] == "New Description"
+
+
+def test_rename_description_same_exact_fails(db_manager):
+    """Test que le renommage échoue si ancien et nouveau sont identiques."""
+    db_manager.add_transaction(
+        date="2023-01-01",
+        description="Same",
+        amount=50.0,
+        transaction_type="expense",
+        category_id=1,
+    )
+
+    result = db_manager.rename_description("Same", "Same")
+    assert result is False
+
+
+def test_rename_description_case_change_only(db_manager):
+    """Test que le renommage fonctionne avec un changement de casse uniquement."""
+    db_manager.add_transaction(
+        date="2023-01-01",
+        description="lowercase",
+        amount=50.0,
+        transaction_type="expense",
+        category_id=1,
+    )
+
+    # Renommer en changeant la casse
+    result = db_manager.rename_description("lowercase", "LOWERCASE")
+    assert result is True
+
+    transactions = db_manager.get_all_transactions()
+    assert transactions[0]["description"] == "LOWERCASE"
+
+
+def test_rename_description_multiple_transactions(db_manager):
+    """Test que le renommage affecte toutes les transactions avec cette description."""
+    for i in range(3):
+        db_manager.add_transaction(
+            date="2023-01-01",
+            description="Coffee",
+            amount=5.0,
+            transaction_type="expense",
+            category_id=1,
+        )
+
+    result = db_manager.rename_description("Coffee", "Café")
+    assert result is True
+
+    transactions = db_manager.get_all_transactions()
+    assert all(tx["description"] == "Café" for tx in transactions)
+    assert len(transactions) == 3
+
+
+def test_rename_description_nonexistent(db_manager):
+    """Test que le renommage d'une description inexistante échoue."""
+    result = db_manager.rename_description("Nonexistent", "New Name")
+    assert result is False
+
+
+def test_get_all_unique_descriptions_basic(db_manager):
+    """Test que get_all_unique_descriptions retourne les descriptions uniques."""
+    descriptions = ["Grocery", "Restaurant", "Grocery", "Gas", "Restaurant"]
+
+    for desc in descriptions:
+        db_manager.add_transaction(
+            date="2023-01-01",
+            description=desc,
+            amount=10.0,
+            transaction_type="expense",
+            category_id=1,
+        )
+
+    unique_desc = db_manager.get_all_unique_descriptions()
+    assert len(unique_desc) == 3
+    assert set(unique_desc) == {"Grocery", "Restaurant", "Gas"}
+
+
+def test_get_all_unique_descriptions_excludes_transfers(db_manager):
+    """Test que get_all_unique_descriptions exclut les descriptions de transfert."""
+    db_manager.add_transaction(
+        date="2023-01-01",
+        description="Salary",
+        amount=2000.0,
+        transaction_type="income",
+        category_id=1,
+    )
+    db_manager.add_transaction(
+        date="2023-01-02",
+        description="Transfer to Savings",
+        amount=500.0,
+        transaction_type="transfer",
+        category_id=1,
+    )
+    db_manager.add_transaction(
+        date="2023-01-03",
+        description="Transfer from Checking",
+        amount=300.0,
+        transaction_type="transfer",
+        category_id=1,
+    )
+
+    unique_desc = db_manager.get_all_unique_descriptions()
+    assert "Salary" in unique_desc
+    assert "Transfer to Savings" not in unique_desc
+    assert "Transfer from Checking" not in unique_desc
+
+
+def test_get_all_unique_descriptions_by_transaction_type(db_manager):
+    """Test le filtrage par type de transaction."""
+    db_manager.add_transaction(
+        date="2023-01-01",
+        description="Salary",
+        amount=2000.0,
+        transaction_type="income",
+        category_id=1,
+    )
+    db_manager.add_transaction(
+        date="2023-01-02",
+        description="Other Income",
+        amount=100.0,
+        transaction_type="income",
+        category_id=1,
+    )
+    db_manager.add_transaction(
+        date="2023-01-03",
+        description="Grocery",
+        amount=50.0,
+        transaction_type="expense",
+        category_id=1,
+    )
+
+    # Récupérer uniquement les descriptions "income"
+    income_desc = db_manager.get_all_unique_descriptions(transaction_type="income")
+    assert len(income_desc) == 2
+    assert set(income_desc) == {"Salary", "Other Income"}
+
+    # Récupérer uniquement les descriptions "expense"
+    expense_desc = db_manager.get_all_unique_descriptions(transaction_type="expense")
+    assert len(expense_desc) == 1
+    assert "Grocery" in expense_desc
+
+
+def test_get_all_unique_descriptions_empty_database(db_manager):
+    """Test que get_all_unique_descriptions retourne une liste vide sur BD vide."""
+    unique_desc = db_manager.get_all_unique_descriptions()
+    assert unique_desc == []
+
+
+def test_get_all_unique_descriptions_preserves_case(db_manager):
+    """Test que les descriptions conservent leur casse originale."""
+    descriptions = ["UPPERCASE", "lowercase", "MixedCase", "UPPERCASE"]
+
+    for desc in descriptions:
+        db_manager.add_transaction(
+            date="2023-01-01",
+            description=desc,
+            amount=10.0,
+            transaction_type="expense",
+            category_id=1,
+        )
+
+    unique_desc = db_manager.get_all_unique_descriptions()
+    assert "UPPERCASE" in unique_desc
+    assert "lowercase" in unique_desc
+    assert "MixedCase" in unique_desc
+    assert len(unique_desc) == 3
+
+
+def test_merge_then_get_unique_descriptions(db_manager):
+    """Test l'intégration : fusion puis récupération des descriptions uniques."""
+    db_manager.add_transaction(
+        date="2023-01-01",
+        description="Restaurant A",
+        amount=25.0,
+        transaction_type="expense",
+        category_id=1,
+    )
+    db_manager.add_transaction(
+        date="2023-01-02",
+        description="Restaurant B",
+        amount=30.0,
+        transaction_type="expense",
+        category_id=1,
+    )
+    db_manager.add_transaction(
+        date="2023-01-03",
+        description="Gas",
+        amount=40.0,
+        transaction_type="expense",
+        category_id=1,
+    )
+
+    # Avant la fusion
+    before = db_manager.get_all_unique_descriptions()
+    assert len(before) == 3
+
+    # Fusionner
+    db_manager.merge_descriptions("Restaurant A", "Restaurant B")
+
+    # Après la fusion
+    after = db_manager.get_all_unique_descriptions()
+    assert len(after) == 2
+    assert set(after) == {"Restaurant B", "Gas"}
+
+
+def test_rename_then_merge_integration(db_manager):
+    """Test l'intégration : renommer puis fusionner."""
+    db_manager.add_transaction(
+        date="2023-01-01",
+        description="foo",
+        amount=10.0,
+        transaction_type="expense",
+        category_id=1,
+    )
+    db_manager.add_transaction(
+        date="2023-01-02",
+        description="bar",
+        amount=20.0,
+        transaction_type="expense",
+        category_id=1,
+    )
+    db_manager.add_transaction(
+        date="2023-01-03",
+        description="Foo",  # Différent seulement par casse
+        amount=15.0,
+        transaction_type="expense",
+        category_id=1,
+    )
+
+    # Renommer "foo" en "FOO"
+    result1 = db_manager.rename_description("foo", "FOO")
+    assert result1 is True
+
+    # Récupérer les descriptions uniques
+    unique = db_manager.get_all_unique_descriptions()
+    assert len(unique) == 3  # "FOO", "Foo", "bar"
+
+    # Fusionner "FOO" dans "Foo"
+    result2 = db_manager.merge_descriptions("FOO", "Foo")
+    assert result2 is True
+
+    # Vérifier le résultat final
+    final_unique = db_manager.get_all_unique_descriptions()
+    assert len(final_unique) == 2
+    assert set(final_unique) == {"Foo", "bar"}

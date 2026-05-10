@@ -141,7 +141,9 @@ class CustomFilePicker:
                 )
 
         except Exception as e:
-            self.file_list.controls.append(ft.Text(f"{t('msg_error_file')}: {e}", color=ft.Colors.RED))
+            self.file_list.controls.append(
+                ft.Text(f"{t('msg_error_file')}: {e}", color=ft.Colors.RED)
+            )
 
         self.page.update()
 
@@ -312,7 +314,9 @@ class ImportDialog:
         options = [
             ft.dropdown.Option(key=str(acc["id"]), text=acc["name"]) for acc in accounts
         ]
-        options.append(ft.dropdown.Option(key="new", text=t("import_create_new_account")))
+        options.append(
+            ft.dropdown.Option(key="new", text=t("import_create_new_account"))
+        )
 
         self.account_dropdown.options = options
         # Select first account by default if available and not set
@@ -419,9 +423,7 @@ class ImportDialog:
 
         warning_dialog = ft.AlertDialog(
             title=ft.Text(t("import_duplicate_warning")),
-            content=ft.Text(
-                t("import_duplicate_content")
-            ),
+            content=ft.Text(t("import_duplicate_content")),
             actions=[
                 ft.TextButton(t("btn_cancel"), on_click=on_cancel),
                 ft.TextButton(
@@ -483,7 +485,11 @@ class ImportDialog:
             elif rows:
                 for i in range(len(rows[0])):
                     columns.append(
-                        ft.DataColumn(label=self._create_header_content(f"{t('import_col_header')} {i + 1}"))
+                        ft.DataColumn(
+                            label=self._create_header_content(
+                                f"{t('import_col_header')} {i + 1}"
+                            )
+                        )
                     )
             else:
                 # No data

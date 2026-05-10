@@ -532,9 +532,7 @@ class TransactionsView:
 
         dlg = ft.AlertDialog(
             title=ft.Text(t("msg_confirm_delete")),
-            content=ft.Text(
-                t("trans_delete_transfer_confirm")
-            ),
+            content=ft.Text(t("trans_delete_transfer_confirm")),
             actions=[
                 ft.TextButton(t("btn_cancel"), on_click=close_dlg),
                 ft.TextButton(
@@ -614,8 +612,12 @@ class TransactionsView:
                 cat_bg = ft.Colors.BLUE_GREY_100
                 cat_text_col = ft.Colors.BLUE_GREY_900
 
-                edit_action = lambda e, trans=transaction: self._edit_transfer_group(trans)
-                delete_action = lambda e, ids=transaction["ids"]: self._confirm_delete_group(ids)
+                edit_action = lambda e, trans=transaction: self._edit_transfer_group(
+                    trans
+                )
+                delete_action = lambda e, ids=transaction[
+                    "ids"
+                ]: self._confirm_delete_group(ids)
 
             else:
                 # STANDARD ROW
@@ -723,7 +725,9 @@ class TransactionsView:
                     ]
                 ),
                 padding=ft.padding.symmetric(horizontal=16, vertical=16),
-                on_click=lambda e, trans=transaction: self._open_transaction_details(trans),
+                on_click=lambda e, trans=transaction: self._open_transaction_details(
+                    trans
+                ),
                 border=ft.border.only(
                     bottom=ft.border.BorderSide(
                         1, ft.Colors.with_opacity(0.1, ft.Colors.GREY)
@@ -872,7 +876,9 @@ class TransactionsView:
                     ),
                     ft.Container(
                         ft.Text(
-                            t("trans_date"), weight=ft.FontWeight.BOLD, color=ft.Colors.GREY_700
+                            t("trans_date"),
+                            weight=ft.FontWeight.BOLD,
+                            color=ft.Colors.GREY_700,
                         ),
                         expand=2,
                     ),

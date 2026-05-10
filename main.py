@@ -15,6 +15,7 @@ from src.views.dashboard import DashboardView
 from src.update_manager import run_update_mode
 from src.views.transactions import TransactionsView
 from src.views.accounts import AccountsView
+from src.views.categories import CategoriesView
 from src.views.parameters import ParametersView
 from src.views.subscriptions import SubscriptionsView
 from src.views.import_data import ImportDialog
@@ -43,9 +44,10 @@ class PeadraApp:
         """Déconnecte l'utilisateur et revient à la vue de login."""
         # Sauvegarder la langue actuelle globalement avant de réinitialiser
         from src.i18n import get_translator
+
         current_language = get_translator().get_language()
         db.set_app_setting("language", current_language)
-        
+
         self.page.controls.clear()
 
         # Réinitialiser l'user_id
@@ -157,7 +159,8 @@ class PeadraApp:
             1: TransactionsView(self.page, self.is_dark, self._refresh_all_views),
             2: AccountsView(self.page, self.is_dark, self._refresh_all_views),
             3: SubscriptionsView(self.page, self.is_dark, self._refresh_all_views),
-            4: self.parameters_view,
+            4: CategoriesView(self.page, self.is_dark, self._refresh_all_views),
+            5: self.parameters_view,
         }
 
     def _on_navigation_change(self, index: int):
@@ -227,7 +230,9 @@ class PeadraApp:
             success = db.export_to_csv(file_path, "transactions")
 
         if success:
-            self._show_snackbar(t("msg_export_success").format(file_path=file_path), success=True)
+            self._show_snackbar(
+                t("msg_export_success").format(file_path=file_path), success=True
+            )
         else:
             self._show_snackbar(t("msg_export_error"), success=False)
 
@@ -245,12 +250,12 @@ class PeadraApp:
 
     def _open_settings(self, e):
         """Ouvre la vue des paramètres ou la ferme si elle est déjà ouverte."""
-        if self.current_view_index == 4:
+        if self.current_view_index == 5:
             # Revenir à la vue précédente (stockée dans la navigation)
             self._on_navigation_change(self.navigation.selected_index)
         else:
-            self.current_view_index = 4
-            self._on_navigation_change(4)
+            self.current_view_index = 5
+            self._on_navigation_change(5)
 
     def _build_header(self) -> ft.Container:
         """Construit l'en-tête de l'application."""
@@ -387,7 +392,7 @@ def main(page: ft.Page):
         # Charger la langue depuis la base de données pour l'utilisateur
         language_setting = db.get_setting("language", "en") or "en"
         set_language(language_setting)
-        
+
         # Sauvegarder aussi la langue globalement pour la prochaine session
         db.set_app_setting("language", language_setting)
 
@@ -432,6 +437,10 @@ def main(page: ft.Page):
     login_container = login_view.build()
 
     page.add(login_container)
+
+    # Fermer proprement la connexion BDD à la fermeture de l'app
+    page.on_close = lambda _: db.close()
+
     page.update()
 
 

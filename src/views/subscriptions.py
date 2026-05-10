@@ -38,7 +38,9 @@ class SubscriptionsView:
         return f"{month_name} {dt.year}"
 
     def _load_data(self):
-        self.recurring_transactions = db.get_recurring_transactions(display_month=self.current_month.date())
+        self.recurring_transactions = db.get_recurring_transactions(
+            display_month=self.current_month.date()
+        )
         self.categories = db.get_all_categories()
         self.currency = db.get_setting("currency", "€") or "€"
 
@@ -532,9 +534,7 @@ class SubscriptionsView:
         self.calendar_container = ft.Container(
             content=self._build_calendar(), expand=False
         )
-        self.list_container = ft.Container(
-            content=self._build_list(), expand=False
-        )
+        self.list_container = ft.Container(content=self._build_list(), expand=False)
 
         self.content = ft.Container(
             content=ft.Column(

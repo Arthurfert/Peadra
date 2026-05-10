@@ -116,6 +116,12 @@ class NavigationRailComponent:
                                 t("nav_subscriptions"),
                                 3,
                             ),
+                            nav_item(
+                                ft.Icons.BUBBLE_CHART_OUTLINED,
+                                ft.Icons.BUBBLE_CHART,
+                                t("nav_categories"),
+                                4,
+                            ),
                         ],
                         spacing=8,
                     ),
@@ -125,7 +131,9 @@ class NavigationRailComponent:
                         content=ft.Column(
                             [
                                 ft.Text(
-                                    t("dash_total_assets"), size=14, color=ft.Colors.GREY_500
+                                    t("dash_total_assets"),
+                                    size=14,
+                                    color=ft.Colors.GREY_500,
                                 ),
                                 ft.Text(
                                     f"{total_patrimony:,.2f} {currency}",

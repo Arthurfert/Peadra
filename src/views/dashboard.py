@@ -76,7 +76,9 @@ class DashboardView:
 
         return any(desc.startswith(prefix) for prefix in prefixes)
 
-    def _get_filtered_totals(self, start_date: str, end_date: str) -> tuple[float, float]:
+    def _get_filtered_totals(
+        self, start_date: str, end_date: str
+    ) -> tuple[float, float]:
         """Somme revenus/dépenses d'une période en excluant les transferts."""
         txs = db.get_transactions_by_period(start_date, end_date)
         income = 0.0
@@ -223,7 +225,9 @@ class DashboardView:
 
             # Previous month for trends
             prev_month = now.replace(day=1) - timedelta(days=1)
-            prev_start, prev_end = self._get_month_bounds(prev_month.year, prev_month.month)
+            prev_start, prev_end = self._get_month_bounds(
+                prev_month.year, prev_month.month
+            )
             prev_income, prev_expenses = self._get_filtered_totals(prev_start, prev_end)
 
             # Calendar month dates for category breakdown

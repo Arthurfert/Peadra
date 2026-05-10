@@ -1512,8 +1512,12 @@ class DatabaseManager:
     def close(self):
         """Ferme la connexion à la base de données."""
         if self.connection:
-            self.connection.close()
-            self.connection = None
+            try:
+                self.connection.close()
+            except Exception as e:
+                print(f"Warning: Error closing database connection: {e}")
+            finally:
+                self.connection = None
 
 
 # Instance globale du gestionnaire de base de données

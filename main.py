@@ -434,6 +434,10 @@ def main(page: ft.Page):
     login_container = login_view.build()
 
     page.add(login_container)
+    
+    # Fermer proprement la connexion BDD à la fermeture de l'app
+    page.on_close = lambda _: db.close()
+    
     page.update()
 
 

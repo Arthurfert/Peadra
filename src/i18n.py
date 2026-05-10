@@ -446,7 +446,7 @@ class Translator:
             "cat_6_months": "6 mois",
             "cat_12_months": "1 an",
             "btn_load_more": "Charger plus",
-            "btn_load_all": "Charger tout",
+            "btn_load_all": "Tout charger",
             "cat_avg_per_month": "Moyenne / mois",
             "cat_transactions_count": "{count} transactions",
             # Categories actions
@@ -524,7 +524,7 @@ class Translator:
             "btn_deselect_all": "Désélectionner tout",
             "btn_apply_filters": "Appliquer les filtres",
             "btn_load_more": "Charger plus",
-            "btn_load_all": "Charger tout",
+            "btn_load_all": "Tout charger",
             "file_select_file": "Sélectionner un fichier",
             "import_target_account": "Compte cible",
             "import_new_account": "Nouveau nom de compte",

@@ -225,15 +225,18 @@ class CategoriesView:
                 List[ft.Control],
                 [
                     ft.Text(t("cat_period_label"), size=14, weight=ft.FontWeight.W_600),
-                    ft.SegmentedButton(
-                        segments=[
-                            ft.Segment(value="3", label=ft.Text(t("cat_3_months"))),
-                            ft.Segment(value="6", label=ft.Text(t("cat_6_months"))),
-                            ft.Segment(value="12", label=ft.Text(t("cat_12_months"))),
-                        ],
-                        selected=[str(self.chart_duration)],
-                        on_change=on_duration_change,
-                        allow_empty_selection=False,
+                    ft.Container(
+                        content=ft.SegmentedButton(
+                            segments=[
+                                ft.Segment(value="3", label=ft.Text(t("cat_3_months"))),
+                                ft.Segment(value="6", label=ft.Text(t("cat_6_months"))),
+                                ft.Segment(value="12", label=ft.Text(t("cat_12_months"))),
+                            ],
+                            selected=[str(self.chart_duration)],
+                            on_change=on_duration_change,
+                            allow_empty_selection=False,
+                        ),
+                        width=300,
                     ),
                 ],
             ),

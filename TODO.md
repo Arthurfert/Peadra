@@ -19,8 +19,6 @@ If so, a peer-to-peer encrypted sync may be implemented.
 ## Future Improvements & ideas
 
 - Optional logging
-- Categories view, with global stats per category
-    - Merge categories and rename them
 - Budget view, with budget insights in dashboard/categories view
 - Forcasting & trends ?
 - Onboarding & tutorial ?

@@ -26,6 +26,7 @@ Peadra (*"wealth" in Breton*) is a desktop application designed to help you trac
 - Add, modify and delete transactions
 - Add, modify and delete your accounts
 - View recurring transactions and subscriptions
+- View your transactions into categories, rename and merge them
 - Import data from CSV files, export in JSON & CSV
 - Multi accounts & authentification
 - French translation

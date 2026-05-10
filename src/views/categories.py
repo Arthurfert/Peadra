@@ -236,7 +236,7 @@ class CategoriesView:
                             on_change=on_duration_change,
                             allow_empty_selection=False,
                         ),
-                        width=300,
+                        width=350,
                     ),
                 ],
             ),

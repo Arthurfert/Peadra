@@ -29,9 +29,9 @@ from ..update_manager import (
 
 def get_asset_path(filename: str) -> str:
     """Retourne le chemin absolu d'un asset."""
-    if getattr(sys, 'frozen', False):
+    if getattr(sys, "frozen", False):
         # Code exécuté depuis PyInstaller/flet pack
-        base_path = getattr(sys, '_MEIPASS', '')
+        base_path = getattr(sys, "_MEIPASS", "")
     else:
         # Code en développement
         base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -493,7 +493,11 @@ class ParametersView:
 
     def _refresh_update_status(self):
         """Rafraîchit le texte de statut avec la langue actuelle."""
-        self.update_status = t(self.update_status_key).format(**self.update_status_params) if self.update_status_params else t(self.update_status_key)
+        self.update_status = (
+            t(self.update_status_key).format(**self.update_status_params)
+            if self.update_status_params
+            else t(self.update_status_key)
+        )
         if hasattr(self, "update_status_text"):
             self.update_status_text.value = self.update_status
 
@@ -542,7 +546,11 @@ class ParametersView:
                 height=500,
                 padding=8,
             ),
-            actions=[ft.TextButton(t("btn_close"), on_click=lambda _: self._close_dialog(dialog))],
+            actions=[
+                ft.TextButton(
+                    t("btn_close"), on_click=lambda _: self._close_dialog(dialog)
+                )
+            ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
         self.page.show_dialog(dialog)
@@ -589,9 +597,7 @@ class ParametersView:
         result = check_for_update()
 
         if result.error and not result.available:
-            self._set_update_status(
-                "param_update_status_error", error=result.error
-            )
+            self._set_update_status("param_update_status_error", error=result.error)
             self._set_update_button_mode(False)
             return
 
@@ -601,8 +607,7 @@ class ParametersView:
             return
 
         self._set_update_status(
-            "param_update_status_available",
-            version=result.latest_version or "?"
+            "param_update_status_available", version=result.latest_version or "?"
         )
         self._set_update_button_mode(True)
 
@@ -611,15 +616,15 @@ class ParametersView:
         progress_text = ft.Text(
             t("param_update_status_downloading").format(percent=0),
             size=14,
-            color=PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+            color=PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT,
         )
         progress_bar = ft.ProgressBar(value=0, width=400)
         instructions_text = ft.Text(
             t("param_update_instructions").format(percent=0),
             size=14,
-            color=PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+            color=PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT,
         )
-        
+
         dialog = ft.AlertDialog(
             title=ft.Text(t("param_updates")),
             content=ft.Container(
@@ -633,7 +638,7 @@ class ParametersView:
             ),
             modal=True,
         )
-        
+
         self.page.show_dialog(dialog)
         self.page.update()
 
@@ -673,17 +678,17 @@ class ParametersView:
             self.page.pubsub.subscribe(on_progress_message)
         except Exception:
             pass
-        
+
         # Lancer le téléchargement et l'installation dans un autre thread
         thread = threading.Thread(
-            target=self._perform_update_with_progress,
-            args=(progress_session,)
+            target=self._perform_update_with_progress, args=(progress_session,)
         )
         thread.daemon = False
         thread.start()
 
     def _perform_update_with_progress(self, progress_session: str):
         """Effectue la mise à jour en affichant la progression et journalise pour le debug."""
+
         def _append_update_log(msg: str):
             try:
                 log_dir = Path(tempfile.gettempdir())
@@ -705,19 +710,27 @@ class ParametersView:
 
             # Récupérer les infos de la mise à jour
             result = check_for_update()
-            _append_update_log(f"check_for_update: available={result.available} latest={result.latest_version} asset={result.asset_name}")
+            _append_update_log(
+                f"check_for_update: available={result.available} latest={result.latest_version} asset={result.asset_name}"
+            )
 
             if not result.available or not result.asset_url or not result.asset_name:
-                self.page.pubsub.send_all({
-                    "session": progress_session,
-                    "type": "error",
-                    "message": t("param_update_status_error").format(error="Impossible de récupérer la mise à jour"),
-                })
+                self.page.pubsub.send_all(
+                    {
+                        "session": progress_session,
+                        "type": "error",
+                        "message": t("param_update_status_error").format(
+                            error="Impossible de récupérer la mise à jour"
+                        ),
+                    }
+                )
                 _append_update_log("no update available or missing asset")
                 return
 
             # Chemin de destination pour le téléchargement
-            downloaded_path = Path(tempfile.gettempdir()) / "peadra-update" / result.asset_name
+            downloaded_path = (
+                Path(tempfile.gettempdir()) / "peadra-update" / result.asset_name
+            )
             _append_update_log(f"download destination: {downloaded_path}")
 
             # Callback de progression
@@ -726,30 +739,40 @@ class ParametersView:
             def on_progress(downloaded: int, total: int):
                 if total > 0:
                     percent = int((downloaded / total) * 100)
-                    self.page.pubsub.send_all({
-                        "session": progress_session,
-                        "type": "progress",
-                        "message": t("param_update_status_downloading").format(percent=percent),
-                        "value": min(percent / 100.0, 0.99),
-                    })
+                    self.page.pubsub.send_all(
+                        {
+                            "session": progress_session,
+                            "type": "progress",
+                            "message": t("param_update_status_downloading").format(
+                                percent=percent
+                            ),
+                            "value": min(percent / 100.0, 0.99),
+                        }
+                    )
                     # Log uniquement quand on passe une nouvelle tranche de 5%
                     step = percent // 5
                     if step != last_logged_step["value"]:
                         last_logged_step["value"] = step
-                        _append_update_log(f"download progress: {percent}% ({downloaded}/{total})")
+                        _append_update_log(
+                            f"download progress: {percent}% ({downloaded}/{total})"
+                        )
 
             # Télécharger le fichier
             _append_update_log(f"starting download from: {result.asset_url}")
-            download_file_with_progress(result.asset_url, downloaded_path, on_progress=on_progress)
+            download_file_with_progress(
+                result.asset_url, downloaded_path, on_progress=on_progress
+            )
             _append_update_log("download finished")
 
             # Afficher "Downloaded, installing..."
-            self.page.pubsub.send_all({
-                "session": progress_session,
-                "type": "progress",
-                "message": t("param_update_status_downloaded"),
-                "value": 0.95,
-            })
+            self.page.pubsub.send_all(
+                {
+                    "session": progress_session,
+                    "type": "progress",
+                    "message": t("param_update_status_downloaded"),
+                    "value": 0.95,
+                }
+            )
             _append_update_log("queued downloaded->installing message")
 
             # Préparer la mise à jour
@@ -777,21 +800,27 @@ class ParametersView:
                 )
                 _append_update_log(f"launched updater pid={getattr(p, 'pid', None)}")
             except Exception as e:
-                self.page.pubsub.send_all({
-                    "session": progress_session,
-                    "type": "error",
-                    "message": t("param_update_status_error").format(error=f"Erreur subprocess: {str(e)}"),
-                })
+                self.page.pubsub.send_all(
+                    {
+                        "session": progress_session,
+                        "type": "error",
+                        "message": t("param_update_status_error").format(
+                            error=f"Erreur subprocess: {str(e)}"
+                        ),
+                    }
+                )
                 _append_update_log(f"subprocess launch failed: {str(e)}")
                 return
 
             # Afficher "Installing" à 100% avant de quitter
-            self.page.pubsub.send_all({
-                "session": progress_session,
-                "type": "complete",
-                "message": t("param_update_status_installing"),
-                "value": 1.0,
-            })
+            self.page.pubsub.send_all(
+                {
+                    "session": progress_session,
+                    "type": "complete",
+                    "message": t("param_update_status_installing"),
+                    "value": 1.0,
+                }
+            )
             _append_update_log("queued complete message")
 
             # Demander la fermeture de la fenêtre depuis le thread UI
@@ -804,6 +833,7 @@ class ParametersView:
             try:
                 _append_update_log("attempting graceful shutdown (SIGTERM)")
                 import signal, platform
+
                 os.kill(os.getpid(), signal.SIGTERM)
                 time.sleep(0.05)
             except Exception as e:
@@ -814,8 +844,11 @@ class ParametersView:
                 if sys.platform.startswith("win"):
                     _append_update_log("attempting Windows TerminateProcess fallback")
                     import ctypes
+
                     try:
-                        ctypes.windll.kernel32.TerminateProcess(ctypes.windll.kernel32.GetCurrentProcess(), 0)
+                        ctypes.windll.kernel32.TerminateProcess(
+                            ctypes.windll.kernel32.GetCurrentProcess(), 0
+                        )
                     except Exception as ce:
                         _append_update_log(f"TerminateProcess failed: {ce}")
             except Exception:
@@ -828,11 +861,13 @@ class ParametersView:
                 _append_update_log(f"os._exit failed: {e}")
 
         except Exception as exc:
-            self.page.pubsub.send_all({
-                "session": progress_session,
-                "type": "error",
-                "message": t("param_update_status_error").format(error=str(exc)),
-            })
+            self.page.pubsub.send_all(
+                {
+                    "session": progress_session,
+                    "type": "error",
+                    "message": t("param_update_status_error").format(error=str(exc)),
+                }
+            )
             try:
                 _append_update_log(f"exception in update flow: {str(exc)}")
             except Exception:
@@ -909,7 +944,9 @@ class ParametersView:
             self.page.update()
 
         dialog = ft.AlertDialog(
-            title=ft.Text(t("param_delete_confirm"), size=20, weight=ft.FontWeight.BOLD),
+            title=ft.Text(
+                t("param_delete_confirm"), size=20, weight=ft.FontWeight.BOLD
+            ),
             content=ft.Container(
                 content=ft.Column(
                     [
@@ -919,7 +956,11 @@ class ParametersView:
                             color=ft.Colors.ERROR,
                         ),
                         ft.Container(height=16),
-                        ft.Text(t("param_delete_password_prompt"), size=13, weight=ft.FontWeight.W_500),
+                        ft.Text(
+                            t("param_delete_password_prompt"),
+                            size=13,
+                            weight=ft.FontWeight.W_500,
+                        ),
                         password_field,
                         error_message,
                     ],
@@ -960,9 +1001,13 @@ class ParametersView:
         theme_options = ft.Row(
             [
                 self._build_theme_option(
-                    t("param_light_theme"), get_asset_path("assets/Dashboard_Light.jpg"), False
+                    t("param_light_theme"),
+                    get_asset_path("assets/Dashboard_Light.jpg"),
+                    False,
                 ),
-                self._build_theme_option(t("param_dark_theme"), get_asset_path("assets/Dashboard.jpg"), True),
+                self._build_theme_option(
+                    t("param_dark_theme"), get_asset_path("assets/Dashboard.jpg"), True
+                ),
             ],
             spacing=20,
             alignment=ft.MainAxisAlignment.START,
@@ -1053,7 +1098,10 @@ class ParametersView:
 
         export_csv_btn = ft.OutlinedButton(
             content=ft.Row(
-                [ft.Icon(ft.Icons.TABLE_CHART, size=18), ft.Text(t("param_export_csv"))],
+                [
+                    ft.Icon(ft.Icons.TABLE_CHART, size=18),
+                    ft.Text(t("param_export_csv")),
+                ],
                 spacing=8,
             ),
             on_click=self._on_export_csv,
@@ -1115,11 +1163,11 @@ class ParametersView:
                         spacing=2,
                         expand=True,
                     ),
-                            ft.Column(
-                                [self.update_button, self.changelog_button],
-                                spacing=8,
-                                horizontal_alignment=ft.CrossAxisAlignment.END,
-                            ),
+                    ft.Column(
+                        [self.update_button, self.changelog_button],
+                        spacing=8,
+                        horizontal_alignment=ft.CrossAxisAlignment.END,
+                    ),
                 ],
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,

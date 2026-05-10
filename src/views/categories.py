@@ -116,7 +116,9 @@ class CategoriesView:
 
         self.top_expenses = db.get_top_descriptions("expense", len(month_keys), limit=0)
         self.top_incomes = db.get_top_descriptions("income", len(month_keys), limit=0)
-        self.category_monthly_data = db.get_description_monthly_data(start_date, end_date)
+        self.category_monthly_data = db.get_description_monthly_data(
+            start_date, end_date
+        )
 
     def _build_content_column(self) -> ft.Column:
         """Construit le contenu principal de la vue."""
@@ -169,10 +171,8 @@ class CategoriesView:
     def build(self) -> ft.Container:
         """Construit la vue des catégories."""
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
-        bg_color = (
-            PeadraTheme.DARK_BG if self.is_dark else PeadraTheme.LIGHT_BG
-        )
-        
+        bg_color = PeadraTheme.DARK_BG if self.is_dark else PeadraTheme.LIGHT_BG
+
         # Titre principal
         title = ft.Text(
             t("nav_categories"),
@@ -180,12 +180,12 @@ class CategoriesView:
             weight=ft.FontWeight.BOLD,
             color=text_color,
         )
-        
+
         # Contrôles de durée
         duration_controls = self._build_duration_controls()
-        
+
         content_column = self._build_content_column()
-        
+
         # Exposer le container principal pour mise à jour ultérieure
         self.content_container = ft.Container(content=content_column, expand=True)
 
@@ -207,6 +207,7 @@ class CategoriesView:
 
     def _build_duration_controls(self) -> ft.Row:
         """Construit les contrôles de sélection de durée."""
+
         def on_duration_change(e):
             sel = list(e.control.selected)
             if not sel:
@@ -241,7 +242,11 @@ class CategoriesView:
         )
 
     def _build_category_section(
-        self, title: str, categories: List[Dict[str, Any]], color: str, transaction_type: str
+        self,
+        title: str,
+        categories: List[Dict[str, Any]],
+        color: str,
+        transaction_type: str,
     ) -> ft.Container:
         """Construit une section de cartes de catégories avec chargement incrémental."""
         bg_card = (
@@ -251,15 +256,17 @@ class CategoriesView:
 
         visible_count = self.visible_counts.get(transaction_type, 4)
         max_cards = min(visible_count, len(categories))
-        
+
         cards = []
         for category in categories[:max_cards]:
             card = self._build_category_card(category, color, transaction_type)
             if card:
                 cards.append(card)
-        
+
         def on_load_more(e):
-            self.visible_counts[transaction_type] = self.visible_counts.get(transaction_type, 4) + 4
+            self.visible_counts[transaction_type] = (
+                self.visible_counts.get(transaction_type, 4) + 4
+            )
             if self.content_container is not None:
                 self.content_container.content = self._build_content_column()
                 try:
@@ -267,7 +274,7 @@ class CategoriesView:
                 except RuntimeError:
                     pass
             self.page.update()
-        
+
         def on_load_all(e):
             self.visible_counts[transaction_type] = len(categories)
             if self.content_container is not None:
@@ -277,16 +284,18 @@ class CategoriesView:
                 except RuntimeError:
                     pass
             self.page.update()
-        
+
         def on_merge_click(e):
             self._show_merge_modal(transaction_type)
-        
+
         def on_rename_click(e):
             self._show_rename_modal(transaction_type)
-        
+
         # Construire les contrôles (titre + boutons)
-        title_row_controls: List[ft.Control] = [ft.Text(title, size=18, weight=ft.FontWeight.BOLD, color=text_color)]
-        
+        title_row_controls: List[ft.Control] = [
+            ft.Text(title, size=18, weight=ft.FontWeight.BOLD, color=text_color)
+        ]
+
         # Ajouter les boutons d'action
         action_buttons = [
             ft.TextButton(
@@ -302,35 +311,37 @@ class CategoriesView:
                 style=ft.ButtonStyle(color=color),
             ),
         ]
-        
+
         # Ajouter les boutons Load more/Load all si nécessaire
         if len(categories) > visible_count:
-            action_buttons.extend([
-                ft.TextButton(
-                    t("btn_load_more"),
-                    on_click=on_load_more,
-                    style=ft.ButtonStyle(color=color),
-                ),
-                ft.TextButton(
-                    t("btn_load_all"),
-                    on_click=on_load_all,
-                    style=ft.ButtonStyle(color=color),
-                ),
-            ])
-        
-        if action_buttons:
-            button_row = ft.Row(
-                cast(List[ft.Control], action_buttons),
-                spacing=8
+            action_buttons.extend(
+                [
+                    ft.TextButton(
+                        t("btn_load_more"),
+                        on_click=on_load_more,
+                        style=ft.ButtonStyle(color=color),
+                    ),
+                    ft.TextButton(
+                        t("btn_load_all"),
+                        on_click=on_load_all,
+                        style=ft.ButtonStyle(color=color),
+                    ),
+                ]
             )
+
+        if action_buttons:
+            button_row = ft.Row(cast(List[ft.Control], action_buttons), spacing=8)
             title_row_controls.append(button_row)
-        
+
         return ft.Container(
             content=ft.Column(
                 cast(
                     List[ft.Control],
                     [
-                        ft.Row(title_row_controls, alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                        ft.Row(
+                            title_row_controls,
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                        ),
                         ft.ResponsiveRow(cards, run_spacing=12),
                     ],
                 ),
@@ -366,7 +377,9 @@ class CategoriesView:
         month_labels = []
 
         for month_str in months:
-            month_entry = category_data.get(month_str, {"income": 0, "expense": 0, "total": 0})
+            month_entry = category_data.get(
+                month_str, {"income": 0, "expense": 0, "total": 0}
+            )
             if transaction_type == "expense":
                 value = month_entry.get("expense", 0)
             else:
@@ -377,7 +390,7 @@ class CategoriesView:
                 month_labels.append(self._get_month_label(month_str))
             except Exception:
                 month_labels.append(month_str[-2:])
-        
+
         if not values or all(v == 0 for v in values):
             return None
 
@@ -408,13 +421,17 @@ class CategoriesView:
                 color=ft.Colors.with_opacity(0.1, ft.Colors.GREY),
                 width=1,
             ),
-            vertical_grid_lines=fch.ChartGridLines(interval=1, color=ft.Colors.TRANSPARENT),
+            vertical_grid_lines=fch.ChartGridLines(
+                interval=1, color=ft.Colors.TRANSPARENT
+            ),
             left_axis=fch.ChartAxis(label_size=0, title_size=0, show_labels=False),
             bottom_axis=fch.ChartAxis(
                 labels=[
                     fch.ChartAxisLabel(
                         value=i,
-                        label=ft.Container(ft.Text(label, size=10, color=text_color), padding=4),
+                        label=ft.Container(
+                            ft.Text(label, size=10, color=text_color), padding=4
+                        ),
                     )
                     for i, label in enumerate(month_labels)
                     if i in label_indexes
@@ -429,7 +446,7 @@ class CategoriesView:
             expand=True,
             tooltip=fch.LineChartTooltip(bgcolor=PeadraTheme.SURFACE),
         )
-        
+
         return ft.Container(
             content=ft.Column(
                 [
@@ -497,7 +514,7 @@ class CategoriesView:
         """Affiche le modal de fusion de descriptions."""
         self.current_transaction_type = transaction_type
         descriptions = db.get_all_unique_descriptions(transaction_type)
-        
+
         if len(descriptions) < 2:
             snack = ft.SnackBar(
                 ft.Text(t("cat_need_at_least_two_descriptions")),
@@ -507,7 +524,7 @@ class CategoriesView:
             snack.open = True
             self.page.update()
             return
-        
+
         self.merge_modal = MergeDescriptionsModal(
             page=self.page,
             descriptions=descriptions,
@@ -520,7 +537,7 @@ class CategoriesView:
         """Affiche le modal de renommage de description."""
         self.current_transaction_type = transaction_type
         descriptions = db.get_all_unique_descriptions(transaction_type)
-        
+
         if not descriptions:
             snack = ft.SnackBar(
                 ft.Text(t("cat_no_descriptions")),
@@ -530,7 +547,7 @@ class CategoriesView:
             snack.open = True
             self.page.update()
             return
-        
+
         self.rename_modal = RenameDescriptionModal(
             page=self.page,
             descriptions=descriptions,
@@ -543,10 +560,12 @@ class CategoriesView:
         """Callback pour la fusion de descriptions."""
         try:
             success = db.merge_descriptions(source, target)
-            
+
             if success:
                 snack = ft.SnackBar(
-                    ft.Text(t("cat_merge_success").format(source=source, target=target)),
+                    ft.Text(
+                        t("cat_merge_success").format(source=source, target=target)
+                    ),
                     bgcolor=ft.Colors.GREEN,
                 )
                 # Rafraîchir les données et l'affichage
@@ -563,7 +582,7 @@ class CategoriesView:
                 ft.Text(f"Erreur: {str(e)}"),
                 bgcolor=ft.Colors.ERROR,
             )
-        
+
         self.page.overlay.append(snack)
         snack.open = True
         self.page.update()
@@ -572,10 +591,14 @@ class CategoriesView:
         """Callback pour le renommage de description."""
         try:
             success = db.rename_description(old_description, new_description)
-            
+
             if success:
                 snack = ft.SnackBar(
-                    ft.Text(t("cat_rename_success").format(old=old_description, new=new_description)),
+                    ft.Text(
+                        t("cat_rename_success").format(
+                            old=old_description, new=new_description
+                        )
+                    ),
                     bgcolor=ft.Colors.GREEN,
                 )
                 # Rafraîchir les données et l'affichage
@@ -592,7 +615,7 @@ class CategoriesView:
                 ft.Text(f"Erreur: {str(e)}"),
                 bgcolor=ft.Colors.ERROR,
             )
-        
+
         self.page.overlay.append(snack)
         snack.open = True
         self.page.update()

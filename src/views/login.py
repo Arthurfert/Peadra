@@ -263,7 +263,9 @@ class LoginView:
             return
 
         if db.user_exists(username):
-            self.error_text.value = f"{t('msg_username_exists').format(username=username)}"
+            self.error_text.value = (
+                f"{t('msg_username_exists').format(username=username)}"
+            )
             self.page.update()
             return
 

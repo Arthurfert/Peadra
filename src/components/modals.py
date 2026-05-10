@@ -209,12 +209,11 @@ class TransactionModal:
     def _on_description_change(self, e):
         """Gère les changements dans le champ description."""
         search_term = self.description_field.value.strip()
-        
+
         if search_term:
             # Récupérer les suggestions depuis la base de données
             suggestions = db.get_unique_descriptions(
-                transaction_type=self.transaction_type,
-                search_term=search_term
+                transaction_type=self.transaction_type, search_term=search_term
             )
             self._update_suggestions_ui(suggestions, search_term)
         else:
@@ -226,12 +225,12 @@ class TransactionModal:
     def _update_suggestions_ui(self, suggestions: List[str], search_term: str):
         """Met à jour l'affichage des suggestions."""
         self.suggestions_list_view.controls.clear()
-        
+
         if not suggestions:
             self.suggestions_container.visible = False
             self.page.update()
             return
-        
+
         # Créer des boutons pour chaque suggestion
         for suggestion in suggestions:
             suggestion_btn = ft.ListTile(
@@ -241,7 +240,7 @@ class TransactionModal:
                 height=30,
             )
             self.suggestions_list_view.controls.append(suggestion_btn)
-        
+
         self.suggestions_container.visible = True
         self.page.update()
 
@@ -301,19 +300,29 @@ class TransactionModal:
                 not self.description_field.value
                 or not self.description_field.value.strip()
             ):
-                errors.append(translate("trans_description") + " " + translate("val_required").lower())
+                errors.append(
+                    translate("trans_description")
+                    + " "
+                    + translate("val_required").lower()
+                )
                 self.description_field.error = translate("val_required")
             else:
                 self.description_field.error = None
 
         if not self.amount_field.value:
-            errors.append(translate("trans_amount") + " " + translate("val_required").lower())
+            errors.append(
+                translate("trans_amount") + " " + translate("val_required").lower()
+            )
             self.amount_field.error = translate("val_required")
         else:
             try:
                 amount = float(self.amount_field.value)
                 if amount <= 0:
-                    errors.append(translate("trans_amount") + " " + translate("val_must_be_positive").lower())
+                    errors.append(
+                        translate("trans_amount")
+                        + " "
+                        + translate("val_must_be_positive").lower()
+                    )
                     self.amount_field.error = translate("val_must_be_positive")
                 else:
                     self.amount_field.error = None
@@ -338,7 +347,9 @@ class TransactionModal:
 
         description = self.description_field.value or ""
         if self.transaction_type == "transfer":
-            description = translate("trans_transfer_placeholder")  # Placeholder, will be overwritten
+            description = translate(
+                "trans_transfer_placeholder"
+            )  # Placeholder, will be overwritten
         amount_str = self.amount_field.value or "0"
 
         transaction_data = {
@@ -550,7 +561,9 @@ class TransactionDetailsModal:
         amount_txt = f"{amount_prefix}{transaction['amount']:,.2f} {currency}"
 
         # Category info
-        full_category = transaction.get("category_name") or translate("modal_uncategorized")
+        full_category = transaction.get("category_name") or translate(
+            "modal_uncategorized"
+        )
 
         # Content controls
         content_controls = [
@@ -571,12 +584,18 @@ class TransactionDetailsModal:
             ft.Divider(),
             ft.ListTile(
                 leading=ft.Icon(ft.Icons.DESCRIPTION),
-                title=ft.Text(translate("modal_description_label"), size=12, color=ft.Colors.GREY),
-                subtitle=ft.Text(transaction["description"], size=16, weight=ft.FontWeight.W_500),
+                title=ft.Text(
+                    translate("modal_description_label"), size=12, color=ft.Colors.GREY
+                ),
+                subtitle=ft.Text(
+                    transaction["description"], size=16, weight=ft.FontWeight.W_500
+                ),
             ),
             ft.ListTile(
                 leading=ft.Icon(ft.Icons.CATEGORY),
-                title=ft.Text(translate("modal_category_label"), size=12, color=ft.Colors.GREY),
+                title=ft.Text(
+                    translate("modal_category_label"), size=12, color=ft.Colors.GREY
+                ),
                 subtitle=ft.Text(full_category, size=16),
             ),
         ]
@@ -586,7 +605,9 @@ class TransactionDetailsModal:
             content_controls.append(
                 ft.ListTile(
                     leading=ft.Icon(ft.Icons.NOTE),
-                    title=ft.Text(translate("modal_notes_label"), size=12, color=ft.Colors.GREY),
+                    title=ft.Text(
+                        translate("modal_notes_label"), size=12, color=ft.Colors.GREY
+                    ),
                     subtitle=ft.Text(transaction["notes"], size=16),
                 )
             )
@@ -605,7 +626,9 @@ class TransactionDetailsModal:
             actions=[
                 ft.TextButton(translate("modal_close"), on_click=self.close),
                 ft.TextButton(
-                    translate("btn_modify"), icon=ft.Icons.EDIT, on_click=self._on_edit_click
+                    translate("btn_modify"),
+                    icon=ft.Icons.EDIT,
+                    on_click=self._on_edit_click,
                 ),
                 ft.TextButton(
                     translate("modal_delete"),
@@ -659,7 +682,7 @@ class MergeDescriptionsModal:
         """Gère le clic sur le bouton Fusionner."""
         if not self.source_dropdown or not self.target_dropdown:
             return
-        
+
         if not self.source_dropdown.value or not self.target_dropdown.value:
             snack = ft.SnackBar(
                 ft.Text(translate("val_required")),
@@ -672,7 +695,7 @@ class MergeDescriptionsModal:
 
         source_val = self.source_dropdown.value
         target_val = self.target_dropdown.value
-        
+
         if source_val == target_val:
             snack = ft.SnackBar(
                 ft.Text(translate("val_invalid_operation")),
@@ -794,7 +817,7 @@ class RenameDescriptionModal:
         """Gère le clic sur le bouton Renommer."""
         if not self.description_dropdown or not self.new_name_field:
             return
-        
+
         if not self.description_dropdown.value or not self.new_name_field.value:
             snack = ft.SnackBar(
                 ft.Text(translate("val_required")),
@@ -807,10 +830,10 @@ class RenameDescriptionModal:
 
         old_name = self.description_dropdown.value
         new_name_raw = self.new_name_field.value
-        
+
         if not new_name_raw:
             return
-            
+
         new_name = new_name_raw.strip()
 
         if old_name.lower() == new_name.lower():

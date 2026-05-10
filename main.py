@@ -44,9 +44,10 @@ class PeadraApp:
         """Déconnecte l'utilisateur et revient à la vue de login."""
         # Sauvegarder la langue actuelle globalement avant de réinitialiser
         from src.i18n import get_translator
+
         current_language = get_translator().get_language()
         db.set_app_setting("language", current_language)
-        
+
         self.page.controls.clear()
 
         # Réinitialiser l'user_id
@@ -229,7 +230,9 @@ class PeadraApp:
             success = db.export_to_csv(file_path, "transactions")
 
         if success:
-            self._show_snackbar(t("msg_export_success").format(file_path=file_path), success=True)
+            self._show_snackbar(
+                t("msg_export_success").format(file_path=file_path), success=True
+            )
         else:
             self._show_snackbar(t("msg_export_error"), success=False)
 
@@ -389,7 +392,7 @@ def main(page: ft.Page):
         # Charger la langue depuis la base de données pour l'utilisateur
         language_setting = db.get_setting("language", "en") or "en"
         set_language(language_setting)
-        
+
         # Sauvegarder aussi la langue globalement pour la prochaine session
         db.set_app_setting("language", language_setting)
 
@@ -434,10 +437,10 @@ def main(page: ft.Page):
     login_container = login_view.build()
 
     page.add(login_container)
-    
+
     # Fermer proprement la connexion BDD à la fermeture de l'app
     page.on_close = lambda _: db.close()
-    
+
     page.update()
 
 

@@ -27,7 +27,9 @@ from .version import __version__
 
 GITHUB_OWNER = "Arthurfert"
 GITHUB_REPO = "Peadra"
-GITHUB_RELEASE_API = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest"
+GITHUB_RELEASE_API = (
+    f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest"
+)
 DEFAULT_TIMEOUT = 5
 
 
@@ -182,7 +184,12 @@ def select_release_asset(release: ReleaseInfo) -> ReleaseAsset | None:
 def check_for_update(timeout: int = DEFAULT_TIMEOUT) -> UpdateCheckResult:
     try:
         release = fetch_latest_release(timeout=timeout)
-    except (urllib.error.URLError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
+    except (
+        urllib.error.URLError,
+        TimeoutError,
+        ValueError,
+        json.JSONDecodeError,
+    ) as exc:
         return UpdateCheckResult(
             available=False,
             current_version=get_current_version(),
@@ -205,16 +212,19 @@ def check_for_update(timeout: int = DEFAULT_TIMEOUT) -> UpdateCheckResult:
         release_url=release.url or None,
         asset_name=asset.name if asset else None,
         asset_url=asset.download_url if asset else None,
-        error=None if asset else "Aucun asset de mise à jour compatible n'a été trouvé.",
+        error=None
+        if asset
+        else "Aucun asset de mise à jour compatible n'a été trouvé.",
     )
 
 
 def download_file(url: str, destination: Path, timeout: int = 30) -> Path:
     destination.parent.mkdir(parents=True, exist_ok=True)
     request = _build_request(url)
-    with urllib.request.urlopen(request, timeout=timeout) as response, destination.open(
-        "wb"
-    ) as output:
+    with (
+        urllib.request.urlopen(request, timeout=timeout) as response,
+        destination.open("wb") as output,
+    ):
         shutil.copyfileobj(response, output)
     return destination
 
@@ -226,24 +236,24 @@ def download_file_with_progress(
     timeout: int = 30,
 ) -> Path:
     """Télécharge un fichier avec callback de progression.
-    
+
     Args:
         url: URL du fichier à télécharger
         destination: Chemin de destination
         on_progress: Callback appelé avec (bytes_downloaded, total_bytes)
         timeout: Timeout en secondes
-    
+
     Returns:
         Chemin du fichier téléchargé
     """
     destination.parent.mkdir(parents=True, exist_ok=True)
     request = _build_request(url)
-    
+
     with urllib.request.urlopen(request, timeout=timeout) as response:
         total_size = int(response.headers.get("content-length", 0))
         chunk_size = 8192
         downloaded = 0
-        
+
         with destination.open("wb") as output:
             while True:
                 chunk = response.read(chunk_size)
@@ -253,7 +263,7 @@ def download_file_with_progress(
                 downloaded += len(chunk)
                 if on_progress and total_size > 0:
                     on_progress(downloaded, total_size)
-    
+
     return destination
 
 
@@ -422,7 +432,11 @@ def auto_update_if_needed(timeout: int = DEFAULT_TIMEOUT) -> UpdateCheckResult:
         return check
 
     current_executable = Path(sys.executable)
-    downloaded_path = Path(tempfile.gettempdir()) / "peadra-update" / (check.asset_name or "peadra-update.exe")
+    downloaded_path = (
+        Path(tempfile.gettempdir())
+        / "peadra-update"
+        / (check.asset_name or "peadra-update.exe")
+    )
 
     try:
         download_file(check.asset_url, downloaded_path)

@@ -224,7 +224,9 @@ class AccountsView:
                 self.on_data_change()
 
                 snack = ft.SnackBar(
-                    content=ft.Text(t("acc_merge_success").format(target_name=target_name))
+                    content=ft.Text(
+                        t("acc_merge_success").format(target_name=target_name)
+                    )
                 )
                 self.page.overlay.append(snack)
                 snack.open = True
@@ -233,9 +235,7 @@ class AccountsView:
         self.merge_dialog = ft.AlertDialog(
             modal=True,
             title=ft.Text(t("acc_merge_title")),
-            content=ft.Text(
-                t("acc_merge_message").format(target_name=target_name)
-            ),
+            content=ft.Text(t("acc_merge_message").format(target_name=target_name)),
             actions=[
                 ft.TextButton(t("btn_cancel"), on_click=close_merge_dlg),
                 ft.TextButton(

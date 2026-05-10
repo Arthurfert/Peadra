@@ -131,7 +131,9 @@ class NavigationRailComponent:
                         content=ft.Column(
                             [
                                 ft.Text(
-                                    t("dash_total_assets"), size=14, color=ft.Colors.GREY_500
+                                    t("dash_total_assets"),
+                                    size=14,
+                                    color=ft.Colors.GREY_500,
                                 ),
                                 ft.Text(
                                     f"{total_patrimony:,.2f} {currency}",

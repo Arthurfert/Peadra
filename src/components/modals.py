@@ -5,6 +5,7 @@ Modal de saisie rapide pour les transactions.
 import flet as ft
 from datetime import datetime
 from typing import Callable, List, Dict, Any, Optional, cast
+from difflib import SequenceMatcher
 from .theme import PeadraTheme
 from ..database.db_manager import db
 from ..i18n import t as translate
@@ -212,15 +213,49 @@ class TransactionModal:
 
         if search_term:
             # Récupérer les suggestions depuis la base de données
-            suggestions = db.get_unique_descriptions(
+            suggestions_raw = db.get_unique_descriptions(
                 transaction_type=self.transaction_type, search_term=search_term
             )
-            self._update_suggestions_ui(suggestions, search_term)
+            # Trier les suggestions intelligemment
+            sorted_suggestions = self._sort_suggestions(suggestions_raw, search_term)
+            self._update_suggestions_ui(sorted_suggestions, search_term)
         else:
             # Masquer les suggestions si le champ est vide
             self.suggestions_container.visible = False
             self.suggestions_list_view.controls.clear()
             self.page.update()
+
+    def _sort_suggestions(self, suggestions_raw: List[Dict[str, Any]], search_term: str) -> List[str]:
+        """Trie les suggestions selon plusieurs critères.
+        
+        Priorité:
+        1. Descriptions commençant par le terme (starts with)
+        2. Similarité de la chaîne (ratio de correspondance)
+        3. Nombre d'occurrences (plus fréquent = mieux)
+        """
+        search_lower = search_term.lower()
+        
+        def sort_key(item: Dict[str, Any]):
+            desc = item["description"].lower()
+            count = item["count"]
+            
+            # 1. Priorité: commence avec le terme de recherche
+            starts_with = desc.startswith(search_lower)
+            
+            # 2. Similarité avec SequenceMatcher (ratio entre 0 et 1)
+            # On inverse pour que les plus hauts ratios soient en premier
+            similarity = SequenceMatcher(None, search_lower, desc).ratio()
+            
+            # 3. Nombre d'occurrences (inverser pour ordre décroissant)
+            # Normaliser le count entre 0 et 1 pour qu'il ne domine pas les autres critères
+            max_count = max((s["count"] for s in suggestions_raw), default=1)
+            count_normalized = count / max_count if max_count > 0 else 0
+            
+            # Retourner un tuple (starts_with DESC, similarity DESC, count_normalized DESC)
+            return (-starts_with, -similarity, -count_normalized)
+        
+        sorted_data = sorted(suggestions_raw, key=sort_key)
+        return [item["description"] for item in sorted_data]
 
     def _update_suggestions_ui(self, suggestions: List[str], search_term: str):
         """Met à jour l'affichage des suggestions."""

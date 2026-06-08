@@ -2,6 +2,7 @@
 Module de gestion de la base de données SQLite pour Peadra.
 """
 
+import logging
 import os
 import sys
 import sqlite3
@@ -10,6 +11,8 @@ import csv
 import hashlib
 from datetime import datetime, date, timedelta
 from typing import List, Optional, Dict, Any
+
+logger = logging.getLogger(__name__)
 
 
 def get_app_dir() -> str:
@@ -66,20 +69,17 @@ class DatabaseManager:
         cursor = conn.cursor()
 
         # Table des utilisateurs
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY,
                 username TEXT NOT NULL UNIQUE,
                 password_hash TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """
-        )
+        """)
 
         # Table des catégories
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS categories (
                 id INTEGER PRIMARY KEY,
                 user_id INTEGER NOT NULL,
@@ -90,12 +90,10 @@ class DatabaseManager:
                 UNIQUE(user_id, name),
                 FOREIGN KEY (user_id) REFERENCES users(id)
             )
-        """
-        )
+        """)
 
         # Table des transactions
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS transactions (
                 id INTEGER PRIMARY KEY,
                 user_id INTEGER NOT NULL,
@@ -110,12 +108,10 @@ class DatabaseManager:
                 FOREIGN KEY (user_id) REFERENCES users(id),
                 FOREIGN KEY (category_id) REFERENCES categories(id)
             )
-        """
-        )
+        """)
 
         # Table des fichiers importés
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS imported_files (
                 id INTEGER PRIMARY KEY,
                 user_id INTEGER NOT NULL,
@@ -125,12 +121,10 @@ class DatabaseManager:
                 UNIQUE(user_id, file_hash),
                 FOREIGN KEY (user_id) REFERENCES users(id)
             )
-        """
-        )
+        """)
 
         # Table des paramètres
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS settings (
                 id INTEGER PRIMARY KEY,
                 user_id INTEGER NOT NULL,
@@ -139,12 +133,10 @@ class DatabaseManager:
                 UNIQUE(user_id, key),
                 FOREIGN KEY (user_id) REFERENCES users(id)
             )
-        """
-        )
+        """)
 
         # Table des transactions récurrentes
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS recurring_transactions (
                 id INTEGER PRIMARY KEY,
                 user_id INTEGER NOT NULL,
@@ -162,8 +154,7 @@ class DatabaseManager:
                 FOREIGN KEY (user_id) REFERENCES users(id),
                 FOREIGN KEY (category_id) REFERENCES categories(id)
             )
-        """
-        )
+        """)
 
         conn.commit()
 
@@ -184,7 +175,7 @@ class DatabaseManager:
             cursor.execute("SELECT user_id FROM categories LIMIT 1")
         except Exception:
             # Les colonnes user_id n'existent pas, faire la migration
-            print("Migration: Ajout des colonnes user_id...")
+            logger.info("Migration: Ajout des colonnes user_id...")
 
             # Créer un utilisateur par défaut pour les données existantes
             try:
@@ -211,7 +202,9 @@ class DatabaseManager:
                 # Ajouter la constraint NOT NULL et UNIQUE après migration
                 conn.commit()
             except Exception as e:
-                print(f"Note: Categories may already have user_id column: {e}")
+                logger.warning(
+                    "Note: Categories may already have user_id column: %s", e
+                )
 
             # Ajouter la colonne user_id à transactions
             try:
@@ -221,7 +214,9 @@ class DatabaseManager:
                 )
                 conn.commit()
             except Exception as e:
-                print(f"Note: Transactions may already have user_id column: {e}")
+                logger.warning(
+                    "Note: Transactions may already have user_id column: %s", e
+                )
 
             # Ajouter la colonne user_id à imported_files
             try:
@@ -231,7 +226,9 @@ class DatabaseManager:
                 )
                 conn.commit()
             except Exception as e:
-                print(f"Note: Imported_files may already have user_id column: {e}")
+                logger.warning(
+                    "Note: Imported_files may already have user_id column: %s", e
+                )
 
             # Ajouter la colonne user_id à settings
             try:
@@ -241,7 +238,7 @@ class DatabaseManager:
                 )
                 conn.commit()
             except Exception as e:
-                print(f"Note: Settings may already have user_id column: {e}")
+                logger.warning("Note: Settings may already have user_id column: %s", e)
 
             # Ajouter la colonne user_id à recurring_transactions
             try:
@@ -251,11 +248,12 @@ class DatabaseManager:
                 )
                 conn.commit()
             except Exception as e:
-                print(
-                    f"Note: Recurring_transactions may already have user_id column: {e}"
+                logger.warning(
+                    "Note: Recurring_transactions may already have user_id column: %s",
+                    e,
                 )
 
-            print("Migration complétée!")
+            logger.info("Migration complétée!")
 
     def _insert_default_categories(self):
         """Insère les catégories par défaut pour l'utilisateur actuel."""
@@ -646,7 +644,7 @@ class DatabaseManager:
             conn.commit()
             return cursor.rowcount > 0
         except sqlite3.Error as e:
-            print(f"Database error during update_recurring_transaction: {e}")
+            logger.error("Database error during update_recurring_transaction: %s", e)
             return False
 
     def add_recurring_transaction(
@@ -969,7 +967,11 @@ class DatabaseManager:
         query += " GROUP BY LOWER(t.description) ORDER BY t.description ASC"
 
         cursor.execute(query, tuple(params))
-        return [{"description": row[0], "count": row[1]} for row in cursor.fetchall() if row[0]]
+        return [
+            {"description": row[0], "count": row[1]}
+            for row in cursor.fetchall()
+            if row[0]
+        ]
 
     def get_earliest_transaction_date(self) -> Optional[str]:
         """Récupère la date de la première transaction."""
@@ -1306,7 +1308,7 @@ class DatabaseManager:
                 json.dump(data, f, ensure_ascii=False, indent=2)
             return True
         except Exception as e:
-            print(f"Erreur export JSON: {e}")
+            logger.error("Erreur export JSON: %s", e)
             return False
 
     def export_to_csv(self, filepath: str, data_type: str = "transactions") -> bool:
@@ -1326,7 +1328,7 @@ class DatabaseManager:
                 writer.writerows(data)
             return True
         except Exception as e:
-            print(f"Erreur export CSV: {e}")
+            logger.error("Erreur export CSV: %s", e)
             return False
 
     # ==================== IMPORTS ====================
@@ -1352,7 +1354,7 @@ class DatabaseManager:
             )
             conn.commit()
         except Exception as e:
-            print(f"Erreur enregistrement import: {str(e)}")
+            logger.error("Erreur enregistrement import: %s", str(e))
 
     # ==================== SETTINGS ====================
 
@@ -1387,7 +1389,7 @@ class DatabaseManager:
             conn.commit()
             self._setting_cache[(self.user_id, key)] = value
         except Exception as e:
-            print(f"Erreur sauvegarde paramètre {key}: {str(e)}")
+            logger.error("Erreur sauvegarde paramètre %s: %s", key, str(e))
 
     def get_app_setting(self, key: str, default: str | None = None) -> str | None:
         """Récupère un paramètre global de l'application (user_id = 0).
@@ -1434,7 +1436,7 @@ class DatabaseManager:
             conn.commit()
             self._app_setting_cache[key] = value
         except Exception as e:
-            print(f"Erreur sauvegarde paramètre global {key}: {str(e)}")
+            logger.error("Erreur sauvegarde paramètre global %s: %s", key, str(e))
 
     def merge_descriptions(
         self, source_description: str, target_description: str
@@ -1471,7 +1473,7 @@ class DatabaseManager:
             conn.commit()
             return cursor.rowcount > 0
         except Exception as e:
-            print(f"Erreur lors de la fusion des descriptions: {str(e)}")
+            logger.error("Erreur lors de la fusion des descriptions: %s", str(e))
             return False
 
     def rename_description(self, old_description: str, new_description: str) -> bool:
@@ -1507,7 +1509,7 @@ class DatabaseManager:
             conn.commit()
             return cursor.rowcount > 0
         except Exception as e:
-            print(f"Erreur lors du renomage de la description: {str(e)}")
+            logger.error("Erreur lors du renomage de la description: %s", str(e))
             return False
 
     def get_all_unique_descriptions(
@@ -1598,7 +1600,7 @@ class DatabaseManager:
             return True
 
         except Exception as e:
-            print(f"Erreur lors de la suppression du compte: {str(e)}")
+            logger.error("Erreur lors de la suppression du compte: %s", str(e))
             return False
 
     def close(self):
@@ -1607,7 +1609,7 @@ class DatabaseManager:
             try:
                 self.connection.close()
             except Exception as e:
-                print(f"Warning: Error closing database connection: {e}")
+                logger.warning("Warning: Error closing database connection: %s", e)
             finally:
                 self.connection = None
 

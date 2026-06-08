@@ -5,9 +5,11 @@ Point d'entrée principal de l'application.
 
 import argparse
 import json
+import logging
 import os
 import flet as ft
 from src.components.theme import PeadraTheme
+from src.logger import setup_logger
 from src.components.navigation import NavigationRailComponent
 from src.database import db
 from src.i18n import set_language, t
@@ -64,7 +66,9 @@ class PeadraApp:
             try:
                 db.process_recurring_transactions()
             except Exception as e:
-                print(f"Error processing recurring transactions: {e}")
+                logging.getLogger(__name__).error(
+                    "Error processing recurring transactions: %s", e
+                )
 
             # Créer l'application principale
             self.page.controls.clear()
@@ -271,9 +275,9 @@ class PeadraApp:
                     ft.Row(
                         controls=[
                             ft.Image(
-                                src="Peadra_white.png"
-                                if self.is_dark
-                                else "Peadra.png",
+                                src=(
+                                    "Peadra_white.png" if self.is_dark else "Peadra.png"
+                                ),
                                 width=60,
                                 height=60,
                                 fit=ft.BoxFit.CONTAIN,
@@ -400,7 +404,9 @@ def main(page: ft.Page):
         try:
             db.process_recurring_transactions()
         except Exception as e:
-            print(f"Error processing recurring transactions: {e}")
+            logging.getLogger(__name__).error(
+                "Error processing recurring transactions: %s", e
+            )
 
         # Créer l'application principale
         page.controls.clear()
@@ -445,6 +451,9 @@ def main(page: ft.Page):
 
 
 if __name__ == "__main__":
+    logger = setup_logger()
+    logger.debug("Application started")
+
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--apply-update", action="store_true")
     parser.add_argument("--source")

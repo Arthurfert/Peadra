@@ -3,6 +3,8 @@ Composant modal d'importation de données pour Peadra.
 Permet d'importer des transactions depuis un fichier CSV via une boîte de dialogue.
 """
 
+import logging
+
 import flet as ft
 
 # import flet_core as fct
@@ -12,6 +14,8 @@ import os
 import hashlib
 from datetime import datetime
 from ..components.theme import PeadraTheme
+
+logger = logging.getLogger(__name__)
 from ..database import db
 from ..i18n import t
 
@@ -131,9 +135,11 @@ class CustomFilePicker:
                         title=ft.Text(
                             file, color=None if is_allowed else ft.Colors.GREY
                         ),
-                        on_click=(lambda e, p=file: self._select_file(p))
-                        if is_allowed
-                        else None,
+                        on_click=(
+                            (lambda e, p=file: self._select_file(p))
+                            if is_allowed
+                            else None
+                        ),
                         dense=True,
                         disabled=not is_allowed,
                         opacity=1.0 if is_allowed else 0.5,
@@ -228,9 +234,9 @@ class ImportDialog:
             on_click=self._import_data,
             disabled=True,
             style=ft.ButtonStyle(
-                bgcolor=PeadraTheme.PRIMARY_MEDIUM
-                if is_dark
-                else PeadraTheme.PRIMARY_LIGHT,
+                bgcolor=(
+                    PeadraTheme.PRIMARY_MEDIUM if is_dark else PeadraTheme.PRIMARY_LIGHT
+                ),
                 color=ft.Colors.WHITE,
             ),
         )
@@ -397,7 +403,7 @@ class ImportDialog:
             self.current_file_hash = calculate_file_hash(file_path)
             is_duplicate = db.is_file_imported(self.current_file_hash)
         except Exception as e:
-            print(f"Error checking file hash: {e}")
+            logger.error("Error checking file hash: %s", e)
             is_duplicate = False
 
         if is_duplicate:
@@ -590,7 +596,7 @@ class ImportDialog:
 
         # Ensure we have all required mappings
         if len(mapping) < 3:
-            print("Missing mapping configuration")
+            logger.warning("Missing mapping configuration")
             return
 
         self.parsed_transactions = []
@@ -640,7 +646,7 @@ class ImportDialog:
                     except ValueError:
                         continue
         except Exception as e:
-            print(f"Preparation error: {e}")
+            logger.error("Preparation error: %s", e)
 
     def _import_data(self, _):
         """Insère les données dans la base."""
@@ -692,7 +698,7 @@ class ImportDialog:
                 )
                 count += 1
             except Exception as e:
-                print(f"Import error: {e}")
+                logger.error("Import error: %s", e)
 
         # Log successful import
         if self.current_file_hash and self.current_file_path:

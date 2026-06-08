@@ -228,32 +228,26 @@ class TransactionModal:
     def _sort_suggestions(self, suggestions_raw: List[Dict[str, Any]], search_term: str) -> List[str]:
         """Trie les suggestions selon plusieurs critères.
         
-        Priorité:
-        1. Descriptions commençant par le terme (starts with)
-        2. Similarité de la chaîne (ratio de correspondance)
-        3. Nombre d'occurrences (plus fréquent = mieux)
+        Utilise un score composite pondéré :
+        - Commence par le terme : +10 (fort bonus)
+        - Similarité textuelle : jusqu'à +3
+        - Fréquence d'occurrence : jusqu'à +6 (poids renforcé)
         """
         search_lower = search_term.lower()
-        
+        max_count = max((s["count"] for s in suggestions_raw), default=1)
+
         def sort_key(item: Dict[str, Any]):
             desc = item["description"].lower()
-            count = item["count"]
-            
-            # 1. Priorité: commence avec le terme de recherche
+            # starts_with : +0 à +10 (bonus si la description commence par le terme)
             starts_with = desc.startswith(search_lower)
-            
-            # 2. Similarité avec SequenceMatcher (ratio entre 0 et 1)
-            # On inverse pour que les plus hauts ratios soient en premier
+            # similarity : +0 à +3 (basé sur la similarité textuelle)
             similarity = SequenceMatcher(None, search_lower, desc).ratio()
-            
-            # 3. Nombre d'occurrences (inverser pour ordre décroissant)
-            # Normaliser le count entre 0 et 1 pour qu'il ne domine pas les autres critères
-            max_count = max((s["count"] for s in suggestions_raw), default=1)
-            count_normalized = count / max_count if max_count > 0 else 0
-            
-            # Retourner un tuple (starts_with DESC, similarity DESC, count_normalized DESC)
-            return (-starts_with, -similarity, -count_normalized)
-        
+            # count_norm : +0 à +6 (basé sur la fréquence d'occurrence, normalisée)
+            count_norm = item["count"] / max_count if max_count > 0 else 0
+
+            score = starts_with * 10.0 + similarity * 3.0 + count_norm * 6.0
+            return -score
+
         sorted_data = sorted(suggestions_raw, key=sort_key)
         return [item["description"] for item in sorted_data]
 

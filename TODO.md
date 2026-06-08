@@ -18,7 +18,7 @@ If so, a peer-to-peer encrypted sync may be implemented.
 
 ## Future Improvements & ideas
 
-- Optional logging
+- Automatic database backup
 - Budget view, with budget insights in dashboard/categories view
 - Forcasting & trends ?
 - Onboarding & tutorial ?

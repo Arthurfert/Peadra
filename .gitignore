@@ -155,6 +155,7 @@ assets/tmp/
 *.sqlite
 *.sqlite3
 *.db
+*.db.*
 *.db3
 *.s3db
 *.sl3

@@ -55,6 +55,21 @@ class DatabaseManager:
         self._setting_cache: Dict[tuple[Optional[int], str], str] = {}
         self._app_setting_cache: Dict[str, str] = {}
         self._init_database()
+        self._backup_database()
+
+    def _backup_database(self):
+        """Crée une sauvegarde de la base de données au démarrage."""
+        if not os.path.isfile(self.db_path):
+            return
+        backup_path = self.db_path + ".backup"
+        try:
+            conn = self._get_connection()
+            backup_conn = sqlite3.connect(backup_path)
+            conn.backup(backup_conn, pages=0)
+            backup_conn.close()
+            logger.info("Database backup created at %s", backup_path)
+        except Exception as e:
+            logger.error("Failed to create database backup: %s", e)
 
     def _get_connection(self) -> sqlite3.Connection:
         """Obtient une connexion à la base de données."""

@@ -18,16 +18,21 @@ _LOG_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
 _DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 _initialized = False
+_current_log_path: str | None = None
+
+
+def get_current_log_path() -> str | None:
+    return _current_log_path
 
 
 def setup_logger():
-    global _initialized
+    global _initialized, _current_log_path
     if _initialized:
         return logging.getLogger()
 
     os.makedirs(LOG_DIR, exist_ok=True)
 
-    log_file = os.path.join(
+    _current_log_path = os.path.join(
         LOG_DIR, f"peadra_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"
     )
 
@@ -36,7 +41,7 @@ def setup_logger():
     logger = logging.getLogger()
     logger.setLevel(LOG_LEVEL)
 
-    file_handler = logging.FileHandler(log_file, encoding="utf-8")
+    file_handler = logging.FileHandler(_current_log_path, encoding="utf-8")
     file_handler.setLevel(LOG_LEVEL)
     file_handler.setFormatter(logging.Formatter(_LOG_FORMAT, datefmt=_DATE_FORMAT))
     logger.addHandler(file_handler)
@@ -47,7 +52,7 @@ def setup_logger():
     logger.addHandler(console_handler)
 
     _initialized = True
-    logger.info("Logging initialized: %s", log_file)
+    logger.info("Logging initialized: %s", _current_log_path)
     return logger
 
 

@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 from ..components.theme import PeadraTheme
 from ..database import db
 from ..i18n import t
+from ..logger import get_current_log_path
 from ..update_manager import (
     _copy_current_executable_to_temp,
     auto_update_if_needed,
@@ -235,7 +236,9 @@ class ParametersView:
         )
 
     def _on_save_file_selected(self, file_path: str):
-        if self._pending_export_format:
+        if self._pending_export_format == "logs":
+            self._copy_log_file(file_path)
+        elif self._pending_export_format:
             self.on_export(self._pending_export_format, file_path)
 
     def _on_save_picker_cancel(self):
@@ -483,6 +486,53 @@ class ParametersView:
         self.save_picker.open(
             default_filename=f"peadra_transactions_{timestamp}", extension="csv"
         )
+
+    def _on_export_logs(self, e):
+        """Lance l'export du fichier de log courant."""
+        log_path = get_current_log_path()
+        if not log_path or not os.path.exists(log_path):
+            from ..i18n import t
+
+            snack = ft.SnackBar(
+                content=ft.Text(t("msg_export_error"), color=ft.Colors.WHITE),
+                bgcolor=PeadraTheme.ERROR,
+            )
+            self.page.overlay.append(snack)
+            snack.open = True
+            self.page.update()
+            return
+        self._pending_export_format = "logs"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.save_picker.open(
+            default_filename=f"peadra_logs_{timestamp}", extension="log"
+        )
+
+    def _copy_log_file(self, dest_path: str):
+        """Copie le fichier de log courant vers la destination."""
+        log_path = get_current_log_path()
+        if log_path and os.path.exists(log_path):
+            try:
+                import shutil
+
+                shutil.copy2(log_path, dest_path)
+                self._show_snackbar(
+                    t("msg_export_success").format(file_path=dest_path), success=True
+                )
+            except Exception:
+                self._show_snackbar(t("msg_export_error"), success=False)
+        else:
+            self._show_snackbar(t("msg_export_error"), success=False)
+
+    def _show_snackbar(self, message: str, success: bool = True):
+        color = PeadraTheme.SUCCESS if success else PeadraTheme.ERROR
+        snack = ft.SnackBar(
+            content=ft.Text(message, color=ft.Colors.WHITE),
+            bgcolor=color,
+            duration=3000,
+        )
+        self.page.overlay.append(snack)
+        snack.open = True
+        self.page.update()
 
     def _on_import_csv(self, e):
         """Lance l'import CSV."""
@@ -1179,6 +1229,23 @@ class ParametersView:
             ),
         )
 
+        export_logs_btn = ft.OutlinedButton(
+            content=ft.Row(
+                [
+                    ft.Icon(ft.Icons.BUG_REPORT, size=18),
+                    ft.Text(t("param_export_logs")),
+                ],
+                spacing=8,
+            ),
+            on_click=self._on_export_logs,
+            style=ft.ButtonStyle(
+                padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                shape=ft.RoundedRectangleBorder(radius=10),
+                side=ft.BorderSide(1, PeadraTheme.ACCENT),
+                color=PeadraTheme.ACCENT,
+            ),
+        )
+
         data_section = self._build_section_card(
             t("param_data"),
             ft.Icons.STORAGE_OUTLINED,
@@ -1192,6 +1259,11 @@ class ParametersView:
                     t("param_export"),
                     t("param_export_desc"),
                     ft.Row([export_json_btn, export_csv_btn], spacing=10),
+                ),
+                self._build_setting_row(
+                    t("param_export_logs"),
+                    t("param_export_logs_desc"),
+                    export_logs_btn,
                 ),
             ],
         )

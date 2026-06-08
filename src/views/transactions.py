@@ -4,12 +4,15 @@ Interface simplifiée : Liste des transactions et gestion des actifs.
 """
 
 import flet as ft
+import logging
 from typing import Callable, List
 from datetime import datetime
 from ..components.theme import PeadraTheme
 from ..components.modals import TransactionModal, TransactionDetailsModal
 from ..database import db
 from ..i18n import t, get_translator
+
+logger = logging.getLogger(__name__)
 
 
 class TransactionsView:
@@ -271,6 +274,12 @@ class TransactionsView:
                 # Process immediately so user sees it if it starts today
                 db.process_recurring_transactions()
 
+                logger.info(
+                    "Recurring transaction added: desc='%s' amount=%s freq=%s",
+                    data["description"],
+                    data["amount"],
+                    data["frequency"],
+                )
                 snack = ft.SnackBar(ft.Text(t("msg_recurring_added")))
                 self.page.overlay.append(snack)
                 snack.open = True
@@ -299,6 +308,12 @@ class TransactionsView:
                     category_id=data.get("dest_id"),
                     notes=data.get("notes"),
                 )
+                logger.info(
+                    "Transaction updated: id=%s amount=%s desc='%s'",
+                    data["id"],
+                    data["amount"],
+                    data["description"],
+                )
                 msg = t("msg_transfer_modified")
             else:
                 db.update_transaction(
@@ -309,6 +324,12 @@ class TransactionsView:
                     transaction_type=data["transaction_type"],
                     category_id=data.get("category_id"),
                     notes=data.get("notes"),
+                )
+                logger.info(
+                    "Transaction updated: id=%s amount=%s desc='%s'",
+                    data["id"],
+                    data["amount"],
+                    data["description"],
                 )
                 msg = t("msg_transaction_modified")
 
@@ -335,6 +356,12 @@ class TransactionsView:
                 notes=data.get("notes"),
             )
 
+            logger.info(
+                "Transfer created: amount=%s from source=%s to dest=%s",
+                data["amount"],
+                data.get("source_id"),
+                data.get("dest_id"),
+            )
             msg = t("msg_transfer_completed")
 
         else:
@@ -346,6 +373,12 @@ class TransactionsView:
                 transaction_type=data["transaction_type"],
                 category_id=data.get("category_id"),
                 notes=data.get("notes"),
+            )
+            logger.info(
+                "Transaction added: type=%s amount=%s desc='%s'",
+                data["transaction_type"],
+                data["amount"],
+                data["description"],
             )
             msg = t("msg_transaction_added")
 
@@ -374,6 +407,7 @@ class TransactionsView:
 
         def delete(e):
             db.delete_transaction(transaction_id)
+            logger.info("Transaction deleted: id=%s", transaction_id)
             close_dlg(e)
             self.on_data_change()
             snack = ft.SnackBar(ft.Text(t("msg_transaction_deleted")))
@@ -523,6 +557,7 @@ class TransactionsView:
         def delete(e):
             for tid in ids:
                 db.delete_transaction(tid)
+            logger.info("Transfer group deleted: ids=%s", ids)
             close_dlg(e)
             self.on_data_change()
             snack = ft.SnackBar(ft.Text(t("msg_transfer_deleted")))
@@ -626,9 +661,7 @@ class TransactionsView:
                 amount_color = (
                     ft.Colors.GREEN
                     if is_income
-                    else ft.Colors.RED
-                    if is_expense
-                    else text_color
+                    else ft.Colors.RED if is_expense else text_color
                 )
                 amount_prefix = "+" if is_income else "-" if is_expense else ""
 
@@ -728,15 +761,17 @@ class TransactionsView:
                 on_click=lambda e, trans=transaction: self._open_transaction_details(
                     trans
                 ),
-                border=ft.border.only(
-                    bottom=ft.border.BorderSide(
-                        1, ft.Colors.with_opacity(0.1, ft.Colors.GREY)
+                border=(
+                    ft.border.only(
+                        bottom=ft.border.BorderSide(
+                            1, ft.Colors.with_opacity(0.1, ft.Colors.GREY)
+                        )
                     )
-                )
-                if self.is_dark
-                else ft.border.only(
-                    bottom=ft.border.BorderSide(
-                        1, ft.Colors.with_opacity(0.6, ft.Colors.GREY)
+                    if self.is_dark
+                    else ft.border.only(
+                        bottom=ft.border.BorderSide(
+                            1, ft.Colors.with_opacity(0.6, ft.Colors.GREY)
+                        )
                     )
                 ),
             )

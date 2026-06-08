@@ -23,6 +23,8 @@ from src.views.subscriptions import SubscriptionsView
 from src.views.import_data import ImportDialog
 from src.views.login import LoginView
 
+logger = logging.getLogger(__name__)
+
 
 class PeadraApp:
     """Application principale Peadra."""
@@ -44,7 +46,7 @@ class PeadraApp:
 
     def _logout(self):
         """Déconnecte l'utilisateur et revient à la vue de login."""
-        # Sauvegarder la langue actuelle globalement avant de réinitialiser
+        logger.info("User logged out")
         from src.i18n import get_translator
 
         current_language = get_translator().get_language()
@@ -181,9 +183,11 @@ class PeadraApp:
     def _toggle_theme(self, e):
         """Bascule entre le mode sombre et clair."""
         self.is_dark = not self.is_dark
+        mode = "dark" if self.is_dark else "light"
+        logger.info("Theme toggled to %s", mode)
 
         # Sauvegarder dans la base de données
-        db.set_setting("theme_mode", "dark" if self.is_dark else "light")
+        db.set_setting("theme_mode", mode)
 
         self._apply_theme()
 
@@ -200,10 +204,9 @@ class PeadraApp:
 
     def _on_language_change(self, language: str):
         """Gère le changement de langue."""
+        logger.info("Language changed to %s", language)
         set_language(language)
-        # Sauvegarder la langue globalement pour la prochaine session
         db.set_app_setting("language", language)
-        # Reconstruire l'interface pour appliquer les nouvelles traductions
         self._build_ui()
         self._refresh_all_views()
 
@@ -234,10 +237,14 @@ class PeadraApp:
             success = db.export_to_csv(file_path, "transactions")
 
         if success:
+            logger.info("Data exported to %s (format=%s)", file_path, format_type)
             self._show_snackbar(
                 t("msg_export_success").format(file_path=file_path), success=True
             )
         else:
+            logger.error(
+                "Data export failed (format=%s, path=%s)", format_type, file_path
+            )
             self._show_snackbar(t("msg_export_error"), success=False)
 
     def _show_snackbar(self, message: str, success: bool = True):

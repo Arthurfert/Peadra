@@ -500,6 +500,7 @@ class ParametersView:
             self.page.overlay.append(snack)
             snack.open = True
             self.page.update()
+            logger.warning("Log export attempted but no active log file found")
             return
         self._pending_export_format = "logs"
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -515,10 +516,12 @@ class ParametersView:
                 import shutil
 
                 shutil.copy2(log_path, dest_path)
+                logger.info("Log file exported to %s", dest_path)
                 self._show_snackbar(
                     t("msg_export_success").format(file_path=dest_path), success=True
                 )
             except Exception:
+                logger.error("Failed to copy log file to %s", dest_path)
                 self._show_snackbar(t("msg_export_error"), success=False)
         else:
             self._show_snackbar(t("msg_export_error"), success=False)
@@ -950,11 +953,16 @@ class ParametersView:
         self.password_confirm_field.value = ""
         self.remove_pwd_btn.visible = True
         self.page.update()
+        logger.info("App password was set")
+        # Zeroize password variables
+        pwd = None
+        confirm = None
 
     def _on_remove_password(self, e):
         from src.database import db
 
         db.set_setting("app_password_hash", "")
+        logger.info("App password was removed")
         self.password_message.value = t("param_password_removed")
         self.password_message.color = ft.Colors.GREEN
         self.remove_pwd_btn.visible = False
@@ -983,9 +991,12 @@ class ParametersView:
                 dialog.open = False
                 self.page.update()
                 self.on_account_deleted()
+                logger.info("User account deleted")
+                pwd = None
             else:
                 error_message.value = t("param_delete_password_incorrect")
                 self.page.update()
+                pwd = None
 
         def on_cancel(_):
             dialog.open = False

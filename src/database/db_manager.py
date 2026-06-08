@@ -320,6 +320,7 @@ class DatabaseManager:
                 (username, password_hash),
             )
             conn.commit()
+            logger.info("User registered: username='%s'", username)
             return True
         except sqlite3.IntegrityError as e:
             raise ValueError(f"Failed to register user: {str(e)}")
@@ -339,6 +340,7 @@ class DatabaseManager:
         user_id, password_hash = row[0], row[1]
 
         if PasswordManager.verify_password(password, password_hash):
+            logger.debug("User '%s' authenticated successfully", row[0])
             return user_id
         return None
 
@@ -458,6 +460,7 @@ class DatabaseManager:
         cursor.execute("DELETE FROM categories WHERE id = ?", (source_id,))
 
         conn.commit()
+        logger.info("Categories merged: source=%s into target=%s", source_id, target_id)
         return True
 
     def add_category(self, name: str, color: str, account_type: str = "savings") -> int:
@@ -470,6 +473,7 @@ class DatabaseManager:
                 (self.user_id, name, color, account_type),
             )
             conn.commit()
+            logger.info("Category added: id=%s name='%s'", cursor.lastrowid, name)
             return cursor.lastrowid or 0
         except sqlite3.IntegrityError:
             # Le nom existe déjà
@@ -528,6 +532,7 @@ class DatabaseManager:
                 )
 
             conn.commit()
+            logger.info("Category updated: id=%s name='%s'", category_id, name)
             return rows_affected > 0
         except sqlite3.IntegrityError:
             return False
@@ -567,6 +572,7 @@ class DatabaseManager:
             (category_id, self.user_id),
         )
         conn.commit()
+        logger.info("Category deleted: id=%s", category_id)
         return cursor.rowcount > 0
 
     # ==================== TRANSACTIONS ====================
@@ -600,6 +606,12 @@ class DatabaseManager:
             ),
         )
         conn.commit()
+        logger.info(
+            "Transaction added: id=%s amount=%s type=%s",
+            cursor.lastrowid,
+            amount,
+            transaction_type,
+        )
         return cursor.lastrowid or 0
 
     # ==================== TRANSACTIONS RÉCURRENTES ====================
@@ -689,6 +701,11 @@ class DatabaseManager:
             ),
         )
         conn.commit()
+        logger.info(
+            "Recurring transaction added: id=%s desc='%s'",
+            cursor.lastrowid,
+            description,
+        )
         return cursor.lastrowid or 0
 
     def get_recurring_transactions(
@@ -866,6 +883,11 @@ class DatabaseManager:
             f"UPDATE transactions SET {set_clause} WHERE id = ? AND user_id = ?", values
         )
         conn.commit()
+        logger.info(
+            "Transaction updated: id=%s fields=%s",
+            transaction_id,
+            set(kwargs.keys()) & allowed_fields,
+        )
         return cursor.rowcount > 0
 
     def delete_transaction(self, transaction_id: int) -> bool:
@@ -877,6 +899,7 @@ class DatabaseManager:
             (transaction_id, self.user_id),
         )
         conn.commit()
+        logger.info("Transaction deleted: id=%s", transaction_id)
         return cursor.rowcount > 0
 
     def get_all_transactions(
@@ -1306,6 +1329,7 @@ class DatabaseManager:
 
             with open(filepath, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
+            logger.info("Data exported to JSON: %s", filepath)
             return True
         except Exception as e:
             logger.error("Erreur export JSON: %s", e)
@@ -1326,6 +1350,7 @@ class DatabaseManager:
                 writer = csv.DictWriter(f, fieldnames=data[0].keys())
                 writer.writeheader()
                 writer.writerows(data)
+            logger.info("Data exported to CSV: %s", filepath)
             return True
         except Exception as e:
             logger.error("Erreur export CSV: %s", e)
@@ -1471,6 +1496,12 @@ class DatabaseManager:
             )
 
             conn.commit()
+            logger.info(
+                "Descriptions merged: '%s' -> '%s' (%d transactions)",
+                source_description,
+                target_description,
+                cursor.rowcount,
+            )
             return cursor.rowcount > 0
         except Exception as e:
             logger.error("Erreur lors de la fusion des descriptions: %s", str(e))
@@ -1507,6 +1538,12 @@ class DatabaseManager:
             )
 
             conn.commit()
+            logger.info(
+                "Description renamed: '%s' -> '%s' (%d transactions)",
+                old_description,
+                new_description,
+                cursor.rowcount,
+            )
             return cursor.rowcount > 0
         except Exception as e:
             logger.error("Erreur lors du renomage de la description: %s", str(e))
@@ -1597,6 +1634,7 @@ class DatabaseManager:
             cursor.execute("DELETE FROM users WHERE id = ?", (self.user_id,))
 
             conn.commit()
+            logger.info("User account deleted: user_id=%s", self.user_id)
             return True
 
         except Exception as e:

@@ -8,6 +8,7 @@ Logs older than LOG_RETENTION_DAYS are automatically cleaned up.
 import logging
 import os
 import glob
+import re
 import tempfile
 from datetime import datetime, timedelta
 
@@ -17,8 +18,23 @@ LOG_LEVEL = logging.DEBUG
 _LOG_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
 _DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
+_SENSITIVE_PATTERNS = [
+    re.compile(
+        r"(password|mot\s*de\s*passe|passwd|pwd)\s*[=:]\s*['\"]?\S+['\"]?", re.I
+    ),
+    re.compile(r"(password|mot\s*de\s*passe|passwd|pwd)\s*['\"]?\S+['\"]?", re.I),
+]
+
 _initialized = False
 _current_log_path: str | None = None
+
+
+class SensitiveDataFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.msg, str):
+            for pattern in _SENSITIVE_PATTERNS:
+                record.msg = pattern.sub(lambda m: m.group(1) + "=***", record.msg)
+        return True
 
 
 def get_current_log_path() -> str | None:
@@ -38,18 +54,25 @@ def setup_logger():
 
     _clean_old_logs()
 
+    sensitive_filter = SensitiveDataFilter()
+
     logger = logging.getLogger()
     logger.setLevel(LOG_LEVEL)
 
     file_handler = logging.FileHandler(_current_log_path, encoding="utf-8")
     file_handler.setLevel(LOG_LEVEL)
     file_handler.setFormatter(logging.Formatter(_LOG_FORMAT, datefmt=_DATE_FORMAT))
+    file_handler.addFilter(sensitive_filter)
     logger.addHandler(file_handler)
 
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(logging.Formatter(_LOG_FORMAT, datefmt=_DATE_FORMAT))
+    console_handler.addFilter(sensitive_filter)
     logger.addHandler(console_handler)
+
+    for noisy in ("flet_transport", "flet_controls", "flet_core", "flet"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
 
     _initialized = True
     logger.info("Logging initialized: %s", _current_log_path)

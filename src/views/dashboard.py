@@ -4,6 +4,7 @@ Affiche un résumé visuel du patrimoine total.
 """
 
 import flet as ft
+import logging
 import flet_charts as fch
 import math
 from typing import Callable, Union, Any, cast, List, Optional
@@ -11,6 +12,8 @@ from datetime import datetime, timedelta
 from ..components.theme import PeadraTheme
 from ..database import db
 from ..i18n import t
+
+logger = logging.getLogger(__name__)
 
 
 class DashboardView:
@@ -185,6 +188,7 @@ class DashboardView:
 
     def _load_data(self):
         self.currency = db.get_setting("currency", "€") or "€"
+        logger.debug("Dashboard data loaded")
         # Now reflects Bank Balance
         self.total_patrimony = db.get_total_patrimony()
         self.balance = db.get_balance()

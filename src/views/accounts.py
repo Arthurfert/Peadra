@@ -4,10 +4,13 @@ Permet de gérer les comptes (catégories) : affichage, ajout, modification, sup
 """
 
 import flet as ft
+import logging
 from typing import Callable, Optional
 from ..components.theme import PeadraTheme
 from ..database import db
 from ..i18n import t
+
+logger = logging.getLogger(__name__)
 
 
 class AccountsView:
@@ -214,6 +217,11 @@ class AccountsView:
 
         def confirm_merge(e):
             if db.merge_categories(source_id, target_id):
+                logger.info(
+                    "Categories merged: source_id=%s into target_id=%s",
+                    source_id,
+                    target_id,
+                )
                 # Close merge dialog
                 if self.merge_dialog:
                     self.merge_dialog.open = False
@@ -297,6 +305,12 @@ class AccountsView:
             success = db.add_category(name, color, account_type=account_type) != -1
 
         if success:
+            logger.info(
+                "Account saved: id=%s name='%s' type=%s",
+                self.editing_id or "new",
+                name,
+                account_type,
+            )
             self._close_dialog(None)
             self.refresh()
             self.on_data_change()
@@ -315,6 +329,11 @@ class AccountsView:
         def confirm_delete(e):
             delete_history = bool(self.delete_history_checkbox.value)
             if db.delete_category(account_id, delete_transactions=delete_history):
+                logger.info(
+                    "Account deleted: id=%s delete_transactions=%s",
+                    account_id,
+                    delete_history,
+                )
                 close_delete_dlg(None)
                 self.refresh()
                 self.on_data_change()
@@ -460,9 +479,9 @@ class AccountsView:
             ),
             padding=20,
             on_click=lambda _: self._open_dialog(),
-            bgcolor=PeadraTheme.DARK_SURFACE
-            if self.is_dark
-            else PeadraTheme.LIGHT_SURFACE,
+            bgcolor=(
+                PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
+            ),
             border=ft.border.all(
                 2, ft.Colors.GREY_800 if self.is_dark else ft.Colors.GREY_300
             ),
@@ -477,9 +496,11 @@ class AccountsView:
                     t("acc_title"),
                     size=32,
                     weight=ft.FontWeight.BOLD,
-                    color=PeadraTheme.DARK_TEXT
-                    if self.is_dark
-                    else PeadraTheme.LIGHT_TEXT,
+                    color=(
+                        PeadraTheme.DARK_TEXT
+                        if self.is_dark
+                        else PeadraTheme.LIGHT_TEXT
+                    ),
                 ),
                 ft.Container(height=20),
                 ft.Container(content=grid, expand=True),

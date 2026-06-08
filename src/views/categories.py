@@ -4,6 +4,7 @@ Affiche des cartes compactes par catégorie avec une tendance mensuelle.
 """
 
 import flet as ft
+import logging
 import flet_charts as fch
 from typing import Callable, List, Dict, Any, Optional, cast
 from datetime import datetime
@@ -11,6 +12,8 @@ from ..components.theme import PeadraTheme
 from ..components.modals import MergeDescriptionsModal, RenameDescriptionModal
 from ..database import db
 from ..i18n import t
+
+logger = logging.getLogger(__name__)
 
 
 class CategoriesView:
@@ -154,15 +157,19 @@ class CategoriesView:
                     content=ft.Text(
                         t("cat_no_data_period"),
                         size=14,
-                        color=PeadraTheme.DARK_TEXT
-                        if self.is_dark
-                        else PeadraTheme.LIGHT_TEXT,
+                        color=(
+                            PeadraTheme.DARK_TEXT
+                            if self.is_dark
+                            else PeadraTheme.LIGHT_TEXT
+                        ),
                     ),
                     padding=20,
                     border_radius=16,
-                    bgcolor=PeadraTheme.DARK_SURFACE
-                    if self.is_dark
-                    else PeadraTheme.LIGHT_SURFACE,
+                    bgcolor=(
+                        PeadraTheme.DARK_SURFACE
+                        if self.is_dark
+                        else PeadraTheme.LIGHT_SURFACE
+                    ),
                 )
             )
 
@@ -230,7 +237,9 @@ class CategoriesView:
                             segments=[
                                 ft.Segment(value="3", label=ft.Text(t("cat_3_months"))),
                                 ft.Segment(value="6", label=ft.Text(t("cat_6_months"))),
-                                ft.Segment(value="12", label=ft.Text(t("cat_12_months"))),
+                                ft.Segment(
+                                    value="12", label=ft.Text(t("cat_12_months"))
+                                ),
                             ],
                             selected=[str(self.chart_duration)],
                             on_change=on_duration_change,
@@ -565,6 +574,7 @@ class CategoriesView:
             success = db.merge_descriptions(source, target)
 
             if success:
+                logger.info("Descriptions merged: '%s' -> '%s'", source, target)
                 snack = ft.SnackBar(
                     ft.Text(
                         t("cat_merge_success").format(source=source, target=target)
@@ -596,6 +606,11 @@ class CategoriesView:
             success = db.rename_description(old_description, new_description)
 
             if success:
+                logger.info(
+                    "Description renamed: '%s' -> '%s'",
+                    old_description,
+                    new_description,
+                )
                 snack = ft.SnackBar(
                     ft.Text(
                         t("cat_rename_success").format(

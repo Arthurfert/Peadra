@@ -4,6 +4,7 @@ Permet de visualiser et gérer les transactions récurrentes / abonnements, avec
 """
 
 import flet as ft
+import logging
 from datetime import datetime, date, timedelta
 from typing import Callable, List, Dict, Any
 import calendar
@@ -12,6 +13,8 @@ from ..components.theme import PeadraTheme
 from ..components.modals import TransactionModal, TransactionDetailsModal
 from ..database.db_manager import db
 from ..i18n import t
+
+logger = logging.getLogger(__name__)
 
 
 class SubscriptionsView:
@@ -71,12 +74,19 @@ class SubscriptionsView:
         snack.open = True
         self.page.update()
 
+        logger.info(
+            "Recurring transaction updated: id=%s desc='%s' amount=%s",
+            data.get("id"),
+            data.get("description"),
+            data.get("amount"),
+        )
         self.on_data_change()
         self.refresh()
 
     def _delete_transaction(self, id: int):
         """Désactive / Supprime une transaction récurrente."""
         db.delete_transaction(id)
+        logger.info("Recurring transaction deleted: id=%s", id)
 
         snack = ft.SnackBar(
             ft.Text(t("msg_subscription_deleted"), color=ft.Colors.WHITE),
@@ -304,9 +314,9 @@ class SubscriptionsView:
                         ft.Text(
                             str(day),
                             color=PeadraTheme.ACCENT if is_today else text_color,
-                            weight=ft.FontWeight.BOLD
-                            if is_today
-                            else ft.FontWeight.NORMAL,
+                            weight=(
+                                ft.FontWeight.BOLD if is_today else ft.FontWeight.NORMAL
+                            ),
                         )
                     ]
 
@@ -327,9 +337,9 @@ class SubscriptionsView:
                                 bgcolor=color,
                                 padding=2,
                                 border_radius=4,
-                                on_click=lambda e,
-                                t=tx,
-                                d=str(date_obj): self._show_transaction_details(t, d),
+                                on_click=lambda e, t=tx, d=str(
+                                    date_obj
+                                ): self._show_transaction_details(t, d),
                             )
                         )
 

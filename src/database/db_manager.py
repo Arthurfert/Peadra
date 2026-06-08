@@ -2,6 +2,7 @@
 Module de gestion de la base de données SQLite pour Peadra.
 """
 
+import logging
 import os
 import sys
 import sqlite3
@@ -10,6 +11,8 @@ import csv
 import hashlib
 from datetime import datetime, date, timedelta
 from typing import List, Optional, Dict, Any
+
+logger = logging.getLogger(__name__)
 
 
 def get_app_dir() -> str:
@@ -52,6 +55,21 @@ class DatabaseManager:
         self._setting_cache: Dict[tuple[Optional[int], str], str] = {}
         self._app_setting_cache: Dict[str, str] = {}
         self._init_database()
+        self._backup_database()
+
+    def _backup_database(self):
+        """Crée une sauvegarde de la base de données au démarrage."""
+        if not os.path.isfile(self.db_path):
+            return
+        backup_path = self.db_path + ".backup"
+        try:
+            conn = self._get_connection()
+            backup_conn = sqlite3.connect(backup_path)
+            conn.backup(backup_conn, pages=0)
+            backup_conn.close()
+            logger.info("Database backup created at %s", backup_path)
+        except Exception as e:
+            logger.error("Failed to create database backup: %s", e)
 
     def _get_connection(self) -> sqlite3.Connection:
         """Obtient une connexion à la base de données."""
@@ -66,20 +84,17 @@ class DatabaseManager:
         cursor = conn.cursor()
 
         # Table des utilisateurs
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY,
                 username TEXT NOT NULL UNIQUE,
                 password_hash TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """
-        )
+        """)
 
         # Table des catégories
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS categories (
                 id INTEGER PRIMARY KEY,
                 user_id INTEGER NOT NULL,
@@ -90,12 +105,10 @@ class DatabaseManager:
                 UNIQUE(user_id, name),
                 FOREIGN KEY (user_id) REFERENCES users(id)
             )
-        """
-        )
+        """)
 
         # Table des transactions
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS transactions (
                 id INTEGER PRIMARY KEY,
                 user_id INTEGER NOT NULL,
@@ -110,12 +123,10 @@ class DatabaseManager:
                 FOREIGN KEY (user_id) REFERENCES users(id),
                 FOREIGN KEY (category_id) REFERENCES categories(id)
             )
-        """
-        )
+        """)
 
         # Table des fichiers importés
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS imported_files (
                 id INTEGER PRIMARY KEY,
                 user_id INTEGER NOT NULL,
@@ -125,12 +136,10 @@ class DatabaseManager:
                 UNIQUE(user_id, file_hash),
                 FOREIGN KEY (user_id) REFERENCES users(id)
             )
-        """
-        )
+        """)
 
         # Table des paramètres
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS settings (
                 id INTEGER PRIMARY KEY,
                 user_id INTEGER NOT NULL,
@@ -139,12 +148,10 @@ class DatabaseManager:
                 UNIQUE(user_id, key),
                 FOREIGN KEY (user_id) REFERENCES users(id)
             )
-        """
-        )
+        """)
 
         # Table des transactions récurrentes
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS recurring_transactions (
                 id INTEGER PRIMARY KEY,
                 user_id INTEGER NOT NULL,
@@ -162,8 +169,7 @@ class DatabaseManager:
                 FOREIGN KEY (user_id) REFERENCES users(id),
                 FOREIGN KEY (category_id) REFERENCES categories(id)
             )
-        """
-        )
+        """)
 
         conn.commit()
 
@@ -184,7 +190,7 @@ class DatabaseManager:
             cursor.execute("SELECT user_id FROM categories LIMIT 1")
         except Exception:
             # Les colonnes user_id n'existent pas, faire la migration
-            print("Migration: Ajout des colonnes user_id...")
+            logger.info("Migration: Ajout des colonnes user_id...")
 
             # Créer un utilisateur par défaut pour les données existantes
             try:
@@ -211,7 +217,9 @@ class DatabaseManager:
                 # Ajouter la constraint NOT NULL et UNIQUE après migration
                 conn.commit()
             except Exception as e:
-                print(f"Note: Categories may already have user_id column: {e}")
+                logger.warning(
+                    "Note: Categories may already have user_id column: %s", e
+                )
 
             # Ajouter la colonne user_id à transactions
             try:
@@ -221,7 +229,9 @@ class DatabaseManager:
                 )
                 conn.commit()
             except Exception as e:
-                print(f"Note: Transactions may already have user_id column: {e}")
+                logger.warning(
+                    "Note: Transactions may already have user_id column: %s", e
+                )
 
             # Ajouter la colonne user_id à imported_files
             try:
@@ -231,7 +241,9 @@ class DatabaseManager:
                 )
                 conn.commit()
             except Exception as e:
-                print(f"Note: Imported_files may already have user_id column: {e}")
+                logger.warning(
+                    "Note: Imported_files may already have user_id column: %s", e
+                )
 
             # Ajouter la colonne user_id à settings
             try:
@@ -241,7 +253,7 @@ class DatabaseManager:
                 )
                 conn.commit()
             except Exception as e:
-                print(f"Note: Settings may already have user_id column: {e}")
+                logger.warning("Note: Settings may already have user_id column: %s", e)
 
             # Ajouter la colonne user_id à recurring_transactions
             try:
@@ -251,11 +263,12 @@ class DatabaseManager:
                 )
                 conn.commit()
             except Exception as e:
-                print(
-                    f"Note: Recurring_transactions may already have user_id column: {e}"
+                logger.warning(
+                    "Note: Recurring_transactions may already have user_id column: %s",
+                    e,
                 )
 
-            print("Migration complétée!")
+            logger.info("Migration complétée!")
 
     def _insert_default_categories(self):
         """Insère les catégories par défaut pour l'utilisateur actuel."""
@@ -322,6 +335,7 @@ class DatabaseManager:
                 (username, password_hash),
             )
             conn.commit()
+            logger.info("User registered: username='%s'", username)
             return True
         except sqlite3.IntegrityError as e:
             raise ValueError(f"Failed to register user: {str(e)}")
@@ -341,6 +355,7 @@ class DatabaseManager:
         user_id, password_hash = row[0], row[1]
 
         if PasswordManager.verify_password(password, password_hash):
+            logger.debug("User '%s' authenticated successfully", row[0])
             return user_id
         return None
 
@@ -460,6 +475,7 @@ class DatabaseManager:
         cursor.execute("DELETE FROM categories WHERE id = ?", (source_id,))
 
         conn.commit()
+        logger.info("Categories merged: source=%s into target=%s", source_id, target_id)
         return True
 
     def add_category(self, name: str, color: str, account_type: str = "savings") -> int:
@@ -472,6 +488,7 @@ class DatabaseManager:
                 (self.user_id, name, color, account_type),
             )
             conn.commit()
+            logger.info("Category added: id=%s name='%s'", cursor.lastrowid, name)
             return cursor.lastrowid or 0
         except sqlite3.IntegrityError:
             # Le nom existe déjà
@@ -530,6 +547,7 @@ class DatabaseManager:
                 )
 
             conn.commit()
+            logger.info("Category updated: id=%s name='%s'", category_id, name)
             return rows_affected > 0
         except sqlite3.IntegrityError:
             return False
@@ -569,6 +587,7 @@ class DatabaseManager:
             (category_id, self.user_id),
         )
         conn.commit()
+        logger.info("Category deleted: id=%s", category_id)
         return cursor.rowcount > 0
 
     # ==================== TRANSACTIONS ====================
@@ -602,6 +621,12 @@ class DatabaseManager:
             ),
         )
         conn.commit()
+        logger.info(
+            "Transaction added: id=%s amount=%s type=%s",
+            cursor.lastrowid,
+            amount,
+            transaction_type,
+        )
         return cursor.lastrowid or 0
 
     # ==================== TRANSACTIONS RÉCURRENTES ====================
@@ -646,7 +671,7 @@ class DatabaseManager:
             conn.commit()
             return cursor.rowcount > 0
         except sqlite3.Error as e:
-            print(f"Database error during update_recurring_transaction: {e}")
+            logger.error("Database error during update_recurring_transaction: %s", e)
             return False
 
     def add_recurring_transaction(
@@ -691,6 +716,11 @@ class DatabaseManager:
             ),
         )
         conn.commit()
+        logger.info(
+            "Recurring transaction added: id=%s desc='%s'",
+            cursor.lastrowid,
+            description,
+        )
         return cursor.lastrowid or 0
 
     def get_recurring_transactions(
@@ -868,6 +898,11 @@ class DatabaseManager:
             f"UPDATE transactions SET {set_clause} WHERE id = ? AND user_id = ?", values
         )
         conn.commit()
+        logger.info(
+            "Transaction updated: id=%s fields=%s",
+            transaction_id,
+            set(kwargs.keys()) & allowed_fields,
+        )
         return cursor.rowcount > 0
 
     def delete_transaction(self, transaction_id: int) -> bool:
@@ -879,6 +914,7 @@ class DatabaseManager:
             (transaction_id, self.user_id),
         )
         conn.commit()
+        logger.info("Transaction deleted: id=%s", transaction_id)
         return cursor.rowcount > 0
 
     def get_all_transactions(
@@ -969,7 +1005,11 @@ class DatabaseManager:
         query += " GROUP BY LOWER(t.description) ORDER BY t.description ASC"
 
         cursor.execute(query, tuple(params))
-        return [{"description": row[0], "count": row[1]} for row in cursor.fetchall() if row[0]]
+        return [
+            {"description": row[0], "count": row[1]}
+            for row in cursor.fetchall()
+            if row[0]
+        ]
 
     def get_earliest_transaction_date(self) -> Optional[str]:
         """Récupère la date de la première transaction."""
@@ -1304,9 +1344,10 @@ class DatabaseManager:
 
             with open(filepath, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
+            logger.info("Data exported to JSON: %s", filepath)
             return True
         except Exception as e:
-            print(f"Erreur export JSON: {e}")
+            logger.error("Erreur export JSON: %s", e)
             return False
 
     def export_to_csv(self, filepath: str, data_type: str = "transactions") -> bool:
@@ -1324,9 +1365,10 @@ class DatabaseManager:
                 writer = csv.DictWriter(f, fieldnames=data[0].keys())
                 writer.writeheader()
                 writer.writerows(data)
+            logger.info("Data exported to CSV: %s", filepath)
             return True
         except Exception as e:
-            print(f"Erreur export CSV: {e}")
+            logger.error("Erreur export CSV: %s", e)
             return False
 
     # ==================== IMPORTS ====================
@@ -1352,7 +1394,7 @@ class DatabaseManager:
             )
             conn.commit()
         except Exception as e:
-            print(f"Erreur enregistrement import: {str(e)}")
+            logger.error("Erreur enregistrement import: %s", str(e))
 
     # ==================== SETTINGS ====================
 
@@ -1387,7 +1429,7 @@ class DatabaseManager:
             conn.commit()
             self._setting_cache[(self.user_id, key)] = value
         except Exception as e:
-            print(f"Erreur sauvegarde paramètre {key}: {str(e)}")
+            logger.error("Erreur sauvegarde paramètre %s: %s", key, str(e))
 
     def get_app_setting(self, key: str, default: str | None = None) -> str | None:
         """Récupère un paramètre global de l'application (user_id = 0).
@@ -1434,7 +1476,7 @@ class DatabaseManager:
             conn.commit()
             self._app_setting_cache[key] = value
         except Exception as e:
-            print(f"Erreur sauvegarde paramètre global {key}: {str(e)}")
+            logger.error("Erreur sauvegarde paramètre global %s: %s", key, str(e))
 
     def merge_descriptions(
         self, source_description: str, target_description: str
@@ -1469,9 +1511,15 @@ class DatabaseManager:
             )
 
             conn.commit()
+            logger.info(
+                "Descriptions merged: '%s' -> '%s' (%d transactions)",
+                source_description,
+                target_description,
+                cursor.rowcount,
+            )
             return cursor.rowcount > 0
         except Exception as e:
-            print(f"Erreur lors de la fusion des descriptions: {str(e)}")
+            logger.error("Erreur lors de la fusion des descriptions: %s", str(e))
             return False
 
     def rename_description(self, old_description: str, new_description: str) -> bool:
@@ -1505,9 +1553,15 @@ class DatabaseManager:
             )
 
             conn.commit()
+            logger.info(
+                "Description renamed: '%s' -> '%s' (%d transactions)",
+                old_description,
+                new_description,
+                cursor.rowcount,
+            )
             return cursor.rowcount > 0
         except Exception as e:
-            print(f"Erreur lors du renomage de la description: {str(e)}")
+            logger.error("Erreur lors du renomage de la description: %s", str(e))
             return False
 
     def get_all_unique_descriptions(
@@ -1595,10 +1649,11 @@ class DatabaseManager:
             cursor.execute("DELETE FROM users WHERE id = ?", (self.user_id,))
 
             conn.commit()
+            logger.info("User account deleted: user_id=%s", self.user_id)
             return True
 
         except Exception as e:
-            print(f"Erreur lors de la suppression du compte: {str(e)}")
+            logger.error("Erreur lors de la suppression du compte: %s", str(e))
             return False
 
     def close(self):
@@ -1607,7 +1662,7 @@ class DatabaseManager:
             try:
                 self.connection.close()
             except Exception as e:
-                print(f"Warning: Error closing database connection: {e}")
+                logger.warning("Warning: Error closing database connection: %s", e)
             finally:
                 self.connection = None
 

@@ -3,18 +3,23 @@ Vue Paramètres pour Peadra.
 Permet de configurer le thème, l'import/export et le mode de calcul mensuel.
 """
 
+import json
+import logging
 import os
 import sys
-import flet as ft
 import threading
-import tempfile
 import time
 from datetime import datetime
 from typing import Callable, Any, cast, List, Optional
 from pathlib import Path
+
+import flet as ft
+
+logger = logging.getLogger(__name__)
 from ..components.theme import PeadraTheme
 from ..database import db
 from ..i18n import t
+from ..logger import get_current_log_path
 from ..update_manager import (
     _copy_current_executable_to_temp,
     auto_update_if_needed,
@@ -231,7 +236,9 @@ class ParametersView:
         )
 
     def _on_save_file_selected(self, file_path: str):
-        if self._pending_export_format:
+        if self._pending_export_format == "logs":
+            self._copy_log_file(file_path)
+        elif self._pending_export_format:
             self.on_export(self._pending_export_format, file_path)
 
     def _on_save_picker_cancel(self):
@@ -397,12 +404,14 @@ class ParametersView:
                     ),
                     ft.Text(
                         label,
-                        weight=ft.FontWeight.BOLD
-                        if is_selected
-                        else ft.FontWeight.NORMAL,
-                        color=PeadraTheme.DARK_TEXT
-                        if self.is_dark
-                        else PeadraTheme.LIGHT_TEXT,
+                        weight=(
+                            ft.FontWeight.BOLD if is_selected else ft.FontWeight.NORMAL
+                        ),
+                        color=(
+                            PeadraTheme.DARK_TEXT
+                            if self.is_dark
+                            else PeadraTheme.LIGHT_TEXT
+                        ),
                     ),
                 ],
                 alignment=ft.MainAxisAlignment.CENTER,
@@ -477,6 +486,56 @@ class ParametersView:
         self.save_picker.open(
             default_filename=f"peadra_transactions_{timestamp}", extension="csv"
         )
+
+    def _on_export_logs(self, e):
+        """Lance l'export du fichier de log courant."""
+        log_path = get_current_log_path()
+        if not log_path or not os.path.exists(log_path):
+            from ..i18n import t
+
+            snack = ft.SnackBar(
+                content=ft.Text(t("msg_export_error"), color=ft.Colors.WHITE),
+                bgcolor=PeadraTheme.ERROR,
+            )
+            self.page.overlay.append(snack)
+            snack.open = True
+            self.page.update()
+            logger.warning("Log export attempted but no active log file found")
+            return
+        self._pending_export_format = "logs"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.save_picker.open(
+            default_filename=f"peadra_logs_{timestamp}", extension="log"
+        )
+
+    def _copy_log_file(self, dest_path: str):
+        """Copie le fichier de log courant vers la destination."""
+        log_path = get_current_log_path()
+        if log_path and os.path.exists(log_path):
+            try:
+                import shutil
+
+                shutil.copy2(log_path, dest_path)
+                logger.info("Log file exported to %s", dest_path)
+                self._show_snackbar(
+                    t("msg_export_success").format(file_path=dest_path), success=True
+                )
+            except Exception:
+                logger.error("Failed to copy log file to %s", dest_path)
+                self._show_snackbar(t("msg_export_error"), success=False)
+        else:
+            self._show_snackbar(t("msg_export_error"), success=False)
+
+    def _show_snackbar(self, message: str, success: bool = True):
+        color = PeadraTheme.SUCCESS if success else PeadraTheme.ERROR
+        snack = ft.SnackBar(
+            content=ft.Text(message, color=ft.Colors.WHITE),
+            bgcolor=color,
+            duration=3000,
+        )
+        self.page.overlay.append(snack)
+        snack.open = True
+        self.page.update()
 
     def _on_import_csv(self, e):
         """Lance l'import CSV."""
@@ -689,29 +748,18 @@ class ParametersView:
     def _perform_update_with_progress(self, progress_session: str):
         """Effectue la mise à jour en affichant la progression et journalise pour le debug."""
 
-        def _append_update_log(msg: str):
-            try:
-                log_dir = Path(tempfile.gettempdir())
-                log_file = log_dir / "peadra-update.log"
-                ts = datetime.utcnow().isoformat() + "Z"
-                with open(log_file, "a", encoding="utf-8") as f:
-                    f.write(f"{ts} - {msg}\n")
-            except Exception:
-                pass
-
-        _append_update_log("_perform_update_with_progress: started")
+        logger.info("_perform_update_with_progress: started")
 
         try:
-            import json
             import subprocess
-            import tempfile
-            import time
-            from pathlib import Path
 
             # Récupérer les infos de la mise à jour
             result = check_for_update()
-            _append_update_log(
-                f"check_for_update: available={result.available} latest={result.latest_version} asset={result.asset_name}"
+            logger.info(
+                "check_for_update: available=%s latest=%s asset=%s",
+                result.available,
+                result.latest_version,
+                result.asset_name,
             )
 
             if not result.available or not result.asset_url or not result.asset_name:
@@ -724,14 +772,14 @@ class ParametersView:
                         ),
                     }
                 )
-                _append_update_log("no update available or missing asset")
+                logger.warning("no update available or missing asset")
                 return
 
             # Chemin de destination pour le téléchargement
             downloaded_path = (
                 Path(tempfile.gettempdir()) / "peadra-update" / result.asset_name
             )
-            _append_update_log(f"download destination: {downloaded_path}")
+            logger.info("download destination: %s", downloaded_path)
 
             # Callback de progression
             last_logged_step = {"value": -1}
@@ -753,16 +801,19 @@ class ParametersView:
                     step = percent // 5
                     if step != last_logged_step["value"]:
                         last_logged_step["value"] = step
-                        _append_update_log(
-                            f"download progress: {percent}% ({downloaded}/{total})"
+                        logger.debug(
+                            "download progress: %d%% (%d/%d)",
+                            percent,
+                            downloaded,
+                            total,
                         )
 
             # Télécharger le fichier
-            _append_update_log(f"starting download from: {result.asset_url}")
+            logger.info("starting download from: %s", result.asset_url)
             download_file_with_progress(
                 result.asset_url, downloaded_path, on_progress=on_progress
             )
-            _append_update_log("download finished")
+            logger.info("download finished")
 
             # Afficher "Downloaded, installing..."
             self.page.pubsub.send_all(
@@ -773,12 +824,12 @@ class ParametersView:
                     "value": 0.95,
                 }
             )
-            _append_update_log("queued downloaded->installing message")
+            logger.debug("queued downloaded->installing message")
 
             # Préparer la mise à jour
             current_executable = Path(sys.executable)
             updater_copy = _copy_current_executable_to_temp(current_executable)
-            _append_update_log(f"copied updater to: {updater_copy}")
+            logger.info("copied updater to: %s", updater_copy)
 
             # Passer le contrôle au updater
             restart_args = [arg for arg in sys.argv[1:] if arg != "--apply-update"]
@@ -798,7 +849,7 @@ class ParametersView:
                     ],
                     cwd=str(current_executable.parent),
                 )
-                _append_update_log(f"launched updater pid={getattr(p, 'pid', None)}")
+                logger.info("launched updater pid=%s", getattr(p, "pid", None))
             except Exception as e:
                 self.page.pubsub.send_all(
                     {
@@ -809,7 +860,7 @@ class ParametersView:
                         ),
                     }
                 )
-                _append_update_log(f"subprocess launch failed: {str(e)}")
+                logger.error("subprocess launch failed: %s", str(e))
                 return
 
             # Afficher "Installing" à 100% avant de quitter
@@ -821,7 +872,7 @@ class ParametersView:
                     "value": 1.0,
                 }
             )
-            _append_update_log("queued complete message")
+            logger.debug("queued complete message")
 
             # Demander la fermeture de la fenêtre depuis le thread UI
             self.page.pubsub.send_all({"session": progress_session, "type": "shutdown"})
@@ -831,18 +882,18 @@ class ParametersView:
 
             # Tentative de fermeture locale (en secours) puis sortie forcée.
             try:
-                _append_update_log("attempting graceful shutdown (SIGTERM)")
-                import signal, platform
+                logger.info("attempting graceful shutdown (SIGTERM)")
+                import signal
 
                 os.kill(os.getpid(), signal.SIGTERM)
                 time.sleep(0.05)
             except Exception as e:
-                _append_update_log(f"SIGTERM failed: {e}")
+                logger.warning("SIGTERM failed: %s", e)
 
             # On Windows, SIGTERM may not terminate the process; attempt TerminateProcess
             try:
                 if sys.platform.startswith("win"):
-                    _append_update_log("attempting Windows TerminateProcess fallback")
+                    logger.info("attempting Windows TerminateProcess fallback")
                     import ctypes
 
                     try:
@@ -850,15 +901,15 @@ class ParametersView:
                             ctypes.windll.kernel32.GetCurrentProcess(), 0
                         )
                     except Exception as ce:
-                        _append_update_log(f"TerminateProcess failed: {ce}")
+                        logger.warning("TerminateProcess failed: %s", ce)
             except Exception:
                 pass
 
             try:
-                _append_update_log("final os._exit(0)")
+                logger.info("final os._exit(0)")
                 os._exit(0)
             except Exception as e:
-                _append_update_log(f"os._exit failed: {e}")
+                logger.warning("os._exit failed: %s", e)
 
         except Exception as exc:
             self.page.pubsub.send_all(
@@ -869,7 +920,7 @@ class ParametersView:
                 }
             )
             try:
-                _append_update_log(f"exception in update flow: {str(exc)}")
+                logger.error("exception in update flow: %s", str(exc))
             except Exception:
                 pass
             try:
@@ -902,11 +953,16 @@ class ParametersView:
         self.password_confirm_field.value = ""
         self.remove_pwd_btn.visible = True
         self.page.update()
+        logger.info("App password was set")
+        # Zeroize password variables
+        pwd = None
+        confirm = None
 
     def _on_remove_password(self, e):
         from src.database import db
 
         db.set_setting("app_password_hash", "")
+        logger.info("App password was removed")
         self.password_message.value = t("param_password_removed")
         self.password_message.color = ft.Colors.GREEN
         self.remove_pwd_btn.visible = False
@@ -935,9 +991,12 @@ class ParametersView:
                 dialog.open = False
                 self.page.update()
                 self.on_account_deleted()
+                logger.info("User account deleted")
+                pwd = None
             else:
                 error_message.value = t("param_delete_password_incorrect")
                 self.page.update()
+                pwd = None
 
         def on_cancel(_):
             dialog.open = False
@@ -1181,6 +1240,23 @@ class ParametersView:
             ),
         )
 
+        export_logs_btn = ft.OutlinedButton(
+            content=ft.Row(
+                [
+                    ft.Icon(ft.Icons.BUG_REPORT, size=18),
+                    ft.Text(t("param_export_logs")),
+                ],
+                spacing=8,
+            ),
+            on_click=self._on_export_logs,
+            style=ft.ButtonStyle(
+                padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                shape=ft.RoundedRectangleBorder(radius=10),
+                side=ft.BorderSide(1, PeadraTheme.ACCENT),
+                color=PeadraTheme.ACCENT,
+            ),
+        )
+
         data_section = self._build_section_card(
             t("param_data"),
             ft.Icons.STORAGE_OUTLINED,
@@ -1194,6 +1270,11 @@ class ParametersView:
                     t("param_export"),
                     t("param_export_desc"),
                     ft.Row([export_json_btn, export_csv_btn], spacing=10),
+                ),
+                self._build_setting_row(
+                    t("param_export_logs"),
+                    t("param_export_logs_desc"),
+                    export_logs_btn,
                 ),
             ],
         )

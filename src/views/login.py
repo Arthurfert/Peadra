@@ -2,10 +2,13 @@
 Composant de login et enregistrement.
 """
 
+import logging
 import flet as ft
 from src.database import db
 from src.components.theme import PeadraTheme
 from src.i18n import t
+
+logger = logging.getLogger(__name__)
 
 
 class LoginView:
@@ -228,6 +231,7 @@ class LoginView:
         user_id = db.authenticate_user(username, password)
 
         if user_id is None:
+            logger.warning("Failed login attempt for user '%s'", username)
             self.error_text.value = t("msg_incorrect_credentials")
             self.password_field.value = ""
             await self.password_field.focus()
@@ -235,6 +239,7 @@ class LoginView:
             return
 
         # Connecter l'utilisateur
+        logger.info("User '%s' logged in successfully", username)
         db.set_current_user(user_id)
         self.on_login_success()
 
@@ -263,6 +268,9 @@ class LoginView:
             return
 
         if db.user_exists(username):
+            logger.warning(
+                "Registration failed: username '%s' already exists", username
+            )
             self.error_text.value = (
                 f"{t('msg_username_exists').format(username=username)}"
             )
@@ -280,6 +288,7 @@ class LoginView:
         # Connecter automatiquement
         user_id = db.authenticate_user(username, password)
         if user_id:
+            logger.info("New user registered: '%s'", username)
             db.set_current_user(user_id)
             # Auto-remplir le user_name avec le username
             db.set_setting("user_name", username)

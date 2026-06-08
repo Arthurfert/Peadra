@@ -3,12 +3,15 @@ Modal de saisie rapide pour les transactions.
 """
 
 import flet as ft
+import logging
 from datetime import datetime
 from typing import Callable, List, Dict, Any, Optional, cast
 from difflib import SequenceMatcher
 from .theme import PeadraTheme
 from ..database.db_manager import db
 from ..i18n import t as translate
+
+logger = logging.getLogger(__name__)
 
 
 class TransactionModal:
@@ -225,9 +228,11 @@ class TransactionModal:
             self.suggestions_list_view.controls.clear()
             self.page.update()
 
-    def _sort_suggestions(self, suggestions_raw: List[Dict[str, Any]], search_term: str) -> List[str]:
+    def _sort_suggestions(
+        self, suggestions_raw: List[Dict[str, Any]], search_term: str
+    ) -> List[str]:
         """Trie les suggestions selon plusieurs critères.
-        
+
         Utilise un score composite pondéré :
         - Commence par le terme : +10 (fort bonus)
         - Similarité textuelle : jusqu'à +3
@@ -397,9 +402,11 @@ class TransactionModal:
                     "is_recurring": True,
                     "frequency": self.recurring_freq.value,
                     "interval": int(self.recurring_interval.value or 1),
-                    "end_date": self.recurring_end_date.value
-                    if self.recurring_end_date.value
-                    else None,
+                    "end_date": (
+                        self.recurring_end_date.value
+                        if self.recurring_end_date.value
+                        else None
+                    ),
                 }
             )
 
@@ -434,6 +441,7 @@ class TransactionModal:
         if self.other_id:
             transaction_data["other_id"] = self.other_id
 
+        logger.debug("Transaction modal save clicked, type=%s", self.transaction_type)
         self.close()
 
         if self.on_save:

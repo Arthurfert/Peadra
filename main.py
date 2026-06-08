@@ -5,9 +5,11 @@ Point d'entrée principal de l'application.
 
 import argparse
 import json
+import logging
 import os
 import flet as ft
 from src.components.theme import PeadraTheme
+from src.logger import setup_logger
 from src.components.navigation import NavigationRailComponent
 from src.database import db
 from src.i18n import set_language, t
@@ -20,6 +22,8 @@ from src.views.parameters import ParametersView
 from src.views.subscriptions import SubscriptionsView
 from src.views.import_data import ImportDialog
 from src.views.login import LoginView
+
+logger = logging.getLogger(__name__)
 
 
 class PeadraApp:
@@ -42,7 +46,7 @@ class PeadraApp:
 
     def _logout(self):
         """Déconnecte l'utilisateur et revient à la vue de login."""
-        # Sauvegarder la langue actuelle globalement avant de réinitialiser
+        logger.info("User logged out")
         from src.i18n import get_translator
 
         current_language = get_translator().get_language()
@@ -64,7 +68,9 @@ class PeadraApp:
             try:
                 db.process_recurring_transactions()
             except Exception as e:
-                print(f"Error processing recurring transactions: {e}")
+                logging.getLogger(__name__).error(
+                    "Error processing recurring transactions: %s", e
+                )
 
             # Créer l'application principale
             self.page.controls.clear()
@@ -177,9 +183,11 @@ class PeadraApp:
     def _toggle_theme(self, e):
         """Bascule entre le mode sombre et clair."""
         self.is_dark = not self.is_dark
+        mode = "dark" if self.is_dark else "light"
+        logger.info("Theme toggled to %s", mode)
 
         # Sauvegarder dans la base de données
-        db.set_setting("theme_mode", "dark" if self.is_dark else "light")
+        db.set_setting("theme_mode", mode)
 
         self._apply_theme()
 
@@ -196,10 +204,9 @@ class PeadraApp:
 
     def _on_language_change(self, language: str):
         """Gère le changement de langue."""
+        logger.info("Language changed to %s", language)
         set_language(language)
-        # Sauvegarder la langue globalement pour la prochaine session
         db.set_app_setting("language", language)
-        # Reconstruire l'interface pour appliquer les nouvelles traductions
         self._build_ui()
         self._refresh_all_views()
 
@@ -230,10 +237,14 @@ class PeadraApp:
             success = db.export_to_csv(file_path, "transactions")
 
         if success:
+            logger.info("Data exported to %s (format=%s)", file_path, format_type)
             self._show_snackbar(
                 t("msg_export_success").format(file_path=file_path), success=True
             )
         else:
+            logger.error(
+                "Data export failed (format=%s, path=%s)", format_type, file_path
+            )
             self._show_snackbar(t("msg_export_error"), success=False)
 
     def _show_snackbar(self, message: str, success: bool = True):
@@ -271,9 +282,9 @@ class PeadraApp:
                     ft.Row(
                         controls=[
                             ft.Image(
-                                src="Peadra_white.png"
-                                if self.is_dark
-                                else "Peadra.png",
+                                src=(
+                                    "Peadra_white.png" if self.is_dark else "Peadra.png"
+                                ),
                                 width=60,
                                 height=60,
                                 fit=ft.BoxFit.CONTAIN,
@@ -400,7 +411,9 @@ def main(page: ft.Page):
         try:
             db.process_recurring_transactions()
         except Exception as e:
-            print(f"Error processing recurring transactions: {e}")
+            logging.getLogger(__name__).error(
+                "Error processing recurring transactions: %s", e
+            )
 
         # Créer l'application principale
         page.controls.clear()
@@ -445,6 +458,9 @@ def main(page: ft.Page):
 
 
 if __name__ == "__main__":
+    logger = setup_logger()
+    logger.debug("Application started")
+
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--apply-update", action="store_true")
     parser.add_argument("--source")

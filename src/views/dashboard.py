@@ -783,6 +783,7 @@ class DashboardView:
         touched_index_attr_name: str,
         container_attr_name: str,
         empty_msg: str,
+        name_to_color: Optional[dict[str, str]] = None,
     ) -> ft.Container:
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
         bg_card = (
@@ -811,7 +812,7 @@ class DashboardView:
         else:
             data_points = [{"name": k, "value": v} for k, v in sorted_items]
 
-        Colors = [
+        DefaultColors = [
             ft.Colors.BLUE,
             ft.Colors.GREEN,
             ft.Colors.ORANGE,
@@ -820,6 +821,11 @@ class DashboardView:
             ft.Colors.TEAL,
             ft.Colors.CYAN,
         ]
+
+        def _resolve_color(i: int, item_name: str) -> str:
+            if name_to_color and item_name in name_to_color:
+                return name_to_color[item_name]
+            return DefaultColors[i % len(DefaultColors)]
 
         if not data_points:
             return ft.Container(
@@ -864,7 +870,7 @@ class DashboardView:
             touched_index = getattr(self, touched_index_attr_name, -1)
             sections = []
             for i, item in enumerate(data_points):
-                color = Colors[i % len(Colors)]
+                color = _resolve_color(i, item["name"])
                 is_touched = i == touched_index
                 radius = 50 if is_touched else 40
 
@@ -896,7 +902,7 @@ class DashboardView:
             # Legend
             legend_items: list[ft.Control] = []
             for i, item in enumerate(data_points):
-                color = Colors[i % len(Colors)]
+                color = _resolve_color(i, item["name"])
                 legend_items.append(
                     ft.Row(
                         [
@@ -976,7 +982,10 @@ class DashboardView:
         # Filter out zero or negative balances for the pie chart
         data = [d for d in self.account_distribution if d["value"] > 0]
 
-        # Let's manual construct the dict
+        # Build color mapping from account data (capitalize to match _build_pie_chart behavior)
+        name_to_color = {d["name"].capitalize(): d["color"] for d in data if d.get("color")}
+
+        # Build the dict for the pie chart
         data_dict = {d["name"]: d["value"] for d in data}
 
         return self._build_pie_chart(
@@ -985,6 +994,7 @@ class DashboardView:
             "touched_index_assets",
             "assets_chart_container",
             t("dash_no_assets"),
+            name_to_color=name_to_color,
         )
 
     def build(self) -> ft.Container:

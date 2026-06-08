@@ -1175,6 +1175,7 @@ class DatabaseManager:
         cursor.execute(
             """
             SELECT c.name,
+                   c.color,
                    COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
                                      WHEN t.transaction_type = 'expense' THEN -t.amount
                                      ELSE 0 END), 0) AS balance
@@ -1186,7 +1187,7 @@ class DatabaseManager:
             """,
             (self.user_id, self.user_id),
         )
-        return [{"name": row[0], "value": row[1]} for row in cursor.fetchall()]
+        return [{"name": row[0], "color": row[1], "value": row[2]} for row in cursor.fetchall()]
 
     def get_description_monthly_data(
         self, start_date: str, end_date: str

@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import sys
+import tempfile
 import threading
 import time
 from datetime import datetime
@@ -946,43 +947,129 @@ class ParametersView:
             except RuntimeError:
                 pass
 
-    def _on_save_password(self, e):
-        pwd = self.password_field.value
-        confirm = self.password_confirm_field.value
-        if not pwd:
-            self.password_message.value = t("param_password_empty")
-            self.password_message.color = ft.Colors.RED
-            self.page.update()
-            return
-        if pwd != confirm:
-            self.password_message.value = t("param_password_mismatch")
-            self.password_message.color = ft.Colors.RED
-            self.page.update()
-            return
+    def _on_change_password_click(self, e):
+        from src.database import db
         import hashlib
-        from src.database import db
 
-        hashed = hashlib.sha256(pwd.encode()).hexdigest()
-        db.set_setting("app_password_hash", hashed)
-        self.password_message.value = t("param_password_saved")
-        self.password_message.color = ft.Colors.GREEN
-        self.password_field.value = ""
-        self.password_confirm_field.value = ""
-        self.remove_pwd_btn.visible = True
-        self.page.update()
-        logger.info("App password was set")
-        # Zeroize password variables
-        pwd = None
-        confirm = None
+        has_password = bool(db.get_setting("app_password_hash"))
 
-    def _on_remove_password(self, e):
-        from src.database import db
+        old_pwd_field = ft.TextField(
+            password=True,
+            can_reveal_password=True,
+            label=t("param_old_password"),
+            width=300,
+            height=45,
+            text_size=13,
+        )
+        pwd_field = ft.TextField(
+            password=True,
+            can_reveal_password=True,
+            label=t("param_password_new"),
+            width=300,
+            height=45,
+            text_size=13,
+        )
+        confirm_field = ft.TextField(
+            password=True,
+            can_reveal_password=True,
+            label=t("param_password_confirm"),
+            width=300,
+            height=45,
+            text_size=13,
+        )
+        message = ft.Text(size=12)
 
-        db.set_setting("app_password_hash", "")
-        logger.info("App password was removed")
-        self.password_message.value = t("param_password_removed")
-        self.password_message.color = ft.Colors.GREEN
-        self.remove_pwd_btn.visible = False
+        content_col = ft.Column(
+            spacing=12,
+            width=340,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            controls=[old_pwd_field, pwd_field, confirm_field, message],
+        )
+
+        def on_save(_):
+            current_hash = db.get_setting("app_password_hash")
+            if current_hash:
+                old_pwd = old_pwd_field.value
+                if not old_pwd:
+                    message.value = t("param_password_empty")
+                    message.color = ft.Colors.RED
+                    self.page.update()
+                    return
+                if hashlib.sha256(old_pwd.encode()).hexdigest() != current_hash:
+                    message.value = t("param_old_password_incorrect")
+                    message.color = ft.Colors.RED
+                    self.page.update()
+                    return
+            pwd = pwd_field.value
+            confirm = confirm_field.value
+            if not pwd:
+                message.value = t("param_password_empty")
+                message.color = ft.Colors.RED
+                self.page.update()
+                return
+            if pwd != confirm:
+                message.value = t("param_password_mismatch")
+                message.color = ft.Colors.RED
+                self.page.update()
+                return
+            hashed = hashlib.sha256(pwd.encode()).hexdigest()
+            db.set_setting("app_password_hash", hashed)
+            message.value = t("param_password_saved")
+            message.color = ft.Colors.GREEN
+            pwd_field.value = ""
+            confirm_field.value = ""
+            old_pwd_field.value = ""
+            remove_btn.visible = True
+            self.page.update()
+            logger.info("App password was set")
+            pwd = None
+            confirm = None
+
+        def on_remove(_):
+            db.set_setting("app_password_hash", "")
+            logger.info("App password was removed")
+            message.value = t("param_password_removed")
+            message.color = ft.Colors.GREEN
+            remove_btn.visible = False
+            old_pwd_field.value = ""
+            pwd_field.value = ""
+            confirm_field.value = ""
+            self.page.update()
+
+        def on_close(_):
+            dialog.open = False
+            self.page.update()
+
+        remove_btn = ft.ElevatedButton(
+            t("param_btn_remove"),
+            icon=ft.Icons.DELETE_OUTLINED,
+            on_click=on_remove,
+            color=ft.Colors.RED,
+            visible=has_password,
+        )
+        save_btn = ft.ElevatedButton(
+            t("param_btn_save"),
+            icon=ft.Icons.SAVE_OUTLINED,
+            on_click=on_save,
+        )
+
+        dialog = ft.AlertDialog(
+            title=ft.Text(
+                t("param_change_password"), size=20, weight=ft.FontWeight.BOLD
+            ),
+            content=ft.Container(
+                content=content_col,
+                padding=ft.padding.only(left=20, right=20, top=10, bottom=10),
+                height=200,
+            ),
+            actions=[
+                ft.TextButton(t("btn_cancel"), on_click=on_close),
+                remove_btn,
+                save_btn,
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        self.page.show_dialog(dialog)
         self.page.update()
 
     def _on_delete_account_click(self, e):
@@ -1357,41 +1444,15 @@ class ParametersView:
         # === Section Sécurité ===
         from src.database import db
 
-        self.password_field = ft.TextField(
-            password=True,
-            can_reveal_password=True,
-            label=t("param_password_new"),
-            width=180,
-            height=45,
-            text_size=13,
-        )
-        self.password_confirm_field = ft.TextField(
-            password=True,
-            can_reveal_password=True,
-            label=t("param_password_confirm"),
-            width=180,
-            height=45,
-            text_size=13,
-        )
-        self.password_message = ft.Text(size=12)
-
         btn_style = ft.ButtonStyle(
             padding=ft.padding.symmetric(horizontal=16, vertical=14),
             shape=ft.RoundedRectangleBorder(radius=8),
         )
 
-        save_pwd_btn = ft.ElevatedButton(
-            t("param_btn_save"),
-            icon=ft.Icons.SAVE_OUTLINED,
-            on_click=self._on_save_password,
-            style=btn_style,
-        )
-        self.remove_pwd_btn = ft.ElevatedButton(
-            t("param_btn_remove"),
-            icon=ft.Icons.DELETE_OUTLINED,
-            on_click=self._on_remove_password,
-            color=ft.Colors.RED,
-            visible=bool(db.get_setting("app_password_hash")),
+        change_pwd_btn = ft.ElevatedButton(
+            t("param_change_password"),
+            icon=ft.Icons.LOCK_OUTLINE,
+            on_click=self._on_change_password_click,
             style=btn_style,
         )
 
@@ -1407,22 +1468,7 @@ class ParametersView:
                 self._build_setting_row(
                     t("param_password"),
                     t("param_password_desc"),
-                    ft.Column(
-                        [
-                            ft.Row(
-                                [self.password_field, self.password_confirm_field],
-                                spacing=12,
-                            ),
-                            ft.Row(
-                                [self.remove_pwd_btn, save_pwd_btn],
-                                spacing=12,
-                                alignment=ft.MainAxisAlignment.END,
-                            ),
-                            self.password_message,
-                        ],
-                        spacing=12,
-                        horizontal_alignment=ft.CrossAxisAlignment.END,
-                    ),
+                    change_pwd_btn,
                 ),
             ],
         )

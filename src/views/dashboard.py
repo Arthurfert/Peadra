@@ -50,6 +50,20 @@ class DashboardView:
         if hasattr(self, "chart_container_main"):
             self.chart_container_main.content = self._build_income_expense_chart()
             self.chart_container_main.update()
+        if hasattr(self, "charts_row_2"):
+            self.charts_row_2.content = ft.Row(
+                [
+                    ft.Container(content=self._build_category_chart(), expand=1),
+                    ft.Container(
+                        content=self._build_income_distribution_chart(), expand=1
+                    ),
+                    ft.Container(
+                        content=self._build_account_distribution_chart(), expand=1
+                    ),
+                ],
+                spacing=20,
+            )
+            self.charts_row_2.update()
 
     def _get_month_bounds(self, year: int, month: int) -> tuple[str, str]:
         """Retourne les bornes inclusives d'un mois (YYYY-MM-DD)."""
@@ -216,9 +230,8 @@ class DashboardView:
                 prev_end_dt.strftime("%Y-%m-%d"),
             )
 
-            # Rolling period dates for category breakdown
-            category_start_date = rolling_start
-            category_end_date = rolling_end
+            month_category_start = rolling_start
+            month_category_end = rolling_end
         else:
             # Strict: calendar month
             current_start, current_end = self._get_month_bounds(now.year, now.month)
@@ -234,8 +247,8 @@ class DashboardView:
             )
             prev_income, prev_expenses = self._get_filtered_totals(prev_start, prev_end)
 
-            # Calendar month dates for category breakdown
-            category_start_date, category_end_date = current_start, current_end
+            month_category_start = current_start
+            month_category_end = current_end
 
         # For Stocks (Savings/Balance), we compare Current Value vs Value at Start of Month (History)
         start_of_month_str = now.replace(day=1).strftime("%Y-%m-%d")
@@ -278,11 +291,15 @@ class DashboardView:
 
         self.chart_data = self._build_chart_data(start_year, start_month, num_months)
 
-        # Simplified category logic for Expenses logic
-        start_date = category_start_date
-        end_date = category_end_date
+        # Category dates: use month-mode when "1M" selected, otherwise chart duration
+        if self.chart_duration == "1":
+            category_start_date = month_category_start
+            category_end_date = month_category_end
+        else:
+            category_start_date = f"{start_year}-{start_month:02d}-01"
+            category_end_date = now.strftime("%Y-%m-%d")
 
-        txs = db.get_transactions_by_period(start_date, end_date)
+        txs = db.get_transactions_by_period(category_start_date, category_end_date)
         self.category_expenses = {}
         self.category_incomes = {}
         for transaction in txs:
@@ -302,6 +319,7 @@ class DashboardView:
 
         # Account Distribution Data
         self.account_distribution = db.get_accounts_distribution()
+        self.max_categories_pie = int(db.get_setting("max_categories_pie", "5") or "5")
 
     def _build_stat_card(
         self,
@@ -742,6 +760,7 @@ class DashboardView:
                             else list(e.control.selected)[0]
                         ),
                         segments=[
+                            ft.Segment(value="1", label=ft.Text("1M")),
                             ft.Segment(value="3", label=ft.Text("3M")),
                             ft.Segment(value="6", label=ft.Text("6M")),
                             ft.Segment(value="12", label=ft.Text("1Y")),
@@ -784,6 +803,7 @@ class DashboardView:
         container_attr_name: str,
         empty_msg: str,
         name_to_color: Optional[dict[str, str]] = None,
+        max_categories: int = 5,
     ) -> ft.Container:
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
         bg_card = (
@@ -798,11 +818,11 @@ class DashboardView:
 
         sorted_items = sorted(valid_items.items(), key=lambda x: x[1], reverse=True)
 
-        if len(sorted_items) > 5:
-            top_items = sorted_items[:5]
+        if len(sorted_items) > max_categories:
+            top_items = sorted_items[:max_categories]
             other_value = (
-                sum(item[1] for item in sorted_items[5:])
-                if len(sorted_items) > 5
+                sum(item[1] for item in sorted_items[max_categories:])
+                if len(sorted_items) > max_categories
                 else 0
             )
 
@@ -962,6 +982,7 @@ class DashboardView:
             "touched_index_expenses",
             "expenses_chart_container",
             t("dash_no_expenses"),
+            max_categories=self.max_categories_pie,
         )
 
     def _build_income_distribution_chart(self) -> ft.Container:
@@ -971,6 +992,7 @@ class DashboardView:
             "touched_index_income",
             "income_chart_container",
             t("dash_no_income"),
+            max_categories=self.max_categories_pie,
         )
 
     def _build_account_distribution_chart(self) -> ft.Container:
@@ -995,6 +1017,7 @@ class DashboardView:
             "assets_chart_container",
             t("dash_no_assets"),
             name_to_color=name_to_color,
+            max_categories=self.max_categories_pie,
         )
 
     def build(self) -> ft.Container:
@@ -1060,7 +1083,7 @@ class DashboardView:
         )
         charts_row_1 = self.chart_container_main
 
-        charts_row_2 = ft.Container(
+        self.charts_row_2 = ft.Container(
             content=ft.Row(
                 [
                     ft.Container(content=self._build_category_chart(), expand=1),
@@ -1107,7 +1130,7 @@ class DashboardView:
                 ft.Container(height=20),
                 charts_row_1,
                 ft.Container(height=20),
-                charts_row_2,
+                self.charts_row_2,
             ],
             scroll=ft.ScrollMode.AUTO,
             expand=True,

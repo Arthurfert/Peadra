@@ -319,6 +319,7 @@ class DashboardView:
 
         # Account Distribution Data
         self.account_distribution = db.get_accounts_distribution()
+        self.max_categories_pie = int(db.get_setting("max_categories_pie", "5") or "5")
 
     def _build_stat_card(
         self,
@@ -802,6 +803,7 @@ class DashboardView:
         container_attr_name: str,
         empty_msg: str,
         name_to_color: Optional[dict[str, str]] = None,
+        max_categories: int = 5,
     ) -> ft.Container:
         text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
         bg_card = (
@@ -816,11 +818,11 @@ class DashboardView:
 
         sorted_items = sorted(valid_items.items(), key=lambda x: x[1], reverse=True)
 
-        if len(sorted_items) > 5:
-            top_items = sorted_items[:5]
+        if len(sorted_items) > max_categories:
+            top_items = sorted_items[:max_categories]
             other_value = (
-                sum(item[1] for item in sorted_items[5:])
-                if len(sorted_items) > 5
+                sum(item[1] for item in sorted_items[max_categories:])
+                if len(sorted_items) > max_categories
                 else 0
             )
 
@@ -980,6 +982,7 @@ class DashboardView:
             "touched_index_expenses",
             "expenses_chart_container",
             t("dash_no_expenses"),
+            max_categories=self.max_categories_pie,
         )
 
     def _build_income_distribution_chart(self) -> ft.Container:
@@ -989,6 +992,7 @@ class DashboardView:
             "touched_index_income",
             "income_chart_container",
             t("dash_no_income"),
+            max_categories=self.max_categories_pie,
         )
 
     def _build_account_distribution_chart(self) -> ft.Container:
@@ -1013,6 +1017,7 @@ class DashboardView:
             "assets_chart_container",
             t("dash_no_assets"),
             name_to_color=name_to_color,
+            max_categories=self.max_categories_pie,
         )
 
     def build(self) -> ft.Container:

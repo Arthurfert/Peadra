@@ -213,6 +213,7 @@ class ParametersView:
         # Charger le mode depuis la base de données
         self.month_mode = db.get_setting("month_mode", "strict") or "strict"
         self.display_limit = db.get_setting("transactions_display_limit", "30") or "30"
+        self.max_categories_pie = db.get_setting("max_categories_pie", "5") or "5"
         self.currency = db.get_setting("currency", "€") or "€"
         # Charger la langue depuis la base de données
         self.language = db.get_setting("language", "en") or "en"
@@ -449,6 +450,22 @@ class ParametersView:
     def _on_display_limit_blur(self, e):
         """Met à jour les données seulement quand on a terminé de saisir."""
         if self.display_limit and int(self.display_limit) > 0:
+            self.on_data_change()
+
+    def _on_max_categories_change(self, e):
+        """Gère le changement du nombre max de catégories dans les pie charts."""
+        value = e.control.value
+        if value:
+            clean_value = "".join(filter(str.isdigit, value))
+            if clean_value != value:
+                e.control.value = clean_value
+                e.control.update()
+            if clean_value and int(clean_value) > 0:
+                self.max_categories_pie = clean_value
+                db.set_setting("max_categories_pie", self.max_categories_pie)
+
+    def _on_max_categories_blur(self, e):
+        if self.max_categories_pie and int(self.max_categories_pie) > 0:
             self.on_data_change()
 
     def _on_currency_change(self, e):
@@ -1326,6 +1343,17 @@ class ParametersView:
             ),
         )
 
+        max_categories_field = ft.TextField(
+            value=self.max_categories_pie,
+            width=80,
+            keyboard_type=ft.KeyboardType.NUMBER,
+            on_change=self._on_max_categories_change,
+            on_blur=self._on_max_categories_blur,
+            on_submit=self._on_max_categories_blur,
+            text_align=ft.TextAlign.RIGHT,
+            content_padding=10,
+        )
+
         # === Section Sécurité ===
         from src.database import db
 
@@ -1407,6 +1435,11 @@ class ParametersView:
                     t("param_month_mode"),
                     t("param_month_mode_desc"),
                     month_mode_selector,
+                ),
+                self._build_setting_row(
+                    t("param_max_categories"),
+                    t("param_max_categories_desc"),
+                    max_categories_field,
                 ),
             ],
         )

@@ -212,7 +212,7 @@ def test_account_discrimination(db_manager):
 
 
 def test_accounts_distribution(db_manager):
-    """Test que la répartition des comptes retourne les soldes attendus."""
+    """Test que la répartition des comptes retourne les soldes et couleurs attendus."""
     checking_id = db_manager.add_category(
         "Distribution Checking", "#111111", account_type="checking"
     )
@@ -244,9 +244,12 @@ def test_accounts_distribution(db_manager):
 
     distribution = db_manager.get_accounts_distribution()
     balances = {item["name"]: item["value"] for item in distribution}
+    colors = {item["name"]: item["color"] for item in distribution if "color" in item}
 
     assert balances["Distribution Checking"] == 750.0
     assert balances["Distribution Savings"] == 3000.0
+    assert colors["Distribution Checking"] == "#111111"
+    assert colors["Distribution Savings"] == "#222222"
 
 
 def test_rename_category_propagates_to_transactions(db_manager):
@@ -424,6 +427,13 @@ def test_settings_management(db_manager):
     db_manager.set_setting("user_name", "Jean")
     val = db_manager.get_setting("user_name")
     assert val == "Jean"
+
+    # 8. max_categories_pie (pie chart setting)
+    val = db_manager.get_setting("max_categories_pie", "5")
+    assert val == "5"
+    db_manager.set_setting("max_categories_pie", "10")
+    val = db_manager.get_setting("max_categories_pie")
+    assert val == "10"
 
 
 # ==========================================

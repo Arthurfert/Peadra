@@ -14,31 +14,30 @@
 
 ## Overview
 
-Peadra (*"wealth" in Breton*) is a desktop application designed to help you track and manage your personal finances and assets. 
+Peadra ("*wealth*" in Breton) is a secure, privacy-focused desktop application designed to streamline personal finance and asset management.
 
-> [!NOTE]
-> It is not connected to any banking system and organization, as it is just a local accounting app.  
-> It aims to enhance the typical excel sheets you are maybe using.
+Built as a modern, local-first alternative to cumbersome spreadsheets, Peadra gives you complete control over your financial data without connecting to external banking systems.
 
 ## Features
 
-- View your current balance, assets distribution and evolution
-- Add, modify and delete transactions
-- Add, modify and delete your accounts
-- View recurring transactions and subscriptions
-- View your transactions into categories, rename and merge them
-- Import data from CSV files, export in JSON & CSV
-- Multi accounts & authentification
-- French translation
-- In-app updates
+**Portfolio & Asset Management**  
+- **Comprehensive Overview:** Track your current balance, asset distribution, and financial evolution over time.
+- **Category Insights:** Organize transactions into categories with the ability to dynamically rename, merge, and restructure them.
+- **Subscription Tracking:** Monitor recurring transactions and active subscriptions at a glance.
 
-> A lot of features [to come](TODO.md) !
+**Account & Transaction Management**  
+- **Full Operations:** Easily add, modify, or delete accounts and individual transactions.
+- **Multi-Account Support:** Manage multiple distinct accounts with independent tracking.
+- **Multi-User Authentication:** Secure access control for different users on the same device.
 
-## Technologies
+**Data Control & System**  
+- **Local & Secure:** Powered by a local SQLite database. Your financial data never leaves your machine.
+- **Flexible Data Portability:** Seamlessly import data via CSV files, and export your history in both JSON and CSV formats.
+- **Seamless Maintenance:** Stay up to date effortlessly with built-in, in-app updates.
 
-- UI : **Flet** (*Python library based on Flutter*)
-- Backend : **Python** (*3.10 or higher*)
-- Database : **SQLite** (*All your data is stored locally, and your the only one having access to it !*)
+**Supported languages:** English, French.
+
+> ...and many more features [to come](TODO.md) !
 
 ## Install
 
@@ -47,7 +46,13 @@ Download the executable file (**Windows & Linux**) on the release section on you
 > [!NOTE]
 > The database will be automatically created next to the executable.
 
-For developers or MacOS users, please refer to [the install tutorial](./INSTALLATION.md).
+For developers or MacOS users, please refer to [the install tutorial](./INSTALLATION.md).  
+
+## Technologies
+
+- User Interface : **Flet** (*A powerful Python framework built on Flutter for native desktop experiences*)
+- Core Backend : **Python** (*Version 3.10 or higher required for building*)
+- Database : **SQLite** (*Lightweight, robust, and 100% local storage*)
 
 ## Project Structure
 
@@ -60,6 +65,9 @@ Peadra/
 └── src/
     ├── __init__.py
     ├── i18n.py               # Translation
+    ├── logger.py             # Logging (help resolve issues)
+    ├── update_manager.py     # App updater engine
+    ├── version.py            # Store Peadra's current version
     ├── components/           # Reusable UI components
     │   ├── __init__.py
     │   ├── modals.py         # Transaction and Asset modals
@@ -71,10 +79,12 @@ Peadra/
     └── views/                # Application views
         ├── __init__.py
         ├── accounts.py       # Accounts view
+        ├── categories.py     # Categories view
         ├── dashboard.py      # Dashboard view
         ├── import_data.py    # Import data view
+        ├── login.py          # Login view (at startup)
         ├── parameters.py     # Parameters view
-        ├── subscriptions.py  # Parameters view
+        ├── subscriptions.py  # Subscriptions & recurring transactions view
         └── transactions.py   # Transactions management view
 ```
 

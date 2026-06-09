@@ -10,7 +10,6 @@ Peadra is a personal wealth management application built in **Python**, using th
 - **Language**: Python 3.10+
 - **Interface**: [Flet](https://flet.dev/) (based on Flutter)
 - **Database**: SQLite
-- **Package Manager**: pip
 
 ---
 
@@ -63,6 +62,9 @@ Peadra/
 └── src/
     ├── __init__.py
     ├── i18n.py               # Translation
+    ├── logger.py             # Logging (help resolve issues)
+    ├── update_manager.py     # App updater engine
+    ├── version.py            # Store Peadra's current version
     ├── components/           # Reusable UI components
     │   ├── __init__.py
     │   ├── modals.py         # Transaction and Asset modals
@@ -74,10 +76,12 @@ Peadra/
     └── views/                # Application views
         ├── __init__.py
         ├── accounts.py       # Accounts view
+        ├── categories.py     # Categories view
         ├── dashboard.py      # Dashboard view
         ├── import_data.py    # Import data view
+        ├── login.py          # Login view (at startup)
         ├── parameters.py     # Parameters view
-        ├── subscriptions.py  # Parameters view
+        ├── subscriptions.py  # Subscriptions & recurring transactions view
         └── transactions.py   # Transactions management view
 ```
 

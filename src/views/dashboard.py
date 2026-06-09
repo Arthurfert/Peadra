@@ -50,6 +50,20 @@ class DashboardView:
         if hasattr(self, "chart_container_main"):
             self.chart_container_main.content = self._build_income_expense_chart()
             self.chart_container_main.update()
+        if hasattr(self, "charts_row_2"):
+            self.charts_row_2.content = ft.Row(
+                [
+                    ft.Container(content=self._build_category_chart(), expand=1),
+                    ft.Container(
+                        content=self._build_income_distribution_chart(), expand=1
+                    ),
+                    ft.Container(
+                        content=self._build_account_distribution_chart(), expand=1
+                    ),
+                ],
+                spacing=20,
+            )
+            self.charts_row_2.update()
 
     def _get_month_bounds(self, year: int, month: int) -> tuple[str, str]:
         """Retourne les bornes inclusives d'un mois (YYYY-MM-DD)."""
@@ -216,9 +230,8 @@ class DashboardView:
                 prev_end_dt.strftime("%Y-%m-%d"),
             )
 
-            # Rolling period dates for category breakdown
-            category_start_date = rolling_start
-            category_end_date = rolling_end
+            month_category_start = rolling_start
+            month_category_end = rolling_end
         else:
             # Strict: calendar month
             current_start, current_end = self._get_month_bounds(now.year, now.month)
@@ -234,8 +247,8 @@ class DashboardView:
             )
             prev_income, prev_expenses = self._get_filtered_totals(prev_start, prev_end)
 
-            # Calendar month dates for category breakdown
-            category_start_date, category_end_date = current_start, current_end
+            month_category_start = current_start
+            month_category_end = current_end
 
         # For Stocks (Savings/Balance), we compare Current Value vs Value at Start of Month (History)
         start_of_month_str = now.replace(day=1).strftime("%Y-%m-%d")
@@ -278,11 +291,15 @@ class DashboardView:
 
         self.chart_data = self._build_chart_data(start_year, start_month, num_months)
 
-        # Simplified category logic for Expenses logic
-        start_date = category_start_date
-        end_date = category_end_date
+        # Category dates: use month-mode when "1M" selected, otherwise chart duration
+        if self.chart_duration == "1":
+            category_start_date = month_category_start
+            category_end_date = month_category_end
+        else:
+            category_start_date = f"{start_year}-{start_month:02d}-01"
+            category_end_date = now.strftime("%Y-%m-%d")
 
-        txs = db.get_transactions_by_period(start_date, end_date)
+        txs = db.get_transactions_by_period(category_start_date, category_end_date)
         self.category_expenses = {}
         self.category_incomes = {}
         for transaction in txs:
@@ -742,6 +759,7 @@ class DashboardView:
                             else list(e.control.selected)[0]
                         ),
                         segments=[
+                            ft.Segment(value="1", label=ft.Text("1M")),
                             ft.Segment(value="3", label=ft.Text("3M")),
                             ft.Segment(value="6", label=ft.Text("6M")),
                             ft.Segment(value="12", label=ft.Text("1Y")),
@@ -1060,7 +1078,7 @@ class DashboardView:
         )
         charts_row_1 = self.chart_container_main
 
-        charts_row_2 = ft.Container(
+        self.charts_row_2 = ft.Container(
             content=ft.Row(
                 [
                     ft.Container(content=self._build_category_chart(), expand=1),
@@ -1107,7 +1125,7 @@ class DashboardView:
                 ft.Container(height=20),
                 charts_row_1,
                 ft.Container(height=20),
-                charts_row_2,
+                self.charts_row_2,
             ],
             scroll=ft.ScrollMode.AUTO,
             expand=True,

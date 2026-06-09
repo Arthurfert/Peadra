@@ -437,6 +437,48 @@ def test_settings_management(db_manager):
 
 
 # ==========================================
+# Tests Mot de Passe Applicatif
+# ==========================================
+
+
+def test_password_manager_and_app_password_flow(db_manager):
+    """Test PasswordManager et le cycle complet du mot de passe applicatif."""
+    from src.database.db_manager import PasswordManager
+
+    # --- PasswordManager unit tests ---
+    hash_a = PasswordManager.hash_password("secret")
+    hash_b = PasswordManager.hash_password("secret")
+    assert hash_a == hash_b, "le hachage doit être déterministe"
+    assert len(hash_a) == 64, "SHA-256 hexdigest fait 64 caractères"
+
+    assert PasswordManager.verify_password("secret", hash_a) is True
+    assert PasswordManager.verify_password("wrong", hash_a) is False
+    assert PasswordManager.verify_password("", hash_a) is False
+
+    # --- First-time set (pas d'ancien mot de passe à vérifier) ---
+    pwd1_hash = PasswordManager.hash_password("first_pwd")
+    db_manager.set_setting("app_password_hash", pwd1_hash)
+    assert db_manager.get_setting("app_password_hash") == pwd1_hash
+
+    # --- Old password verification ---
+    current = db_manager.get_setting("app_password_hash")
+    assert PasswordManager.verify_password("first_pwd", current) is True
+    assert PasswordManager.verify_password("bad_guess", current) is False
+
+    # --- Change password with correct old password ---
+    pwd2_hash = PasswordManager.hash_password("second_pwd")
+    db_manager.set_setting("app_password_hash", pwd2_hash)
+    stored = db_manager.get_setting("app_password_hash")
+    assert stored == pwd2_hash
+    assert PasswordManager.verify_password("second_pwd", stored) is True
+    assert PasswordManager.verify_password("first_pwd", stored) is False
+
+    # --- Remove password ---
+    db_manager.set_setting("app_password_hash", "")
+    assert db_manager.get_setting("app_password_hash") == ""
+
+
+# ==========================================
 # Tests Transactions Récurrentes
 # ==========================================
 

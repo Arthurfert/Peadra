@@ -68,7 +68,7 @@ class SubscriptionsView:
 
         snack = ft.SnackBar(
             ft.Text(t("sub_update_success"), color=ft.Colors.WHITE),
-            bgcolor=PeadraTheme.SUCCESS,
+            bgcolor=PeadraTheme.success,
         )
         self.page.overlay.append(snack)
         snack.open = True
@@ -152,9 +152,9 @@ class SubscriptionsView:
             self.calendar_container.update()
 
     def _build_calendar(self) -> ft.Container:
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        text_color = PeadraTheme.text
         bg_color = (
-            PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
+            PeadraTheme.surface
         )
         border_color = ft.Colors.with_opacity(0.1, text_color)
 
@@ -313,7 +313,7 @@ class SubscriptionsView:
                     day_content: List[ft.Control] = [
                         ft.Text(
                             str(day),
-                            color=PeadraTheme.ACCENT if is_today else text_color,
+                            color=PeadraTheme.accent if is_today else text_color,
                             weight=(
                                 ft.FontWeight.BOLD if is_today else ft.FontWeight.NORMAL
                             ),
@@ -346,7 +346,7 @@ class SubscriptionsView:
                     day_bg = (
                         ft.Colors.with_opacity(0.05, text_color)
                         if not is_today
-                        else ft.Colors.with_opacity(0.1, PeadraTheme.ACCENT)
+                        else ft.Colors.with_opacity(0.1, PeadraTheme.accent)
                     )
 
                     day_container = ft.Container(
@@ -438,9 +438,9 @@ class SubscriptionsView:
         return yearly_total, projection_label, True
 
     def _build_list(self) -> ft.Container:
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        text_color = PeadraTheme.text
         bg_color = (
-            PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
+            PeadraTheme.surface
         )
 
         grid_items = []
@@ -538,8 +538,8 @@ class SubscriptionsView:
     def build(self):
         """Construit l'interface de la vue."""
 
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
-        bg_color = PeadraTheme.DARK_BG if self.is_dark else PeadraTheme.LIGHT_BG
+        text_color = PeadraTheme.text
+        bg_color = PeadraTheme.bg
 
         self.calendar_container = ft.Container(
             content=self._build_calendar(), expand=False

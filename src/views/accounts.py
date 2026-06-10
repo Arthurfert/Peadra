@@ -342,7 +342,7 @@ class AccountsView:
             label=t("acc_delete_transactions"),
             value=False,
             label_style=ft.TextStyle(
-                color=PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+                color=PeadraTheme.text
             ),
         )
 
@@ -374,9 +374,9 @@ class AccountsView:
     def _build_account_card(self, account):
         """Construit une carte pour un compte."""
         bg_card = (
-            PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
+            PeadraTheme.surface
         )
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        text_color = PeadraTheme.text
 
         return ft.Container(
             content=ft.Column(
@@ -480,7 +480,7 @@ class AccountsView:
             padding=20,
             on_click=lambda _: self._open_dialog(),
             bgcolor=(
-                PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
+                PeadraTheme.surface
             ),
             border=ft.border.all(
                 2, ft.Colors.GREY_800 if self.is_dark else ft.Colors.GREY_300
@@ -496,11 +496,7 @@ class AccountsView:
                     t("acc_title"),
                     size=32,
                     weight=ft.FontWeight.BOLD,
-                    color=(
-                        PeadraTheme.DARK_TEXT
-                        if self.is_dark
-                        else PeadraTheme.LIGHT_TEXT
-                    ),
+                    color=PeadraTheme.text,
                 ),
                 ft.Container(height=20),
                 ft.Container(content=grid, expand=True),

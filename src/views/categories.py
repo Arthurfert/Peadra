@@ -157,19 +157,11 @@ class CategoriesView:
                     content=ft.Text(
                         t("cat_no_data_period"),
                         size=14,
-                        color=(
-                            PeadraTheme.DARK_TEXT
-                            if self.is_dark
-                            else PeadraTheme.LIGHT_TEXT
-                        ),
+                        color=PeadraTheme.text,
                     ),
                     padding=20,
                     border_radius=16,
-                    bgcolor=(
-                        PeadraTheme.DARK_SURFACE
-                        if self.is_dark
-                        else PeadraTheme.LIGHT_SURFACE
-                    ),
+                    bgcolor=PeadraTheme.surface,
                 )
             )
 
@@ -177,8 +169,8 @@ class CategoriesView:
 
     def build(self) -> ft.Container:
         """Construit la vue des catégories."""
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
-        bg_color = PeadraTheme.DARK_BG if self.is_dark else PeadraTheme.LIGHT_BG
+        text_color = PeadraTheme.text
+        bg_color = PeadraTheme.bg
 
         # Titre principal
         title = ft.Text(
@@ -262,9 +254,9 @@ class CategoriesView:
     ) -> ft.Container:
         """Construit une section de cartes de catégories avec chargement incrémental."""
         bg_card = (
-            PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
+            PeadraTheme.surface
         )
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        text_color = PeadraTheme.text
 
         visible_count = self.visible_counts.get(transaction_type, 4)
         max_cards = min(visible_count, len(categories))
@@ -374,9 +366,9 @@ class CategoriesView:
     ) -> Optional[ft.Container]:
         """Construit une petite carte de catégorie avec son sparkline."""
         bg_card = (
-            PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
+            PeadraTheme.surface
         )
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        text_color = PeadraTheme.text
 
         description_name = str(category.get("description") or "").strip()
         if description_name not in self.category_monthly_data:
@@ -456,7 +448,7 @@ class CategoriesView:
             min_y=0,
             max_y=max_y,
             expand=True,
-            tooltip=fch.LineChartTooltip(bgcolor=PeadraTheme.SURFACE),
+            tooltip=fch.LineChartTooltip(bgcolor=PeadraTheme.chart_tooltip_bg),
         )
 
         return ft.Container(

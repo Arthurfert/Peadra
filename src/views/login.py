@@ -35,11 +35,9 @@ class LoginView:
         self.on_login_success = on_login_success
         self.existing_users = existing_users or []
 
-        # Thème
-        self.theme = (
-            PeadraTheme.get_dark_theme() if is_dark else PeadraTheme.get_light_theme()
-        )
-        self.bg_color = PeadraTheme.DARK_BG if is_dark else PeadraTheme.LIGHT_BG
+        # Thème — PeadraTheme.current_theme is already set by the caller
+        self.theme = PeadraTheme.get_flet_theme()
+        self.bg_color = PeadraTheme.bg
 
         # État : en mode registration si aucun utilisateur existant
         self.is_registration_mode = len(self.existing_users) == 0
@@ -92,6 +90,10 @@ class LoginView:
             width=300,
             height=50,
             on_click=self._on_action_click,
+            style=ft.ButtonStyle(
+                bgcolor=PeadraTheme.accent,
+                color=ft.Colors.WHITE,
+            ),
         )
 
         self.toggle_button = ft.TextButton(
@@ -134,7 +136,7 @@ class LoginView:
                 label=t("login_user"),
                 options=dropdown_options,
                 width=300,
-                focused_border_color=PeadraTheme.PRIMARY_LIGHT,
+                focused_border_color=PeadraTheme.primary_light,
                 value=self.existing_users[0] if self.existing_users else None,
             )
             fields.append(self.username_dropdown)

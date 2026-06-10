@@ -30,10 +30,8 @@ class NavigationRailComponent:
 
     def build(self) -> ft.Container:
         """Construit le composant Navigation (Sidebar)."""
-        bg_color = (
-            PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
-        )
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        bg_color = PeadraTheme.surface
+        text_color = PeadraTheme.text
 
         # Récupérer le solde actuel
         total_patrimony = db.get_total_patrimony()
@@ -46,7 +44,7 @@ class NavigationRailComponent:
             # Couleurs
             if self.is_dark:
                 item_bg = (
-                    PeadraTheme.PRIMARY_MEDIUM if is_selected else ft.Colors.TRANSPARENT
+                    PeadraTheme.primary_medium if is_selected else ft.Colors.TRANSPARENT
                 )
                 item_icon = ft.Colors.WHITE if is_selected else text_color
                 item_text = ft.Colors.WHITE if is_selected else text_color

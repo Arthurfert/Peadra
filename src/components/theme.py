@@ -5,59 +5,106 @@ Design Glassmorphism avec palette Armorique (bleus profonds et gris ardoise).
 
 import flet as ft
 from typing import Optional, Any
+from dataclasses import dataclass
 
 
-class PeadraTheme:
-    """Gestionnaire de thèmes pour l'application Peadra."""
+@dataclass
+class ThemeColors:
+    name: str
+    bg: str
+    surface: str
+    text: str
+    text_secondary: str
+    primary_dark: str
+    primary_medium: str
+    primary_light: str
+    accent: str
+    success: str
+    warning: str
+    error: str
+    info: str
+    chart_tooltip_bg: str
+    glass_blur: int = 10
+    glass_opacity: float = 0.3
 
-    # Couleurs principales - Palette Armorique
-    PRIMARY_DARK = "#081019"  # Bleu nuit profond
-    PRIMARY_MEDIUM = "#161F31"  # Bleu marine
-    PRIMARY_LIGHT = "#54687E"  # Bleu gris
-    ACCENT = "#6FA4E8"  # Bleu ardoise
-    SURFACE = "#E9E6DC"  # Gris clair
 
-    # Couleurs pour le mode clair
-    LIGHT_BG = "#F0F4FF"
-    LIGHT_SURFACE = "#F5FAFF"
-    LIGHT_TEXT = "#181F2D"
-    LIGHT_TEXT_SECONDARY = "#2D4056"
+class _ThemeMeta(type):
+    def __getattr__(cls, name):
+        try:
+            return getattr(cls.THEMES[cls.current_theme], name)
+        except KeyError:
+            raise AttributeError(
+                f"Unknown theme '{cls.current_theme}'. "
+                f"Available: {list(cls.THEMES.keys())}"
+            )
+        except AttributeError:
+            raise AttributeError(f"'{cls.__name__}' has no attribute '{name}'")
 
-    # Couleurs pour le mode sombre
-    DARK_BG = "#0D1B2A"
-    DARK_SURFACE = "#1B263B"
-    DARK_TEXT = "#E0E1DD"
-    DARK_TEXT_SECONDARY = "#778DA9"
 
-    # Couleurs d'accent pour les catégories
-    CASH_COLOR = "#4CAF50"  # Vert
-    IMMO_COLOR = "#FF9800"  # Orange
-    BOURSE_COLOR = "#2196F3"  # Bleu
+class PeadraTheme(metaclass=_ThemeMeta):
+    current_theme: str = "dark"
 
-    # Couleurs fonctionnelles
-    SUCCESS = "#4CAF50"
-    WARNING = "#FFC107"
-    ERROR = "#F44336"
-    INFO = "#2196F3"
+    THEMES: dict[str, ThemeColors] = {
+        "light": ThemeColors(
+            name="light",
+            bg="#F0F4FF",
+            surface="#F5FAFF",
+            text="#181F2D",
+            text_secondary="#2D4056",
+            primary_dark="#081019",
+            primary_medium="#161F31",
+            primary_light="#54687E",
+            accent="#6FA4E8",
+            success="#4CAF50",
+            warning="#FFC107",
+            error="#F44336",
+            info="#2196F3",
+            chart_tooltip_bg="#E3F2FD",
+            glass_blur=10,
+            glass_opacity=0.7,
+        ),
+        "dark": ThemeColors(
+            name="dark",
+            bg="#0D1B2A",
+            surface="#1B263B",
+            text="#E0E1DD",
+            text_secondary="#778DA9",
+            primary_dark="#081019",
+            primary_medium="#161F31",
+            primary_light="#54687E",
+            accent="#6FA4E8",
+            success="#4CAF50",
+            warning="#FFC107",
+            error="#F44336",
+            info="#2196F3",
+            chart_tooltip_bg="#0D1B2A",
+            glass_blur=10,
+            glass_opacity=0.3,
+        ),
+    }
 
-    # Glassmorphism properties
-    GLASS_BLUR = 10
-    GLASS_OPACITY_LIGHT = 0.7
-    GLASS_OPACITY_DARK = 0.3
+    @classmethod
+    def set_theme(cls, name: str) -> None:
+        if name not in cls.THEMES:
+            raise ValueError(
+                f"Unknown theme: '{name}'. "
+                f"Available: {list(cls.THEMES.keys())}"
+            )
+        cls.current_theme = name
 
     @staticmethod
     def get_light_theme() -> ft.Theme:
-        """Retourne le thème clair."""
-        return ft.Theme(  # type: ignore[call-arg]
-            color_scheme_seed=PeadraTheme.PRIMARY_MEDIUM,
+        colors = PeadraTheme.THEMES["light"]
+        return ft.Theme(
+            color_scheme_seed=colors.primary_medium,
             color_scheme=ft.ColorScheme(
-                primary=PeadraTheme.PRIMARY_MEDIUM,
+                primary=colors.primary_medium,
                 on_primary=ft.Colors.WHITE,
-                secondary=PeadraTheme.ACCENT,
+                secondary=colors.accent,
                 on_secondary=ft.Colors.WHITE,
-                surface=PeadraTheme.LIGHT_SURFACE,
-                on_surface=PeadraTheme.LIGHT_TEXT,
-                error=PeadraTheme.ERROR,
+                surface=colors.surface,
+                on_surface=colors.text,
+                error=colors.error,
                 on_error=ft.Colors.WHITE,
             ),
             font_family="Segoe UI",
@@ -66,17 +113,17 @@ class PeadraTheme:
 
     @staticmethod
     def get_dark_theme() -> ft.Theme:
-        """Retourne le thème sombre."""
-        return ft.Theme(  # type: ignore[call-arg]
-            color_scheme_seed=PeadraTheme.PRIMARY_DARK,
+        colors = PeadraTheme.THEMES["dark"]
+        return ft.Theme(
+            color_scheme_seed=colors.primary_dark,
             color_scheme=ft.ColorScheme(
-                primary=PeadraTheme.ACCENT,
-                on_primary=PeadraTheme.DARK_BG,
-                secondary=PeadraTheme.PRIMARY_LIGHT,
+                primary=colors.accent,
+                on_primary=colors.bg,
+                secondary=colors.primary_light,
                 on_secondary=ft.Colors.WHITE,
-                surface=PeadraTheme.DARK_SURFACE,
-                on_surface=PeadraTheme.DARK_TEXT,
-                error=PeadraTheme.ERROR,
+                surface=colors.surface,
+                on_surface=colors.text,
+                error=colors.error,
                 on_error=ft.Colors.WHITE,
             ),
             font_family="Segoe UI",
@@ -84,34 +131,37 @@ class PeadraTheme:
         )
 
     @staticmethod
-    def card(
-        content: ft.Control,
-        is_dark: bool = True,
-        padding: int = 16,
-        border_radius: int = 12,
-        width: Optional[int] = None,
-        height: Optional[int] = None,
-    ) -> ft.Container:
-        """Crée une carte stylisée."""
+    def get_flet_theme() -> ft.Theme:
+        colors = PeadraTheme.THEMES[PeadraTheme.current_theme]
+        is_dark = PeadraTheme.current_theme != "light"
         if is_dark:
-            bg_color = PeadraTheme.DARK_SURFACE
-            border_color = "rgba(119, 141, 169, 0.2)"
-        else:
-            bg_color = PeadraTheme.LIGHT_SURFACE
-            border_color = "rgba(27, 38, 59, 0.1)"
-
-        return ft.Container(
-            content=content,
-            padding=padding,
-            border_radius=border_radius,
-            width=width,
-            height=height,
-            bgcolor=bg_color,
-            border=ft.border.all(1, border_color),
-            shadow=ft.BoxShadow(
-                spread_radius=0,
-                blur_radius=8,
-                color="rgba(0, 0, 0, 0.15)",
-                offset=ft.Offset(0, 2),
+            return ft.Theme(
+                color_scheme_seed=colors.primary_dark,
+                color_scheme=ft.ColorScheme(
+                    primary=colors.accent,
+                    on_primary=colors.bg,
+                    secondary=colors.primary_light,
+                    on_secondary=ft.Colors.WHITE,
+                    surface=colors.surface,
+                    on_surface=colors.text,
+                    error=colors.error,
+                    on_error=ft.Colors.WHITE,
+                ),
+                font_family="Segoe UI",
+                use_material3=True,
+            )
+        return ft.Theme(
+            color_scheme_seed=colors.primary_medium,
+            color_scheme=ft.ColorScheme(
+                primary=colors.primary_medium,
+                on_primary=ft.Colors.WHITE,
+                secondary=colors.accent,
+                on_secondary=ft.Colors.WHITE,
+                surface=colors.surface,
+                on_surface=colors.text,
+                error=colors.error,
+                on_error=ft.Colors.WHITE,
             ),
+            font_family="Segoe UI",
+            use_material3=True,
         )

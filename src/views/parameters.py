@@ -298,9 +298,9 @@ class ParametersView:
         self, title: str, icon: Any, children: List[ft.Control]
     ) -> ft.Container:
         """Construit une carte de section de paramètres."""
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        text_color = PeadraTheme.text
         bg_card = (
-            PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
+            PeadraTheme.surface
         )
 
         return ft.Container(
@@ -308,7 +308,7 @@ class ParametersView:
                 [
                     ft.Row(
                         [
-                            ft.Icon(cast(Any, icon), color=PeadraTheme.ACCENT, size=24),
+                            ft.Icon(cast(Any, icon), color=PeadraTheme.accent, size=24),
                             ft.Text(
                                 title,
                                 size=18,
@@ -344,7 +344,7 @@ class ParametersView:
         control: ft.Control,
     ) -> ft.Container:
         """Construit une ligne de paramètre."""
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        text_color = PeadraTheme.text
 
         if isinstance(description, ft.Control):
             description_control = description
@@ -381,7 +381,7 @@ class ParametersView:
         """Construit une option de thème cliquable."""
         is_selected = self.is_dark == is_dark_option
         border_color = (
-            PeadraTheme.ACCENT
+            PeadraTheme.accent
             if is_selected
             else ft.Colors.with_opacity(0.1, ft.Colors.GREY)
         )
@@ -409,11 +409,7 @@ class ParametersView:
                         weight=(
                             ft.FontWeight.BOLD if is_selected else ft.FontWeight.NORMAL
                         ),
-                        color=(
-                            PeadraTheme.DARK_TEXT
-                            if self.is_dark
-                            else PeadraTheme.LIGHT_TEXT
-                        ),
+                        color=PeadraTheme.text,
                     ),
                 ],
                 alignment=ft.MainAxisAlignment.CENTER,
@@ -513,7 +509,7 @@ class ParametersView:
 
             snack = ft.SnackBar(
                 content=ft.Text(t("msg_export_error"), color=ft.Colors.WHITE),
-                bgcolor=PeadraTheme.ERROR,
+                bgcolor=PeadraTheme.error,
             )
             self.page.overlay.append(snack)
             snack.open = True
@@ -545,7 +541,7 @@ class ParametersView:
             self._show_snackbar(t("msg_export_error"), success=False)
 
     def _show_snackbar(self, message: str, success: bool = True):
-        color = PeadraTheme.SUCCESS if success else PeadraTheme.ERROR
+        color = PeadraTheme.success if success else PeadraTheme.error
         snack = ft.SnackBar(
             content=ft.Text(message, color=ft.Colors.WHITE),
             bgcolor=color,
@@ -693,13 +689,13 @@ class ParametersView:
         progress_text = ft.Text(
             t("param_update_status_downloading").format(percent=0),
             size=14,
-            color=PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT,
+            color=PeadraTheme.text,
         )
         progress_bar = ft.ProgressBar(value=0, width=400)
         instructions_text = ft.Text(
             t("param_update_instructions").format(percent=0),
             size=14,
-            color=PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT,
+            color=PeadraTheme.text,
         )
 
         dialog = ft.AlertDialog(
@@ -1149,7 +1145,7 @@ class ParametersView:
 
     def build(self) -> ft.Container:
         """Construit la vue paramètres."""
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        text_color = PeadraTheme.text
 
         # === Section Général ===
         user_name_field = ft.TextField(
@@ -1240,7 +1236,7 @@ class ParametersView:
             icon=ft.Icons.UPLOAD_FILE,
             on_click=self._on_import_csv,
             style=ft.ButtonStyle(
-                bgcolor=PeadraTheme.ACCENT,
+                bgcolor=PeadraTheme.accent,
                 color=ft.Colors.WHITE,
                 padding=ft.padding.symmetric(horizontal=20, vertical=12),
                 shape=ft.RoundedRectangleBorder(radius=10),
@@ -1254,8 +1250,8 @@ class ParametersView:
             style=ft.ButtonStyle(
                 padding=ft.padding.symmetric(horizontal=20, vertical=12),
                 shape=ft.RoundedRectangleBorder(radius=10),
-                side=ft.BorderSide(1, PeadraTheme.ACCENT),
-                color=PeadraTheme.ACCENT,
+                side=ft.BorderSide(1, PeadraTheme.accent),
+                color=PeadraTheme.accent,
             ),
         )
 
@@ -1271,8 +1267,8 @@ class ParametersView:
             style=ft.ButtonStyle(
                 padding=ft.padding.symmetric(horizontal=20, vertical=12),
                 shape=ft.RoundedRectangleBorder(radius=10),
-                side=ft.BorderSide(1, PeadraTheme.ACCENT),
-                color=PeadraTheme.ACCENT,
+                side=ft.BorderSide(1, PeadraTheme.accent),
+                color=PeadraTheme.accent,
             ),
         )
 
@@ -1283,8 +1279,8 @@ class ParametersView:
             style=ft.ButtonStyle(
                 padding=ft.padding.symmetric(horizontal=20, vertical=12),
                 shape=ft.RoundedRectangleBorder(radius=10),
-                side=ft.BorderSide(1, PeadraTheme.ACCENT),
-                color=PeadraTheme.ACCENT,
+                side=ft.BorderSide(1, PeadraTheme.accent),
+                color=PeadraTheme.accent,
             ),
         )
 
@@ -1296,8 +1292,8 @@ class ParametersView:
             style=ft.ButtonStyle(
                 padding=ft.padding.symmetric(horizontal=20, vertical=12),
                 shape=ft.RoundedRectangleBorder(radius=10),
-                side=ft.BorderSide(1, PeadraTheme.ACCENT),
-                color=PeadraTheme.ACCENT,
+                side=ft.BorderSide(1, PeadraTheme.accent),
+                color=PeadraTheme.accent,
             ),
         )
 
@@ -1338,9 +1334,9 @@ class ParametersView:
             padding=ft.padding.symmetric(horizontal=16, vertical=14),
             border_radius=12,
             bgcolor=(
-                PeadraTheme.DARK_SURFACE
-                if self.is_dark
-                else ft.Colors.with_opacity(0.35, PeadraTheme.LIGHT_SURFACE)
+PeadraTheme.surface
+                    if self.is_dark
+                    else ft.Colors.with_opacity(0.35, PeadraTheme.surface)
             ),
         )
 
@@ -1356,8 +1352,8 @@ class ParametersView:
             style=ft.ButtonStyle(
                 padding=ft.padding.symmetric(horizontal=20, vertical=12),
                 shape=ft.RoundedRectangleBorder(radius=10),
-                side=ft.BorderSide(1, PeadraTheme.ACCENT),
-                color=PeadraTheme.ACCENT,
+                side=ft.BorderSide(1, PeadraTheme.accent),
+                color=PeadraTheme.accent,
             ),
         )
 

@@ -225,7 +225,7 @@ class TransactionsView:
                 ft.ElevatedButton(
                     t("btn_apply_filters"),
                     on_click=apply_filter,
-                    bgcolor=PeadraTheme.ACCENT,
+                    bgcolor=PeadraTheme.accent,
                     color=ft.Colors.WHITE,
                 ),
             ],
@@ -624,7 +624,7 @@ class TransactionsView:
         return f"{month_name} {date_obj.day:02d}, {date_obj.year}"
 
     def _generate_rows(self):
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        text_color = PeadraTheme.text
         rows = []
 
         display_transactions = self._group_transactions(self.transactions)
@@ -831,8 +831,8 @@ class TransactionsView:
             self.content_column.update()
 
     def build(self) -> ft.Container:
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
-        surface_color = PeadraTheme.DARK_SURFACE if self.is_dark else ft.Colors.WHITE
+        text_color = PeadraTheme.text
+        surface_color = PeadraTheme.surface
 
         # Header
         header = ft.Row(
@@ -855,7 +855,7 @@ class TransactionsView:
                 ft.ElevatedButton(
                     t("trans_add_transaction"),
                     icon=ft.Icons.ADD,
-                    bgcolor=PeadraTheme.ACCENT,
+                    bgcolor=PeadraTheme.accent,
                     color=ft.Colors.WHITE,
                     on_click=self._open_type_selector,
                 ),

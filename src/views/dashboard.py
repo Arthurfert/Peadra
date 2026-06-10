@@ -331,9 +331,9 @@ class DashboardView:
         icon_color: str,
         trend_semantic: str = "normal",
     ) -> ft.Container:
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        text_color = PeadraTheme.text
         bg_card = (
-            PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
+            PeadraTheme.surface
         )
 
         is_positive = trend > 0
@@ -342,7 +342,7 @@ class DashboardView:
         else:
             is_good = is_positive
 
-        trend_color = PeadraTheme.SUCCESS if is_good else PeadraTheme.ERROR
+        trend_color = PeadraTheme.success if is_good else PeadraTheme.error
         trend_icon = ft.Icons.NORTH_EAST if is_good else ft.Icons.SOUTH_EAST
         trend_text = f"{'+' if is_positive else ''}{trend:.1f}%"
 
@@ -401,9 +401,9 @@ class DashboardView:
         )
 
     def _build_income_expense_chart(self) -> ft.Container:
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        text_color = PeadraTheme.text
         bg_card = (
-            PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
+            PeadraTheme.surface
         )
 
         dates = [d["month_label"] for d in self.chart_data]
@@ -617,7 +617,7 @@ class DashboardView:
                                     min_y=0,
                                     max_y=max_y_bars,
                                     tooltip=fch.BarChartTooltip(
-                                        bgcolor=PeadraTheme.SURFACE
+                                        bgcolor=PeadraTheme.chart_tooltip_bg
                                     ),
                                     expand=True,
                                 ),
@@ -721,7 +721,7 @@ class DashboardView:
                                     max_y=max_y_patrimony,
                                     expand=True,
                                     tooltip=fch.LineChartTooltip(
-                                        bgcolor=PeadraTheme.SURFACE
+                                        bgcolor=PeadraTheme.chart_tooltip_bg
                                     ),
                                 ),
                             ),
@@ -805,9 +805,9 @@ class DashboardView:
         name_to_color: Optional[dict[str, str]] = None,
         max_categories: int = 5,
     ) -> ft.Container:
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        text_color = PeadraTheme.text
         bg_card = (
-            PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
+            PeadraTheme.surface
         )
 
         valid_items: dict[str, float] = {}
@@ -996,9 +996,9 @@ class DashboardView:
         )
 
     def _build_account_distribution_chart(self) -> ft.Container:
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        text_color = PeadraTheme.text
         bg_card = (
-            PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
+            PeadraTheme.surface
         )
 
         # Filter out zero or negative balances for the pie chart
@@ -1021,7 +1021,7 @@ class DashboardView:
         )
 
     def build(self) -> ft.Container:
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        text_color = PeadraTheme.text
 
         # Colors for cards
         if self.is_dark:

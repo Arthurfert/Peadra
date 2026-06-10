@@ -235,7 +235,7 @@ class ImportDialog:
             disabled=True,
             style=ft.ButtonStyle(
                 bgcolor=(
-                    PeadraTheme.PRIMARY_MEDIUM if is_dark else PeadraTheme.PRIMARY_LIGHT
+                    PeadraTheme.primary_medium if is_dark else PeadraTheme.primary_light
                 ),
                 color=ft.Colors.WHITE,
             ),
@@ -381,7 +381,7 @@ class ImportDialog:
         # Update button color if needed
         if self.import_btn.style:
             self.import_btn.style.bgcolor = (
-                PeadraTheme.PRIMARY_MEDIUM if is_dark else PeadraTheme.PRIMARY_LIGHT
+                PeadraTheme.primary_medium if is_dark else PeadraTheme.primary_light
             )
         self.page.update()
 
@@ -526,7 +526,7 @@ class ImportDialog:
 
         except Exception as ex:
             self.status_text.value = f"{t('msg_error')}: {str(ex)}"
-            self.status_text.color = PeadraTheme.ERROR
+            self.status_text.color = PeadraTheme.error
             self.import_btn.disabled = True
             self.preview_table.visible = False
             # self.mapping_container.visible = False # Removed
@@ -719,7 +719,7 @@ class ImportDialog:
         self._close_dialog(None)
 
         # Show snackbar via page overlay
-        bg_col = PeadraTheme.SUCCESS
+        bg_col = PeadraTheme.success
         snack = ft.SnackBar(
             content=ft.Text(
                 t("import_success").format(count=count), color=ft.Colors.WHITE

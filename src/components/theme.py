@@ -140,6 +140,44 @@ class PeadraTheme(metaclass=_ThemeMeta):
             pie_hover_text="#ffffff",         # pie chart touch/hover label text
             chart_palette=("#10b981", "#3b82f6", "#f59e0b", "#8b5cf6", "#ef4444", "#06b6d4", "#ec4899"),
         ),
+        "autumn": ThemeColors(
+            name="autumn",
+            bg="#0a1c28",                     # page background (Warm rich space blue)
+            surface="#003049",                # cards, containers, sidebar, header (Deep Space Blue)
+            text="#eae2b7",                   # primary text (Vanilla Custard) 
+            text_secondary="#fcbf49",         # secondary text, chart grid lines (Sunflower Gold)
+            primary_dark="#001524",           # Flet color_scheme_seed
+            primary_medium="#002236",         # Flet primary
+            primary_light="#00486c",          # login focus border
+            accent="#f77f00",                 # Flet secondary (Princeton Orange)
+            success="#10b981",                # income amounts
+            warning="#fcbf49",                # warning indicators
+            error="#d62828",                  # Flag Red
+            info="#3b82f6",                   # info indicators
+            chart_tooltip_bg="#003049",       # chart tooltip background
+            border_color="#00486c",           # card/container borders
+            divider="#00486c",                # section separators, subtle borders
+            nav_selected_bg="#00486c",        # navigation active item background
+            nav_selected_fg="#eae2b7",        # navigation active item text/icon
+            transfer_color="#f77f00",         # transfer transaction icon color
+            income_bg="#064e3b",              # income row background
+            expense_bg="#7f1d1d",             # expense row background
+            transfer_bg="#1e3a8a",            # transfer row background
+            income_icon="#10b981",            # income icon
+            expense_icon="#d62828",           # expense icon
+            transfer_icon="#f77f00",          # transfer icon
+            delete_color="#d62828",           # delete/cancel buttons
+            add_color="#f77f00",              # add/create buttons
+            placeholder_color="#778e9a",      # secondary labels
+            chart_income="#10b981",           # income bar/legend color
+            chart_expense="#d62828",          # expense bar/legend color
+            chart_asset="#f77f00",            # asset/stat card icon
+            chart_asset_bg="#381d02",         # asset stat card background
+            savings_bg="#381d02",             # savings stat card background
+            savings_icon="#fcbf49",           # savings stat card icon
+            pie_hover_text="#003049",         # pie chart touch/hover label text
+            chart_palette=("#f77f00", "#fcbf49", "#d62828", "#eae2b7", "#10b981", "#3b82f6", "#8b5cf6"),
+        ),
     }
 
     @classmethod

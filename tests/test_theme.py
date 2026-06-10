@@ -50,6 +50,12 @@ def test_set_theme():
     assert PeadraTheme.surface == PeadraTheme.THEMES["dark"].surface
     assert PeadraTheme.text == PeadraTheme.THEMES["dark"].text
 
+    PeadraTheme.set_theme("autumn")
+    assert PeadraTheme.current_theme == "autumn"
+    assert PeadraTheme.bg == PeadraTheme.THEMES["autumn"].bg
+    assert PeadraTheme.surface == PeadraTheme.THEMES["autumn"].surface
+    assert PeadraTheme.text == PeadraTheme.THEMES["autumn"].text
+
 
 def test_get_flet_theme():
     PeadraTheme.set_theme("light")
@@ -58,6 +64,11 @@ def test_get_flet_theme():
     assert theme.color_scheme is not None
 
     PeadraTheme.set_theme("dark")
+    theme = PeadraTheme.get_flet_theme()
+    assert isinstance(theme, ft.Theme)
+    assert theme.color_scheme is not None
+
+    PeadraTheme.set_theme("autumn")
     theme = PeadraTheme.get_flet_theme()
     assert isinstance(theme, ft.Theme)
     assert theme.color_scheme is not None
@@ -73,7 +84,8 @@ def test_color_accessors():
 def test_themes_available():
     assert "light" in PeadraTheme.THEMES
     assert "dark" in PeadraTheme.THEMES
-    assert len(PeadraTheme.THEMES) >= 2
+    assert "autumn" in PeadraTheme.THEMES
+    assert len(PeadraTheme.THEMES) >= 3
 
 
 def test_theme_colors_dataclass():

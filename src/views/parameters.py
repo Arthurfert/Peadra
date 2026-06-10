@@ -193,7 +193,7 @@ class ParametersView:
     def __init__(
         self,
         page: ft.Page,
-        is_dark: bool,
+        theme_mode: str,
         on_data_change: Callable,
         on_toggle_theme: Callable,
         on_import: Callable,
@@ -202,7 +202,8 @@ class ParametersView:
         on_language_change: Optional[Callable] = None,
     ):
         self.page = page
-        self.is_dark = is_dark
+        self.theme_mode = theme_mode
+        self.is_dark = theme_mode != "light"
         self.on_data_change = on_data_change
         self.on_toggle_theme = on_toggle_theme
         self.on_import = on_import
@@ -280,9 +281,10 @@ class ParametersView:
                 e.control.value = current_username
                 self.page.update()
 
-    def update_theme(self, is_dark: bool):
+    def update_theme(self, theme_mode: str):
         """Met à jour le thème."""
-        self.is_dark = is_dark
+        self.theme_mode = theme_mode
+        self.is_dark = theme_mode != "light"
 
     def refresh(self):
         """Rafraîchit la vue (gérée par la reconstruction globale de l'UI)."""
@@ -376,10 +378,10 @@ class ParametersView:
         )
 
     def _build_theme_option(
-        self, label: str, image_src: str, is_dark_option: bool
+        self, label: str, image_src: str, theme_val: str
     ) -> ft.Container:
         """Construit une option de thème cliquable."""
-        is_selected = self.is_dark == is_dark_option
+        is_selected = self.theme_mode == theme_val
         border_color = (
             PeadraTheme.accent
             if is_selected
@@ -387,8 +389,8 @@ class ParametersView:
         )
 
         def on_click(e):
-            if self.is_dark != is_dark_option:
-                self.on_toggle_theme(e)
+            if self.theme_mode != theme_val:
+                self.on_toggle_theme(theme_val)
 
         return ft.Container(
             content=ft.Column(
@@ -1162,10 +1164,17 @@ class ParametersView:
                 self._build_theme_option(
                     t("param_light_theme"),
                     get_asset_path("assets/Dashboard_Light.jpg"),
-                    False,
+                    "light",
                 ),
                 self._build_theme_option(
-                    t("param_dark_theme"), get_asset_path("assets/Dashboard.jpg"), True
+                    t("param_dark_theme"),
+                    get_asset_path("assets/Dashboard.jpg"),
+                    "dark",
+                ),
+                self._build_theme_option(
+                    t("param_autumn_theme"),
+                    get_asset_path("assets/Dashboard.jpg"),
+                    "autumn",
                 ),
             ],
             spacing=20,

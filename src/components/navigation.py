@@ -49,9 +49,9 @@ class NavigationRailComponent:
                 item_icon = ft.Colors.WHITE if is_selected else text_color
                 item_text = ft.Colors.WHITE if is_selected else text_color
             else:
-                item_bg = "#E3F2FD" if is_selected else ft.Colors.TRANSPARENT
-                item_icon = "#1976D2" if is_selected else text_color
-                item_text = "#1976D2" if is_selected else text_color
+                item_bg = PeadraTheme.nav_selected_bg if is_selected else ft.Colors.TRANSPARENT
+                item_icon = PeadraTheme.nav_selected_fg if is_selected else text_color
+                item_text = PeadraTheme.nav_selected_fg if is_selected else text_color
 
             return ft.Container(
                 content=ft.Row(
@@ -131,7 +131,7 @@ class NavigationRailComponent:
                                 ft.Text(
                                     t("dash_total_assets"),
                                     size=14,
-                                    color=ft.Colors.GREY_500,
+                                    color=PeadraTheme.placeholder_color,
                                 ),
                                 ft.Text(
                                     f"{total_patrimony:,.2f} {currency}",

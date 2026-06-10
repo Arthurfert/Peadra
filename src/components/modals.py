@@ -577,18 +577,18 @@ class TransactionDetailsModal:
         is_transfer = "transfer" in transaction["transaction_type"]
 
         if is_income:
-            color = ft.Colors.GREEN
+            color = PeadraTheme.success
             icon = ft.Icons.ARROW_DOWNWARD
             amount_prefix = "+"
         elif is_expense:
-            color = ft.Colors.RED
+            color = PeadraTheme.error
             icon = ft.Icons.ARROW_UPWARD
             amount_prefix = "-"
             # Fix display for expense to be positive value with - sign if desired,
             # currently amount is stored positive usually.
             amount_prefix = "- "
         else:  # Transfer
-            color = ft.Colors.BLUE
+            color = PeadraTheme.transfer_color
             icon = ft.Icons.SWAP_HORIZ
             amount_prefix = ""
 
@@ -611,7 +611,7 @@ class TransactionDetailsModal:
                         ft.Text(
                             amount_txt, size=30, weight=ft.FontWeight.BOLD, color=color
                         ),
-                        ft.Text(date_str, size=14, color=ft.Colors.GREY),
+                        ft.Text(date_str, size=14, color=PeadraTheme.placeholder_color),
                     ],
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
@@ -622,7 +622,7 @@ class TransactionDetailsModal:
             ft.ListTile(
                 leading=ft.Icon(ft.Icons.DESCRIPTION),
                 title=ft.Text(
-                    translate("modal_description_label"), size=12, color=ft.Colors.GREY
+                    translate("modal_description_label"), size=12, color=PeadraTheme.placeholder_color
                 ),
                 subtitle=ft.Text(
                     transaction["description"], size=16, weight=ft.FontWeight.W_500
@@ -631,7 +631,7 @@ class TransactionDetailsModal:
             ft.ListTile(
                 leading=ft.Icon(ft.Icons.CATEGORY),
                 title=ft.Text(
-                    translate("modal_category_label"), size=12, color=ft.Colors.GREY
+                    translate("modal_category_label"), size=12, color=PeadraTheme.placeholder_color
                 ),
                 subtitle=ft.Text(full_category, size=16),
             ),
@@ -643,7 +643,7 @@ class TransactionDetailsModal:
                 ft.ListTile(
                     leading=ft.Icon(ft.Icons.NOTE),
                     title=ft.Text(
-                        translate("modal_notes_label"), size=12, color=ft.Colors.GREY
+                        translate("modal_notes_label"), size=12, color=PeadraTheme.placeholder_color
                     ),
                     subtitle=ft.Text(transaction["notes"], size=16),
                 )
@@ -671,7 +671,7 @@ class TransactionDetailsModal:
                     translate("modal_delete"),
                     icon=ft.Icons.DELETE,
                     on_click=self._on_delete_click,
-                    style=ft.ButtonStyle(color=ft.Colors.RED),
+                    style=ft.ButtonStyle(color=PeadraTheme.delete_color),
                 ),
             ],
             actions_alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -784,7 +784,7 @@ class MergeDescriptionsModal:
                             ft.Text(
                                 translate("cat_merge_hint"),
                                 size=13,
-                                color=ft.Colors.GREY_600,
+                                color=PeadraTheme.placeholder_color,
                             ),
                             ft.Divider(),
                             ft.Text(
@@ -924,7 +924,7 @@ class RenameDescriptionModal:
                             ft.Text(
                                 translate("cat_rename_hint"),
                                 size=13,
-                                color=ft.Colors.GREY_600,
+                                color=PeadraTheme.placeholder_color,
                             ),
                             ft.Divider(),
                             ft.Text(

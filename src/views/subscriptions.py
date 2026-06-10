@@ -90,7 +90,7 @@ class SubscriptionsView:
 
         snack = ft.SnackBar(
             ft.Text(t("msg_subscription_deleted"), color=ft.Colors.WHITE),
-            bgcolor=ft.Colors.GREEN,
+            bgcolor=PeadraTheme.success,
         )
         self.page.overlay.append(snack)
         snack.open = True
@@ -156,7 +156,7 @@ class SubscriptionsView:
         bg_color = (
             PeadraTheme.surface
         )
-        border_color = ft.Colors.with_opacity(0.1, text_color)
+        border_color = PeadraTheme.divider
 
         month_name = self._get_translated_month(self.current_month)
 
@@ -322,9 +322,9 @@ class SubscriptionsView:
 
                     for tx in day_txs:
                         color = (
-                            ft.Colors.RED_400
+                            PeadraTheme.error
                             if tx["transaction_type"] == "expense"
-                            else ft.Colors.GREEN_400
+                            else PeadraTheme.success
                         )
                         day_content.append(
                             ft.Container(
@@ -448,9 +448,9 @@ class SubscriptionsView:
 
         for tx in self.recurring_transactions:
             color = (
-                ft.Colors.RED_400
+                PeadraTheme.error
                 if tx["transaction_type"] == "expense"
-                else ft.Colors.GREEN_400
+                else PeadraTheme.success
             )
             card_bg = ft.Colors.with_opacity(0.05, color)
 

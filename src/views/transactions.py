@@ -72,22 +72,13 @@ class TransactionsView:
         """Ouvre le dialogue de sélection du type de transaction."""
 
         # Theme Colors
-        if self.is_dark:
-            expense_bg = ft.Colors.with_opacity(0.15, ft.Colors.RED)
-            income_bg = ft.Colors.with_opacity(0.15, ft.Colors.GREEN)
-            transfer_bg = ft.Colors.with_opacity(0.15, ft.Colors.BLUE)
-            expense_icon_col = ft.Colors.RED_200
-            income_icon_col = ft.Colors.GREEN_200
-            transfer_icon_col = ft.Colors.BLUE_200
-            text_col = ft.Colors.WHITE
-        else:
-            expense_bg = ft.Colors.RED_50
-            income_bg = ft.Colors.GREEN_50
-            transfer_bg = ft.Colors.BLUE_50
-            expense_icon_col = ft.Colors.RED_700
-            income_icon_col = ft.Colors.GREEN_700
-            transfer_icon_col = ft.Colors.BLUE_700
-            text_col = ft.Colors.BLACK
+        expense_bg = PeadraTheme.expense_bg
+        income_bg = PeadraTheme.income_bg
+        transfer_bg = PeadraTheme.transfer_bg
+        expense_icon_col = PeadraTheme.expense_icon
+        income_icon_col = PeadraTheme.income_icon
+        transfer_icon_col = PeadraTheme.transfer_icon
+        text_col = PeadraTheme.text
 
         def close_dlg(e):
             dlg.open = False
@@ -423,7 +414,7 @@ class TransactionsView:
                 ft.TextButton(
                     t("btn_delete"),
                     on_click=delete,
-                    style=ft.ButtonStyle(color=ft.Colors.RED),
+                    style=ft.ButtonStyle(color=PeadraTheme.delete_color),
                 ),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
@@ -573,7 +564,7 @@ class TransactionsView:
                 ft.TextButton(
                     t("btn_delete"),
                     on_click=delete,
-                    style=ft.ButtonStyle(color=ft.Colors.RED),
+                    style=ft.ButtonStyle(color=PeadraTheme.delete_color),
                 ),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
@@ -635,12 +626,8 @@ class TransactionsView:
             if is_group:
                 # TRANSFER ROW
                 icon = ft.Icons.SWAP_HORIZ
-                icon_color = ft.Colors.BLUE
-                icon_bg = (
-                    ft.Colors.with_opacity(0.1, ft.Colors.BLUE)
-                    if self.is_dark
-                    else ft.Colors.BLUE_50
-                )
+                icon_color = PeadraTheme.transfer_color
+                icon_bg = PeadraTheme.transfer_bg
                 amount_color = text_color
                 amount_prefix = ""
                 cat_name = t("trans_category_transfer")
@@ -659,17 +646,15 @@ class TransactionsView:
                 is_income = transaction["transaction_type"] == "income"
                 is_expense = transaction["transaction_type"] == "expense"
                 amount_color = (
-                    ft.Colors.GREEN
+                    PeadraTheme.success
                     if is_income
-                    else ft.Colors.RED if is_expense else text_color
+                    else PeadraTheme.error if is_expense else text_color
                 )
                 amount_prefix = "+" if is_income else "-" if is_expense else ""
 
                 icon = ft.Icons.NORTH_EAST if is_income else ft.Icons.SOUTH_WEST
-                icon_color = ft.Colors.GREEN if is_income else ft.Colors.RED
-                icon_bg = ft.Colors.GREEN_50 if is_income else ft.Colors.RED_50
-                if self.is_dark:
-                    icon_bg = ft.Colors.with_opacity(0.1, icon_color)
+                icon_color = PeadraTheme.success if is_income else PeadraTheme.error
+                icon_bg = PeadraTheme.income_bg if is_income else PeadraTheme.expense_bg
 
                 cat_name = transaction.get("category_name", "") or ""
                 cat_bg = transaction.get("category_color") or ft.Colors.GREY_300
@@ -761,18 +746,8 @@ class TransactionsView:
                 on_click=lambda e, trans=transaction: self._open_transaction_details(
                     trans
                 ),
-                border=(
-                    ft.border.only(
-                        bottom=ft.border.BorderSide(
-                            1, ft.Colors.with_opacity(0.1, ft.Colors.GREY)
-                        )
-                    )
-                    if self.is_dark
-                    else ft.border.only(
-                        bottom=ft.border.BorderSide(
-                            1, ft.Colors.with_opacity(0.6, ft.Colors.GREY)
-                        )
-                    )
+                border=ft.border.only(
+                    bottom=ft.border.BorderSide(1, PeadraTheme.divider)
                 ),
             )
             rows.append(row)
@@ -780,7 +755,7 @@ class TransactionsView:
         if not rows:
             rows.append(
                 ft.Container(
-                    content=ft.Text(t("trans_no_recent"), color=ft.Colors.GREY),
+                    content=ft.Text(t("trans_no_recent"), color=PeadraTheme.placeholder_color),
                     padding=20,
                     alignment=ft.Alignment.CENTER,
                 )
@@ -848,7 +823,7 @@ class TransactionsView:
                         ft.Text(
                             t("trans_subtitle"),
                             size=16,
-                            color=ft.Colors.GREY,
+                            color=PeadraTheme.placeholder_color,
                         ),
                     ]
                 ),
@@ -896,7 +871,7 @@ class TransactionsView:
                         ft.Text(
                             t("trans_description"),
                             weight=ft.FontWeight.BOLD,
-                            color=ft.Colors.GREY_700,
+                            color=PeadraTheme.placeholder_color,
                         ),
                         expand=4,
                     ),
@@ -904,7 +879,7 @@ class TransactionsView:
                         ft.Text(
                             t("trans_category"),
                             weight=ft.FontWeight.BOLD,
-                            color=ft.Colors.GREY_700,
+                            color=PeadraTheme.placeholder_color,
                         ),
                         expand=2,
                         alignment=ft.Alignment.CENTER_LEFT,
@@ -913,7 +888,7 @@ class TransactionsView:
                         ft.Text(
                             t("trans_date"),
                             weight=ft.FontWeight.BOLD,
-                            color=ft.Colors.GREY_700,
+                            color=PeadraTheme.placeholder_color,
                         ),
                         expand=2,
                     ),
@@ -921,7 +896,7 @@ class TransactionsView:
                         ft.Text(
                             t("trans_amount"),
                             weight=ft.FontWeight.BOLD,
-                            color=ft.Colors.GREY_700,
+                            color=PeadraTheme.placeholder_color,
                             text_align=ft.TextAlign.RIGHT,
                         ),
                         expand=1,
@@ -931,7 +906,7 @@ class TransactionsView:
                 ],
             ),
             padding=ft.padding.symmetric(horizontal=16, vertical=12),
-            border=ft.border.only(bottom=ft.border.BorderSide(1, ft.Colors.GREY_200)),
+            border=ft.border.only(bottom=ft.border.BorderSide(1, PeadraTheme.divider)),
         )
 
         rows = self._generate_rows()
@@ -949,7 +924,7 @@ class TransactionsView:
             bgcolor=surface_color,
             border_radius=12,
             border=(
-                ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.GREY))
+                ft.border.all(1, PeadraTheme.divider)
                 if not self.is_dark
                 else None
             ),

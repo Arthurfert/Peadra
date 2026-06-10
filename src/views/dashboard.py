@@ -377,7 +377,7 @@ class DashboardView:
                     ft.Container(height=12),
                     ft.Column(
                         [
-                            ft.Text(title, size=14, color=ft.Colors.GREY_500),
+                            ft.Text(title, size=14, color=PeadraTheme.text_secondary),
                             ft.Text(
                                 f"{value:,.2f} {self.currency}",
                                 size=24,
@@ -394,7 +394,7 @@ class DashboardView:
             border_radius=20,
             expand=True,
             border=(
-                ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.GREY))
+                ft.border.all(1, PeadraTheme.divider)
                 if not self.is_dark
                 else None
             ),
@@ -499,14 +499,14 @@ class DashboardView:
                             from_y=0,
                             to_y=float(incomes[i]),
                             width=bar_width,
-                            color="#4CAF50",
+                            color=PeadraTheme.chart_income,
                             border_radius=ft.border_radius.vertical(top=4),
                         ),
                         fch.BarChartRod(
                             from_y=0,
                             to_y=float(expenses[i]),
                             width=bar_width,
-                            color="#E53935",
+                            color=PeadraTheme.chart_expense,
                             border_radius=ft.border_radius.vertical(top=4),
                         ),
                     ],
@@ -530,7 +530,7 @@ class DashboardView:
                                     else ""
                                 ),
                                 size=12,
-                                color=ft.Colors.GREY,
+                                color=PeadraTheme.text_secondary,
                             ),
                             padding=ft.padding.only(top=10),
                         ),
@@ -562,24 +562,24 @@ class DashboardView:
                                                 ft.Container(
                                                     width=10,
                                                     height=10,
-                                                    bgcolor="#4CAF50",
+                                                    bgcolor=PeadraTheme.chart_income,
                                                     border_radius=5,
                                                 ),
                                                 ft.Text(
                                                     t("dash_inflows"),
-                                                    color=ft.Colors.GREY,
+                                                    color=PeadraTheme.text_secondary,
                                                     size=11,
                                                 ),
                                                 ft.Container(width=8),
                                                 ft.Container(
                                                     width=10,
                                                     height=10,
-                                                    bgcolor="#E53935",
+                                                    bgcolor=PeadraTheme.chart_expense,
                                                     border_radius=5,
                                                 ),
                                                 ft.Text(
                                                     t("dash_outflows"),
-                                                    color=ft.Colors.GREY,
+                                                    color=PeadraTheme.text_secondary,
                                                     size=11,
                                                 ),
                                             ],
@@ -609,9 +609,7 @@ class DashboardView:
                                     ),
                                     horizontal_grid_lines=fch.ChartGridLines(
                                         interval=nice_bar_interval,
-                                        color=ft.Colors.with_opacity(
-                                            0.1, ft.Colors.ON_SURFACE
-                                        ),
+                                        color=PeadraTheme.divider,
                                         width=1,
                                     ),
                                     min_y=0,
@@ -632,7 +630,7 @@ class DashboardView:
             border_radius=20,
             expand=True,
             border=(
-                ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.GREY))
+                ft.border.all(1, PeadraTheme.divider)
                 if not self.is_dark
                 else None
             ),
@@ -661,12 +659,12 @@ class DashboardView:
                                                 ft.Container(
                                                     width=10,
                                                     height=10,
-                                                    bgcolor="#7E57C2",
+                                                    bgcolor=PeadraTheme.chart_asset,
                                                     border_radius=5,
                                                 ),
                                                 ft.Text(
                                                     t("dash_total_assets"),
-                                                    color=ft.Colors.GREY,
+                                                    color=PeadraTheme.text_secondary,
                                                     size=11,
                                                 ),
                                             ],
@@ -689,7 +687,7 @@ class DashboardView:
                                                 for i, v in enumerate(patrimonies)
                                             ],
                                             stroke_width=3,
-                                            color="#7E57C2",
+                                            color=PeadraTheme.chart_asset,
                                             curved=True,
                                             rounded_stroke_cap=True,
                                         ),
@@ -697,9 +695,7 @@ class DashboardView:
                                     border=ft.border.all(0, ft.Colors.TRANSPARENT),
                                     horizontal_grid_lines=fch.ChartGridLines(
                                         interval=nice_interval,
-                                        color=ft.Colors.with_opacity(
-                                            0.1, ft.Colors.ON_SURFACE
-                                        ),
+                                        color=PeadraTheme.divider,
                                         width=1,
                                     ),
                                     vertical_grid_lines=fch.ChartGridLines(
@@ -735,7 +731,7 @@ class DashboardView:
             border_radius=20,
             expand=True,
             border=(
-                ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.GREY))
+                ft.border.all(1, PeadraTheme.divider)
                 if not self.is_dark
                 else None
             ),
@@ -832,15 +828,7 @@ class DashboardView:
         else:
             data_points = [{"name": k, "value": v} for k, v in sorted_items]
 
-        DefaultColors = [
-            ft.Colors.BLUE,
-            ft.Colors.GREEN,
-            ft.Colors.ORANGE,
-            ft.Colors.PURPLE,
-            ft.Colors.RED,
-            ft.Colors.TEAL,
-            ft.Colors.CYAN,
-        ]
+        DefaultColors = list(PeadraTheme.chart_palette)
 
         def _resolve_color(i: int, item_name: str) -> str:
             if name_to_color and item_name in name_to_color:
@@ -860,7 +848,7 @@ class DashboardView:
                         cast(
                             ft.Control,
                             ft.Container(
-                                content=ft.Text(empty_msg, color=ft.Colors.GREY),
+                                content=ft.Text(empty_msg, color=PeadraTheme.text_secondary),
                                 alignment=ft.Alignment.CENTER,
                                 expand=True,
                             ),
@@ -872,7 +860,7 @@ class DashboardView:
                 border_radius=20,
                 expand=True,
                 border=(
-                    ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.GREY))
+                    ft.border.all(1, PeadraTheme.divider)
                     if not self.is_dark
                     else None
                 ),
@@ -929,7 +917,7 @@ class DashboardView:
                             ft.Container(
                                 width=12, height=12, bgcolor=color, border_radius=6
                             ),
-                            ft.Text(f"{item['name']}", color=ft.Colors.GREY, size=12),
+                            ft.Text(f"{item['name']}", color=PeadraTheme.text_secondary, size=12),
                         ],
                         spacing=5,
                     )
@@ -967,7 +955,7 @@ class DashboardView:
             border_radius=20,
             expand=True,
             border=(
-                ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.GREY))
+                ft.border.all(1, PeadraTheme.divider)
                 if not self.is_dark
                 else None
             ),
@@ -1024,16 +1012,13 @@ class DashboardView:
         text_color = PeadraTheme.text
 
         # Colors for cards
+        green_bg = PeadraTheme.income_bg
+        red_bg = PeadraTheme.expense_bg
+        blue_bg = PeadraTheme.transfer_bg
         if self.is_dark:
-            blue_bg = ft.Colors.with_opacity(0.1, ft.Colors.BLUE)
-            green_bg = ft.Colors.with_opacity(0.1, ft.Colors.GREEN)
-            red_bg = ft.Colors.with_opacity(0.1, ft.Colors.RED)
-            purple_bg = ft.Colors.with_opacity(0.1, ft.Colors.PURPLE)
+            purple_bg = ft.Colors.with_opacity(0.1, PeadraTheme.chart_asset)
         else:
-            blue_bg = ft.Colors.BLUE_50
-            green_bg = ft.Colors.GREEN_50
-            red_bg = ft.Colors.RED_50
-            purple_bg = ft.Colors.PURPLE_50
+            purple_bg = PeadraTheme.chart_asset_bg
 
         card_row = ft.Row(
             [
@@ -1043,7 +1028,7 @@ class DashboardView:
                     self.balance_trend,
                     ft.Icons.ACCOUNT_BALANCE_WALLET,
                     blue_bg,
-                    ft.Colors.BLUE,
+                    PeadraTheme.transfer_color,
                     "normal",
                 ),
                 self._build_stat_card(
@@ -1052,7 +1037,7 @@ class DashboardView:
                     self.income_trend,
                     ft.Icons.TRENDING_UP,
                     green_bg,
-                    ft.Colors.GREEN,
+                    PeadraTheme.success,
                     "normal",
                 ),
                 self._build_stat_card(
@@ -1061,7 +1046,7 @@ class DashboardView:
                     self.expenses_trend,
                     ft.Icons.TRENDING_DOWN,
                     red_bg,
-                    ft.Colors.RED,
+                    PeadraTheme.error,
                     "reverse",
                 ),
                 self._build_stat_card(
@@ -1070,7 +1055,7 @@ class DashboardView:
                     self.savings_trend,
                     ft.Icons.SAVINGS,
                     purple_bg,
-                    ft.Colors.PURPLE,
+                    PeadraTheme.chart_asset,
                     "normal",
                 ),
             ],
@@ -1119,7 +1104,7 @@ class DashboardView:
                             ft.Text(
                                 welcome_text,
                                 size=16,
-                                color=ft.Colors.GREY,
+                                color=PeadraTheme.text_secondary,
                             ),
                         ],
                         spacing=4,

@@ -249,7 +249,7 @@ class AccountsView:
                 ft.TextButton(
                     t("btn_merge"),
                     on_click=confirm_merge,
-                    style=ft.ButtonStyle(color=ft.Colors.BLUE),
+                    style=ft.ButtonStyle(color=PeadraTheme.add_color),
                 ),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
@@ -361,7 +361,7 @@ class AccountsView:
                 ft.TextButton(
                     t("btn_delete"),
                     on_click=confirm_delete,
-                    style=ft.ButtonStyle(color=ft.Colors.RED),
+                    style=ft.ButtonStyle(color=PeadraTheme.delete_color),
                 ),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
@@ -395,7 +395,7 @@ class AccountsView:
                             ),
                             ft.PopupMenuButton(
                                 icon=ft.Icons.MORE_VERT,
-                                icon_color=ft.Colors.GREY_500,
+                                icon_color=PeadraTheme.placeholder_color,
                                 items=[
                                     ft.PopupMenuItem(
                                         content=ft.Row(
@@ -428,7 +428,7 @@ class AccountsView:
                             ft.Text(
                                 account["name"],
                                 size=14,
-                                color=ft.Colors.GREY_500,
+                                color=PeadraTheme.placeholder_color,
                             ),
                             ft.Text(
                                 f"{account['balance']:,.2f} {self.currency}",
@@ -445,7 +445,7 @@ class AccountsView:
             bgcolor=bg_card,
             border_radius=20,
             border=(
-                ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.GREY))
+                ft.border.all(1, PeadraTheme.divider)
                 if not self.is_dark
                 else None
             ),
@@ -468,10 +468,10 @@ class AccountsView:
         add_container = ft.Container(
             content=ft.Column(
                 [
-                    ft.Icon(
-                        ft.Icons.ADD_CIRCLE_OUTLINE, size=40, color=ft.Colors.GREY_500
-                    ),
-                    ft.Text(t("acc_add_account"), color=ft.Colors.GREY_500),
+                        ft.Icon(
+                            ft.Icons.ADD_CIRCLE_OUTLINE, size=40, color=PeadraTheme.placeholder_color
+                        ),
+                        ft.Text(t("acc_add_account"), color=PeadraTheme.placeholder_color),
                 ],
                 alignment=ft.MainAxisAlignment.CENTER,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -483,7 +483,7 @@ class AccountsView:
                 PeadraTheme.surface
             ),
             border=ft.border.all(
-                2, ft.Colors.GREY_800 if self.is_dark else ft.Colors.GREY_300
+                2, PeadraTheme.divider
             ),
             border_radius=20,
         )

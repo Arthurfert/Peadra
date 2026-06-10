@@ -46,7 +46,7 @@ class CustomFilePicker:
         self.allowed_extensions = [ext.lower() for ext in (allowed_extensions or [])]
         self.current_path = os.getcwd()
 
-        self.path_text = ft.Text(value=self.current_path, size=12, color=ft.Colors.GREY)
+        self.path_text = ft.Text(value=self.current_path, size=12, color=PeadraTheme.placeholder_color)
         self.file_list = ft.ListView(expand=True, spacing=2)
 
         self.dialog = ft.AlertDialog(
@@ -130,10 +130,10 @@ class CustomFilePicker:
                     ft.ListTile(
                         leading=ft.Icon(
                             ft.Icons.INSERT_DRIVE_FILE,
-                            color=ft.Colors.BLUE if is_allowed else ft.Colors.GREY,
+                            color=PeadraTheme.add_color if is_allowed else PeadraTheme.placeholder_color,
                         ),
                         title=ft.Text(
-                            file, color=None if is_allowed else ft.Colors.GREY
+                            file, color=None if is_allowed else PeadraTheme.placeholder_color
                         ),
                         on_click=(
                             (lambda e, p=file: self._select_file(p))
@@ -148,7 +148,7 @@ class CustomFilePicker:
 
         except Exception as e:
             self.file_list.controls.append(
-                ft.Text(f"{t('msg_error_file')}: {e}", color=ft.Colors.RED)
+                ft.Text(f"{t('msg_error_file')}: {e}", color=PeadraTheme.error)
             )
 
         self.page.update()
@@ -218,7 +218,7 @@ class ImportDialog:
         self.csv_headers: List[str] = []
 
         # UI Components
-        self.status_text = ft.Text(t("import_no_file"), color=ft.Colors.GREY)
+        self.status_text = ft.Text(t("import_no_file"), color=PeadraTheme.placeholder_color)
 
         # Initialize with at least one column to avoid "ValueError" if accidentally shown
         self.preview_table = ft.DataTable(
@@ -260,7 +260,7 @@ class ImportDialog:
                 ft.Text(
                     t("import_select_csv_desc"),
                     size=14,
-                    color=ft.Colors.GREY,
+                    color=PeadraTheme.placeholder_color,
                 ),
                 ft.Container(height=10),
                 # File Selection
@@ -292,7 +292,7 @@ class ImportDialog:
                             ),
                             height=200,  # Constrain height
                             border=ft.border.all(
-                                1, ft.Colors.with_opacity(0.2, ft.Colors.GREY)
+                                1, PeadraTheme.divider
                             ),
                             border_radius=5,
                         ),

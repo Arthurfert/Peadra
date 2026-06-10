@@ -1,14 +1,23 @@
 import flet as ft
 from src.components.theme import PeadraTheme, ThemeColors
 
+HEX_FIELDS = [
+    "bg", "surface", "text", "text_secondary",
+    "primary_dark", "primary_medium", "primary_light", "accent",
+    "success", "warning", "error", "info",
+    "chart_tooltip_bg",
+    "chart_income", "chart_expense", "chart_asset",
+    "nav_selected_bg", "nav_selected_fg",
+    "income_icon", "expense_icon", "transfer_icon",
+    "income_bg", "expense_bg", "transfer_bg", "chart_asset_bg"
+    "delete_color", "add_color", "placeholder_color",
+    "border_color", "divider",
+]
+
 
 def test_theme_colors_start_with_hash():
     for name, colors in PeadraTheme.THEMES.items():
-        for attr in [
-            "bg", "surface", "text", "text_secondary",
-            "primary_dark", "primary_medium", "primary_light", "accent",
-            "success", "warning", "error", "info"
-        ]:
+        for attr in HEX_FIELDS:
             value = getattr(colors, attr)
             assert value.startswith("#"), f"{name}.{attr} = {value!r} does not start with #"
 
@@ -55,12 +64,9 @@ def test_get_flet_theme():
 
 def test_color_accessors():
     PeadraTheme.set_theme("dark")
-    assert PeadraTheme.bg.startswith("#")
-    assert PeadraTheme.surface.startswith("#")
-    assert PeadraTheme.text.startswith("#")
-    assert PeadraTheme.accent.startswith("#")
-    assert PeadraTheme.success.startswith("#")
-    assert PeadraTheme.error.startswith("#")
+    for attr in HEX_FIELDS:
+        val = getattr(PeadraTheme, attr)
+        assert val.startswith("#"), f"{attr} = {val!r}"
 
 
 def test_themes_available():

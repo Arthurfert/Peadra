@@ -136,7 +136,7 @@ class CategoriesView:
                 self._build_category_section(
                     t("cat_top_expenses"),
                     self.top_expenses,
-                    "#E53935",
+                    PeadraTheme.chart_expense,
                     "expense",
                 )
             )
@@ -146,7 +146,7 @@ class CategoriesView:
                 self._build_category_section(
                     t("cat_top_incomes"),
                     self.top_incomes,
-                    "#4CAF50",
+                    PeadraTheme.chart_income,
                     "income",
                 )
             )
@@ -355,7 +355,7 @@ class CategoriesView:
             bgcolor=bg_card,
             border_radius=16,
             border=(
-                ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.GREY))
+                ft.border.all(1, PeadraTheme.divider)
                 if not self.is_dark
                 else None
             ),
@@ -422,7 +422,7 @@ class CategoriesView:
             border=ft.border.all(0, ft.Colors.TRANSPARENT),
             horizontal_grid_lines=fch.ChartGridLines(
                 interval=max(1, int(max_y / 3)),
-                color=ft.Colors.with_opacity(0.1, ft.Colors.GREY),
+                color=PeadraTheme.divider,
                 width=1,
             ),
             vertical_grid_lines=fch.ChartGridLines(
@@ -493,7 +493,7 @@ class CategoriesView:
                     ft.Text(
                         t("cat_transactions_count").format(count=count),
                         size=11,
-                        color=ft.Colors.GREY_500,
+                        color=PeadraTheme.placeholder_color,
                     ),
                     ft.Container(
                         content=chart,
@@ -508,7 +508,7 @@ class CategoriesView:
             bgcolor=bg_card,
             border_radius=16,
             border=(
-                ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.GREY))
+                ft.border.all(1, PeadraTheme.divider)
                 if not self.is_dark
                 else None
             ),
@@ -571,7 +571,7 @@ class CategoriesView:
                     ft.Text(
                         t("cat_merge_success").format(source=source, target=target)
                     ),
-                    bgcolor=ft.Colors.GREEN,
+                    bgcolor=PeadraTheme.success,
                 )
                 # Rafraîchir les données et l'affichage
                 self.refresh()
@@ -609,7 +609,7 @@ class CategoriesView:
                             old=old_description, new=new_description
                         )
                     ),
-                    bgcolor=ft.Colors.GREEN,
+                    bgcolor=PeadraTheme.success,
                 )
                 # Rafraîchir les données et l'affichage
                 self.refresh()

@@ -89,7 +89,7 @@ Peadra/
 ```
 
 > [!NOTE]
-> To learn more about how Peadra works under the hood, please have a look to the [documentation](./DOCUMENTATION.md) !
+> To learn more about how Peadra works under the hood, please have a look to the [deep wiki documentation](https://deepwiki.com/Arthurfert/Peadra) !
 
 ## License
 

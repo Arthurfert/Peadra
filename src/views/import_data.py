@@ -51,31 +51,31 @@ class CustomFilePicker:
 
         self.dialog = ft.AlertDialog(
             title=ft.Text(t("file_select_file")),
-            content=ft.Container(
-                content=ft.Column(
-                    [
-                        ft.Row(
-                            [
-                                ft.IconButton(
-                                    icon=ft.Icons.ARROW_UPWARD,
-                                    on_click=self._go_up,
-                                    tooltip=t("param_file_go_up"),
-                                ),
-                                ft.Container(
-                                    content=self.path_text, expand=True, padding=5
-                                ),
-                            ],
-                            alignment=ft.MainAxisAlignment.START,
-                        ),
-                        ft.Divider(height=1),
-                        self.file_list,
-                    ],
-                    spacing=10,
+                content=ft.Container(
+                    content=ft.Column(
+                        [
+                            ft.Row(
+                                [
+                                    ft.IconButton(
+                                        icon=ft.Icons.ARROW_UPWARD,
+                                        on_click=self._go_up,
+                                        tooltip=t("param_file_go_up"),
+                                    ),
+                                    ft.Container(
+                                        content=self.path_text, expand=True, padding=5
+                                    ),
+                                ],
+                                alignment=ft.MainAxisAlignment.START,
+                            ),
+                            ft.Divider(height=1),
+                            self.file_list,
+                        ],
+                        spacing=10,
+                    ),
+                    width=600,
+                    height=400,
+                    padding=10,
                 ),
-                width=600,
-                height=400,
-                padding=10,
-            ),
             actions=[ft.TextButton(t("btn_cancel"), on_click=lambda _: self._cancel())],
         )
 

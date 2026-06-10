@@ -62,7 +62,7 @@ class PeadraApp:
         def on_login_success() -> None:
             """Callback appelé après une connexion réussie."""
             # Charger le thème depuis la base de données pour l'utilisateur
-            theme_setting = db.get_setting("theme_mode", "dark")
+            theme_setting = db.get_setting("theme_mode", "dark") or "dark"
 
             # Traiter les transactions récurrentes au démarrage
             try:
@@ -293,12 +293,14 @@ class PeadraApp:
                     # Bouton des paramètres
                     ft.IconButton(
                         icon=ft.Icons.SETTINGS,
+                        icon_color=PeadraTheme.text,
                         tooltip=t("tooltip_settings"),
                         on_click=lambda e: self._open_settings(e),
                     ),
                     # Bouton logout
                     ft.IconButton(
                         icon=ft.Icons.LOGOUT,
+                        icon_color=PeadraTheme.text,
                         tooltip=t("tooltip_logout"),
                         on_click=lambda e: self._logout(),
                     ),
@@ -385,7 +387,7 @@ def main(page: ft.Page):
     def on_login_success() -> None:
         """Callback appelé après une connexion réussie."""
         # Charger le thème depuis la base de données pour l'utilisateur
-        theme_setting = db.get_setting("theme_mode", "dark")
+        theme_setting = db.get_setting("theme_mode", "dark") or "dark"
 
         # Charger la langue depuis la base de données pour l'utilisateur
         language_setting = db.get_setting("language", "en") or "en"

@@ -385,7 +385,7 @@ class ParametersView:
         border_color = (
             PeadraTheme.accent
             if is_selected
-            else             PeadraTheme.divider
+            else PeadraTheme.divider
         )
 
         def on_click(e):
@@ -1173,7 +1173,7 @@ class ParametersView:
                 ),
                 self._build_theme_option(
                     t("param_autumn_theme"),
-                    get_asset_path("assets/Dashboard.jpg"),
+                    get_asset_path("assets/Dashboard_Autumn.jpg"),
                     "autumn",
                 ),
             ],

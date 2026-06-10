@@ -892,7 +892,7 @@ class DashboardView:
                         item["value"],
                         title=section_title,
                         title_style=ft.TextStyle(
-                            size=14, color=ft.Colors.WHITE, weight=ft.FontWeight.BOLD
+                            size=14, color=PeadraTheme.pie_hover_text, weight=ft.FontWeight.BOLD
                         ),
                         color=color,
                         radius=radius,
@@ -1015,10 +1015,7 @@ class DashboardView:
         green_bg = PeadraTheme.income_bg
         red_bg = PeadraTheme.expense_bg
         blue_bg = PeadraTheme.transfer_bg
-        if self.is_dark:
-            purple_bg = ft.Colors.with_opacity(0.1, PeadraTheme.chart_asset)
-        else:
-            purple_bg = PeadraTheme.chart_asset_bg
+        purple_bg = PeadraTheme.savings_bg
 
         card_row = ft.Row(
             [
@@ -1055,7 +1052,7 @@ class DashboardView:
                     self.savings_trend,
                     ft.Icons.SAVINGS,
                     purple_bg,
-                    PeadraTheme.chart_asset,
+                    PeadraTheme.savings_icon,
                     "normal",
                 ),
             ],

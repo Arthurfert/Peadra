@@ -41,6 +41,9 @@ class ThemeColors:
     chart_expense: str
     chart_asset: str
     chart_asset_bg: str
+    savings_bg: str
+    savings_icon: str
+    pie_hover_text: str
     chart_palette: tuple
 
 
@@ -63,73 +66,79 @@ class PeadraTheme(metaclass=_ThemeMeta):
     THEMES: dict[str, ThemeColors] = {
         "light": ThemeColors(
             name="light",
-            bg="#F0F4FF",                     # page background
-            surface="#e3f8fc",                # cards, containers, sidebar, header
-            text="#181F2D",                   # primary text
-            text_secondary="#1b4a54",         # secondary text, chart grid lines
-            primary_dark="#081019",           # Flet color_scheme_seed (dark)
-            primary_medium="#161F31",         # Flet primary, modal buttons, nav selected bg (dark)
-            primary_light="#54687E",          # login focus border, import button (light)
-            accent="#3B6FB4",                 # buttons, icons, borders, Flet secondary
-            success="#4CAF50",                # income amounts, positive trends, snackbars
-            warning="#FFC107",                # warning indicators
-            error="#F44336",                  # expense amounts, negative trends, error snackbars
-            info="#2196F3",                   # info indicators
-            chart_tooltip_bg="#E3F2FD",       # chart tooltip background
-            border_color="#cbcbcb",           # card/container borders
-            divider="#e0e0e0",                # section separators, subtle borders
-            nav_selected_bg="#E3F2FD",        # navigation active item background
-            nav_selected_fg="#1976D2",        # navigation active item text/icon
-            transfer_color="#2196F3",         # transfer transaction icon color
-            income_bg="#A5D6A7",              # income row background (soft green)
-            expense_bg="#EF9A9A",             # expense row background (soft red)
-            transfer_bg="#90CAF9",            # transfer row background (soft blue)
-            income_icon="#E8F5E9",            # income icon
-            expense_icon="#FFEBEE",           # expense icon
-            transfer_icon="#E3F2FD",          # transfer icon
-            delete_color="#F44336",           # delete/cancel buttons
-            add_color="#1976D2",              # add/create buttons, allowed file types
-            placeholder_color="#9E9E9E",      # secondary labels, empty state text, GREY text
-            chart_income="#4CAF50",           # income bar/legend color
-            chart_expense="#E53935",          # expense bar/legend color
-            chart_asset="#7E57C2",            # asset/stat card icon (purple)
-            chart_asset_bg="#F3E5F5",         # asset stat card background
-            chart_palette=("#4CAF50", "#2196F3", "#FF9800", "#9C27B0", "#F44336", "#009688", "#00BCD4"),  # category donut chart palette
+            bg="#f8fafc",                     # page background (Slate 50)
+            surface="#ffffff",                # cards, containers, sidebar, header (Pure White)
+            text="#0f172a",                   # primary text (Slate 900)
+            text_secondary="#475569",         # secondary text, chart grid lines (Slate 600)
+            primary_dark="#0f172a",           # Flet color_scheme_seed (dark)
+            primary_medium="#1e293b",         # Flet primary, modal buttons, nav selected bg (dark)
+            primary_light="#64748b",          # login focus border, import button (light)
+            accent="#4f46e5",                 # buttons, icons, borders, Flet secondary (Indigo 600)
+            success="#10b981",                # income amounts, positive trends, snackbars
+            warning="#f59e0b",                # warning indicators
+            error="#ef4444",                  # expense amounts, negative trends, error snackbars
+            info="#3b82f6",                   # info indicators
+            chart_tooltip_bg="#ffffff",       # chart tooltip background
+            border_color="#e2e8f0",           # card/container borders (Slate 200)
+            divider="#f1f5f9",                # section separators, subtle borders (Slate 100)
+            nav_selected_bg="#e0e7ff",        # navigation active item background (Indigo 100)
+            nav_selected_fg="#4f46e5",        # navigation active item text/icon (Indigo 600)
+            transfer_color="#2563eb",         # transfer transaction icon color
+            income_bg="#d1fae5",              # income row background (soft green)
+            expense_bg="#fee2e2",             # expense row background (soft red)
+            transfer_bg="#dbeafe",            # transfer row background (soft blue)
+            income_icon="#059669",            # income icon
+            expense_icon="#dc2626",           # expense icon
+            transfer_icon="#1d4ed8",          # transfer icon
+            delete_color="#e11d48",           # delete/cancel buttons
+            add_color="#2563eb",              # add/create buttons, allowed file types
+            placeholder_color="#94a3b8",      # secondary labels, empty state text, GREY text
+            chart_income="#10b981",           # income bar/legend color
+            chart_expense="#ef4444",          # expense bar/legend color
+            chart_asset="#7c3aed",            # asset/stat card icon (purple)
+            chart_asset_bg="#f3e8ff",         # asset stat card background
+            savings_bg="#f3e8ff",             # savings stat card background
+            savings_icon="#7c3aed",           # savings stat card icon
+            pie_hover_text="#0f172a",         # pie chart touch/hover label text
+            chart_palette=("#10b981", "#3b82f6", "#f59e0b", "#8b5cf6", "#ef4444", "#06b6d4", "#ec4899"),  # category donut chart palette
         ),
         "dark": ThemeColors(
             name="dark",
-            bg="#0D1B2A",
-            surface="#1B263B",
-            text="#E0E1DD",
-            text_secondary="#778DA9",
-            primary_dark="#081019",
-            primary_medium="#161F31",
-            primary_light="#54687E",
-            accent="#3B6FB4",
-            success="#4CAF50",
-            warning="#FFC107",
-            error="#F44336",
-            info="#2196F3",
-            chart_tooltip_bg="#0D1B2A",
-            border_color="#cbcbcb",
-            divider="#e0e0e0",
-            nav_selected_bg="#161F31",
-            nav_selected_fg="#FFFFFF",
-            transfer_color="#42A5F5",
-            income_bg="#81C784",
-            expense_bg="#E57373",
-            transfer_bg="#64B5F6",
-            income_icon="#2E7D32",
-            expense_icon="#C62828",
-            transfer_icon="#1565C0",
-            delete_color="#EF5350",
-            add_color="#42A5F5",
-            placeholder_color="#9E9E9E",
-            chart_income="#4CAF50",
-            chart_expense="#E53935",
-            chart_asset="#7E57C2",
-            chart_asset_bg="#F3E5F5",
-            chart_palette=("#4CAF50", "#2196F3", "#FF9800", "#9C27B0", "#F44336", "#009688", "#00BCD4"),
+            bg="#0f172a",                     # page background (Slate 900)
+            surface="#1e293b",                # cards, containers, sidebar, header (Slate 800)
+            text="#f8fafc",                   # primary text (Slate 50)
+            text_secondary="#94a3b8",         # secondary text, chart grid lines (Slate 400)
+            primary_dark="#0b0f19",           # Flet color_scheme_seed (dark)
+            primary_medium="#131c2c",         # Flet primary, modal buttons, nav selected bg (dark)
+            primary_light="#1e293b",          # login focus border, import button (light)
+            accent="#8b5cf6",                 # buttons, icons, borders, Flet secondary (Violet 500)
+            success="#10b981",                # income amounts, positive trends, snackbars
+            warning="#f59e0b",                # warning indicators
+            error="#ef4444",                  # expense amounts, negative trends, error snackbars
+            info="#3b82f6",                   # info indicators
+            chart_tooltip_bg="#1e293b",       # chart tooltip background
+            border_color="#334155",           # card/container borders (Slate 700)
+            divider="#334155",                # section separators, subtle borders
+            nav_selected_bg="#334155",        # navigation active item background (Slate 700)
+            nav_selected_fg="#ffffff",        # navigation active item text/icon
+            transfer_color="#60a5fa",         # transfer transaction icon color
+            income_bg="#064e3b",              # income row background (deep soft green)
+            expense_bg="#7f1d1d",             # expense row background (deep soft red)
+            transfer_bg="#1e3a8a",            # transfer row background (deep soft blue)
+            income_icon="#10b981",            # income icon
+            expense_icon="#ef4444",           # expense icon
+            transfer_icon="#60a5fa",          # transfer icon
+            delete_color="#f43f5e",           # delete/cancel buttons
+            add_color="#3b82f6",              # add/create buttons, allowed file types
+            placeholder_color="#64748b",      # secondary labels, empty state text, GREY text
+            chart_income="#10b981",           # income bar/legend color
+            chart_expense="#ef4444",          # expense bar/legend color
+            chart_asset="#8b5cf6",            # asset/stat card icon (purple)
+            chart_asset_bg="#2e1065",         # asset stat card background
+            savings_bg="#2e1065",             # savings stat card background
+            savings_icon="#a78bfa",           # savings stat card icon
+            pie_hover_text="#ffffff",         # pie chart touch/hover label text
+            chart_palette=("#10b981", "#3b82f6", "#f59e0b", "#8b5cf6", "#ef4444", "#06b6d4", "#ec4899"),
         ),
     }
 

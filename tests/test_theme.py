@@ -9,7 +9,8 @@ HEX_FIELDS = [
     "chart_income", "chart_expense", "chart_asset",
     "nav_selected_bg", "nav_selected_fg",
     "income_icon", "expense_icon", "transfer_icon",
-    "income_bg", "expense_bg", "transfer_bg", "chart_asset_bg"
+    "income_bg", "expense_bg", "transfer_bg", "chart_asset_bg",
+    "savings_bg", "savings_icon", "pie_hover_text",
     "delete_color", "add_color", "placeholder_color",
     "border_color", "divider",
 ]

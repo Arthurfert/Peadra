@@ -1331,12 +1331,13 @@ class ParametersView:
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            padding=ft.padding.symmetric(horizontal=16, vertical=14),
-            border_radius=12,
-            bgcolor=(
-PeadraTheme.surface
-                    if self.is_dark
-                    else ft.Colors.with_opacity(0.35, PeadraTheme.surface)
+            padding=24,
+            border_radius=20,
+            bgcolor=PeadraTheme.surface,
+            border=(
+                ft.border.all(1, PeadraTheme.divider)
+                if not self.is_dark
+                else None
             ),
         )
 

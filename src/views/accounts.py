@@ -29,7 +29,7 @@ class AccountsView:
         self.update_history_checkbox = ft.Checkbox(
             label=t("acc_update_history"),
             value=True,
-            label_style=ft.TextStyle(size=14),
+            label_style=ft.TextStyle(size=14, color=PeadraTheme.text_secondary),
         )
         self.type_dropdown = ft.Dropdown(
             label=t("acc_type"),
@@ -96,7 +96,7 @@ class AccountsView:
 
         self.dialog = ft.AlertDialog(
             modal=True,
-            title=ft.Text(title),
+            title=ft.Text(title, color=PeadraTheme.text_secondary),
             content=ft.Column(
                 [
                     self.name_field,
@@ -167,8 +167,8 @@ class AccountsView:
 
         self.merge_dialog = ft.AlertDialog(
             modal=True,
-            title=ft.Text(t("acc_merge_title")),
-            content=ft.Text(t("acc_merge_message").format(target_name=target_name)),
+            title=ft.Text(t("acc_merge_title"), color=PeadraTheme.text_secondary),
+            content=ft.Text(t("acc_merge_message").format(target_name=target_name), color=PeadraTheme.text_secondary),
             actions=[
                 ft.TextButton(t("btn_cancel"), on_click=close_merge_dlg),
                 ft.TextButton(
@@ -267,16 +267,16 @@ class AccountsView:
             label=t("acc_delete_transactions"),
             value=False,
             label_style=ft.TextStyle(
-                color=PeadraTheme.text
+                color=PeadraTheme.text_secondary
             ),
         )
 
         self.confirm_dialog = ft.AlertDialog(
             modal=True,
-            title=ft.Text(t("acc_delete_confirm")),
+            title=ft.Text(t("acc_delete_confirm"), color=PeadraTheme.text_secondary),
             content=ft.Column(
                 [
-                    ft.Text(t("acc_delete_message")),
+                    ft.Text(t("acc_delete_message"), color=PeadraTheme.text_secondary),
                     self.delete_history_checkbox,
                 ],
                 tight=True,

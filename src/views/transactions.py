@@ -78,7 +78,7 @@ class TransactionsView:
         expense_icon_col = PeadraTheme.expense_icon
         income_icon_col = PeadraTheme.income_icon
         transfer_icon_col = PeadraTheme.transfer_icon
-        text_col = PeadraTheme.text
+        text_col = PeadraTheme.text_secondary
 
         def close_dlg(e):
             dlg.open = False
@@ -200,7 +200,7 @@ class TransactionsView:
             dlg.update()
 
         dlg = ft.AlertDialog(
-            title=ft.Text(t("trans_filter_categories")),
+            title=ft.Text(t("trans_filter_categories"), color=PeadraTheme.text_secondary),
             content=ft.Container(
                 content=ft.Column(
                     [
@@ -407,8 +407,8 @@ class TransactionsView:
             self.page.update()
 
         dlg = ft.AlertDialog(
-            title=ft.Text(t("msg_confirm_delete")),
-            content=ft.Text(t("trans_delete_confirm")),
+            title=ft.Text(t("msg_confirm_delete"), color=PeadraTheme.text_secondary),
+            content=ft.Text(t("trans_delete_confirm"), color=PeadraTheme.text_secondary),
             actions=[
                 ft.TextButton(t("btn_cancel"), on_click=close_dlg),
                 ft.TextButton(
@@ -557,8 +557,8 @@ class TransactionsView:
             self.page.update()
 
         dlg = ft.AlertDialog(
-            title=ft.Text(t("msg_confirm_delete")),
-            content=ft.Text(t("trans_delete_transfer_confirm")),
+            title=ft.Text(t("msg_confirm_delete"), color=PeadraTheme.text_secondary),
+            content=ft.Text(t("trans_delete_transfer_confirm"), color=PeadraTheme.text_secondary),
             actions=[
                 ft.TextButton(t("btn_cancel"), on_click=close_dlg),
                 ft.TextButton(

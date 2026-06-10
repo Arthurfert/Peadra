@@ -61,14 +61,14 @@ class CustomSavePicker:
         self.default_extension = default_extension
         self.current_path = os.getcwd()
 
-        self.path_text = ft.Text(value=self.current_path, size=12, color=PeadraTheme.placeholder_color)
+        self.path_text = ft.Text(value=self.current_path, size=12, color=PeadraTheme.text_secondary)
         self.file_list = ft.ListView(expand=True, spacing=2)
         self.filename_field = ft.TextField(
             label=t("param_file_name"), expand=True, height=40, text_size=13
         )
 
         self.dialog = ft.AlertDialog(
-            title=ft.Text(t("param_file_picker_title")),
+            title=ft.Text(t("param_file_picker_title"), color=PeadraTheme.text_secondary),
             content=ft.Container(
                 content=ft.Column(
                     [
@@ -153,7 +153,7 @@ class CustomSavePicker:
                 self.file_list.controls.append(
                     ft.ListTile(
                         leading=ft.Icon(ft.Icons.FOLDER, color=ft.Colors.AMBER),
-                        title=ft.Text(folder),
+                        title=ft.Text(folder, color=PeadraTheme.text_secondary),
                         on_click=lambda e, f=folder: self._navigate(f),
                     )
                 )
@@ -165,13 +165,13 @@ class CustomSavePicker:
                         leading=ft.Icon(
                             ft.Icons.INSERT_DRIVE_FILE, color=PeadraTheme.placeholder_color
                         ),
-                        title=ft.Text(file, color=PeadraTheme.placeholder_color),
+                        title=ft.Text(file, color=PeadraTheme.text_secondary),
                     )
                 )
 
         except Exception as e:
             self.file_list.controls.append(
-                ft.Text(f"{t('param_file_error')} {e}", color=ft.Colors.ERROR)
+                ft.Text(f"{t('param_file_error')} {e}", color=PeadraTheme.text_secondary)
             )
 
         self.page.update()
@@ -602,14 +602,14 @@ class ParametersView:
 
     def _show_changelog_dialog(self, title: str, body: str, url: str | None = None):
         content_children: List[ft.Control] = [
-            ft.Text(body or t("param_changelog_empty"), selectable=True),
+            ft.Text(body or t("param_changelog_empty"), selectable=True, color=PeadraTheme.text_secondary),
         ]
 
         if url:
-            content_children.append(ft.Text(url, size=12, color=PeadraTheme.placeholder_color))
+            content_children.append(ft.Text(url, size=12, color=PeadraTheme.text_secondary))
 
         dialog = ft.AlertDialog(
-            title=ft.Text(title, weight=ft.FontWeight.BOLD),
+            title=ft.Text(title, weight=ft.FontWeight.BOLD, color=PeadraTheme.text_secondary),
             content=ft.Container(
                 content=ft.Column(
                     content_children,
@@ -691,17 +691,17 @@ class ParametersView:
         progress_text = ft.Text(
             t("param_update_status_downloading").format(percent=0),
             size=14,
-            color=PeadraTheme.text,
+            color=PeadraTheme.text_secondary,
         )
         progress_bar = ft.ProgressBar(value=0, width=400)
         instructions_text = ft.Text(
             t("param_update_instructions").format(percent=0),
             size=14,
-            color=PeadraTheme.text,
+            color=PeadraTheme.text_secondary,
         )
 
         dialog = ft.AlertDialog(
-            title=ft.Text(t("param_updates")),
+            title=ft.Text(t("param_updates"), color=PeadraTheme.text_secondary),
             content=ft.Container(
                 content=ft.Column(
                     [progress_text, progress_bar, instructions_text],
@@ -1053,7 +1053,7 @@ class ParametersView:
 
         dialog = ft.AlertDialog(
             title=ft.Text(
-                t("param_change_password"), size=20, weight=ft.FontWeight.BOLD
+                t("param_change_password"), size=20, weight=ft.FontWeight.BOLD, color=PeadraTheme.text_secondary
             ),
             content=ft.Container(
                 content=content_col,
@@ -1079,7 +1079,7 @@ class ParametersView:
             width=300,
             height=45,
         )
-        error_message = ft.Text(size=12, color=ft.Colors.ERROR)
+        error_message = ft.Text(size=12, color=PeadraTheme.text_secondary)
 
         def on_confirm(_):
             pwd = password_field.value.strip()
@@ -1106,7 +1106,7 @@ class ParametersView:
 
         dialog = ft.AlertDialog(
             title=ft.Text(
-                t("param_delete_confirm"), size=20, weight=ft.FontWeight.BOLD
+                t("param_delete_confirm"), size=20, weight=ft.FontWeight.BOLD, color=PeadraTheme.text_secondary
             ),
             content=ft.Container(
                 content=ft.Column(
@@ -1114,13 +1114,14 @@ class ParametersView:
                         ft.Text(
                             t("param_delete_warning"),
                             size=14,
-                            color=ft.Colors.ERROR,
+                            color=PeadraTheme.text_secondary,
                         ),
                         ft.Container(height=16),
                         ft.Text(
                             t("param_delete_password_prompt"),
                             size=13,
                             weight=ft.FontWeight.W_500,
+                            color=PeadraTheme.text_secondary,
                         ),
                         password_field,
                         error_message,

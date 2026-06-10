@@ -44,85 +44,10 @@ class AccountsView:
             label=t("acc_color"),
             options=[
                 ft.dropdown.Option(
-                    "#4CAF50",
-                    t("acc_green"),
-                    content=ft.Row(
-                        [
-                            ft.Container(width=20, height=20, bgcolor="#4CAF50"),
-                            ft.Text(t("acc_green")),
-                        ]
-                    ),
-                ),
-                ft.dropdown.Option(
-                    "#2196F3",
-                    t("acc_blue"),
-                    content=ft.Row(
-                        [
-                            ft.Container(width=20, height=20, bgcolor="#2196F3"),
-                            ft.Text(t("acc_blue")),
-                        ]
-                    ),
-                ),
-                ft.dropdown.Option(
-                    "#009688",
-                    t("acc_teal"),
-                    content=ft.Row(
-                        [
-                            ft.Container(width=20, height=20, bgcolor="#009688"),
-                            ft.Text(t("acc_teal")),
-                        ]
-                    ),
-                ),
-                ft.dropdown.Option(
-                    "#FF9800",
-                    t("acc_orange"),
-                    content=ft.Row(
-                        [
-                            ft.Container(width=20, height=20, bgcolor="#FF9800"),
-                            ft.Text(t("acc_orange")),
-                        ]
-                    ),
-                ),
-                ft.dropdown.Option(
-                    "#E91E63",
-                    t("acc_pink"),
-                    content=ft.Row(
-                        [
-                            ft.Container(width=20, height=20, bgcolor="#E91E63"),
-                            ft.Text(t("acc_pink")),
-                        ]
-                    ),
-                ),
-                ft.dropdown.Option(
-                    "#9C27B0",
-                    t("acc_purple"),
-                    content=ft.Row(
-                        [
-                            ft.Container(width=20, height=20, bgcolor="#9C27B0"),
-                            ft.Text(t("acc_purple")),
-                        ]
-                    ),
-                ),
-                ft.dropdown.Option(
-                    "#F44336",
-                    t("acc_red"),
-                    content=ft.Row(
-                        [
-                            ft.Container(width=20, height=20, bgcolor="#F44336"),
-                            ft.Text(t("acc_red")),
-                        ]
-                    ),
-                ),
-                ft.dropdown.Option(
-                    "#607D8B",
-                    t("acc_gray"),
-                    content=ft.Row(
-                        [
-                            ft.Container(width=20, height=20, bgcolor="#607D8B"),
-                            ft.Text(t("acc_gray")),
-                        ]
-                    ),
-                ),
+                    hex_color,
+                    content=ft.Container(width=20, height=20, bgcolor=hex_color),
+                )
+                for hex_color in PeadraTheme.chart_palette
             ],
         )
         self.editing_id: Optional[int] = None
@@ -164,7 +89,7 @@ class AccountsView:
         else:
             self.editing_id = None
             self.name_field.value = ""
-            self.color_dropdown.value = "#2196F3"  # Default color
+            self.color_dropdown.value = "#3b82f6"  # Default color
             self.type_dropdown.value = t("acc_savings")
             self.update_history_checkbox.visible = False
             title = t("acc_add_account")

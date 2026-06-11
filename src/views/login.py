@@ -107,7 +107,7 @@ class LoginView:
 
         # Construire la liste des champs en fonction du mode
         fields = [
-            ft.Icon(ft.Icons.LOCK, size=64),
+            ft.Icon(ft.Icons.LOCK, color=PeadraTheme.text, size=64),
             ft.Text(
                 t("login_title"),
                 theme_style=ft.TextThemeStyle.HEADLINE_LARGE,
@@ -125,6 +125,7 @@ class LoginView:
             self.username_field = ft.TextField(
                 label=t("login_username"),
                 width=300,
+                color=PeadraTheme.text,
             )
             fields.append(self.username_field)
         else:
@@ -138,6 +139,8 @@ class LoginView:
                 width=300,
                 focused_border_color=PeadraTheme.primary_light,
                 value=self.existing_users[0] if self.existing_users else None,
+                color=PeadraTheme.text,
+                bgcolor=PeadraTheme.bg,
             )
             fields.append(self.username_dropdown)
 

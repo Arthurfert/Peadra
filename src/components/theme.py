@@ -142,22 +142,22 @@ class PeadraTheme(metaclass=_ThemeMeta):
         ),
         "autumn": ThemeColors(
             name="autumn",
-            bg="#0a1c28",                     # page background (Warm rich space blue)
-            surface="#003049",                # cards, containers, sidebar, header (Deep Space Blue)
+            bg="#280a0a",                     # page background (Warm rich space blue)
+            surface="#490000",                # cards, containers, sidebar, header (Deep Space Blue)
             text="#eae2b7",                   # primary text (Vanilla Custard) 
             text_secondary="#fcbf49",         # secondary text, chart grid lines (Sunflower Gold)
-            primary_dark="#001524",           # Flet color_scheme_seed
-            primary_medium="#002236",         # Flet primary
-            primary_light="#00486c",          # login focus border
+            primary_dark="#240000",           # Flet color_scheme_seed
+            primary_medium="#360000",         # Flet primary
+            primary_light="#6c0000",          # login focus border
             accent="#f77f00",                 # Flet secondary (Princeton Orange)
             success="#10b981",                # income amounts
             warning="#fcbf49",                # warning indicators
             error="#d62828",                  # Flag Red
             info="#3b82f6",                   # info indicators
-            chart_tooltip_bg="#003049",       # chart tooltip background
-            border_color="#00486c",           # card/container borders
-            divider="#00486c",                # section separators, subtle borders
-            nav_selected_bg="#00486c",        # navigation active item background
+            chart_tooltip_bg="#490000",       # chart tooltip background
+            border_color="#6c0000",           # card/container borders
+            divider="#6c0000",                # section separators, subtle borders
+            nav_selected_bg="#6c0000",        # navigation active item background
             nav_selected_fg="#eae2b7",        # navigation active item text/icon
             transfer_color="#f77f00",         # transfer transaction icon color
             income_bg="#064e3b",              # income row background
@@ -175,7 +175,7 @@ class PeadraTheme(metaclass=_ThemeMeta):
             chart_asset_bg="#381d02",         # asset stat card background
             savings_bg="#381d02",             # savings stat card background
             savings_icon="#fcbf49",           # savings stat card icon
-            pie_hover_text="#003049",         # pie chart touch/hover label text
+            pie_hover_text="#490000",         # pie chart touch/hover label text
             chart_palette=("#f77f00", "#fcbf49", "#d62828", "#eae2b7", "#10b981", "#3b82f6", "#8b5cf6"),
         ),
     }

@@ -21,19 +21,19 @@ Built as a modern, local-first alternative to cumbersome spreadsheets, Peadra gi
 ## Features
 
 **Portfolio & Asset Management**  
-- **Comprehensive Overview:** Track your current balance, asset distribution, and financial evolution over time.
-- **Category Insights:** Organize transactions into categories with the ability to dynamically rename, merge, and restructure them.
-- **Subscription Tracking:** Monitor recurring transactions and active subscriptions at a glance.
+> **Comprehensive Overview:** Track your current balance, asset distribution, and financial evolution over time.  
+> **Category Insights:** Organize transactions into categories with the ability to dynamically rename, merge, and restructure them.  
+> **Subscription Tracking:** Monitor recurring transactions and active subscriptions at a glance.  
 
 **Account & Transaction Management**  
-- **Full Operations:** Easily add, modify, or delete accounts and individual transactions.
-- **Multi-Account Support:** Manage multiple distinct accounts with independent tracking.
-- **Multi-User Authentication:** Secure access control for different users on the same device.
+> **Full Operations:** Easily add, modify, or delete accounts and individual transactions.  
+> **Multi-Account Support:** Manage multiple distinct accounts with independent tracking.  
+> **Multi-User Authentication:** Secure access control for different users on the same device.  
 
 **Data Control & System**  
-- **Local & Secure:** Powered by a local SQLite database. Your financial data never leaves your machine.
-- **Flexible Data Portability:** Seamlessly import data via CSV files, and export your history in both JSON and CSV formats.
-- **Seamless Maintenance:** Stay up to date effortlessly with built-in, in-app updates.
+> **Local & Secure:** Powered by a local SQLite database. Your financial data never leaves your machine.  
+> **Flexible Data Portability:** Seamlessly import data via CSV files, and export your history in both JSON and CSV formats.  
+> **Seamless Maintenance:** Stay up to date effortlessly with built-in, in-app updates.  
 
 **Supported languages:** English, French.
 

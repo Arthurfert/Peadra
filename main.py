@@ -29,9 +29,10 @@ logger = logging.getLogger(__name__)
 class PeadraApp:
     """Application principale Peadra."""
 
-    def __init__(self, page: ft.Page, is_dark: bool = True):
+    def __init__(self, page: ft.Page, theme_mode: str = "dark"):
         self.page = page
-        self.is_dark = is_dark
+        self.theme_mode = theme_mode
+        self.is_dark = theme_mode != "light"
 
         self.current_view_index = 0
 
@@ -61,8 +62,7 @@ class PeadraApp:
         def on_login_success() -> None:
             """Callback appelé après une connexion réussie."""
             # Charger le thème depuis la base de données pour l'utilisateur
-            theme_setting = db.get_setting("theme_mode", "dark")
-            is_dark_user = theme_setting == "dark"
+            theme_setting = db.get_setting("theme_mode", "dark") or "dark"
 
             # Traiter les transactions récurrentes au démarrage
             try:
@@ -74,23 +74,15 @@ class PeadraApp:
 
             # Créer l'application principale
             self.page.controls.clear()
-            app = PeadraApp(self.page, is_dark_user)
+            app = PeadraApp(self.page, theme_setting)
             self.page.update()
 
         # Configuration initiale
-        is_dark_initial = True
-        theme = (
-            PeadraTheme.get_dark_theme()
-            if is_dark_initial
-            else PeadraTheme.get_light_theme()
-        )
-        self.page.theme = theme
-        self.page.theme_mode = (
-            ft.ThemeMode.DARK if is_dark_initial else ft.ThemeMode.LIGHT
-        )
-        self.page.bgcolor = (
-            PeadraTheme.DARK_BG if is_dark_initial else PeadraTheme.LIGHT_BG
-        )
+        theme_mode = db.get_app_setting("theme_mode", "dark") or "dark"
+        PeadraTheme.set_theme(theme_mode)
+        self.page.theme = PeadraTheme.get_flet_theme()
+        self.page.theme_mode = ft.ThemeMode.DARK if theme_mode != "light" else ft.ThemeMode.LIGHT
+        self.page.bgcolor = PeadraTheme.bg
         self.page.title = "Peadra - Login"
         self.page.vertical_alignment = ft.MainAxisAlignment.CENTER
         self.page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
@@ -100,7 +92,7 @@ class PeadraApp:
 
         # Créer la vue de login avec les utilisateurs existants
         login_view = LoginView(
-            self.page, is_dark_initial, on_login_success, existing_users
+            self.page, True, on_login_success, existing_users
         )
         login_container = login_view.build()
 
@@ -123,14 +115,10 @@ class PeadraApp:
 
     def _apply_theme(self):
         """Applique le thème actuel."""
-        if self.is_dark:
-            self.page.theme = PeadraTheme.get_dark_theme()
-            self.page.theme_mode = ft.ThemeMode.DARK
-            self.page.bgcolor = PeadraTheme.DARK_BG
-        else:
-            self.page.theme = PeadraTheme.get_light_theme()
-            self.page.theme_mode = ft.ThemeMode.LIGHT
-            self.page.bgcolor = PeadraTheme.LIGHT_BG
+        PeadraTheme.set_theme(self.theme_mode)
+        self.page.theme = PeadraTheme.get_flet_theme()
+        self.page.theme_mode = ft.ThemeMode.DARK if self.is_dark else ft.ThemeMode.LIGHT
+        self.page.bgcolor = PeadraTheme.bg
 
     def _init_components(self):
         """Initialise les composants de l'application."""
@@ -147,7 +135,7 @@ class PeadraApp:
         # Vues
         self.parameters_view = ParametersView(
             self.page,
-            self.is_dark,
+            self.theme_mode,
             self._refresh_all_views,
             on_toggle_theme=self._toggle_theme,
             on_import=lambda: self.import_dialog.open(),
@@ -180,22 +168,26 @@ class PeadraApp:
 
         self._update_content()
 
-    def _toggle_theme(self, e):
-        """Bascule entre le mode sombre et clair."""
-        self.is_dark = not self.is_dark
-        mode = "dark" if self.is_dark else "light"
-        logger.info("Theme toggled to %s", mode)
+    def _toggle_theme(self, theme_mode: str):
+        """Bascule/définit le thème."""
+        logger.info("Theme toggled to %s", theme_mode)
+        self.theme_mode = theme_mode
+        self.is_dark = theme_mode != "light"
 
         # Sauvegarder dans la base de données
-        db.set_setting("theme_mode", mode)
+        db.set_setting("theme_mode", theme_mode)
+        db.set_app_setting("theme_mode", theme_mode)
 
         self._apply_theme()
 
         # Mettre à jour tous les composants
 
         self.navigation.update_theme(self.is_dark)
-        for view in self.views.values():
-            view.update_theme(self.is_dark)
+        for view_idx, view in self.views.items():
+            if view_idx == 5:
+                view.update_theme(self.theme_mode)
+            else:
+                view.update_theme(self.is_dark)
         if hasattr(self, "import_dialog"):
             self.import_dialog.update_theme(self.is_dark)
 
@@ -249,7 +241,7 @@ class PeadraApp:
 
     def _show_snackbar(self, message: str, success: bool = True):
         """Affiche une notification."""
-        color = PeadraTheme.SUCCESS if success else PeadraTheme.ERROR
+        color = PeadraTheme.success if success else PeadraTheme.error
         snackbar = ft.SnackBar(
             content=ft.Text(message, color=ft.Colors.WHITE),
             bgcolor=color,
@@ -270,10 +262,8 @@ class PeadraApp:
 
     def _build_header(self) -> ft.Container:
         """Construit l'en-tête de l'application."""
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
-        bg_color = (
-            PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
-        )
+        text_color = PeadraTheme.text
+        bg_color = PeadraTheme.surface
 
         return ft.Container(
             content=ft.Row(
@@ -303,12 +293,14 @@ class PeadraApp:
                     # Bouton des paramètres
                     ft.IconButton(
                         icon=ft.Icons.SETTINGS,
+                        icon_color=PeadraTheme.text,
                         tooltip=t("tooltip_settings"),
                         on_click=lambda e: self._open_settings(e),
                     ),
                     # Bouton logout
                     ft.IconButton(
                         icon=ft.Icons.LOGOUT,
+                        icon_color=PeadraTheme.text,
                         tooltip=t("tooltip_logout"),
                         on_click=lambda e: self._logout(),
                     ),
@@ -331,10 +323,8 @@ class PeadraApp:
 
     def _build_ui(self):
         """Construit l'interface utilisateur complète."""
-        bg_color = PeadraTheme.DARK_BG if self.is_dark else PeadraTheme.LIGHT_BG
-        surface_color = (
-            PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
-        )
+        bg_color = PeadraTheme.bg
+        surface_color = PeadraTheme.surface
 
         # Pour la vue principale, on évite le centrage global de la page afin
         # que le layout occupe toute la hauteur disponible.
@@ -397,8 +387,7 @@ def main(page: ft.Page):
     def on_login_success() -> None:
         """Callback appelé après une connexion réussie."""
         # Charger le thème depuis la base de données pour l'utilisateur
-        theme_setting = db.get_setting("theme_mode", "dark")
-        is_dark_user = theme_setting == "dark"
+        theme_setting = db.get_setting("theme_mode", "dark") or "dark"
 
         # Charger la langue depuis la base de données pour l'utilisateur
         language_setting = db.get_setting("language", "en") or "en"
@@ -417,15 +406,15 @@ def main(page: ft.Page):
 
         # Créer l'application principale
         page.controls.clear()
-        app = PeadraApp(page, is_dark_user)
+        app = PeadraApp(page, theme_setting)
         page.update()
 
     # Configuration initiale
-    is_dark = True
-    theme = PeadraTheme.get_dark_theme() if is_dark else PeadraTheme.get_light_theme()
-    page.theme = theme
-    page.theme_mode = ft.ThemeMode.DARK if is_dark else ft.ThemeMode.LIGHT
-    page.bgcolor = PeadraTheme.DARK_BG if is_dark else PeadraTheme.LIGHT_BG
+    initial_theme = db.get_app_setting("theme_mode", "dark") or "dark"
+    PeadraTheme.set_theme(initial_theme)
+    page.theme = PeadraTheme.get_flet_theme()
+    page.theme_mode = ft.ThemeMode.DARK if initial_theme != "light" else ft.ThemeMode.LIGHT
+    page.bgcolor = PeadraTheme.bg
     page.title = "Peadra - Login"
     page.window.width = 1400
     page.window.height = 900
@@ -446,7 +435,7 @@ def main(page: ft.Page):
 
     # Créer la vue de login avec les utilisateurs existants
     # Si aucun utilisateur n'existe, LoginView affichera le mode enregistrement
-    login_view = LoginView(page, is_dark, on_login_success, existing_users)
+    login_view = LoginView(page, True, on_login_success, existing_users)
     login_container = login_view.build()
 
     page.add(login_container)

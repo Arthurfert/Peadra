@@ -61,14 +61,14 @@ class CustomSavePicker:
         self.default_extension = default_extension
         self.current_path = os.getcwd()
 
-        self.path_text = ft.Text(value=self.current_path, size=12, color=ft.Colors.GREY)
+        self.path_text = ft.Text(value=self.current_path, size=12, color=PeadraTheme.text_secondary)
         self.file_list = ft.ListView(expand=True, spacing=2)
         self.filename_field = ft.TextField(
             label=t("param_file_name"), expand=True, height=40, text_size=13
         )
 
         self.dialog = ft.AlertDialog(
-            title=ft.Text(t("param_file_picker_title")),
+            title=ft.Text(t("param_file_picker_title"), color=PeadraTheme.text_secondary),
             content=ft.Container(
                 content=ft.Column(
                     [
@@ -153,7 +153,7 @@ class CustomSavePicker:
                 self.file_list.controls.append(
                     ft.ListTile(
                         leading=ft.Icon(ft.Icons.FOLDER, color=ft.Colors.AMBER),
-                        title=ft.Text(folder),
+                        title=ft.Text(folder, color=PeadraTheme.text_secondary),
                         on_click=lambda e, f=folder: self._navigate(f),
                     )
                 )
@@ -163,15 +163,15 @@ class CustomSavePicker:
                 self.file_list.controls.append(
                     ft.ListTile(
                         leading=ft.Icon(
-                            ft.Icons.INSERT_DRIVE_FILE, color=ft.Colors.GREY
+                            ft.Icons.INSERT_DRIVE_FILE, color=PeadraTheme.placeholder_color
                         ),
-                        title=ft.Text(file, color=ft.Colors.GREY_400),
+                        title=ft.Text(file, color=PeadraTheme.text_secondary),
                     )
                 )
 
         except Exception as e:
             self.file_list.controls.append(
-                ft.Text(f"{t('param_file_error')} {e}", color=ft.Colors.ERROR)
+                ft.Text(f"{t('param_file_error')} {e}", color=PeadraTheme.text_secondary)
             )
 
         self.page.update()
@@ -193,7 +193,7 @@ class ParametersView:
     def __init__(
         self,
         page: ft.Page,
-        is_dark: bool,
+        theme_mode: str,
         on_data_change: Callable,
         on_toggle_theme: Callable,
         on_import: Callable,
@@ -202,7 +202,8 @@ class ParametersView:
         on_language_change: Optional[Callable] = None,
     ):
         self.page = page
-        self.is_dark = is_dark
+        self.theme_mode = theme_mode
+        self.is_dark = theme_mode != "light"
         self.on_data_change = on_data_change
         self.on_toggle_theme = on_toggle_theme
         self.on_import = on_import
@@ -226,7 +227,7 @@ class ParametersView:
         self.update_status_params: dict = {}
         self.update_status = t(self.update_status_key)
         self.update_status_text = ft.Text(
-            self.update_status, size=12, color=ft.Colors.GREY
+            self.update_status, size=12, color=PeadraTheme.placeholder_color
         )
         self.update_available = False
         self.update_button: Optional[ft.OutlinedButton] = None
@@ -280,9 +281,10 @@ class ParametersView:
                 e.control.value = current_username
                 self.page.update()
 
-    def update_theme(self, is_dark: bool):
+    def update_theme(self, theme_mode: str):
         """Met à jour le thème."""
-        self.is_dark = is_dark
+        self.theme_mode = theme_mode
+        self.is_dark = theme_mode != "light"
 
     def refresh(self):
         """Rafraîchit la vue (gérée par la reconstruction globale de l'UI)."""
@@ -298,9 +300,9 @@ class ParametersView:
         self, title: str, icon: Any, children: List[ft.Control]
     ) -> ft.Container:
         """Construit une carte de section de paramètres."""
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        text_color = PeadraTheme.text
         bg_card = (
-            PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
+            PeadraTheme.surface
         )
 
         return ft.Container(
@@ -308,7 +310,7 @@ class ParametersView:
                 [
                     ft.Row(
                         [
-                            ft.Icon(cast(Any, icon), color=PeadraTheme.ACCENT, size=24),
+                            ft.Icon(cast(Any, icon), color=PeadraTheme.accent, size=24),
                             ft.Text(
                                 title,
                                 size=18,
@@ -320,7 +322,7 @@ class ParametersView:
                     ),
                     ft.Divider(
                         height=1,
-                        color=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE),
+                        color=PeadraTheme.divider,
                     ),
                     ft.Container(height=8),
                     *children,
@@ -331,7 +333,7 @@ class ParametersView:
             bgcolor=bg_card,
             border_radius=20,
             border=(
-                ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.GREY))
+                ft.border.all(1, PeadraTheme.divider)
                 if not self.is_dark
                 else None
             ),
@@ -344,12 +346,12 @@ class ParametersView:
         control: ft.Control,
     ) -> ft.Container:
         """Construit une ligne de paramètre."""
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        text_color = PeadraTheme.text
 
         if isinstance(description, ft.Control):
             description_control = description
         else:
-            description_control = ft.Text(description, size=12, color=ft.Colors.GREY)
+            description_control = ft.Text(description, size=12, color=PeadraTheme.placeholder_color)
 
         return ft.Container(
             content=ft.Row(
@@ -376,19 +378,19 @@ class ParametersView:
         )
 
     def _build_theme_option(
-        self, label: str, image_src: str, is_dark_option: bool
+        self, label: str, image_src: str, theme_val: str
     ) -> ft.Container:
         """Construit une option de thème cliquable."""
-        is_selected = self.is_dark == is_dark_option
+        is_selected = self.theme_mode == theme_val
         border_color = (
-            PeadraTheme.ACCENT
+            PeadraTheme.accent
             if is_selected
-            else ft.Colors.with_opacity(0.1, ft.Colors.GREY)
+            else PeadraTheme.divider
         )
 
         def on_click(e):
-            if self.is_dark != is_dark_option:
-                self.on_toggle_theme(e)
+            if self.theme_mode != theme_val:
+                self.on_toggle_theme(theme_val)
 
         return ft.Container(
             content=ft.Column(
@@ -409,11 +411,7 @@ class ParametersView:
                         weight=(
                             ft.FontWeight.BOLD if is_selected else ft.FontWeight.NORMAL
                         ),
-                        color=(
-                            PeadraTheme.DARK_TEXT
-                            if self.is_dark
-                            else PeadraTheme.LIGHT_TEXT
-                        ),
+                        color=PeadraTheme.text,
                     ),
                 ],
                 alignment=ft.MainAxisAlignment.CENTER,
@@ -513,7 +511,7 @@ class ParametersView:
 
             snack = ft.SnackBar(
                 content=ft.Text(t("msg_export_error"), color=ft.Colors.WHITE),
-                bgcolor=PeadraTheme.ERROR,
+                bgcolor=PeadraTheme.error,
             )
             self.page.overlay.append(snack)
             snack.open = True
@@ -545,7 +543,7 @@ class ParametersView:
             self._show_snackbar(t("msg_export_error"), success=False)
 
     def _show_snackbar(self, message: str, success: bool = True):
-        color = PeadraTheme.SUCCESS if success else PeadraTheme.ERROR
+        color = PeadraTheme.success if success else PeadraTheme.error
         snack = ft.SnackBar(
             content=ft.Text(message, color=ft.Colors.WHITE),
             bgcolor=color,
@@ -604,14 +602,14 @@ class ParametersView:
 
     def _show_changelog_dialog(self, title: str, body: str, url: str | None = None):
         content_children: List[ft.Control] = [
-            ft.Text(body or t("param_changelog_empty"), selectable=True),
+            ft.Text(body or t("param_changelog_empty"), selectable=True, color=PeadraTheme.text_secondary),
         ]
 
         if url:
-            content_children.append(ft.Text(url, size=12, color=ft.Colors.GREY))
+            content_children.append(ft.Text(url, size=12, color=PeadraTheme.text_secondary))
 
         dialog = ft.AlertDialog(
-            title=ft.Text(title, weight=ft.FontWeight.BOLD),
+            title=ft.Text(title, weight=ft.FontWeight.BOLD, color=PeadraTheme.text_secondary),
             content=ft.Container(
                 content=ft.Column(
                     content_children,
@@ -693,17 +691,17 @@ class ParametersView:
         progress_text = ft.Text(
             t("param_update_status_downloading").format(percent=0),
             size=14,
-            color=PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT,
+            color=PeadraTheme.text_secondary,
         )
         progress_bar = ft.ProgressBar(value=0, width=400)
         instructions_text = ft.Text(
             t("param_update_instructions").format(percent=0),
             size=14,
-            color=PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT,
+            color=PeadraTheme.text_secondary,
         )
 
         dialog = ft.AlertDialog(
-            title=ft.Text(t("param_updates")),
+            title=ft.Text(t("param_updates"), color=PeadraTheme.text_secondary),
             content=ft.Container(
                 content=ft.Column(
                     [progress_text, progress_bar, instructions_text],
@@ -1015,7 +1013,7 @@ class ParametersView:
             hashed = hashlib.sha256(pwd.encode()).hexdigest()
             db.set_setting("app_password_hash", hashed)
             message.value = t("param_password_saved")
-            message.color = ft.Colors.GREEN
+            message.color = PeadraTheme.success
             pwd_field.value = ""
             confirm_field.value = ""
             old_pwd_field.value = ""
@@ -1029,7 +1027,7 @@ class ParametersView:
             db.set_setting("app_password_hash", "")
             logger.info("App password was removed")
             message.value = t("param_password_removed")
-            message.color = ft.Colors.GREEN
+            message.color = PeadraTheme.success
             remove_btn.visible = False
             old_pwd_field.value = ""
             pwd_field.value = ""
@@ -1044,7 +1042,7 @@ class ParametersView:
             t("param_btn_remove"),
             icon=ft.Icons.DELETE_OUTLINED,
             on_click=on_remove,
-            color=ft.Colors.RED,
+            color=PeadraTheme.delete_color,
             visible=has_password,
         )
         save_btn = ft.ElevatedButton(
@@ -1055,7 +1053,7 @@ class ParametersView:
 
         dialog = ft.AlertDialog(
             title=ft.Text(
-                t("param_change_password"), size=20, weight=ft.FontWeight.BOLD
+                t("param_change_password"), size=20, weight=ft.FontWeight.BOLD, color=PeadraTheme.text_secondary
             ),
             content=ft.Container(
                 content=content_col,
@@ -1081,7 +1079,7 @@ class ParametersView:
             width=300,
             height=45,
         )
-        error_message = ft.Text(size=12, color=ft.Colors.ERROR)
+        error_message = ft.Text(size=12, color=PeadraTheme.text_secondary)
 
         def on_confirm(_):
             pwd = password_field.value.strip()
@@ -1108,7 +1106,7 @@ class ParametersView:
 
         dialog = ft.AlertDialog(
             title=ft.Text(
-                t("param_delete_confirm"), size=20, weight=ft.FontWeight.BOLD
+                t("param_delete_confirm"), size=20, weight=ft.FontWeight.BOLD, color=PeadraTheme.text_secondary
             ),
             content=ft.Container(
                 content=ft.Column(
@@ -1116,13 +1114,14 @@ class ParametersView:
                         ft.Text(
                             t("param_delete_warning"),
                             size=14,
-                            color=ft.Colors.ERROR,
+                            color=PeadraTheme.text_secondary,
                         ),
                         ft.Container(height=16),
                         ft.Text(
                             t("param_delete_password_prompt"),
                             size=13,
                             weight=ft.FontWeight.W_500,
+                            color=PeadraTheme.text_secondary,
                         ),
                         password_field,
                         error_message,
@@ -1138,7 +1137,7 @@ class ParametersView:
                 ft.TextButton(
                     t("param_delete_confirm"),
                     on_click=on_confirm,
-                    style=ft.ButtonStyle(color=ft.Colors.RED),
+                    style=ft.ButtonStyle(color=PeadraTheme.delete_color),
                 ),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
@@ -1149,7 +1148,7 @@ class ParametersView:
 
     def build(self) -> ft.Container:
         """Construit la vue paramètres."""
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        text_color = PeadraTheme.text
 
         # === Section Général ===
         user_name_field = ft.TextField(
@@ -1166,10 +1165,17 @@ class ParametersView:
                 self._build_theme_option(
                     t("param_light_theme"),
                     get_asset_path("assets/Dashboard_Light.jpg"),
-                    False,
+                    "light",
                 ),
                 self._build_theme_option(
-                    t("param_dark_theme"), get_asset_path("assets/Dashboard.jpg"), True
+                    t("param_dark_theme"),
+                    get_asset_path("assets/Dashboard.jpg"),
+                    "dark",
+                ),
+                self._build_theme_option(
+                    t("param_autumn_theme"),
+                    get_asset_path("assets/Dashboard_Autumn.jpg"),
+                    "autumn",
                 ),
             ],
             spacing=20,
@@ -1224,7 +1230,7 @@ class ParametersView:
                         ft.Text(
                             t("param_theme_desc"),
                             size=12,
-                            color=ft.Colors.GREY,
+                            color=PeadraTheme.placeholder_color,
                         ),
                     ],
                     spacing=2,
@@ -1240,7 +1246,7 @@ class ParametersView:
             icon=ft.Icons.UPLOAD_FILE,
             on_click=self._on_import_csv,
             style=ft.ButtonStyle(
-                bgcolor=PeadraTheme.ACCENT,
+                bgcolor=PeadraTheme.accent,
                 color=ft.Colors.WHITE,
                 padding=ft.padding.symmetric(horizontal=20, vertical=12),
                 shape=ft.RoundedRectangleBorder(radius=10),
@@ -1254,8 +1260,8 @@ class ParametersView:
             style=ft.ButtonStyle(
                 padding=ft.padding.symmetric(horizontal=20, vertical=12),
                 shape=ft.RoundedRectangleBorder(radius=10),
-                side=ft.BorderSide(1, PeadraTheme.ACCENT),
-                color=PeadraTheme.ACCENT,
+                side=ft.BorderSide(1, PeadraTheme.accent),
+                color=PeadraTheme.accent,
             ),
         )
 
@@ -1271,8 +1277,8 @@ class ParametersView:
             style=ft.ButtonStyle(
                 padding=ft.padding.symmetric(horizontal=20, vertical=12),
                 shape=ft.RoundedRectangleBorder(radius=10),
-                side=ft.BorderSide(1, PeadraTheme.ACCENT),
-                color=PeadraTheme.ACCENT,
+                side=ft.BorderSide(1, PeadraTheme.accent),
+                color=PeadraTheme.accent,
             ),
         )
 
@@ -1283,8 +1289,8 @@ class ParametersView:
             style=ft.ButtonStyle(
                 padding=ft.padding.symmetric(horizontal=20, vertical=12),
                 shape=ft.RoundedRectangleBorder(radius=10),
-                side=ft.BorderSide(1, PeadraTheme.ACCENT),
-                color=PeadraTheme.ACCENT,
+                side=ft.BorderSide(1, PeadraTheme.accent),
+                color=PeadraTheme.accent,
             ),
         )
 
@@ -1296,8 +1302,8 @@ class ParametersView:
             style=ft.ButtonStyle(
                 padding=ft.padding.symmetric(horizontal=20, vertical=12),
                 shape=ft.RoundedRectangleBorder(radius=10),
-                side=ft.BorderSide(1, PeadraTheme.ACCENT),
-                color=PeadraTheme.ACCENT,
+                side=ft.BorderSide(1, PeadraTheme.accent),
+                color=PeadraTheme.accent,
             ),
         )
 
@@ -1319,7 +1325,7 @@ class ParametersView:
                             ft.Text(
                                 f"{t('param_version')} {self.current_version}",
                                 size=12,
-                                color=ft.Colors.GREY,
+                                color=PeadraTheme.placeholder_color,
                             ),
                             self.update_status_text,
                         ],
@@ -1335,12 +1341,13 @@ class ParametersView:
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            padding=ft.padding.symmetric(horizontal=16, vertical=14),
-            border_radius=12,
-            bgcolor=(
-                PeadraTheme.DARK_SURFACE
-                if self.is_dark
-                else ft.Colors.with_opacity(0.35, PeadraTheme.LIGHT_SURFACE)
+            padding=24,
+            border_radius=20,
+            bgcolor=PeadraTheme.surface,
+            border=(
+                ft.border.all(1, PeadraTheme.divider)
+                if not self.is_dark
+                else None
             ),
         )
 
@@ -1356,8 +1363,8 @@ class ParametersView:
             style=ft.ButtonStyle(
                 padding=ft.padding.symmetric(horizontal=20, vertical=12),
                 shape=ft.RoundedRectangleBorder(radius=10),
-                side=ft.BorderSide(1, PeadraTheme.ACCENT),
-                color=PeadraTheme.ACCENT,
+                side=ft.BorderSide(1, PeadraTheme.accent),
+                color=PeadraTheme.accent,
             ),
         )
 
@@ -1496,7 +1503,7 @@ class ParametersView:
             icon=ft.Icons.DELETE_FOREVER,
             on_click=self._on_delete_account_click,
             style=ft.ButtonStyle(
-                bgcolor=ft.Colors.RED,
+                bgcolor=PeadraTheme.delete_color,
                 color=ft.Colors.WHITE,
                 padding=ft.padding.symmetric(horizontal=20, vertical=12),
                 shape=ft.RoundedRectangleBorder(radius=10),
@@ -1530,7 +1537,7 @@ class ParametersView:
                             ft.Text(
                                 t("param_page_subtitle"),
                                 size=16,
-                                color=ft.Colors.GREY,
+                                color=PeadraTheme.placeholder_color,
                             ),
                         ],
                         spacing=4,

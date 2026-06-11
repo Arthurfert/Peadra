@@ -29,7 +29,7 @@ class AccountsView:
         self.update_history_checkbox = ft.Checkbox(
             label=t("acc_update_history"),
             value=True,
-            label_style=ft.TextStyle(size=14),
+            label_style=ft.TextStyle(size=14, color=PeadraTheme.text_secondary),
         )
         self.type_dropdown = ft.Dropdown(
             label=t("acc_type"),
@@ -44,85 +44,10 @@ class AccountsView:
             label=t("acc_color"),
             options=[
                 ft.dropdown.Option(
-                    "#4CAF50",
-                    t("acc_green"),
-                    content=ft.Row(
-                        [
-                            ft.Container(width=20, height=20, bgcolor="#4CAF50"),
-                            ft.Text(t("acc_green")),
-                        ]
-                    ),
-                ),
-                ft.dropdown.Option(
-                    "#2196F3",
-                    t("acc_blue"),
-                    content=ft.Row(
-                        [
-                            ft.Container(width=20, height=20, bgcolor="#2196F3"),
-                            ft.Text(t("acc_blue")),
-                        ]
-                    ),
-                ),
-                ft.dropdown.Option(
-                    "#009688",
-                    t("acc_teal"),
-                    content=ft.Row(
-                        [
-                            ft.Container(width=20, height=20, bgcolor="#009688"),
-                            ft.Text(t("acc_teal")),
-                        ]
-                    ),
-                ),
-                ft.dropdown.Option(
-                    "#FF9800",
-                    t("acc_orange"),
-                    content=ft.Row(
-                        [
-                            ft.Container(width=20, height=20, bgcolor="#FF9800"),
-                            ft.Text(t("acc_orange")),
-                        ]
-                    ),
-                ),
-                ft.dropdown.Option(
-                    "#E91E63",
-                    t("acc_pink"),
-                    content=ft.Row(
-                        [
-                            ft.Container(width=20, height=20, bgcolor="#E91E63"),
-                            ft.Text(t("acc_pink")),
-                        ]
-                    ),
-                ),
-                ft.dropdown.Option(
-                    "#9C27B0",
-                    t("acc_purple"),
-                    content=ft.Row(
-                        [
-                            ft.Container(width=20, height=20, bgcolor="#9C27B0"),
-                            ft.Text(t("acc_purple")),
-                        ]
-                    ),
-                ),
-                ft.dropdown.Option(
-                    "#F44336",
-                    t("acc_red"),
-                    content=ft.Row(
-                        [
-                            ft.Container(width=20, height=20, bgcolor="#F44336"),
-                            ft.Text(t("acc_red")),
-                        ]
-                    ),
-                ),
-                ft.dropdown.Option(
-                    "#607D8B",
-                    t("acc_gray"),
-                    content=ft.Row(
-                        [
-                            ft.Container(width=20, height=20, bgcolor="#607D8B"),
-                            ft.Text(t("acc_gray")),
-                        ]
-                    ),
-                ),
+                    hex_color,
+                    content=ft.Container(width=20, height=20, bgcolor=hex_color),
+                )
+                for hex_color in PeadraTheme.chart_palette
             ],
         )
         self.editing_id: Optional[int] = None
@@ -164,14 +89,14 @@ class AccountsView:
         else:
             self.editing_id = None
             self.name_field.value = ""
-            self.color_dropdown.value = "#2196F3"  # Default color
+            self.color_dropdown.value = "#3b82f6"  # Default color
             self.type_dropdown.value = t("acc_savings")
             self.update_history_checkbox.visible = False
             title = t("acc_add_account")
 
         self.dialog = ft.AlertDialog(
             modal=True,
-            title=ft.Text(title),
+            title=ft.Text(title, color=PeadraTheme.text_secondary),
             content=ft.Column(
                 [
                     self.name_field,
@@ -242,14 +167,14 @@ class AccountsView:
 
         self.merge_dialog = ft.AlertDialog(
             modal=True,
-            title=ft.Text(t("acc_merge_title")),
-            content=ft.Text(t("acc_merge_message").format(target_name=target_name)),
+            title=ft.Text(t("acc_merge_title"), color=PeadraTheme.text_secondary),
+            content=ft.Text(t("acc_merge_message").format(target_name=target_name), color=PeadraTheme.text_secondary),
             actions=[
                 ft.TextButton(t("btn_cancel"), on_click=close_merge_dlg),
                 ft.TextButton(
                     t("btn_merge"),
                     on_click=confirm_merge,
-                    style=ft.ButtonStyle(color=ft.Colors.BLUE),
+                    style=ft.ButtonStyle(color=PeadraTheme.add_color),
                 ),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
@@ -342,16 +267,16 @@ class AccountsView:
             label=t("acc_delete_transactions"),
             value=False,
             label_style=ft.TextStyle(
-                color=PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+                color=PeadraTheme.text_secondary
             ),
         )
 
         self.confirm_dialog = ft.AlertDialog(
             modal=True,
-            title=ft.Text(t("acc_delete_confirm")),
+            title=ft.Text(t("acc_delete_confirm"), color=PeadraTheme.text_secondary),
             content=ft.Column(
                 [
-                    ft.Text(t("acc_delete_message")),
+                    ft.Text(t("acc_delete_message"), color=PeadraTheme.text_secondary),
                     self.delete_history_checkbox,
                 ],
                 tight=True,
@@ -361,7 +286,7 @@ class AccountsView:
                 ft.TextButton(
                     t("btn_delete"),
                     on_click=confirm_delete,
-                    style=ft.ButtonStyle(color=ft.Colors.RED),
+                    style=ft.ButtonStyle(color=PeadraTheme.delete_color),
                 ),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
@@ -374,9 +299,9 @@ class AccountsView:
     def _build_account_card(self, account):
         """Construit une carte pour un compte."""
         bg_card = (
-            PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
+            PeadraTheme.surface
         )
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        text_color = PeadraTheme.text
 
         return ft.Container(
             content=ft.Column(
@@ -395,7 +320,7 @@ class AccountsView:
                             ),
                             ft.PopupMenuButton(
                                 icon=ft.Icons.MORE_VERT,
-                                icon_color=ft.Colors.GREY_500,
+                                icon_color=PeadraTheme.placeholder_color,
                                 items=[
                                     ft.PopupMenuItem(
                                         content=ft.Row(
@@ -428,7 +353,7 @@ class AccountsView:
                             ft.Text(
                                 account["name"],
                                 size=14,
-                                color=ft.Colors.GREY_500,
+                                color=PeadraTheme.placeholder_color,
                             ),
                             ft.Text(
                                 f"{account['balance']:,.2f} {self.currency}",
@@ -445,7 +370,7 @@ class AccountsView:
             bgcolor=bg_card,
             border_radius=20,
             border=(
-                ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.GREY))
+                ft.border.all(1, PeadraTheme.divider)
                 if not self.is_dark
                 else None
             ),
@@ -468,10 +393,10 @@ class AccountsView:
         add_container = ft.Container(
             content=ft.Column(
                 [
-                    ft.Icon(
-                        ft.Icons.ADD_CIRCLE_OUTLINE, size=40, color=ft.Colors.GREY_500
-                    ),
-                    ft.Text(t("acc_add_account"), color=ft.Colors.GREY_500),
+                        ft.Icon(
+                            ft.Icons.ADD_CIRCLE_OUTLINE, size=40, color=PeadraTheme.placeholder_color
+                        ),
+                        ft.Text(t("acc_add_account"), color=PeadraTheme.placeholder_color),
                 ],
                 alignment=ft.MainAxisAlignment.CENTER,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -480,10 +405,10 @@ class AccountsView:
             padding=20,
             on_click=lambda _: self._open_dialog(),
             bgcolor=(
-                PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
+                PeadraTheme.surface
             ),
             border=ft.border.all(
-                2, ft.Colors.GREY_800 if self.is_dark else ft.Colors.GREY_300
+                2, PeadraTheme.divider
             ),
             border_radius=20,
         )
@@ -496,11 +421,7 @@ class AccountsView:
                     t("acc_title"),
                     size=32,
                     weight=ft.FontWeight.BOLD,
-                    color=(
-                        PeadraTheme.DARK_TEXT
-                        if self.is_dark
-                        else PeadraTheme.LIGHT_TEXT
-                    ),
+                    color=PeadraTheme.text,
                 ),
                 ft.Container(height=20),
                 ft.Container(content=grid, expand=True),

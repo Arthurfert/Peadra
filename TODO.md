@@ -18,7 +18,6 @@ If so, a peer-to-peer encrypted sync may be implemented.
 
 ## Future Improvements & ideas
 
-- Automatic database backup
 - Budget view, with budget insights in dashboard/categories view
-- Forcasting & trends ?
-- Onboarding & tutorial ?
+- Compute trends + Tool to simulate/calculate economic specifics and effects on existing assets
+- Onboarding & tutorial

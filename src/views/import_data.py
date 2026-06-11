@@ -46,36 +46,36 @@ class CustomFilePicker:
         self.allowed_extensions = [ext.lower() for ext in (allowed_extensions or [])]
         self.current_path = os.getcwd()
 
-        self.path_text = ft.Text(value=self.current_path, size=12, color=ft.Colors.GREY)
+        self.path_text = ft.Text(value=self.current_path, size=12, color=PeadraTheme.text_secondary)
         self.file_list = ft.ListView(expand=True, spacing=2)
 
         self.dialog = ft.AlertDialog(
-            title=ft.Text(t("file_select_file")),
-            content=ft.Container(
-                content=ft.Column(
-                    [
-                        ft.Row(
-                            [
-                                ft.IconButton(
-                                    icon=ft.Icons.ARROW_UPWARD,
-                                    on_click=self._go_up,
-                                    tooltip=t("param_file_go_up"),
-                                ),
-                                ft.Container(
-                                    content=self.path_text, expand=True, padding=5
-                                ),
-                            ],
-                            alignment=ft.MainAxisAlignment.START,
-                        ),
-                        ft.Divider(height=1),
-                        self.file_list,
-                    ],
-                    spacing=10,
+            title=ft.Text(t("file_select_file"), color=PeadraTheme.text_secondary),
+                content=ft.Container(
+                    content=ft.Column(
+                        [
+                            ft.Row(
+                                [
+                                    ft.IconButton(
+                                        icon=ft.Icons.ARROW_UPWARD,
+                                        on_click=self._go_up,
+                                        tooltip=t("param_file_go_up"),
+                                    ),
+                                    ft.Container(
+                                        content=self.path_text, expand=True, padding=5
+                                    ),
+                                ],
+                                alignment=ft.MainAxisAlignment.START,
+                            ),
+                            ft.Divider(height=1),
+                            self.file_list,
+                        ],
+                        spacing=10,
+                    ),
+                    width=600,
+                    height=400,
+                    padding=10,
                 ),
-                width=600,
-                height=400,
-                padding=10,
-            ),
             actions=[ft.TextButton(t("btn_cancel"), on_click=lambda _: self._cancel())],
         )
 
@@ -114,7 +114,7 @@ class CustomFilePicker:
                 self.file_list.controls.append(
                     ft.ListTile(
                         leading=ft.Icon(ft.Icons.FOLDER, color=ft.Colors.AMBER),
-                        title=ft.Text(folder),
+                        title=ft.Text(folder, color=PeadraTheme.text_secondary),
                         on_click=lambda e, p=folder: self._navigate(p),
                         dense=True,
                     )
@@ -130,10 +130,10 @@ class CustomFilePicker:
                     ft.ListTile(
                         leading=ft.Icon(
                             ft.Icons.INSERT_DRIVE_FILE,
-                            color=ft.Colors.BLUE if is_allowed else ft.Colors.GREY,
+                            color=PeadraTheme.add_color if is_allowed else PeadraTheme.placeholder_color,
                         ),
                         title=ft.Text(
-                            file, color=None if is_allowed else ft.Colors.GREY
+                            file, color=PeadraTheme.text_secondary
                         ),
                         on_click=(
                             (lambda e, p=file: self._select_file(p))
@@ -148,7 +148,7 @@ class CustomFilePicker:
 
         except Exception as e:
             self.file_list.controls.append(
-                ft.Text(f"{t('msg_error_file')}: {e}", color=ft.Colors.RED)
+                ft.Text(f"{t('msg_error_file')}: {e}", color=PeadraTheme.text_secondary)
             )
 
         self.page.update()
@@ -207,7 +207,7 @@ class ImportDialog:
         )
         self.account_container = ft.Column(
             [
-                ft.Text(t("import_account_selection"), weight=ft.FontWeight.BOLD),
+                ft.Text(t("import_account_selection"), weight=ft.FontWeight.BOLD, color=PeadraTheme.text_secondary),
                 self.account_dropdown,
                 self.new_account_name,
             ]
@@ -218,11 +218,11 @@ class ImportDialog:
         self.csv_headers: List[str] = []
 
         # UI Components
-        self.status_text = ft.Text(t("import_no_file"), color=ft.Colors.GREY)
+        self.status_text = ft.Text(t("import_no_file"), color=PeadraTheme.text_secondary)
 
         # Initialize with at least one column to avoid "ValueError" if accidentally shown
         self.preview_table = ft.DataTable(
-            columns=[ft.DataColumn(label=ft.Text(t("import_preview")))],
+            columns=[ft.DataColumn(label=ft.Text(t("import_preview"), color=PeadraTheme.text_secondary))],
             rows=[],
             visible=False,
             heading_row_height=80,
@@ -235,7 +235,7 @@ class ImportDialog:
             disabled=True,
             style=ft.ButtonStyle(
                 bgcolor=(
-                    PeadraTheme.PRIMARY_MEDIUM if is_dark else PeadraTheme.PRIMARY_LIGHT
+                    PeadraTheme.primary_medium if is_dark else PeadraTheme.primary_light
                 ),
                 color=ft.Colors.WHITE,
             ),
@@ -245,7 +245,7 @@ class ImportDialog:
 
         # Dialog
         self.dialog = ft.AlertDialog(
-            title=ft.Text(t("import_title")),
+            title=ft.Text(t("import_title"), color=PeadraTheme.text_secondary),
             content=ft.Container(content=self._build_content(), width=700, padding=10),
             actions=[
                 self.cancel_btn,
@@ -260,7 +260,7 @@ class ImportDialog:
                 ft.Text(
                     t("import_select_csv_desc"),
                     size=14,
-                    color=ft.Colors.GREY,
+                    color=PeadraTheme.text_secondary,
                 ),
                 ft.Container(height=10),
                 # File Selection
@@ -279,7 +279,7 @@ class ImportDialog:
                 # Preview Area
                 ft.Column(
                     [
-                        ft.Text(t("import_preview"), weight=ft.FontWeight.BOLD),
+                        ft.Text(t("import_preview"), weight=ft.FontWeight.BOLD, color=PeadraTheme.text_secondary),
                         ft.Container(
                             content=ft.Row(
                                 [
@@ -292,7 +292,7 @@ class ImportDialog:
                             ),
                             height=200,  # Constrain height
                             border=ft.border.all(
-                                1, ft.Colors.with_opacity(0.2, ft.Colors.GREY)
+                                1, PeadraTheme.divider
                             ),
                             border_radius=5,
                         ),
@@ -381,7 +381,7 @@ class ImportDialog:
         # Update button color if needed
         if self.import_btn.style:
             self.import_btn.style.bgcolor = (
-                PeadraTheme.PRIMARY_MEDIUM if is_dark else PeadraTheme.PRIMARY_LIGHT
+                PeadraTheme.primary_medium if is_dark else PeadraTheme.primary_light
             )
         self.page.update()
 
@@ -428,8 +428,8 @@ class ImportDialog:
             self.page.update()
 
         warning_dialog = ft.AlertDialog(
-            title=ft.Text(t("import_duplicate_warning")),
-            content=ft.Text(t("import_duplicate_content")),
+            title=ft.Text(t("import_duplicate_warning"), color=PeadraTheme.text_secondary),
+            content=ft.Text(t("import_duplicate_content"), color=PeadraTheme.text_secondary),
             actions=[
                 ft.TextButton(t("btn_cancel"), on_click=on_cancel),
                 ft.TextButton(
@@ -526,7 +526,7 @@ class ImportDialog:
 
         except Exception as ex:
             self.status_text.value = f"{t('msg_error')}: {str(ex)}"
-            self.status_text.color = PeadraTheme.ERROR
+            self.status_text.color = PeadraTheme.error
             self.import_btn.disabled = True
             self.preview_table.visible = False
             # self.mapping_container.visible = False # Removed
@@ -719,7 +719,7 @@ class ImportDialog:
         self._close_dialog(None)
 
         # Show snackbar via page overlay
-        bg_col = PeadraTheme.SUCCESS
+        bg_col = PeadraTheme.success
         snack = ft.SnackBar(
             content=ft.Text(
                 t("import_success").format(count=count), color=ft.Colors.WHITE

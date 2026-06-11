@@ -268,7 +268,7 @@ class TransactionModal:
         # Créer des boutons pour chaque suggestion
         for suggestion in suggestions:
             suggestion_btn = ft.ListTile(
-                title=ft.Text(suggestion.capitalize(), size=14),
+                title=ft.Text(suggestion.capitalize(), size=14, color=PeadraTheme.text_secondary),
                 on_click=lambda e, s=suggestion: self._on_suggestion_selected(s),
                 dense=True,
                 height=30,
@@ -510,7 +510,7 @@ class TransactionModal:
             title = translate("modal_edit_transaction")
 
         self.dialog = ft.AlertDialog(
-            title=ft.Text(title, weight=ft.FontWeight.BOLD),
+            title=ft.Text(title, weight=ft.FontWeight.BOLD, color=PeadraTheme.text_secondary),
             content=ft.Container(
                 content=ft.Column(
                     controls=self.controls_list,
@@ -526,7 +526,7 @@ class TransactionModal:
                     translate("btn_save"),
                     icon=ft.Icons.SAVE,
                     on_click=self._on_save_click,
-                    bgcolor=PeadraTheme.PRIMARY_MEDIUM,
+                    bgcolor=PeadraTheme.primary_medium,
                     color=ft.Colors.WHITE,
                 ),
             ],
@@ -577,18 +577,18 @@ class TransactionDetailsModal:
         is_transfer = "transfer" in transaction["transaction_type"]
 
         if is_income:
-            color = ft.Colors.GREEN
+            color = PeadraTheme.success
             icon = ft.Icons.ARROW_DOWNWARD
             amount_prefix = "+"
         elif is_expense:
-            color = ft.Colors.RED
+            color = PeadraTheme.error
             icon = ft.Icons.ARROW_UPWARD
             amount_prefix = "-"
             # Fix display for expense to be positive value with - sign if desired,
             # currently amount is stored positive usually.
             amount_prefix = "- "
         else:  # Transfer
-            color = ft.Colors.BLUE
+            color = PeadraTheme.transfer_color
             icon = ft.Icons.SWAP_HORIZ
             amount_prefix = ""
 
@@ -609,9 +609,9 @@ class TransactionDetailsModal:
                     controls=[
                         ft.Icon(icon, size=40, color=color),
                         ft.Text(
-                            amount_txt, size=30, weight=ft.FontWeight.BOLD, color=color
+                            amount_txt, size=30, weight=ft.FontWeight.BOLD, color=PeadraTheme.text_secondary
                         ),
-                        ft.Text(date_str, size=14, color=ft.Colors.GREY),
+                        ft.Text(date_str, size=14, color=PeadraTheme.text_secondary),
                     ],
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
@@ -622,18 +622,18 @@ class TransactionDetailsModal:
             ft.ListTile(
                 leading=ft.Icon(ft.Icons.DESCRIPTION),
                 title=ft.Text(
-                    translate("modal_description_label"), size=12, color=ft.Colors.GREY
+                    translate("modal_description_label"), size=12, color=PeadraTheme.text_secondary
                 ),
                 subtitle=ft.Text(
-                    transaction["description"], size=16, weight=ft.FontWeight.W_500
+                    transaction["description"], size=16, weight=ft.FontWeight.W_500, color=PeadraTheme.text_secondary
                 ),
             ),
             ft.ListTile(
                 leading=ft.Icon(ft.Icons.CATEGORY),
                 title=ft.Text(
-                    translate("modal_category_label"), size=12, color=ft.Colors.GREY
+                    translate("modal_category_label"), size=12, color=PeadraTheme.text_secondary
                 ),
-                subtitle=ft.Text(full_category, size=16),
+                subtitle=ft.Text(full_category, size=16, color=PeadraTheme.text_secondary),
             ),
         ]
 
@@ -643,14 +643,14 @@ class TransactionDetailsModal:
                 ft.ListTile(
                     leading=ft.Icon(ft.Icons.NOTE),
                     title=ft.Text(
-                        translate("modal_notes_label"), size=12, color=ft.Colors.GREY
+                        translate("modal_notes_label"), size=12, color=PeadraTheme.text_secondary
                     ),
-                    subtitle=ft.Text(transaction["notes"], size=16),
+                    subtitle=ft.Text(transaction["notes"], size=16, color=PeadraTheme.text_secondary),
                 )
             )
 
         self.dialog = ft.AlertDialog(
-            title=ft.Text(translate("modal_transaction_details")),
+            title=ft.Text(translate("modal_transaction_details"), color=PeadraTheme.text_secondary),
             content=ft.Container(
                 content=ft.Column(
                     content_controls,
@@ -671,7 +671,7 @@ class TransactionDetailsModal:
                     translate("modal_delete"),
                     icon=ft.Icons.DELETE,
                     on_click=self._on_delete_click,
-                    style=ft.ButtonStyle(color=ft.Colors.RED),
+                    style=ft.ButtonStyle(color=PeadraTheme.delete_color),
                 ),
             ],
             actions_alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -775,6 +775,7 @@ class MergeDescriptionsModal:
             title=ft.Text(
                 translate("cat_merge_descriptions"),
                 weight=ft.FontWeight.BOLD,
+                color=PeadraTheme.text_secondary,
             ),
             content=ft.Container(
                 content=ft.Column(
@@ -784,13 +785,14 @@ class MergeDescriptionsModal:
                             ft.Text(
                                 translate("cat_merge_hint"),
                                 size=13,
-                                color=ft.Colors.GREY_600,
+                                color=PeadraTheme.text_secondary,
                             ),
                             ft.Divider(),
                             ft.Text(
                                 translate("cat_merge_from"),
                                 size=12,
                                 weight=ft.FontWeight.W_600,
+                                color=PeadraTheme.text_secondary,
                             ),
                             self.source_dropdown,
                             ft.Container(height=16),
@@ -798,6 +800,7 @@ class MergeDescriptionsModal:
                                 translate("cat_merge_to"),
                                 size=12,
                                 weight=ft.FontWeight.W_600,
+                                color=PeadraTheme.text_secondary,
                             ),
                             self.target_dropdown,
                         ],
@@ -814,7 +817,7 @@ class MergeDescriptionsModal:
                     translate("btn_merge"),
                     icon=ft.Icons.MERGE,
                     on_click=self._on_merge_click,
-                    bgcolor=PeadraTheme.PRIMARY_MEDIUM,
+                    bgcolor=PeadraTheme.primary_medium,
                     color=ft.Colors.WHITE,
                 ),
             ],
@@ -915,6 +918,7 @@ class RenameDescriptionModal:
             title=ft.Text(
                 translate("cat_rename_description"),
                 weight=ft.FontWeight.BOLD,
+                color=PeadraTheme.text_secondary,
             ),
             content=ft.Container(
                 content=ft.Column(
@@ -924,13 +928,14 @@ class RenameDescriptionModal:
                             ft.Text(
                                 translate("cat_rename_hint"),
                                 size=13,
-                                color=ft.Colors.GREY_600,
+                                color=PeadraTheme.text_secondary,
                             ),
                             ft.Divider(),
                             ft.Text(
                                 translate("cat_select_description_to_rename"),
                                 size=12,
                                 weight=ft.FontWeight.W_600,
+                                color=PeadraTheme.text_secondary,
                             ),
                             self.description_dropdown,
                             ft.Container(height=16),
@@ -938,6 +943,7 @@ class RenameDescriptionModal:
                                 translate("cat_new_name_label"),
                                 size=12,
                                 weight=ft.FontWeight.W_600,
+                                color=PeadraTheme.text_secondary,
                             ),
                             self.new_name_field,
                         ],
@@ -954,7 +960,7 @@ class RenameDescriptionModal:
                     translate("btn_rename"),
                     icon=ft.Icons.EDIT,
                     on_click=self._on_rename_click,
-                    bgcolor=PeadraTheme.PRIMARY_MEDIUM,
+                    bgcolor=PeadraTheme.primary_medium,
                     color=ft.Colors.WHITE,
                 ),
             ],

@@ -30,10 +30,8 @@ class NavigationRailComponent:
 
     def build(self) -> ft.Container:
         """Construit le composant Navigation (Sidebar)."""
-        bg_color = (
-            PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
-        )
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        bg_color = PeadraTheme.surface
+        text_color = PeadraTheme.text
 
         # Récupérer le solde actuel
         total_patrimony = db.get_total_patrimony()
@@ -46,14 +44,14 @@ class NavigationRailComponent:
             # Couleurs
             if self.is_dark:
                 item_bg = (
-                    PeadraTheme.PRIMARY_MEDIUM if is_selected else ft.Colors.TRANSPARENT
+                    PeadraTheme.primary_medium if is_selected else ft.Colors.TRANSPARENT
                 )
                 item_icon = ft.Colors.WHITE if is_selected else text_color
                 item_text = ft.Colors.WHITE if is_selected else text_color
             else:
-                item_bg = "#E3F2FD" if is_selected else ft.Colors.TRANSPARENT
-                item_icon = "#1976D2" if is_selected else text_color
-                item_text = "#1976D2" if is_selected else text_color
+                item_bg = PeadraTheme.nav_selected_bg if is_selected else ft.Colors.TRANSPARENT
+                item_icon = PeadraTheme.nav_selected_fg if is_selected else text_color
+                item_text = PeadraTheme.nav_selected_fg if is_selected else text_color
 
             return ft.Container(
                 content=ft.Row(
@@ -133,7 +131,7 @@ class NavigationRailComponent:
                                 ft.Text(
                                     t("dash_total_assets"),
                                     size=14,
-                                    color=ft.Colors.GREY_500,
+                                    color=PeadraTheme.placeholder_color,
                                 ),
                                 ft.Text(
                                     f"{total_patrimony:,.2f} {currency}",

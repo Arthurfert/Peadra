@@ -35,11 +35,9 @@ class LoginView:
         self.on_login_success = on_login_success
         self.existing_users = existing_users or []
 
-        # Thème
-        self.theme = (
-            PeadraTheme.get_dark_theme() if is_dark else PeadraTheme.get_light_theme()
-        )
-        self.bg_color = PeadraTheme.DARK_BG if is_dark else PeadraTheme.LIGHT_BG
+        # Thème — PeadraTheme.current_theme is already set by the caller
+        self.theme = PeadraTheme.get_flet_theme()
+        self.bg_color = PeadraTheme.bg
 
         # État : en mode registration si aucun utilisateur existant
         self.is_registration_mode = len(self.existing_users) == 0
@@ -92,6 +90,10 @@ class LoginView:
             width=300,
             height=50,
             on_click=self._on_action_click,
+            style=ft.ButtonStyle(
+                bgcolor=PeadraTheme.accent,
+                color=ft.Colors.WHITE,
+            ),
         )
 
         self.toggle_button = ft.TextButton(
@@ -105,7 +107,7 @@ class LoginView:
 
         # Construire la liste des champs en fonction du mode
         fields = [
-            ft.Icon(ft.Icons.LOCK, size=64),
+            ft.Icon(ft.Icons.LOCK, color=PeadraTheme.text, size=64),
             ft.Text(
                 t("login_title"),
                 theme_style=ft.TextThemeStyle.HEADLINE_LARGE,
@@ -123,6 +125,7 @@ class LoginView:
             self.username_field = ft.TextField(
                 label=t("login_username"),
                 width=300,
+                color=PeadraTheme.text,
             )
             fields.append(self.username_field)
         else:
@@ -134,8 +137,10 @@ class LoginView:
                 label=t("login_user"),
                 options=dropdown_options,
                 width=300,
-                focused_border_color=PeadraTheme.PRIMARY_LIGHT,
+                focused_border_color=PeadraTheme.primary_light,
                 value=self.existing_users[0] if self.existing_users else None,
+                color=PeadraTheme.text,
+                bgcolor=PeadraTheme.bg,
             )
             fields.append(self.username_dropdown)
 

@@ -136,7 +136,7 @@ class CategoriesView:
                 self._build_category_section(
                     t("cat_top_expenses"),
                     self.top_expenses,
-                    "#E53935",
+                    PeadraTheme.chart_expense,
                     "expense",
                 )
             )
@@ -146,7 +146,7 @@ class CategoriesView:
                 self._build_category_section(
                     t("cat_top_incomes"),
                     self.top_incomes,
-                    "#4CAF50",
+                    PeadraTheme.chart_income,
                     "income",
                 )
             )
@@ -157,19 +157,11 @@ class CategoriesView:
                     content=ft.Text(
                         t("cat_no_data_period"),
                         size=14,
-                        color=(
-                            PeadraTheme.DARK_TEXT
-                            if self.is_dark
-                            else PeadraTheme.LIGHT_TEXT
-                        ),
+                        color=PeadraTheme.text,
                     ),
                     padding=20,
                     border_radius=16,
-                    bgcolor=(
-                        PeadraTheme.DARK_SURFACE
-                        if self.is_dark
-                        else PeadraTheme.LIGHT_SURFACE
-                    ),
+                    bgcolor=PeadraTheme.surface,
                 )
             )
 
@@ -177,8 +169,8 @@ class CategoriesView:
 
     def build(self) -> ft.Container:
         """Construit la vue des catégories."""
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
-        bg_color = PeadraTheme.DARK_BG if self.is_dark else PeadraTheme.LIGHT_BG
+        text_color = PeadraTheme.text
+        bg_color = PeadraTheme.bg
 
         # Titre principal
         title = ft.Text(
@@ -262,9 +254,9 @@ class CategoriesView:
     ) -> ft.Container:
         """Construit une section de cartes de catégories avec chargement incrémental."""
         bg_card = (
-            PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
+            PeadraTheme.surface
         )
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        text_color = PeadraTheme.text
 
         visible_count = self.visible_counts.get(transaction_type, 4)
         max_cards = min(visible_count, len(categories))
@@ -363,7 +355,7 @@ class CategoriesView:
             bgcolor=bg_card,
             border_radius=16,
             border=(
-                ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.GREY))
+                ft.border.all(1, PeadraTheme.divider)
                 if not self.is_dark
                 else None
             ),
@@ -374,9 +366,9 @@ class CategoriesView:
     ) -> Optional[ft.Container]:
         """Construit une petite carte de catégorie avec son sparkline."""
         bg_card = (
-            PeadraTheme.DARK_SURFACE if self.is_dark else PeadraTheme.LIGHT_SURFACE
+            PeadraTheme.surface
         )
-        text_color = PeadraTheme.DARK_TEXT if self.is_dark else PeadraTheme.LIGHT_TEXT
+        text_color = PeadraTheme.text
 
         description_name = str(category.get("description") or "").strip()
         if description_name not in self.category_monthly_data:
@@ -430,7 +422,7 @@ class CategoriesView:
             border=ft.border.all(0, ft.Colors.TRANSPARENT),
             horizontal_grid_lines=fch.ChartGridLines(
                 interval=max(1, int(max_y / 3)),
-                color=ft.Colors.with_opacity(0.1, ft.Colors.GREY),
+                color=PeadraTheme.divider,
                 width=1,
             ),
             vertical_grid_lines=fch.ChartGridLines(
@@ -456,7 +448,7 @@ class CategoriesView:
             min_y=0,
             max_y=max_y,
             expand=True,
-            tooltip=fch.LineChartTooltip(bgcolor=PeadraTheme.SURFACE),
+            tooltip=fch.LineChartTooltip(bgcolor=PeadraTheme.chart_tooltip_bg),
         )
 
         return ft.Container(
@@ -501,7 +493,7 @@ class CategoriesView:
                     ft.Text(
                         t("cat_transactions_count").format(count=count),
                         size=11,
-                        color=ft.Colors.GREY_500,
+                        color=PeadraTheme.placeholder_color,
                     ),
                     ft.Container(
                         content=chart,
@@ -516,7 +508,7 @@ class CategoriesView:
             bgcolor=bg_card,
             border_radius=16,
             border=(
-                ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.GREY))
+                ft.border.all(1, PeadraTheme.divider)
                 if not self.is_dark
                 else None
             ),
@@ -579,7 +571,7 @@ class CategoriesView:
                     ft.Text(
                         t("cat_merge_success").format(source=source, target=target)
                     ),
-                    bgcolor=ft.Colors.GREEN,
+                    bgcolor=PeadraTheme.success,
                 )
                 # Rafraîchir les données et l'affichage
                 self.refresh()
@@ -617,7 +609,7 @@ class CategoriesView:
                             old=old_description, new=new_description
                         )
                     ),
-                    bgcolor=ft.Colors.GREEN,
+                    bgcolor=PeadraTheme.success,
                 )
                 # Rafraîchir les données et l'affichage
                 self.refresh()

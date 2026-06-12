@@ -471,7 +471,6 @@ if __name__ == "__main__":
     parser.add_argument("--apply-update", action="store_true")
     parser.add_argument("--source")
     parser.add_argument("--target")
-    parser.add_argument("--terminate-pid")
     parser.add_argument("--restart-args")
     args, _ = parser.parse_known_args()
 
@@ -482,17 +481,10 @@ if __name__ == "__main__":
                 restart_args = json.loads(args.restart_args)
             except json.JSONDecodeError:
                 restart_args = []
-        terminate_pid = None
-        if args.terminate_pid:
-            try:
-                terminate_pid = int(args.terminate_pid)
-            except ValueError:
-                terminate_pid = None
         exit_code = run_update_mode(
             args.source,
             args.target,
             restart_args,
-            terminate_pid=terminate_pid,
         )
         # Sortie forcée du helper onefile pour éviter toute instance résiduelle.
         os._exit(exit_code)

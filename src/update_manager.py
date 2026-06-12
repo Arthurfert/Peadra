@@ -325,7 +325,6 @@ def run_update_mode(
     source_path: str,
     target_path: str,
     restart_args: list[str] | None = None,
-    terminate_pid: int | None = None,
 ) -> int:
     def _append_update_log(msg: str):
         try:
@@ -341,51 +340,12 @@ def run_update_mode(
     restart_args = restart_args or []
 
     _append_update_log(
-        f"start source={source} target={target} terminate_pid={terminate_pid}"
+        f"start source={source} target={target}"
     )
 
     if not source.exists() or not target.exists():
         _append_update_log("source or target missing")
         return 1
-
-    if platform.system().lower() == "windows":
-        # Le helper s'appelle peadra-updater-helper.exe, on peut donc tuer
-        # sans risque toutes les instances Peadra.exe restantes (parent + child).
-        try:
-            result = subprocess.run(
-                ["taskkill", "/IM", "Peadra.exe", "/T", "/F"],
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            stdout = (result.stdout or "").strip().replace("\n", " | ")
-            stderr = (result.stderr or "").strip().replace("\n", " | ")
-            _append_update_log(
-                f"taskkill /IM returncode={result.returncode} stdout='{stdout}' stderr='{stderr}'"
-            )
-
-            # Fallback: si /IM échoue mais qu'on a un PID initial, tenter un kill direct.
-            if result.returncode != 0 and terminate_pid:
-                pid_result = subprocess.run(
-                    ["taskkill", "/PID", str(terminate_pid), "/T", "/F"],
-                    check=False,
-                    capture_output=True,
-                    text=True,
-                )
-                pid_stdout = (pid_result.stdout or "").strip().replace("\n", " | ")
-                pid_stderr = (pid_result.stderr or "").strip().replace("\n", " | ")
-                _append_update_log(
-                    f"taskkill /PID returncode={pid_result.returncode} stdout='{pid_stdout}' stderr='{pid_stderr}'"
-                )
-        except OSError as exc:
-            _append_update_log(f"taskkill /IM failed: {exc}")
-
-    elif terminate_pid:
-        try:
-            os.kill(terminate_pid, 15)
-            _append_update_log(f"sent SIGTERM to pid={terminate_pid}")
-        except OSError as exc:
-            _append_update_log(f"SIGTERM failed for pid={terminate_pid}: {exc}")
 
     if not _wait_for_file_unlock(target):
         _append_update_log("target remained locked after wait")
@@ -417,54 +377,3 @@ def run_update_mode(
     _append_update_log("update applied and restart launched")
 
     return 0
-
-
-def auto_update_if_needed(timeout: int = DEFAULT_TIMEOUT) -> UpdateCheckResult:
-    if not is_frozen_app():
-        return UpdateCheckResult(
-            available=False,
-            current_version=get_current_version(),
-            error="Mise à jour automatique désactivée hors exécutable packagé.",
-        )
-
-    check = check_for_update(timeout=timeout)
-    if not check.available or not check.asset_url:
-        return check
-
-    current_executable = Path(sys.executable)
-    downloaded_path = (
-        Path(tempfile.gettempdir())
-        / "peadra-update"
-        / (check.asset_name or "peadra-update.exe")
-    )
-
-    try:
-        download_file(check.asset_url, downloaded_path)
-    except (urllib.error.URLError, TimeoutError, OSError) as exc:
-        return UpdateCheckResult(
-            available=False,
-            current_version=check.current_version,
-            latest_version=check.latest_version,
-            release_url=check.release_url,
-            asset_name=check.asset_name,
-            asset_url=check.asset_url,
-            error=str(exc),
-        )
-
-    updater_copy = _copy_current_executable_to_temp(current_executable)
-    restart_args = [arg for arg in sys.argv[1:] if arg != "--apply-update"]
-    subprocess.Popen(
-        [
-            str(updater_copy),
-            "--apply-update",
-            "--source",
-            str(downloaded_path),
-            "--target",
-            str(current_executable),
-            "--restart-args",
-            json.dumps(restart_args),
-        ],
-        cwd=str(current_executable.parent),
-    )
-
-    os._exit(0)

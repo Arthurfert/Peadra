@@ -1053,3 +1053,255 @@ def test_rename_then_merge_integration(db_manager):
     final_unique = db_manager.get_all_unique_descriptions()
     assert len(final_unique) == 2
     assert set(final_unique) == {"Foo", "bar"}
+
+
+# ==========================================
+# Tests Devises (Currency)
+# ==========================================
+
+
+def test_category_currency_default(db_manager):
+    """add_category utilise la devise EUR par défaut si non spécifiée."""
+    cat_id = db_manager.add_category("Test Cat", "#EEE", "checking")
+    cats = db_manager.get_all_categories()
+    cat = next(c for c in cats if c["id"] == cat_id)
+    assert cat.get("currency") == "EUR"
+
+
+def test_category_currency_custom(db_manager):
+    """add_category enregistre la devise fournie."""
+    cat_id = db_manager.add_category("USD Cat", "#111", "checking", currency="USD")
+    cats = db_manager.get_all_categories()
+    cat = next(c for c in cats if c["id"] == cat_id)
+    assert cat.get("currency") == "USD"
+
+
+def test_transaction_currency_inherits_from_category(db_manager):
+    """add_transaction hérite de la devise de la catégorie."""
+    cat_id = db_manager.add_category("USD Cat", "#111", "checking", currency="USD")
+    tx_id = db_manager.add_transaction(
+        "2023-01-01", "Test", 100.0, "expense", category_id=cat_id
+    )
+    txs = db_manager.get_all_transactions()
+    tx = next(t for t in txs if t["id"] == tx_id)
+    assert tx.get("currency") == "USD"
+
+
+def test_transaction_currency_falls_back_to_default(db_manager):
+    """add_transaction utilise EUR par défaut quand la catégorie n'a pas de devise."""
+    cat_id = db_manager.add_category("EUR Cat", "#222", "checking")
+    # Forcer la devise de la catégorie à NULL pour simuler une donnée ancienne
+    conn = db_manager._get_connection()
+    conn.execute("UPDATE categories SET currency = NULL WHERE id = ?", (cat_id,))
+    conn.commit()
+    tx_id = db_manager.add_transaction(
+        "2023-01-01", "Test", 50.0, "expense", category_id=cat_id
+    )
+    txs = db_manager.get_all_transactions()
+    tx = next(t for t in txs if t["id"] == tx_id)
+    assert tx.get("currency") in ("EUR", None)
+
+
+def test_transaction_explicit_currency_overrides_category(db_manager):
+    """add_transaction accepte une devise explicite différente de la catégorie."""
+    cat_id = db_manager.add_category("EUR Cat", "#333", "checking", currency="EUR")
+    tx_id = db_manager.add_transaction(
+        "2023-01-01", "Test", 200.0, "expense", category_id=cat_id, currency="GBP"
+    )
+    txs = db_manager.get_all_transactions()
+    tx = next(t for t in txs if t["id"] == tx_id)
+    assert tx.get("currency") == "GBP"
+
+
+def test_get_all_transactions_includes_category_currency(db_manager):
+    """get_all_transactions retourne le champ category_currency."""
+    cat_id = db_manager.add_category("My Cat", "#444", "checking", currency="USD")
+    db_manager.add_transaction(
+        "2023-01-01", "Test", 100.0, "income", category_id=cat_id
+    )
+    txs = db_manager.get_all_transactions()
+    assert len(txs) == 1
+    assert txs[0].get("category_currency") == "USD"
+
+
+def test_get_transactions_by_period_includes_category_currency(db_manager):
+    """get_transactions_by_period retourne le champ category_currency."""
+    cat_id = db_manager.add_category("My Cat", "#555", "checking", currency="GBP")
+    db_manager.add_transaction(
+        "2023-01-15", "Test", 100.0, "expense", category_id=cat_id
+    )
+    txs = db_manager.get_transactions_by_period("2023-01-01", "2023-01-31")
+    assert len(txs) == 1
+    assert txs[0].get("category_currency") == "GBP"
+
+
+def test_update_category_currency(db_manager):
+    """update_category peut modifier la devise d'une catégorie."""
+    cat_id = db_manager.add_category("Changeable", "#666", "savings", currency="EUR")
+    db_manager.update_category(cat_id, "Changeable", "#666", "savings", currency="USD")
+    cats = db_manager.get_all_categories()
+    cat = next(c for c in cats if c["id"] == cat_id)
+    assert cat.get("currency") == "USD"
+
+
+def test_convert_currency_same_currency(db_manager):
+    """convert_currency retourne le montant inchangé si même devise."""
+    rate = db_manager.convert_currency(100.0, "EUR", "EUR")
+    assert rate == 100.0
+
+
+def test_get_exchange_rate_direct(db_manager):
+    """get_exchange_rate retourne le taux depuis une paire stockée."""
+    conn = db_manager._get_connection()
+    conn.execute(
+        "INSERT INTO exchange_rates (from_currency, to_currency, rate, updated_at) VALUES (?, ?, ?, ?)",
+        ("EUR", "USD", 1.10, "2024-01-01T00:00:00"),
+    )
+    conn.commit()
+    rate = db_manager.get_exchange_rate("EUR", "USD")
+    assert rate == 1.10
+
+
+def test_get_exchange_rate_inverse(db_manager):
+    """get_exchange_rate calcule le taux inverse si nécessaire."""
+    conn = db_manager._get_connection()
+    conn.execute(
+        "INSERT INTO exchange_rates (from_currency, to_currency, rate, updated_at) VALUES (?, ?, ?, ?)",
+        ("EUR", "USD", 1.10, "2024-01-01T00:00:00"),
+    )
+    conn.commit()
+    rate = db_manager.get_exchange_rate("USD", "EUR")
+    assert rate is not None
+    assert abs(rate - 1.0 / 1.10) < 0.001
+
+
+def test_get_exchange_rate_via_eur_cross(db_manager):
+    """get_exchange_rate calcule via EUR si les deux devises existent face à EUR."""
+    conn = db_manager._get_connection()
+    conn.execute(
+        "INSERT INTO exchange_rates (from_currency, to_currency, rate, updated_at) VALUES (?, ?, ?, ?)",
+        ("EUR", "USD", 1.10, "2024-01-01T00:00:00"),
+    )
+    conn.execute(
+        "INSERT INTO exchange_rates (from_currency, to_currency, rate, updated_at) VALUES (?, ?, ?, ?)",
+        ("EUR", "GBP", 0.85, "2024-01-01T00:00:00"),
+    )
+    conn.commit()
+    # USD → GBP via EUR : 1 USD = (0.85 / 1.10) = 0.7727 GBP
+    rate = db_manager.get_exchange_rate("USD", "GBP")
+    assert rate is not None
+    assert abs(rate - 0.85 / 1.10) < 0.001
+
+
+def test_get_exchange_rate_none_for_unknown(db_manager):
+    """get_exchange_rate retourne None pour une paire inconnue."""
+    rate = db_manager.get_exchange_rate("XYZ", "ABC")
+    assert rate is None
+
+
+def test_convert_currency_cross(db_manager):
+    """convert_currency utilise la conversion via EUR."""
+    conn = db_manager._get_connection()
+    conn.execute(
+        "INSERT INTO exchange_rates (from_currency, to_currency, rate, updated_at) VALUES (?, ?, ?, ?)",
+        ("EUR", "USD", 1.10, "2024-01-01T00:00:00"),
+    )
+    conn.execute(
+        "INSERT INTO exchange_rates (from_currency, to_currency, rate, updated_at) VALUES (?, ?, ?, ?)",
+        ("EUR", "GBP", 0.85, "2024-01-01T00:00:00"),
+    )
+    conn.commit()
+    result = db_manager.convert_currency(100.0, "USD", "GBP")
+    assert result is not None
+    assert abs(result - 100.0 * 0.85 / 1.10) < 0.01
+
+
+def test_get_categories_with_balances_currency_field(db_manager):
+    """get_categories_with_balances retourne le champ currency."""
+    cat_id = db_manager.add_category("USD Sav", "#777", "savings", currency="USD")
+    db_manager.add_transaction(
+        "2023-01-01", "Deposit", 500.0, "income", category_id=cat_id
+    )
+    cats = db_manager.get_categories_with_balances()
+    cat = next(c for c in cats if c["id"] == cat_id)
+    assert cat.get("currency") == "USD"
+    assert cat.get("balance") == 500.0
+
+
+def test_get_categories_with_balances_default_currency_for_null(db_manager):
+    """get_categories_with_balances utilise EUR quand la catégorie est NULL."""
+    cat_id = db_manager.add_category("No Curr", "#888", "checking", currency=None)
+    conn = db_manager._get_connection()
+    conn.execute("UPDATE categories SET currency = NULL WHERE id = ?", (cat_id,))
+    conn.commit()
+    cats = db_manager.get_categories_with_balances()
+    cat = next(c for c in cats if c["id"] == cat_id)
+    assert cat.get("currency") == "EUR"
+
+
+def test_format_amount_module_functions():
+    """Test des fonctions de formatage de montant."""
+    from src.database.db_manager import (
+        format_amount,
+        format_amount_with_conversion,
+        get_currency_symbol,
+        get_currency_name,
+        CURRENCY_DATA,
+    )
+
+    # get_currency_symbol
+    assert get_currency_symbol("EUR") == "€"
+    assert get_currency_symbol("USD") == "$"
+    assert get_currency_symbol("FAKE") == "FAKE"
+
+    # get_currency_name
+    assert "Euro" in get_currency_name("EUR")
+    assert get_currency_name("FAKE") == "FAKE"
+
+    # format_amount
+    assert "€" in format_amount(100.0, "EUR")
+    assert "$" in format_amount(50.5, "USD")
+
+    # format_amount_with_conversion (même devise → pas de conversion)
+    assert format_amount_with_conversion(100.0, "EUR", "EUR") == format_amount(100.0, "EUR")
+
+    # format_amount_with_conversion (devise inconnue dans CURRENCY_DATA → (?) )
+    result = format_amount_with_conversion(100.0, "XYZ", "EUR")
+    assert "(?)" in result
+
+
+def test_format_amount_with_conversion_with_rate():
+    """format_amount_with_conversion utilise un taux fourni explicitement."""
+    from src.database.db_manager import format_amount_with_conversion
+
+    result = format_amount_with_conversion(100.0, "USD", "EUR", rate=0.92)
+    assert "100.00" in result
+    assert "92.00" in result
+    assert "$" in result
+    assert "EUR" in result or "€" in result
+
+
+def test_migration_fills_null_currency_on_categories(db_manager):
+    """La migration remplit EUR pour les catégories avec currency=NULL."""
+    conn = db_manager._get_connection()
+    conn.execute("UPDATE categories SET currency = NULL")
+    conn.commit()
+    # Simuler la migration
+    conn.execute("UPDATE categories SET currency = 'EUR' WHERE currency IS NULL")
+    conn.commit()
+    cats = db_manager.get_all_categories()
+    for c in cats:
+        assert c.get("currency") == "EUR", f"Catégorie {c['id']} a currency={c.get('currency')}"
+
+
+def test_migration_fills_null_currency_on_transactions(db_manager):
+    """La migration remplit EUR pour les transactions avec currency=NULL."""
+    db_manager.add_transaction("2023-01-01", "Test", 100.0, "expense")
+    conn = db_manager._get_connection()
+    conn.execute("UPDATE transactions SET currency = NULL")
+    conn.commit()
+    conn.execute("UPDATE transactions SET currency = 'EUR' WHERE currency IS NULL")
+    conn.commit()
+    txs = db_manager.get_all_transactions()
+    for t in txs:
+        assert t.get("currency") == "EUR", f"Transaction {t['id']} a currency={t.get('currency')}"

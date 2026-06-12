@@ -8,8 +8,8 @@ import logging
 from typing import Callable, Optional
 from ..components.theme import PeadraTheme
 from ..database import db
-from ..database.db_manager import CURRENCY_DATA, get_currency_symbol, get_default_currency, format_amount, format_amount_with_conversion, _SYMBOL_TO_CODE
-from ..i18n import t
+from ..database.db_manager import CURRENCY_DATA, get_currency_symbol, get_currency_name, get_default_currency, format_amount, format_amount_with_conversion, _SYMBOL_TO_CODE
+from ..i18n import t, get_translator
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ class AccountsView:
             label=t("param_currency"),
             width=300,
             options=[
-                ft.dropdown.Option(code, f"{get_currency_symbol(code)} - {code}")
+                ft.dropdown.Option(code, f"{code} - {get_currency_name(code, get_translator().get_language())} ({get_currency_symbol(code)})")
                 for code in sorted(CURRENCY_DATA.keys())
             ],
         )

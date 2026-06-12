@@ -8,8 +8,8 @@ from datetime import datetime
 from typing import Callable, List, Dict, Any, Optional, cast
 from difflib import SequenceMatcher
 from .theme import PeadraTheme
-from ..database.db_manager import db, CURRENCY_DATA, get_currency_symbol, get_default_currency, format_amount, format_amount_with_conversion
-from ..i18n import t as translate
+from ..database.db_manager import db, CURRENCY_DATA, get_currency_symbol, get_currency_name, get_default_currency, format_amount, format_amount_with_conversion
+from ..i18n import t as translate, get_translator
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +83,7 @@ class TransactionModal:
         self.amount_field = ft.TextField(
             label=f"{self._currency_label} ({get_currency_symbol(self._selected_currency)})",
             hint_text=translate("hint_amount"),
-            width=150,
+            width=350,
             keyboard_type=ft.KeyboardType.NUMBER,
             input_filter=ft.InputFilter(
                 regex_string=r"^[0-9]*\.?[0-9]*$",
@@ -161,13 +161,14 @@ class TransactionModal:
 
         if self.transaction_type == "transfer":
             # Currency selector for the transfer amount
+            _lang = get_translator().get_language()
             currency_options = [
-                ft.dropdown.Option(code, f"{code} {get_currency_symbol(code)}")
+                ft.dropdown.Option(code, f"{code} - {get_currency_name(code, _lang)} ({get_currency_symbol(code)})")
                 for code in CURRENCY_DATA
             ]
             self.transfer_currency_dropdown = ft.Dropdown(
                 label=translate("trans_currency"),
-                width=150,
+                width=350,
                 options=currency_options,
                 value=self._selected_currency,
                 on_select=self._on_transfer_currency_change,

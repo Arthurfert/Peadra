@@ -35,6 +35,8 @@ class DashboardView:
         self.touched_index_income = -1
         self.touched_index_expenses = -1
         self.chart_duration = 6
+        self.selected_account_id: Optional[int] = None
+        self.all_accounts: list[dict[str, Any]] = []
         self._load_data()
 
     def update_theme(self, is_dark: bool):
@@ -65,6 +67,14 @@ class DashboardView:
                 spacing=20,
             )
             self.charts_row_2.update()
+
+    def _on_account_filter_change(self, e):
+        value = e.control.value
+        self.selected_account_id = int(value) if value and value != "all" else None
+        self.refresh()
+        if hasattr(self, "chart_container_main"):
+            self.chart_container_main.content = self._build_income_expense_chart()
+            self.chart_container_main.update()
 
     def _get_month_bounds(self, year: int, month: int) -> tuple[str, str]:
         """Retourne les bornes inclusives d'un mois (YYYY-MM-DD)."""
@@ -117,7 +127,7 @@ class DashboardView:
 
         return income, expenses
 
-    def _build_chart_data(self, start_year: int, start_month: int, num_months: int):
+    def _build_chart_data(self, start_year: int, start_month: int, num_months: int, category_id: Optional[int] = None):
         """Construit les données du graphique mensuel à partir d'un seul lot de transactions."""
         month_labels = {
             1: "month_january",
@@ -160,6 +170,9 @@ class DashboardView:
         }
 
         for transaction in chart_txs:
+            if category_id is not None and transaction.get("category_id") != category_id:
+                continue
+
             date_value = transaction.get("date") or ""
             if len(date_value) < 7:
                 continue
@@ -188,7 +201,7 @@ class DashboardView:
             elif tx_type == "expense":
                 bucket["expenses"] += amount
 
-        patrimony = self._get_history_total(chart_start)
+        patrimony = self._get_history_total(chart_start, category_id=category_id)
         chart_data = []
 
         for year, month in months:
@@ -222,7 +235,7 @@ class DashboardView:
                 total += self._convert_amount(float(c["balance"]), cur)
         return total
 
-    def _get_history_total(self, date_limit: str, type_filter: Optional[str] = None) -> float:
+    def _get_history_total(self, date_limit: str, type_filter: Optional[str] = None, category_id: Optional[int] = None) -> float:
         """Calcule le solde total (converti) à une date donnée, filtré par type de catégorie."""
         txs = db.get_transactions_by_period("2000-01-01", date_limit)
         cats = {c["id"]: c for c in db.get_all_categories()}
@@ -230,6 +243,8 @@ class DashboardView:
         for t in txs:
             cat = cats.get(t.get("category_id"))
             if type_filter is not None and (not cat or cat.get("type") != type_filter):
+                continue
+            if category_id is not None and t.get("category_id") != category_id:
                 continue
             cur = t.get("currency") or get_default_currency()
             amt = float(t.get("amount") or 0)
@@ -325,7 +340,12 @@ class DashboardView:
             start_month += 12
             start_year -= 1
 
-        self.chart_data = self._build_chart_data(start_year, start_month, num_months)
+        self.all_accounts = [
+            {"id": c["id"], "name": c["name"], "type": c.get("type", "")}
+            for c in db.get_all_categories()
+        ]
+
+        self.chart_data = self._build_chart_data(start_year, start_month, num_months, category_id=self.selected_account_id)
 
         # Category dates: use month-mode when "1M" selected, otherwise chart duration
         if self.chart_duration == "1":
@@ -784,6 +804,22 @@ class DashboardView:
             ),
         )
 
+        # Account filter dropdown
+        account_options = [ft.dropdown.Option("all", t("dash_all_accounts"))]
+        for acc in self.all_accounts:
+            account_options.append(
+                ft.dropdown.Option(str(acc["id"]), acc["name"])
+            )
+
+        account_dropdown = ft.Dropdown(
+            value="all" if self.selected_account_id is None else str(self.selected_account_id),
+            options=account_options,
+            on_select=self._on_account_filter_change,
+            width=200,
+            text_size=14,
+            label=t("trans_account"),
+        )
+
         # Duration selector row
         duration_row = ft.Row(
             cast(
@@ -814,6 +850,7 @@ class DashboardView:
                             padding=ft.padding.symmetric(horizontal=10, vertical=0),
                         ),
                     ),
+                    account_dropdown,
                 ],
             ),
             spacing=20,
@@ -1108,7 +1145,7 @@ class DashboardView:
 
         self.chart_container_main = ft.Container(
             content=self._build_income_expense_chart(),
-            height=460,
+            height=500,
         )
         charts_row_1 = self.chart_container_main
 

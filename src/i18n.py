@@ -68,6 +68,7 @@ class Translator:
             "dash_assets_distribution": "Assets Distribution",
             "dash_no_assets": "No assets to display",
             "dash_other": "Other",
+            "dash_all_accounts": "All accounts",
             # Categories
             "cat_top_expenses": "Top expense categories",
             "cat_top_incomes": "Top income categories",
@@ -455,6 +456,7 @@ class Translator:
             "dash_assets_distribution": "Distribution du patrimoine",
             "dash_no_assets": "Aucun actif à afficher",
             "dash_other": "Autres",
+            "dash_all_accounts": "Tous les comptes",
             # Categories
             "cat_top_expenses": "Catégories de dépenses principales",
             "cat_top_incomes": "Catégories de revenus principales",

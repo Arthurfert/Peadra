@@ -111,8 +111,7 @@ class PeadraApp:
     def _setup_page(self):
         """Configure la page principale."""
         self.page.title = "Peadra - Financial Asset Tracker"
-        self.page.window.width = 1400
-        self.page.window.height = 900
+        self.page.window.maximized = True
         self.page.window.min_width = 1000
         self.page.window.min_height = 700
         self.page.padding = 0
@@ -435,6 +434,7 @@ def main(page: ft.Page):
     page.title = "Peadra - Login"
     page.window.width = 1400
     page.window.height = 900
+    page.window.maximized = True
     page.window.min_width = 1000
     page.window.min_height = 700
     page.padding = 0

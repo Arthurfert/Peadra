@@ -6,7 +6,7 @@ Barre latérale NavigationRail.
 import flet as ft
 from typing import Callable
 from .theme import PeadraTheme
-from ..database.db_manager import db
+from ..database.db_manager import db, get_default_currency, get_currency_symbol, format_amount, _SYMBOL_TO_CODE, CURRENCY_DATA
 from ..i18n import t
 
 
@@ -36,7 +36,8 @@ class NavigationRailComponent:
         # Récupérer le solde actuel
         total_patrimony = db.get_total_patrimony()
 
-        currency = db.get_setting("currency", "€") or "€"
+        raw = db.get_setting("currency", "EUR") or "EUR"
+        currency = _SYMBOL_TO_CODE.get(raw, raw) if raw in _SYMBOL_TO_CODE or raw in CURRENCY_DATA else "EUR"
 
         def nav_item(icon_off, icon_on, label, index):
             is_selected = self.selected_index == index
@@ -134,7 +135,7 @@ class NavigationRailComponent:
                                     color=PeadraTheme.placeholder_color,
                                 ),
                                 ft.Text(
-                                    f"{total_patrimony:,.2f} {currency}",
+                                    format_amount(total_patrimony, currency),
                                     size=24,
                                     weight=ft.FontWeight.BOLD,
                                     color=text_color,

@@ -26,7 +26,7 @@ Built as a modern, local-first alternative to cumbersome spreadsheets, Peadra gi
 > **Subscription Tracking:** Monitor recurring transactions and active subscriptions at a glance.  
 
 **Account & Transaction Management**  
-> **Full Operations:** Easily add, modify, or delete accounts and individual transactions.  
+> **Full Operations & Multi-Currency:** Easily add, modify, or delete transactions (expense, revenue, transfer), in any currency.  
 > **Multi-Account Support:** Manage multiple distinct accounts with independent tracking.  
 > **Multi-User Authentication:** Secure access control for different users on the same device.  
 

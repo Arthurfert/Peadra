@@ -11,6 +11,7 @@ from datetime import datetime
 from ..components.theme import PeadraTheme
 from ..components.modals import MergeDescriptionsModal, RenameDescriptionModal
 from ..database import db
+from ..database.db_manager import get_default_currency, get_currency_symbol, format_amount, _SYMBOL_TO_CODE, CURRENCY_DATA
 from ..i18n import t
 
 logger = logging.getLogger(__name__)
@@ -96,7 +97,7 @@ class CategoriesView:
 
     def _format_currency(self, amount: float) -> str:
         """Formate un montant avec la devise courante."""
-        return f"{amount:,.2f} {self.currency}"
+        return format_amount(amount, self.currency)
 
     def _get_month_label(self, month_str: str) -> str:
         """Retourne un libellé de mois traduit et abrégé."""
@@ -109,7 +110,8 @@ class CategoriesView:
 
     def _load_data(self):
         """Charge les données des catégories."""
-        self.currency = db.get_setting("currency", "€") or "€"
+        raw = db.get_setting("currency", "EUR") or "EUR"
+        self.currency = _SYMBOL_TO_CODE.get(raw, raw) if raw in _SYMBOL_TO_CODE or raw in CURRENCY_DATA else "EUR"
         month_keys = self._get_period_month_keys()
         if month_keys:
             start_date = f"{month_keys[0]}-01"

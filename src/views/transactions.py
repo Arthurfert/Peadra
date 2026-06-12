@@ -10,6 +10,7 @@ from datetime import datetime
 from ..components.theme import PeadraTheme
 from ..components.modals import TransactionModal, TransactionDetailsModal
 from ..database import db
+from ..database.db_manager import CURRENCY_DATA, get_default_currency, get_currency_symbol, format_amount, format_amount_with_conversion, _SYMBOL_TO_CODE
 from ..i18n import t, get_translator
 
 logger = logging.getLogger(__name__)
@@ -39,7 +40,8 @@ class TransactionsView:
     def _load_data(self, append: bool = False, load_all: bool = False):
         """Charge les données."""
         self.categories = db.get_all_categories()
-        self.currency = db.get_setting("currency", "€") or "€"
+        raw = db.get_setting("currency", "EUR") or "EUR"
+        self.currency = _SYMBOL_TO_CODE.get(raw, raw) if raw in _SYMBOL_TO_CODE or raw in CURRENCY_DATA else "EUR"
 
         offset = len(self.transactions) if append else 0
 
@@ -281,23 +283,33 @@ class TransactionsView:
             # Mise à jour
             if data["transaction_type"] == "transfer" and data.get("other_id"):
                 # Update both sides of transfer
+                tx_currency = data.get("currency") or get_default_currency()
+                src_cat = next((c for c in self.categories if c["id"] == data.get("source_id")), None)
+                dst_cat = next((c for c in self.categories if c["id"] == data.get("dest_id")), None)
+                src_currency = (src_cat.get("currency") or get_default_currency()) if src_cat else get_default_currency()
+                dst_currency = (dst_cat.get("currency") or get_default_currency()) if dst_cat else get_default_currency()
+                src_amount = db.convert_currency(data["amount"], tx_currency, src_currency) or data["amount"]
+                dst_amount = db.convert_currency(data["amount"], tx_currency, dst_currency) or data["amount"]
+
                 # 1. Expense (Source)
                 db.update_transaction(
                     data["id"],
                     date=data["date"],
                     description=f"{t('trans_transfer_to')} {data.get('dest_name', t('trans_account_default'))}",
-                    amount=data["amount"],
+                    amount=src_amount,
                     category_id=data.get("source_id"),
                     notes=data.get("notes"),
+                    currency=src_currency,
                 )
                 # 2. Income (Dest)
                 db.update_transaction(
                     data["other_id"],
                     date=data["date"],
                     description=f"{t('trans_transfer_from')} {data.get('source_name', t('trans_account_default'))}",
-                    amount=data["amount"],
+                    amount=dst_amount,
                     category_id=data.get("dest_id"),
                     notes=data.get("notes"),
+                    currency=dst_currency,
                 )
                 logger.info(
                     "Transaction updated: id=%s amount=%s desc='%s'",
@@ -326,25 +338,38 @@ class TransactionsView:
 
         elif data["transaction_type"] == "transfer":
             # Création - Transfert (2 transactions)
+            tx_currency = data.get("currency") or get_default_currency()
 
-            # 1. Expense from source
+            # Récupérer les devises des comptes source et destination
+            src_cat = next((c for c in self.categories if c["id"] == data.get("source_id")), None)
+            dst_cat = next((c for c in self.categories if c["id"] == data.get("dest_id")), None)
+            src_currency = (src_cat.get("currency") or get_default_currency()) if src_cat else get_default_currency()
+            dst_currency = (dst_cat.get("currency") or get_default_currency()) if dst_cat else get_default_currency()
+
+            # Convertir le montant saisi dans la devise de chaque compte
+            src_amount = db.convert_currency(data["amount"], tx_currency, src_currency) or data["amount"]
+            dst_amount = db.convert_currency(data["amount"], tx_currency, dst_currency) or data["amount"]
+
+            # 1. Expense from source (dans la devise du compte source)
             db.add_transaction(
                 date=data["date"],
                 description=f"{t('trans_transfer_to')} {data.get('dest_name', t('trans_account_default'))}",
-                amount=data["amount"],
+                amount=src_amount,
                 transaction_type="expense",
                 category_id=data.get("source_id"),
                 notes=data.get("notes"),
+                currency=src_currency,
             )
 
-            # 2. Income to dest
+            # 2. Income to dest (dans la devise du compte destination)
             db.add_transaction(
                 date=data["date"],
                 description=f"{t('trans_transfer_from')} {data.get('source_name', t('trans_account_default'))}",
-                amount=data["amount"],
+                amount=dst_amount,
                 transaction_type="income",
                 category_id=data.get("dest_id"),
                 notes=data.get("notes"),
+                currency=dst_currency,
             )
 
             logger.info(
@@ -364,6 +389,7 @@ class TransactionsView:
                 transaction_type=data["transaction_type"],
                 category_id=data.get("category_id"),
                 notes=data.get("notes"),
+                currency=data.get("currency"),
             )
             logger.info(
                 "Transaction added: type=%s amount=%s desc='%s'",
@@ -665,6 +691,9 @@ class TransactionsView:
 
             date_str = self._format_display_date(transaction["date"])
 
+            tx_currency = transaction.get("category_currency") or transaction.get("currency") or get_default_currency()
+            conv_display = f"{amount_prefix}{format_amount_with_conversion(transaction['amount'], tx_currency, self.currency)}"
+
             row = ft.Container(
                 content=ft.Row(
                     [
@@ -711,10 +740,11 @@ class TransactionsView:
                         # Amount
                         ft.Container(
                             ft.Text(
-                                f"{amount_prefix}{transaction['amount']:,.2f} {self.currency}",
+                                conv_display,
                                 weight=ft.FontWeight.BOLD,
                                 color=amount_color,
                                 text_align=ft.TextAlign.RIGHT,
+                                size=12,
                             ),
                             expand=1,
                             alignment=ft.Alignment.CENTER_RIGHT,

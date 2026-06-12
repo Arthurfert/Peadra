@@ -8,7 +8,8 @@ import logging
 from typing import Callable, Optional
 from ..components.theme import PeadraTheme
 from ..database import db
-from ..i18n import t
+from ..database.db_manager import CURRENCY_DATA, get_currency_symbol, get_currency_name, get_default_currency, format_amount, format_amount_with_conversion, _SYMBOL_TO_CODE
+from ..i18n import t, get_translator
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ class AccountsView:
         self.is_dark = is_dark
         self.on_data_change = on_data_change
         self.accounts = []
-        self.currency = db.get_setting("currency", "€") or "€"
+        self.currency = "EUR"
 
         # Dialog components
         self.dialog = None
@@ -50,6 +51,14 @@ class AccountsView:
                 for hex_color in PeadraTheme.chart_palette
             ],
         )
+        self.currency_dropdown = ft.Dropdown(
+            label=t("param_currency"),
+            width=300,
+            options=[
+                ft.dropdown.Option(code, f"{code} - {get_currency_name(code, get_translator().get_language())} ({get_currency_symbol(code)})")
+                for code in sorted(CURRENCY_DATA.keys())
+            ],
+        )
         self.editing_id: Optional[int] = None
 
         self._load_data()
@@ -73,7 +82,8 @@ class AccountsView:
 
     def _load_data(self):
         self.accounts = db.get_categories_with_balances()
-        self.currency = db.get_setting("currency", "€") or "€"
+        raw = db.get_setting("currency", "EUR") or "EUR"
+        self.currency = _SYMBOL_TO_CODE.get(raw, raw) if raw in _SYMBOL_TO_CODE or raw in CURRENCY_DATA else "EUR"
 
     def _open_dialog(self, account: Optional[dict] = None):
         """Ouvre la boîte de dialogue d'ajout/édition."""
@@ -81,16 +91,21 @@ class AccountsView:
             self.editing_id = account["id"]
             self.name_field.value = account["name"]
             self.color_dropdown.value = account["color"]
-            # Default to savings if key missing (migration/compat)
             self.type_dropdown.value = account.get("type", "savings")
+            acc_currency = account.get("currency")
+            if acc_currency and acc_currency in CURRENCY_DATA:
+                self.currency_dropdown.value = acc_currency
+            else:
+                self.currency_dropdown.value = get_default_currency()
             self.update_history_checkbox.visible = True
             self.update_history_checkbox.value = True
             title = t("acc_edit_account")
         else:
             self.editing_id = None
             self.name_field.value = ""
-            self.color_dropdown.value = "#3b82f6"  # Default color
-            self.type_dropdown.value = t("acc_savings")
+            self.color_dropdown.value = "#3b82f6"
+            self.type_dropdown.value = "savings"
+            self.currency_dropdown.value = get_default_currency()
             self.update_history_checkbox.visible = False
             title = t("acc_add_account")
 
@@ -101,6 +116,7 @@ class AccountsView:
                 [
                     self.name_field,
                     self.type_dropdown,
+                    self.currency_dropdown,
                     self.color_dropdown,
                     self.update_history_checkbox,
                 ],
@@ -187,7 +203,8 @@ class AccountsView:
         raw_name = self.name_field.value or ""
         name = raw_name.strip()
         color = self.color_dropdown.value or "#2196F3"
-        account_type = self.type_dropdown.value or t("acc_savings")
+        account_type = self.type_dropdown.value or "savings"
+        currency = self.currency_dropdown.value or get_default_currency()
         update_history = self.update_history_checkbox.value
 
         if not name:
@@ -224,10 +241,10 @@ class AccountsView:
 
         if is_edit_mode and self.editing_id is not None:
             success = db.update_category(
-                self.editing_id, name, color, account_type=account_type
+                self.editing_id, name, color, account_type=account_type, currency=currency
             )
         else:
-            success = db.add_category(name, color, account_type=account_type) != -1
+            success = db.add_category(name, color, account_type=account_type, currency=currency) != -1
 
         if success:
             logger.info(
@@ -303,6 +320,9 @@ class AccountsView:
         )
         text_color = PeadraTheme.text
 
+        acc_currency = account.get("currency") or get_default_currency()
+        balance_text = format_amount_with_conversion(account["balance"], acc_currency, self.currency)
+
         return ft.Container(
             content=ft.Column(
                 [
@@ -356,7 +376,7 @@ class AccountsView:
                                 color=PeadraTheme.placeholder_color,
                             ),
                             ft.Text(
-                                f"{account['balance']:,.2f} {self.currency}",
+                                balance_text,
                                 size=24,
                                 weight=ft.FontWeight.BOLD,
                                 color=text_color,

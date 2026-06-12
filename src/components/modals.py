@@ -8,8 +8,8 @@ from datetime import datetime
 from typing import Callable, List, Dict, Any, Optional, cast
 from difflib import SequenceMatcher
 from .theme import PeadraTheme
-from ..database.db_manager import db
-from ..i18n import t as translate
+from ..database.db_manager import db, CURRENCY_DATA, get_currency_symbol, get_currency_name, get_default_currency, format_amount, format_amount_with_conversion
+from ..i18n import t as translate, get_translator
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ class TransactionModal:
     def _build_controls(self):
         """Construit les contrôles du formulaire."""
         self.controls_list = []  # Clear previous controls
-        currency = db.get_setting("currency", "€") or "€"
+        self._selected_currency = get_default_currency()
 
         # Date picker
         self.date_picker = ft.TextField(
@@ -79,10 +79,11 @@ class TransactionModal:
         )
 
         # Amount
+        self._currency_label = translate("trans_amount")
         self.amount_field = ft.TextField(
-            label=f"{translate('trans_amount')} ({currency})",
+            label=f"{self._currency_label} ({get_currency_symbol(self._selected_currency)})",
             hint_text=translate("hint_amount"),
-            width=150,
+            width=350,
             keyboard_type=ft.KeyboardType.NUMBER,
             input_filter=ft.InputFilter(
                 regex_string=r"^[0-9]*\.?[0-9]*$",
@@ -159,6 +160,21 @@ class TransactionModal:
         self.controls_list.append(self.amount_field)
 
         if self.transaction_type == "transfer":
+            # Currency selector for the transfer amount
+            _lang = get_translator().get_language()
+            currency_options = [
+                ft.dropdown.Option(code, f"{code} - {get_currency_name(code, _lang)} ({get_currency_symbol(code)})")
+                for code in CURRENCY_DATA
+            ]
+            self.transfer_currency_dropdown = ft.Dropdown(
+                label=translate("trans_currency"),
+                width=350,
+                options=currency_options,
+                value=self._selected_currency,
+                on_select=self._on_transfer_currency_change,
+            )
+            self.controls_list.append(self.transfer_currency_dropdown)
+
             # Two dropdowns: Source and Dest
             self.source_dropdown = ft.Dropdown(
                 label=translate("trans_account_from"),
@@ -187,9 +203,11 @@ class TransactionModal:
                 label=label,
                 width=350,
                 options=options,
+                on_select=self._on_category_change,
             )
             if options:
                 self.category_dropdown.value = options[0].key
+                self._update_currency_from_category(options[0].key)
 
             self.controls_list.append(self.category_dropdown)
 
@@ -393,6 +411,7 @@ class TransactionModal:
             "transaction_type": self.transaction_type,
             "category_id": None,
             "notes": self.notes_field.value.strip() if self.notes_field.value else None,
+            "currency": self._selected_currency,
         }
 
         # Add recurring data if enabled
@@ -447,6 +466,38 @@ class TransactionModal:
         if self.on_save:
             self.on_save(transaction_data)
 
+    def _update_currency_from_category(self, category_id_str: Optional[str]):
+        """Met à jour la devise affichée en fonction de la catégorie sélectionnée."""
+        if not category_id_str:
+            self._selected_currency = get_default_currency()
+        else:
+            try:
+                cat_id = int(category_id_str)
+                cat_currency = db._get_category_currency(cat_id)
+                self._selected_currency = cat_currency if cat_currency else get_default_currency()
+            except (ValueError, TypeError):
+                self._selected_currency = get_default_currency()
+        if hasattr(self, "amount_field"):
+            self.amount_field.label = f"{self._currency_label} ({get_currency_symbol(self._selected_currency)})"
+            try:
+                self.amount_field.update()
+            except RuntimeError:
+                pass
+
+    def _on_category_change(self, e):
+        """Met à jour la devise quand la catégorie change."""
+        self._update_currency_from_category(e.control.value)
+
+    def _on_transfer_currency_change(self, e):
+        """Met à jour la devise quand la devise de transfert change."""
+        self._selected_currency = e.control.value
+        if hasattr(self, "amount_field"):
+            self.amount_field.label = f"{self._currency_label} ({get_currency_symbol(self._selected_currency)})"
+            try:
+                self.amount_field.update()
+            except RuntimeError:
+                pass
+
     def _on_cancel_click(self, e):
         """Gère le clic sur le bouton Annuler."""
         self.close()
@@ -477,6 +528,7 @@ class TransactionModal:
                 "category_id"
             ):
                 self.category_dropdown.value = str(transaction_data["category_id"])
+                self._update_currency_from_category(str(transaction_data["category_id"]))
 
             if self.transaction_type == "transfer":
                 if transaction_data.get("source_id"):
@@ -592,10 +644,12 @@ class TransactionDetailsModal:
             icon = ft.Icons.SWAP_HORIZ
             amount_prefix = ""
 
-        currency = db.get_setting("currency", "€") or "€"
-
-        # Amount formatting
-        amount_txt = f"{amount_prefix}{transaction['amount']:,.2f} {currency}"
+        tx_currency = transaction.get("category_currency") or transaction.get("currency") or get_default_currency()
+        amount_txt = format_amount_with_conversion(
+            transaction["amount"], tx_currency, get_default_currency()
+        )
+        if amount_prefix:
+            amount_txt = f"{amount_prefix}{amount_txt}"
 
         # Category info
         full_category = transaction.get("category_name") or translate(

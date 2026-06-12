@@ -11,6 +11,7 @@ from typing import Callable, Union, Any, cast, List, Optional
 from datetime import datetime, timedelta
 from ..components.theme import PeadraTheme
 from ..database import db
+from ..database.db_manager import get_default_currency, get_currency_symbol, format_amount, _SYMBOL_TO_CODE, CURRENCY_DATA
 from ..i18n import t
 
 logger = logging.getLogger(__name__)
@@ -96,21 +97,23 @@ class DashboardView:
     def _get_filtered_totals(
         self, start_date: str, end_date: str
     ) -> tuple[float, float]:
-        """Somme revenus/dépenses d'une période en excluant les transferts."""
+        """Somme revenus/dépenses d'une période (convertis dans la devise par défaut)."""
         txs = db.get_transactions_by_period(start_date, end_date)
         income = 0.0
         expenses = 0.0
 
-        for transaction in txs:
-            if self._is_transfer_transaction(transaction):
+        for t in txs:
+            if self._is_transfer_transaction(t):
                 continue
 
-            tx_type = transaction.get("transaction_type")
-            amount = float(transaction.get("amount") or 0)
+            tx_type = t.get("transaction_type")
+            amount = float(t.get("amount") or 0)
+            cur = t.get("currency") or get_default_currency()
+            converted = self._convert_amount(amount, cur)
             if tx_type == "income":
-                income += amount
+                income += converted
             elif tx_type == "expense":
-                expenses += amount
+                expenses += converted
 
         return income, expenses
 
@@ -167,7 +170,9 @@ class DashboardView:
             if bucket is None:
                 continue
 
-            amount = float(transaction.get("amount") or 0)
+            raw_amount = float(transaction.get("amount") or 0)
+            tx_currency = transaction.get("currency") or get_default_currency()
+            amount = self._convert_amount(raw_amount, tx_currency)
             tx_type = (transaction.get("transaction_type") or "").strip().lower()
 
             if tx_type == "income":
@@ -183,7 +188,7 @@ class DashboardView:
             elif tx_type == "expense":
                 bucket["expenses"] += amount
 
-        patrimony = db.get_history_patrimony(chart_start)
+        patrimony = self._get_history_total(chart_start)
         chart_data = []
 
         for year, month in months:
@@ -200,18 +205,52 @@ class DashboardView:
 
         return chart_data
 
+    def _convert_amount(self, amount: float, from_currency: str) -> float:
+        """Convertit un montant dans la devise par défaut du tableau de bord."""
+        if from_currency == self.currency or not amount:
+            return amount
+        converted = db.convert_currency(amount, from_currency, self.currency)
+        return converted if converted is not None else amount
+
+    def _get_category_totals_converted(self, type_filter: Optional[str] = None) -> float:
+        """Somme les soldes des catégories convertis dans la devise par défaut."""
+        cats = db.get_categories_with_balances()
+        total = 0.0
+        for c in cats:
+            if type_filter is None or c.get("type") == type_filter:
+                cur = c.get("currency") or get_default_currency()
+                total += self._convert_amount(float(c["balance"]), cur)
+        return total
+
+    def _get_history_total(self, date_limit: str, type_filter: Optional[str] = None) -> float:
+        """Calcule le solde total (converti) à une date donnée, filtré par type de catégorie."""
+        txs = db.get_transactions_by_period("2000-01-01", date_limit)
+        cats = {c["id"]: c for c in db.get_all_categories()}
+        total = 0.0
+        for t in txs:
+            cat = cats.get(t.get("category_id"))
+            if type_filter is not None and (not cat or cat.get("type") != type_filter):
+                continue
+            cur = t.get("currency") or get_default_currency()
+            amt = float(t.get("amount") or 0)
+            if t["transaction_type"] == "income":
+                total += self._convert_amount(amt, cur)
+            elif t["transaction_type"] == "expense":
+                total -= self._convert_amount(amt, cur)
+        return total
+
     def _load_data(self):
-        self.currency = db.get_setting("currency", "€") or "€"
+        raw = db.get_setting("currency", "EUR") or "EUR"
+        self.currency = _SYMBOL_TO_CODE.get(raw, raw) if raw in _SYMBOL_TO_CODE or raw in CURRENCY_DATA else "EUR"
         logger.debug("Dashboard data loaded")
-        # Now reflects Bank Balance
-        self.total_patrimony = db.get_total_patrimony()
-        self.balance = db.get_balance()
+
+        self.total_patrimony = self._get_category_totals_converted()
+        self.balance = self._get_category_totals_converted("checking")
 
         now = datetime.now()
         month_mode = self.get_month_mode()
 
         if month_mode == "rolling":
-            # Rolling: last 30 days
             rolling_start_dt = now - timedelta(days=30)
             rolling_end_dt = now
             rolling_start = rolling_start_dt.strftime("%Y-%m-%d")
@@ -220,9 +259,8 @@ class DashboardView:
             self.monthly_income, self.monthly_expenses = self._get_filtered_totals(
                 rolling_start, rolling_end
             )
-            self.monthly_savings = db.get_savings_total()
+            self.monthly_savings = self._get_category_totals_converted("savings")
 
-            # Previous period for trends: 30 days before the rolling window
             prev_end_dt = rolling_start_dt - timedelta(days=1)
             prev_start_dt = prev_end_dt - timedelta(days=30)
             prev_income, prev_expenses = self._get_filtered_totals(
@@ -233,14 +271,12 @@ class DashboardView:
             month_category_start = rolling_start
             month_category_end = rolling_end
         else:
-            # Strict: calendar month
             current_start, current_end = self._get_month_bounds(now.year, now.month)
             self.monthly_income, self.monthly_expenses = self._get_filtered_totals(
                 current_start, current_end
             )
-            self.monthly_savings = db.get_savings_total()
+            self.monthly_savings = self._get_category_totals_converted("savings")
 
-            # Previous month for trends
             prev_month = now.replace(day=1) - timedelta(days=1)
             prev_start, prev_end = self._get_month_bounds(
                 prev_month.year, prev_month.month
@@ -250,10 +286,10 @@ class DashboardView:
             month_category_start = current_start
             month_category_end = current_end
 
-        # For Stocks (Savings/Balance), we compare Current Value vs Value at Start of Month (History)
+        # History values: convert each transaction up to start of month
         start_of_month_str = now.replace(day=1).strftime("%Y-%m-%d")
-        prev_savings = db.get_history_savings(start_of_month_str)
-        prev_balance = db.get_history_balance(start_of_month_str)
+        prev_savings = self._get_history_total(start_of_month_str, "savings")
+        prev_balance = self._get_history_total(start_of_month_str, "checking")
 
         # Calculate trends
         def calc_trend(curr, prev):
@@ -307,18 +343,29 @@ class DashboardView:
                 continue
 
             desc = (transaction["description"] or t("dash_other_category")).strip()
+            cur = transaction.get("currency") or get_default_currency()
+            amt = self._convert_amount(float(transaction["amount"]), cur)
 
             if transaction["transaction_type"] == "expense":
                 self.category_expenses[desc] = (
-                    self.category_expenses.get(desc, 0) + transaction["amount"]
+                    self.category_expenses.get(desc, 0) + amt
                 )
             elif transaction["transaction_type"] == "income":
                 self.category_incomes[desc] = (
-                    self.category_incomes.get(desc, 0) + transaction["amount"]
+                    self.category_incomes.get(desc, 0) + amt
                 )
 
-        # Account Distribution Data
-        self.account_distribution = db.get_accounts_distribution()
+        # Account Distribution Data (converted to default currency)
+        raw_dist = db.get_categories_with_balances()
+        self.account_distribution = []
+        for cat in raw_dist:
+            cur = cat.get("currency") or get_default_currency()
+            val = self._convert_amount(float(cat["balance"]), cur)
+            self.account_distribution.append({
+                "name": cat["name"],
+                "color": cat["color"],
+                "value": val,
+            })
         self.max_categories_pie = int(db.get_setting("max_categories_pie", "5") or "5")
 
     def _build_stat_card(
@@ -379,7 +426,7 @@ class DashboardView:
                         [
                             ft.Text(title, size=14, color=PeadraTheme.text_secondary),
                             ft.Text(
-                                f"{value:,.2f} {self.currency}",
+                                format_amount(value, self.currency),
                                 size=24,
                                 weight=ft.FontWeight.BOLD,
                                 color=text_color,
@@ -884,7 +931,7 @@ class DashboardView:
 
                 # Show title (amount) only if touched
                 section_title = (
-                    f"{item['value']:.2f}{self.currency}" if is_touched else ""
+                    format_amount(item['value'], self.currency) if is_touched else ""
                 )
 
                 sections.append(

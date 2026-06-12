@@ -201,7 +201,9 @@ class DashboardView:
             elif tx_type == "expense":
                 bucket["expenses"] += amount
 
-        patrimony = self._get_history_total(chart_start, category_id=category_id)
+        chart_start_dt = datetime.strptime(chart_start, "%Y-%m-%d")
+        day_before = (chart_start_dt - timedelta(days=1)).strftime("%Y-%m-%d")
+        patrimony = self._get_history_total(day_before, category_id=category_id)
         chart_data = []
 
         for year, month in months:

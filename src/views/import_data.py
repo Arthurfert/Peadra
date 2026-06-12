@@ -279,6 +279,31 @@ class ImportDialog:
 
         self.cancel_btn = ft.TextButton(t("btn_cancel"), on_click=self._close_dialog)
 
+        self.mapping_help_opened = False
+        self.mapping_help_dialog = ft.AlertDialog(
+            title=ft.Text(t("import_mapping_help_title"), color=PeadraTheme.text_secondary),
+            content=ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Text(f"• {t('import_mapping_help_date')}", color=PeadraTheme.text_secondary),
+                        ft.Text(f"• {t('import_mapping_help_description')}", color=PeadraTheme.text_secondary),
+                        ft.Text(f"• {t('import_mapping_help_amount')}", color=PeadraTheme.text_secondary),
+                        ft.Text(f"• {t('import_mapping_help_credit')}", color=PeadraTheme.text_secondary),
+                        ft.Text(f"• {t('import_mapping_help_debit')}", color=PeadraTheme.text_secondary),
+                        ft.Text(f"• {t('import_mapping_help_type')}", color=PeadraTheme.text_secondary),
+                        ft.Text(f"• {t('import_mapping_help_unused')}", color=PeadraTheme.text_secondary),
+                        ft.Divider(height=15),
+                        ft.Text(t("import_mapping_help_tip"), italic=True, size=12, color=PeadraTheme.placeholder_color),
+                    ],
+                    tight=True,
+                    scroll=ft.ScrollMode.AUTO,
+                ),
+                width=400,
+                padding=10,
+            ),
+            actions=[ft.TextButton(t("btn_close"), on_click=self._close_mapping_help)],
+        )
+
         self.dialog = ft.AlertDialog(
             title=ft.Text(t("import_title"), color=PeadraTheme.text_secondary),
             content=ft.Container(content=self._build_content(), width=700, padding=10),
@@ -312,7 +337,19 @@ class ImportDialog:
                 ft.Container(height=20),
                 ft.Column(
                     [
-                        ft.Text(t("import_preview"), weight=ft.FontWeight.BOLD, color=PeadraTheme.text_secondary),
+                        ft.Row(
+                            [
+                                ft.Text(t("import_preview"), weight=ft.FontWeight.BOLD, color=PeadraTheme.text_secondary),
+                                ft.IconButton(
+                                    icon=ft.Icons.INFO_OUTLINE,
+                                    icon_size=16,
+                                    icon_color=PeadraTheme.placeholder_color,
+                                    on_click=self._show_mapping_help,
+                                    tooltip=t("import_mapping_help_title"),
+                                ),
+                            ],
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        ),
                         ft.Container(
                             content=ft.Row(
                                 [
@@ -408,6 +445,14 @@ class ImportDialog:
             self.import_btn.style.bgcolor = (
                 PeadraTheme.primary_medium if is_dark else PeadraTheme.primary_light
             )
+        self.page.update()
+
+    def _show_mapping_help(self, e):
+        self.page.show_dialog(self.mapping_help_dialog)
+        self.page.update()
+
+    def _close_mapping_help(self, e):
+        self.mapping_help_dialog.open = False
         self.page.update()
 
     def _on_pick_files(self, _):

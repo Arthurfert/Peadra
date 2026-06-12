@@ -619,7 +619,7 @@ class TransactionDetailsModal:
             icon = ft.Icons.SWAP_HORIZ
             amount_prefix = ""
 
-        tx_currency = transaction.get("currency") or get_default_currency()
+        tx_currency = transaction.get("category_currency") or transaction.get("currency") or get_default_currency()
         amount_txt = format_amount_with_conversion(
             transaction["amount"], tx_currency, get_default_currency()
         )

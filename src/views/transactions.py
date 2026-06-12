@@ -671,7 +671,7 @@ class TransactionsView:
 
             date_str = self._format_display_date(transaction["date"])
 
-            tx_currency = transaction.get("currency") or get_default_currency()
+            tx_currency = transaction.get("category_currency") or transaction.get("currency") or get_default_currency()
             conv_display = f"{amount_prefix}{format_amount_with_conversion(transaction['amount'], tx_currency, self.currency)}"
 
             row = ft.Container(

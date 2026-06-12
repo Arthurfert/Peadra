@@ -10,6 +10,7 @@ from datetime import datetime
 from ..components.theme import PeadraTheme
 from ..components.modals import TransactionModal, TransactionDetailsModal
 from ..database import db
+from ..database.db_manager import CURRENCY_DATA, get_default_currency, get_currency_symbol, format_amount, format_amount_with_conversion, _SYMBOL_TO_CODE
 from ..i18n import t, get_translator
 
 logger = logging.getLogger(__name__)
@@ -39,7 +40,8 @@ class TransactionsView:
     def _load_data(self, append: bool = False, load_all: bool = False):
         """Charge les données."""
         self.categories = db.get_all_categories()
-        self.currency = db.get_setting("currency", "€") or "€"
+        raw = db.get_setting("currency", "EUR") or "EUR"
+        self.currency = _SYMBOL_TO_CODE.get(raw, raw) if raw in _SYMBOL_TO_CODE or raw in CURRENCY_DATA else "EUR"
 
         offset = len(self.transactions) if append else 0
 
@@ -326,6 +328,7 @@ class TransactionsView:
 
         elif data["transaction_type"] == "transfer":
             # Création - Transfert (2 transactions)
+            tx_currency = data.get("currency") or get_default_currency()
 
             # 1. Expense from source
             db.add_transaction(
@@ -335,6 +338,7 @@ class TransactionsView:
                 transaction_type="expense",
                 category_id=data.get("source_id"),
                 notes=data.get("notes"),
+                currency=tx_currency,
             )
 
             # 2. Income to dest
@@ -345,6 +349,7 @@ class TransactionsView:
                 transaction_type="income",
                 category_id=data.get("dest_id"),
                 notes=data.get("notes"),
+                currency=tx_currency,
             )
 
             logger.info(
@@ -364,6 +369,7 @@ class TransactionsView:
                 transaction_type=data["transaction_type"],
                 category_id=data.get("category_id"),
                 notes=data.get("notes"),
+                currency=data.get("currency"),
             )
             logger.info(
                 "Transaction added: type=%s amount=%s desc='%s'",
@@ -665,6 +671,9 @@ class TransactionsView:
 
             date_str = self._format_display_date(transaction["date"])
 
+            tx_currency = transaction.get("currency") or get_default_currency()
+            conv_display = f"{amount_prefix}{format_amount_with_conversion(transaction['amount'], tx_currency, self.currency)}"
+
             row = ft.Container(
                 content=ft.Row(
                     [
@@ -711,10 +720,11 @@ class TransactionsView:
                         # Amount
                         ft.Container(
                             ft.Text(
-                                f"{amount_prefix}{transaction['amount']:,.2f} {self.currency}",
+                                conv_display,
                                 weight=ft.FontWeight.BOLD,
                                 color=amount_color,
                                 text_align=ft.TextAlign.RIGHT,
+                                size=12,
                             ),
                             expand=1,
                             alignment=ft.Alignment.CENTER_RIGHT,

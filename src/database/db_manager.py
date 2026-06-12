@@ -9,10 +9,105 @@ import sqlite3
 import json
 import csv
 import hashlib
+import urllib.request
+import urllib.error
 from datetime import datetime, date, timedelta
 from typing import List, Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
+
+# ==================== CURRENCY DEFINITIONS ====================
+
+CURRENCY_DATA: Dict[str, Dict[str, str]] = {
+    "EUR": {"symbol": "€", "name": "Euro", "name_fr": "Euro"},
+    "USD": {"symbol": "$", "name": "US Dollar", "name_fr": "Dollar américain"},
+    "GBP": {"symbol": "£", "name": "Pound Sterling", "name_fr": "Livre sterling"},
+    "JPY": {"symbol": "¥", "name": "Japanese Yen", "name_fr": "Yen japonais"},
+    "CHF": {"symbol": "CHF", "name": "Swiss Franc", "name_fr": "Franc suisse"},
+    "CAD": {"symbol": "CA$", "name": "Canadian Dollar", "name_fr": "Dollar canadien"},
+    "AUD": {"symbol": "AU$", "name": "Australian Dollar", "name_fr": "Dollar australien"},
+    "CNY": {"symbol": "CN¥", "name": "Chinese Yuan", "name_fr": "Yuan chinois"},
+    "HKD": {"symbol": "HK$", "name": "Hong Kong Dollar", "name_fr": "Dollar de Hong Kong"},
+    "SGD": {"symbol": "SG$", "name": "Singapore Dollar", "name_fr": "Dollar de Singapour"},
+    "SEK": {"symbol": "kr", "name": "Swedish Krona", "name_fr": "Couronne suédoise"},
+    "NOK": {"symbol": "kr", "name": "Norwegian Krone", "name_fr": "Couronne norvégienne"},
+    "DKK": {"symbol": "kr", "name": "Danish Krone", "name_fr": "Couronne danoise"},
+    "PLN": {"symbol": "zł", "name": "Polish Zloty", "name_fr": "Zloty polonais"},
+    "CZK": {"symbol": "Kč", "name": "Czech Koruna", "name_fr": "Couronne tchèque"},
+    "HUF": {"symbol": "Ft", "name": "Hungarian Forint", "name_fr": "Forint hongrois"},
+    "INR": {"symbol": "₹", "name": "Indian Rupee", "name_fr": "Roupie indienne"},
+    "BRL": {"symbol": "R$", "name": "Brazilian Real", "name_fr": "Real brésilien"},
+    "ZAR": {"symbol": "R", "name": "South African Rand", "name_fr": "Rand sud-africain"},
+    "MXN": {"symbol": "MX$", "name": "Mexican Peso", "name_fr": "Peso mexicain"},
+    "TWD": {"symbol": "NT$", "name": "Taiwan Dollar", "name_fr": "Dollar taïwanais"},
+    "NZD": {"symbol": "NZ$", "name": "New Zealand Dollar", "name_fr": "Dollar néo-zélandais"},
+    "KRW": {"symbol": "₩", "name": "South Korean Won", "name_fr": "Won sud-coréen"},
+    "TRY": {"symbol": "₺", "name": "Turkish Lira", "name_fr": "Lire turque"},
+    "RUB": {"symbol": "₽", "name": "Russian Ruble", "name_fr": "Rouble russe"},
+    "THB": {"symbol": "฿", "name": "Thai Baht", "name_fr": "Baht thaïlandais"},
+    "AED": {"symbol": "د.إ", "name": "UAE Dirham", "name_fr": "Dirham des Émirats"},
+    "SAR": {"symbol": "﷼", "name": "Saudi Riyal", "name_fr": "Riyal saoudien"},
+    "MYR": {"symbol": "RM", "name": "Malaysian Ringgit", "name_fr": "Ringgit malaisien"},
+    "PHP": {"symbol": "₱", "name": "Philippine Peso", "name_fr": "Peso philippin"},
+    "IDR": {"symbol": "Rp", "name": "Indonesian Rupiah", "name_fr": "Rupiah indonésienne"},
+    "VND": {"symbol": "₫", "name": "Vietnamese Dong", "name_fr": "Dong vietnamien"},
+    "ILS": {"symbol": "₪", "name": "Israeli Shekel", "name_fr": "Shekel israélien"},
+    "CLP": {"symbol": "CLP$", "name": "Chilean Peso", "name_fr": "Peso chilien"},
+    "NGN": {"symbol": "₦", "name": "Nigerian Naira", "name_fr": "Naira nigérian"},
+    "EGP": {"symbol": "E£", "name": "Egyptian Pound", "name_fr": "Livre égyptienne"},
+    "PKR": {"symbol": "₨", "name": "Pakistani Rupee", "name_fr": "Roupie pakistanaise"},
+    "BDT": {"symbol": "৳", "name": "Bangladeshi Taka", "name_fr": "Taka bangladais"},
+}
+
+# Mapping des anciens symboles vers les codes ISO pour migration
+_SYMBOL_TO_CODE = {
+    "€": "EUR", "$": "USD", "£": "GBP", "¥": "JPY",
+}
+
+
+def get_currency_symbol(code: str) -> str:
+    """Retourne le symbole monétaire pour un code devise ISO."""
+    data = CURRENCY_DATA.get(code)
+    return data["symbol"] if data else code
+
+
+def get_currency_name(code: str, lang: str = "en") -> str:
+    """Retourne le nom localisé d'une devise."""
+    data = CURRENCY_DATA.get(code)
+    if not data:
+        return code
+    return data.get("name_fr" if lang == "fr" else "name", code)
+
+
+def get_default_currency() -> str:
+    """Retourne la devise par défaut de l'utilisateur (code ISO)."""
+    from ..database import db
+    val = db.get_setting("currency", "EUR")
+    if val in _SYMBOL_TO_CODE:
+        val = _SYMBOL_TO_CODE[val]
+        db.set_setting("currency", val)
+    return val if val in CURRENCY_DATA else "EUR"
+
+
+def format_amount(amount: float, currency_code: str) -> str:
+    """Formate un montant avec le symbole devise."""
+    symbol = get_currency_symbol(currency_code)
+    return f"{amount:,.2f} {symbol}"
+
+
+def format_amount_with_conversion(amount: float, from_currency: str, to_currency: str, rate: Optional[float] = None) -> str:
+    """Formate un montant avec conversion indicatrice."""
+    main = format_amount(amount, from_currency)
+    if from_currency == to_currency:
+        return main
+    if rate is None:
+        from ..database import db
+        rate = db.get_exchange_rate(from_currency, to_currency)
+    if rate is not None:
+        converted = amount * rate
+        conv = format_amount(converted, to_currency)
+        return f"{main} ({conv})"
+    return main
 
 
 def get_app_dir() -> str:
@@ -268,7 +363,78 @@ class DatabaseManager:
                     e,
                 )
 
-            logger.info("Migration complétée!")
+            logger.info("Migration user_id complétée!")
+
+        # Migration: Ajouter la colonne currency à categories
+        try:
+            cursor.execute("ALTER TABLE categories ADD COLUMN currency TEXT")
+            conn.commit()
+            logger.info("Migration: Colonne currency ajoutée à categories")
+        except Exception as e:
+            logger.debug("categories a déjà la colonne currency: %s", e)
+        # Définir la devise par défaut pour les catégories existantes (même si la colonne existait déjà)
+        cursor.execute(
+            "UPDATE categories SET currency = 'EUR' WHERE currency IS NULL",
+        )
+        conn.commit()
+
+        # Migration: Ajouter la colonne currency à transactions
+        try:
+            cursor.execute("ALTER TABLE transactions ADD COLUMN currency TEXT")
+            conn.commit()
+            logger.info("Migration: Colonne currency ajoutée à transactions")
+        except Exception as e:
+            logger.debug("transactions a déjà la colonne currency: %s", e)
+        cursor.execute(
+            "UPDATE transactions SET currency = 'EUR' WHERE currency IS NULL",
+        )
+        conn.commit()
+
+        # Migration: Schéma categories (description→name, ajout type/color) si nécessaire
+        cursor.execute("PRAGMA table_info(categories)")
+        cat_cols = {row[1] for row in cursor.fetchall()}
+        if "name" not in cat_cols:
+            logger.info("Migration: Mise à jour du schéma categories (description→name)...")
+            try:
+                cursor.execute("""
+                    CREATE TABLE categories_new (
+                        id INTEGER PRIMARY KEY,
+                        user_id INTEGER NOT NULL,
+                        name TEXT NOT NULL,
+                        type TEXT NOT NULL DEFAULT 'savings' CHECK(type IN ('checking', 'savings')),
+                        color TEXT DEFAULT '#1976D2',
+                        currency TEXT DEFAULT 'EUR',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE(user_id, name),
+                        FOREIGN KEY (user_id) REFERENCES users(id)
+                    )
+                """)
+                cursor.execute("""
+                    INSERT INTO categories_new (id, user_id, name, type, color, currency, created_at)
+                    SELECT id, user_id, description, 'savings', '#1976D2',
+                           COALESCE(currency, 'EUR'), created_at
+                    FROM categories
+                """)
+                cursor.execute("DROP TABLE categories")
+                cursor.execute("ALTER TABLE categories_new RENAME TO categories")
+                conn.commit()
+                logger.info("Migration: Schéma categories mis à jour avec name/type/color")
+            except Exception as e:
+                conn.rollback()
+                logger.warning("Migration schéma categories échouée: %s", e)
+
+        # Migration: Table des taux de change
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS exchange_rates (
+                from_currency TEXT NOT NULL,
+                to_currency TEXT NOT NULL,
+                rate REAL NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (from_currency, to_currency)
+            )
+        """)
+        conn.commit()
+        logger.info("Migration: Table exchange_rates créée")
 
     def _insert_default_categories(self):
         """Insère les catégories par défaut pour l'utilisateur actuel."""
@@ -287,16 +453,17 @@ class DatabaseManager:
         if count > 0:
             return
 
+        default_currency = get_default_currency()
         default_categories = [
-            ("Checking Account", "#4CAF50", "checking"),
-            ("Savings Account A", "#2196F3", "savings"),
-            ("Savings Account B", "#009688", "savings"),
+            ("Checking Account", "#4CAF50", "checking", default_currency),
+            ("Savings Account A", "#2196F3", "savings", default_currency),
+            ("Savings Account B", "#009688", "savings", default_currency),
         ]
 
-        for name, color, acc_type in default_categories:
+        for name, color, acc_type, currency in default_categories:
             cursor.execute(
-                "INSERT INTO categories (user_id, name, color, type) VALUES (?, ?, ?, ?)",
-                (self.user_id, name, color, acc_type),
+                "INSERT INTO categories (user_id, name, color, type, currency) VALUES (?, ?, ?, ?, ?)",
+                (self.user_id, name, color, acc_type, currency),
             )
 
         conn.commit()
@@ -449,7 +616,11 @@ class DatabaseManager:
             """,
             (self.user_id, self.user_id),
         )
-        return [dict(row) for row in cursor.fetchall()]
+        result = [dict(row) for row in cursor.fetchall()]
+        for row in result:
+            if "currency" not in row or not row["currency"]:
+                row["currency"] = get_default_currency()
+        return result
 
     def merge_categories(self, source_id: int, target_id: int) -> bool:
         """Fusionne la catégorie source vers la cible puis supprime la source."""
@@ -478,17 +649,19 @@ class DatabaseManager:
         logger.info("Categories merged: source=%s into target=%s", source_id, target_id)
         return True
 
-    def add_category(self, name: str, color: str, account_type: str = "savings") -> int:
+    def add_category(self, name: str, color: str, account_type: str = "savings", currency: Optional[str] = None) -> int:
         """Ajoute une nouvelle catégorie (compte)."""
         conn = self._get_connection()
         cursor = conn.cursor()
+        if currency is None or currency not in CURRENCY_DATA:
+            currency = get_default_currency()
         try:
             cursor.execute(
-                "INSERT INTO categories (user_id, name, color, type) VALUES (?, ?, ?, ?)",
-                (self.user_id, name, color, account_type),
+                "INSERT INTO categories (user_id, name, color, type, currency) VALUES (?, ?, ?, ?, ?)",
+                (self.user_id, name, color, account_type, currency),
             )
             conn.commit()
-            logger.info("Category added: id=%s name='%s'", cursor.lastrowid, name)
+            logger.info("Category added: id=%s name='%s' currency=%s", cursor.lastrowid, name, currency)
             return cursor.lastrowid or 0
         except sqlite3.IntegrityError:
             # Le nom existe déjà
@@ -500,6 +673,7 @@ class DatabaseManager:
         name: str,
         color: str,
         account_type: Optional[str] = None,
+        currency: Optional[str] = None,
     ) -> bool:
         """Met à jour une catégorie."""
         conn = self._get_connection()
@@ -507,24 +681,27 @@ class DatabaseManager:
 
         # Vérifier que la catégorie appartient à l'utilisateur actuel
         cursor.execute(
-            "SELECT name FROM categories WHERE id = ? AND user_id = ?",
+            "SELECT name, currency FROM categories WHERE id = ? AND user_id = ?",
             (category_id, self.user_id),
         )
         row = cursor.fetchone()
         if not row:
             return False
         old_name = row[0]
+        old_currency = row[1] or get_default_currency()
+        if currency is None or currency not in CURRENCY_DATA:
+            currency = old_currency
 
         try:
             if account_type:
                 cursor.execute(
-                    "UPDATE categories SET name = ?, color = ?, type = ? WHERE id = ? AND user_id = ?",
-                    (name, color, account_type, category_id, self.user_id),
+                    "UPDATE categories SET name = ?, color = ?, type = ?, currency = ? WHERE id = ? AND user_id = ?",
+                    (name, color, account_type, currency, category_id, self.user_id),
                 )
             else:
                 cursor.execute(
-                    "UPDATE categories SET name = ?, color = ? WHERE id = ? AND user_id = ?",
-                    (name, color, category_id, self.user_id),
+                    "UPDATE categories SET name = ?, color = ?, currency = ? WHERE id = ? AND user_id = ?",
+                    (name, color, currency, category_id, self.user_id),
                 )
 
             rows_affected = cursor.rowcount
@@ -592,6 +769,19 @@ class DatabaseManager:
 
     # ==================== TRANSACTIONS ====================
 
+    def _get_category_currency(self, category_id: int) -> Optional[str]:
+        """Récupère la devise d'une catégorie."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT currency FROM categories WHERE id = ? AND user_id = ?",
+            (category_id, self.user_id),
+        )
+        row = cursor.fetchone()
+        if row and row[0] and row[0] in CURRENCY_DATA:
+            return row[0]
+        return None
+
     def add_transaction(
         self,
         date: str,
@@ -600,15 +790,22 @@ class DatabaseManager:
         transaction_type: str,
         category_id: Optional[int] = None,
         notes: Optional[str] = None,
+        currency: Optional[str] = None,
     ) -> int:
         """Ajoute une nouvelle transaction."""
         conn = self._get_connection()
         cursor = conn.cursor()
+        if currency is None or currency not in CURRENCY_DATA:
+            if category_id:
+                cat_currency = self._get_category_currency(category_id)
+                currency = cat_currency if cat_currency else get_default_currency()
+            else:
+                currency = get_default_currency()
         cursor.execute(
             """
             INSERT INTO transactions (user_id, date, description, amount, transaction_type,
-                                      category_id, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+                                      category_id, notes, currency)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 self.user_id,
@@ -618,6 +815,7 @@ class DatabaseManager:
                 transaction_type,
                 category_id,
                 notes,
+                currency,
             ),
         )
         conn.commit()
@@ -881,6 +1079,7 @@ class DatabaseManager:
             "transaction_type",
             "category_id",
             "notes",
+            "currency",
         }
         updates = {k: v for k, v in kwargs.items() if k in allowed_fields}
 
@@ -928,7 +1127,7 @@ class DatabaseManager:
         conn = self._get_connection()
         cursor = conn.cursor()
         query = """
-            SELECT t.*, c.name as category_name, c.color as category_color
+            SELECT t.*, c.name as category_name, c.color as category_color, c.currency as category_currency
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
             WHERE t.user_id = ?
@@ -956,7 +1155,14 @@ class DatabaseManager:
             params.extend([limit, offset])
 
         cursor.execute(query, tuple(params))
-        return [dict(row) for row in cursor.fetchall()]
+        result = [dict(row) for row in cursor.fetchall()]
+        default_curr = get_default_currency()
+        for row in result:
+            if not row.get("currency") or row["currency"] not in CURRENCY_DATA:
+                row["currency"] = row.get("category_currency") or default_curr
+            if "category_currency" in row and row["category_currency"] is None:
+                row["category_currency"] = default_curr
+        return result
 
     def get_transactions_by_period(
         self, start_date: str, end_date: str
@@ -966,7 +1172,8 @@ class DatabaseManager:
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT t.*, c.name as category_name, c.color as category_color
+            SELECT t.*, c.name as category_name, c.color as category_color,
+                   c.currency as category_currency
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
             WHERE t.date BETWEEN ? AND ? AND t.user_id = ?
@@ -974,7 +1181,12 @@ class DatabaseManager:
         """,
             (start_date, end_date, self.user_id),
         )
-        return [dict(row) for row in cursor.fetchall()]
+        result = [dict(row) for row in cursor.fetchall()]
+        default_curr = get_default_currency()
+        for row in result:
+            if not row.get("currency") or row["currency"] not in CURRENCY_DATA:
+                row["currency"] = row.get("category_currency") or default_curr
+        return result
 
     def get_unique_descriptions(
         self, transaction_type: str = "expense", search_term: str = ""
@@ -1656,6 +1868,84 @@ class DatabaseManager:
         except Exception as e:
             logger.error("Erreur lors de la suppression du compte: %s", str(e))
             return False
+
+    # ==================== TAUX DE CHANGE ====================
+
+    def fetch_exchange_rates(self, base_currency: str = "EUR"):
+        """Récupère les derniers taux de change depuis Frankfurter API et les cache."""
+        if base_currency not in CURRENCY_DATA:
+            base_currency = "EUR"
+        url = f"https://api.frankfurter.app/latest?from={base_currency}"
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Peadra/1.0"})
+            with urllib.request.urlopen(req, timeout=10) as response:
+                data = json.loads(response.read().decode())
+            rates = data.get("rates", {})
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            now = datetime.now().isoformat()
+            for target_curr, rate in rates.items():
+                if target_curr in CURRENCY_DATA:
+                    cursor.execute(
+                        """INSERT OR REPLACE INTO exchange_rates
+                           (from_currency, to_currency, rate, updated_at)
+                           VALUES (?, ?, ?, ?)""",
+                        (base_currency, target_curr, rate, now),
+                    )
+            conn.commit()
+            logger.info("Exchange rates fetched for %s (%d currencies)", base_currency, len(rates))
+            return True
+        except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, OSError) as e:
+            logger.warning("Failed to fetch exchange rates: %s", e)
+            return False
+
+    def get_exchange_rate(self, from_currency: str, to_currency: str) -> Optional[float]:
+        """Récupère le taux de change depuis le cache."""
+        if from_currency == to_currency:
+            return 1.0
+        if from_currency not in CURRENCY_DATA or to_currency not in CURRENCY_DATA:
+            return None
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        # Essayer la conversion directe
+        cursor.execute(
+            "SELECT rate FROM exchange_rates WHERE from_currency = ? AND to_currency = ?",
+            (from_currency, to_currency),
+        )
+        row = cursor.fetchone()
+        if row:
+            return row[0]
+        # Essayer via la devise de base (EUR)
+        if from_currency == "EUR":
+            cursor.execute(
+                "SELECT rate FROM exchange_rates WHERE from_currency = ? AND to_currency = ?",
+                ("EUR", to_currency),
+            )
+            row = cursor.fetchone()
+            if row:
+                return row[0]
+            return None
+        # Inverser si on a le taux inverse
+        cursor.execute(
+            "SELECT rate FROM exchange_rates WHERE from_currency = ? AND to_currency = ?",
+            (to_currency, from_currency),
+        )
+        row = cursor.fetchone()
+        if row:
+            return 1.0 / row[0]
+        # Convertir via EUR: from -> EUR -> to
+        rate_from_eur = self.get_exchange_rate("EUR", from_currency)
+        rate_to_eur = self.get_exchange_rate("EUR", to_currency)
+        if rate_from_eur is not None and rate_to_eur is not None:
+            return rate_to_eur / rate_from_eur
+        return None
+
+    def convert_currency(self, amount: float, from_currency: str, to_currency: str) -> Optional[float]:
+        """Convertit un montant d'une devise à une autre."""
+        rate = self.get_exchange_rate(from_currency, to_currency)
+        if rate is not None:
+            return amount * rate
+        return None
 
     def close(self):
         """Ferme la connexion à la base de données."""

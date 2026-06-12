@@ -13,6 +13,7 @@ from src.logger import setup_logger
 from src.components.navigation import NavigationRailComponent
 from src.database import db
 from src.i18n import set_language, t
+from src.database.db_manager import _SYMBOL_TO_CODE, CURRENCY_DATA, get_default_currency
 from src.views.dashboard import DashboardView
 from src.update_manager import run_update_mode
 from src.views.transactions import TransactionsView
@@ -70,6 +71,14 @@ class PeadraApp:
             except Exception as e:
                 logging.getLogger(__name__).error(
                     "Error processing recurring transactions: %s", e
+                )
+
+            # Récupérer les taux de change au démarrage
+            try:
+                db.fetch_exchange_rates()
+            except Exception as e:
+                logging.getLogger(__name__).debug(
+                    "Could not fetch exchange rates: %s", e
                 )
 
             # Créer l'application principale
@@ -402,6 +411,14 @@ def main(page: ft.Page):
         except Exception as e:
             logging.getLogger(__name__).error(
                 "Error processing recurring transactions: %s", e
+            )
+
+        # Récupérer les taux de change au démarrage
+        try:
+            db.fetch_exchange_rates()
+        except Exception as e:
+            logging.getLogger(__name__).debug(
+                "Could not fetch exchange rates: %s", e
             )
 
         # Créer l'application principale

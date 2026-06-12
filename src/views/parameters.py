@@ -19,6 +19,7 @@ import flet as ft
 logger = logging.getLogger(__name__)
 from ..components.theme import PeadraTheme
 from ..database import db
+from ..database.db_manager import CURRENCY_DATA, get_currency_symbol, get_currency_name, _SYMBOL_TO_CODE
 from ..i18n import t
 from ..logger import get_current_log_path
 from ..update_manager import (
@@ -216,7 +217,8 @@ class ParametersView:
         self.month_mode = db.get_setting("month_mode", "strict") or "strict"
         self.display_limit = db.get_setting("transactions_display_limit", "30") or "30"
         self.max_categories_pie = db.get_setting("max_categories_pie", "5") or "5"
-        self.currency = db.get_setting("currency", "€") or "€"
+        raw_currency = db.get_setting("currency", "EUR") or "EUR"
+        self.currency = _SYMBOL_TO_CODE.get(raw_currency, raw_currency) if raw_currency in _SYMBOL_TO_CODE or raw_currency in CURRENCY_DATA else "EUR"
         # Charger la langue depuis la base de données
         self.language = db.get_setting("language", "en") or "en"
         self.current_version = get_current_version()
@@ -1185,12 +1187,10 @@ class ParametersView:
         currency_dropdown = ft.Dropdown(
             value=self.currency,
             options=[
-                ft.dropdown.Option("€", t("param_currency_euro")),
-                ft.dropdown.Option("$", t("param_currency_usd")),
-                ft.dropdown.Option("£", t("param_currency_gbp")),
-                ft.dropdown.Option("¥", t("param_currency_jpy")),
+                ft.dropdown.Option(code, f"{get_currency_symbol(code)} - {code} - {get_currency_name(code)}")
+                for code in sorted(CURRENCY_DATA.keys())
             ],
-            width=200,
+            width=350,
             on_select=self._on_currency_change,
         )
 
@@ -1210,7 +1210,7 @@ class ParametersView:
             [
                 self._build_setting_row(
                     t("param_currency"),
-                    t("param_currency_desc"),
+                    t("param_currency_desc") + f" ({t('param_current')}: {get_currency_symbol(self.currency)})",
                     currency_dropdown,
                 ),
                 self._build_setting_row(

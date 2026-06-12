@@ -11,7 +11,7 @@ import calendar
 
 from ..components.theme import PeadraTheme
 from ..components.modals import TransactionModal, TransactionDetailsModal
-from ..database.db_manager import db
+from ..database.db_manager import db, get_default_currency, get_currency_symbol, format_amount, _SYMBOL_TO_CODE, CURRENCY_DATA
 from ..i18n import t
 
 logger = logging.getLogger(__name__)
@@ -45,7 +45,8 @@ class SubscriptionsView:
             display_month=self.current_month.date()
         )
         self.categories = db.get_all_categories()
-        self.currency = db.get_setting("currency", "€") or "€"
+        raw = db.get_setting("currency", "EUR") or "EUR"
+        self.currency = _SYMBOL_TO_CODE.get(raw, raw) if raw in _SYMBOL_TO_CODE or raw in CURRENCY_DATA else "EUR"
 
     def _save_transaction(self, data: dict):
         """Met à jour une transaction récurrente."""
@@ -329,7 +330,7 @@ class SubscriptionsView:
                         day_content.append(
                             ft.Container(
                                 content=ft.Text(
-                                    f"{tx['description']} ({tx['amount']} {self.currency})",
+                                    f"{tx['description']} ({format_amount(tx['amount'], self.currency)})",
                                     size=10,
                                     color=ft.Colors.WHITE,
                                     no_wrap=True,
@@ -479,13 +480,13 @@ class SubscriptionsView:
                             alignment=ft.MainAxisAlignment.START,
                         ),
                         ft.Text(
-                            f"{tx.get('amount', 0.0):.2f} {self.currency}",
+                            format_amount(tx.get('amount', 0.0), self.currency),
                             color=color,
                             weight=ft.FontWeight.BOLD,
                             size=24,
                         ),
                         ft.Text(
-                            f"{projection_label}: {yearly_total:.2f} {self.currency}",
+                            f"{projection_label}: {format_amount(yearly_total, self.currency)}",
                             color=ft.Colors.with_opacity(0.7, text_color),
                             size=11,
                             italic=True,

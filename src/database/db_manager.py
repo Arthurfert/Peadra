@@ -107,7 +107,7 @@ def format_amount_with_conversion(amount: float, from_currency: str, to_currency
         converted = amount * rate
         conv = format_amount(converted, to_currency)
         return f"{main} ({conv})"
-    return main
+    return f"{main} (?)"
 
 
 def get_app_dir() -> str:
@@ -1872,28 +1872,40 @@ class DatabaseManager:
     # ==================== TAUX DE CHANGE ====================
 
     def fetch_exchange_rates(self, base_currency: str = "EUR"):
-        """Récupère les derniers taux de change depuis Frankfurter API et les cache."""
+        """Récupère les derniers taux de change depuis open.er-api.com et les cache."""
         if base_currency not in CURRENCY_DATA:
             base_currency = "EUR"
-        url = f"https://api.frankfurter.app/latest?from={base_currency}"
+        url = f"https://open.er-api.com/v6/latest/{base_currency}"
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "Peadra/1.0"})
             with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
-            rates = data.get("rates", {})
+            api_rates = data.get("rates", {})
             conn = self._get_connection()
             cursor = conn.cursor()
             now = datetime.now().isoformat()
-            for target_curr, rate in rates.items():
-                if target_curr in CURRENCY_DATA:
+            stored = 0
+            for target_curr, rate in api_rates.items():
+                if target_curr in CURRENCY_DATA and target_curr != base_currency:
                     cursor.execute(
                         """INSERT OR REPLACE INTO exchange_rates
                            (from_currency, to_currency, rate, updated_at)
                            VALUES (?, ?, ?, ?)""",
                         (base_currency, target_curr, rate, now),
                     )
+                    stored += 1
             conn.commit()
-            logger.info("Exchange rates fetched for %s (%d currencies)", base_currency, len(rates))
+            api_supported = set(api_rates.keys()) | {base_currency}
+            missing = [c for c in CURRENCY_DATA if c not in api_supported]
+            if missing:
+                logger.warning(
+                    "Aucun taux disponible pour ces devises (non supportées par l'API) : %s",
+                    ", ".join(missing),
+                )
+            logger.info(
+                "Exchange rates fetched for %s (%d stored, %d missing)",
+                base_currency, stored, len(missing),
+            )
             return True
         except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, OSError) as e:
             logger.warning("Failed to fetch exchange rates: %s", e)

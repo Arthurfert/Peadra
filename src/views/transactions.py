@@ -283,23 +283,33 @@ class TransactionsView:
             # Mise à jour
             if data["transaction_type"] == "transfer" and data.get("other_id"):
                 # Update both sides of transfer
+                tx_currency = data.get("currency") or get_default_currency()
+                src_cat = next((c for c in self.categories if c["id"] == data.get("source_id")), None)
+                dst_cat = next((c for c in self.categories if c["id"] == data.get("dest_id")), None)
+                src_currency = (src_cat.get("currency") or get_default_currency()) if src_cat else get_default_currency()
+                dst_currency = (dst_cat.get("currency") or get_default_currency()) if dst_cat else get_default_currency()
+                src_amount = db.convert_currency(data["amount"], tx_currency, src_currency) or data["amount"]
+                dst_amount = db.convert_currency(data["amount"], tx_currency, dst_currency) or data["amount"]
+
                 # 1. Expense (Source)
                 db.update_transaction(
                     data["id"],
                     date=data["date"],
                     description=f"{t('trans_transfer_to')} {data.get('dest_name', t('trans_account_default'))}",
-                    amount=data["amount"],
+                    amount=src_amount,
                     category_id=data.get("source_id"),
                     notes=data.get("notes"),
+                    currency=src_currency,
                 )
                 # 2. Income (Dest)
                 db.update_transaction(
                     data["other_id"],
                     date=data["date"],
                     description=f"{t('trans_transfer_from')} {data.get('source_name', t('trans_account_default'))}",
-                    amount=data["amount"],
+                    amount=dst_amount,
                     category_id=data.get("dest_id"),
                     notes=data.get("notes"),
+                    currency=dst_currency,
                 )
                 logger.info(
                     "Transaction updated: id=%s amount=%s desc='%s'",
@@ -330,26 +340,36 @@ class TransactionsView:
             # Création - Transfert (2 transactions)
             tx_currency = data.get("currency") or get_default_currency()
 
-            # 1. Expense from source
+            # Récupérer les devises des comptes source et destination
+            src_cat = next((c for c in self.categories if c["id"] == data.get("source_id")), None)
+            dst_cat = next((c for c in self.categories if c["id"] == data.get("dest_id")), None)
+            src_currency = (src_cat.get("currency") or get_default_currency()) if src_cat else get_default_currency()
+            dst_currency = (dst_cat.get("currency") or get_default_currency()) if dst_cat else get_default_currency()
+
+            # Convertir le montant saisi dans la devise de chaque compte
+            src_amount = db.convert_currency(data["amount"], tx_currency, src_currency) or data["amount"]
+            dst_amount = db.convert_currency(data["amount"], tx_currency, dst_currency) or data["amount"]
+
+            # 1. Expense from source (dans la devise du compte source)
             db.add_transaction(
                 date=data["date"],
                 description=f"{t('trans_transfer_to')} {data.get('dest_name', t('trans_account_default'))}",
-                amount=data["amount"],
+                amount=src_amount,
                 transaction_type="expense",
                 category_id=data.get("source_id"),
                 notes=data.get("notes"),
-                currency=tx_currency,
+                currency=src_currency,
             )
 
-            # 2. Income to dest
+            # 2. Income to dest (dans la devise du compte destination)
             db.add_transaction(
                 date=data["date"],
                 description=f"{t('trans_transfer_from')} {data.get('source_name', t('trans_account_default'))}",
-                amount=data["amount"],
+                amount=dst_amount,
                 transaction_type="income",
                 category_id=data.get("dest_id"),
                 notes=data.get("notes"),
-                currency=tx_currency,
+                currency=dst_currency,
             )
 
             logger.info(

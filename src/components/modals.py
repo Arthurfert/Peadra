@@ -160,6 +160,20 @@ class TransactionModal:
         self.controls_list.append(self.amount_field)
 
         if self.transaction_type == "transfer":
+            # Currency selector for the transfer amount
+            currency_options = [
+                ft.dropdown.Option(code, f"{code} {get_currency_symbol(code)}")
+                for code in CURRENCY_DATA
+            ]
+            self.transfer_currency_dropdown = ft.Dropdown(
+                label=translate("trans_currency"),
+                width=150,
+                options=currency_options,
+                value=self._selected_currency,
+                on_select=self._on_transfer_currency_change,
+            )
+            self.controls_list.append(self.transfer_currency_dropdown)
+
             # Two dropdowns: Source and Dest
             self.source_dropdown = ft.Dropdown(
                 label=translate("trans_account_from"),
@@ -472,6 +486,16 @@ class TransactionModal:
     def _on_category_change(self, e):
         """Met à jour la devise quand la catégorie change."""
         self._update_currency_from_category(e.control.value)
+
+    def _on_transfer_currency_change(self, e):
+        """Met à jour la devise quand la devise de transfert change."""
+        self._selected_currency = e.control.value
+        if hasattr(self, "amount_field"):
+            self.amount_field.label = f"{self._currency_label} ({get_currency_symbol(self._selected_currency)})"
+            try:
+                self.amount_field.update()
+            except RuntimeError:
+                pass
 
     def _on_cancel_click(self, e):
         """Gère le clic sur le bouton Annuler."""

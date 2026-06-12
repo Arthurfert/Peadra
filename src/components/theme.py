@@ -142,10 +142,10 @@ class PeadraTheme(metaclass=_ThemeMeta):
         ),
         "autumn": ThemeColors(
             name="autumn",
-            bg="#280a0a",                     # page background (Warm rich space blue)
-            surface="#490000",                # cards, containers, sidebar, header (Deep Space Blue)
-            text="#eae2b7",                   # primary text (Vanilla Custard) 
-            text_secondary="#fcbf49",         # secondary text, chart grid lines (Sunflower Gold)
+            bg="#8d2020",                     # page background (Warm rich space blue)
+            surface="#650000",                # cards, containers, sidebar, header (Deep Space Blue)
+            text="#f8f4dc",                   # primary text (Vanilla Custard) 
+            text_secondary="#fee0a4",         # secondary text, chart grid lines (Sunflower Gold)
             primary_dark="#240000",           # Flet color_scheme_seed
             primary_medium="#360000",         # Flet primary
             primary_light="#6c0000",          # login focus border

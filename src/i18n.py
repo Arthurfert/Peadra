@@ -69,6 +69,8 @@ class Translator:
             "dash_no_assets": "No assets to display",
             "dash_other": "Other",
             "dash_all_accounts": "All accounts",
+            "dash_all_checking": "All checking accounts",
+            "dash_all_savings": "All savings accounts",
             # Categories
             "cat_top_expenses": "Top expense categories",
             "cat_top_incomes": "Top income categories",
@@ -457,6 +459,8 @@ class Translator:
             "dash_no_assets": "Aucun actif à afficher",
             "dash_other": "Autres",
             "dash_all_accounts": "Tous les comptes",
+            "dash_all_checking": "Tous les comptes courants",
+            "dash_all_savings": "Tous les comptes d'épargne",
             # Categories
             "cat_top_expenses": "Catégories de dépenses principales",
             "cat_top_incomes": "Catégories de revenus principales",

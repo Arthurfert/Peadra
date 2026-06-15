@@ -33,7 +33,7 @@ class PeadraApp:
     def __init__(self, page: ft.Page, theme_mode: str = "dark"):
         self.page = page
         self.theme_mode = theme_mode
-        self.is_dark = theme_mode != "light"
+        self.is_dark = theme_mode not in PeadraTheme.LIGHT_THEMES
 
         self.current_view_index = 0
 
@@ -90,7 +90,7 @@ class PeadraApp:
         theme_mode = db.get_app_setting("theme_mode", "dark") or "dark"
         PeadraTheme.set_theme(theme_mode)
         self.page.theme = PeadraTheme.get_flet_theme()
-        self.page.theme_mode = ft.ThemeMode.DARK if theme_mode != "light" else ft.ThemeMode.LIGHT
+        self.page.theme_mode = ft.ThemeMode.DARK if theme_mode not in PeadraTheme.LIGHT_THEMES else ft.ThemeMode.LIGHT
         self.page.bgcolor = PeadraTheme.bg
         self.page.title = "Peadra - Login"
         self.page.vertical_alignment = ft.MainAxisAlignment.CENTER
@@ -180,7 +180,7 @@ class PeadraApp:
         """Bascule/définit le thème."""
         logger.info("Theme toggled to %s", theme_mode)
         self.theme_mode = theme_mode
-        self.is_dark = theme_mode != "light"
+        self.is_dark = theme_mode not in PeadraTheme.LIGHT_THEMES
 
         # Sauvegarder dans la base de données
         db.set_setting("theme_mode", theme_mode)
@@ -429,7 +429,7 @@ def main(page: ft.Page):
     initial_theme = db.get_app_setting("theme_mode", "dark") or "dark"
     PeadraTheme.set_theme(initial_theme)
     page.theme = PeadraTheme.get_flet_theme()
-    page.theme_mode = ft.ThemeMode.DARK if initial_theme != "light" else ft.ThemeMode.LIGHT
+    page.theme_mode = ft.ThemeMode.DARK if initial_theme not in PeadraTheme.LIGHT_THEMES else ft.ThemeMode.LIGHT
     page.bgcolor = PeadraTheme.bg
     page.title = "Peadra - Login"
     page.window.width = 1400

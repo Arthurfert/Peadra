@@ -202,7 +202,7 @@ class ParametersView:
     ):
         self.page = page
         self.theme_mode = theme_mode
-        self.is_dark = theme_mode != "light"
+        self.is_dark = theme_mode not in PeadraTheme.LIGHT_THEMES
         self.on_data_change = on_data_change
         self.on_toggle_theme = on_toggle_theme
         self.on_import = on_import
@@ -284,7 +284,7 @@ class ParametersView:
     def update_theme(self, theme_mode: str):
         """Met à jour le thème."""
         self.theme_mode = theme_mode
-        self.is_dark = theme_mode != "light"
+        self.is_dark = theme_mode not in PeadraTheme.LIGHT_THEMES
 
     def refresh(self):
         """Rafraîchit la vue (gérée par la reconstruction globale de l'UI)."""
@@ -1142,6 +1142,11 @@ class ParametersView:
                     t("param_autumn_theme"),
                     get_asset_path("assets/Dashboard_Autumn.jpg"),
                     "autumn",
+                ),
+                self._build_theme_option(
+                    t("param_summer_theme"),
+                    get_asset_path("assets/Dashboard_Summer.jpg"),
+                    "summer",
                 ),
             ],
             spacing=20,

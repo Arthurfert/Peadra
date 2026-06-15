@@ -508,14 +508,8 @@ class ParametersView:
         log_path = get_current_log_path()
         if not log_path or not os.path.exists(log_path):
             from ..i18n import t
-
-            snack = ft.SnackBar(
-                content=ft.Text(t("msg_export_error"), color=ft.Colors.WHITE),
-                bgcolor=PeadraTheme.error,
-            )
-            self.page.overlay.append(snack)
-            snack.open = True
-            self.page.update()
+            from src.components.notification import show_notification
+            show_notification(self.page, t("msg_export_error"), "error")
             logger.warning("Log export attempted but no active log file found")
             return
         self._pending_export_format = "logs"
@@ -543,15 +537,8 @@ class ParametersView:
             self._show_snackbar(t("msg_export_error"), success=False)
 
     def _show_snackbar(self, message: str, success: bool = True):
-        color = PeadraTheme.success if success else PeadraTheme.error
-        snack = ft.SnackBar(
-            content=ft.Text(message, color=ft.Colors.WHITE),
-            bgcolor=color,
-            duration=3000,
-        )
-        self.page.overlay.append(snack)
-        snack.open = True
-        self.page.update()
+        from src.components.notification import show_notification
+        show_notification(self.page, message, "success" if success else "error")
 
     def _on_import_csv(self, e):
         """Lance l'import CSV."""

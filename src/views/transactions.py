@@ -273,9 +273,8 @@ class TransactionsView:
                     data["amount"],
                     data["frequency"],
                 )
-                snack = ft.SnackBar(ft.Text(t("msg_recurring_added")))
-                self.page.overlay.append(snack)
-                snack.open = True
+                from src.components.notification import show_notification
+                show_notification(self.page, t("msg_recurring_added"), "success")
                 self.on_data_change()
                 return
 
@@ -399,9 +398,8 @@ class TransactionsView:
             )
             msg = t("msg_transaction_added")
 
-        snack = ft.SnackBar(ft.Text(msg))
-        self.page.overlay.append(snack)
-        snack.open = True
+        from src.components.notification import show_notification
+        show_notification(self.page, msg, "success")
         self.on_data_change()
 
     def _edit_transaction(self, transaction):
@@ -427,10 +425,8 @@ class TransactionsView:
             logger.info("Transaction deleted: id=%s", transaction_id)
             close_dlg(e)
             self.on_data_change()
-            snack = ft.SnackBar(ft.Text(t("msg_transaction_deleted")))
-            self.page.overlay.append(snack)
-            snack.open = True
-            self.page.update()
+            from src.components.notification import show_notification
+            show_notification(self.page, t("msg_transaction_deleted"), "success")
 
         dlg = ft.AlertDialog(
             title=ft.Text(t("msg_confirm_delete"), color=PeadraTheme.text_secondary),
@@ -577,10 +573,8 @@ class TransactionsView:
             logger.info("Transfer group deleted: ids=%s", ids)
             close_dlg(e)
             self.on_data_change()
-            snack = ft.SnackBar(ft.Text(t("msg_transfer_deleted")))
-            self.page.overlay.append(snack)
-            snack.open = True
-            self.page.update()
+            from src.components.notification import show_notification
+            show_notification(self.page, t("msg_transfer_deleted"), "success")
 
         dlg = ft.AlertDialog(
             title=ft.Text(t("msg_confirm_delete"), color=PeadraTheme.text_secondary),

@@ -903,6 +903,7 @@ class ImportDialog:
 
         self._prepare_transactions()
 
+        total = len(self.parsed_transactions)
         count = 0
         for parsed_trans in self.parsed_transactions:
             try:
@@ -942,15 +943,19 @@ class ImportDialog:
 
         self._close_dialog(None)
 
-        bg_col = PeadraTheme.success
-        snack = ft.SnackBar(
-            content=ft.Text(
-                t("import_success").format(count=count), color=ft.Colors.WHITE
-            ),
-            bgcolor=bg_col,
+        from src.components.notification import show_notification
+
+        if count < total:
+            show_notification(
+                self.page,
+                t("import_partial_failure").format(failed=total - count, total=total),
+                "error",
+            )
+        show_notification(
+            self.page,
+            t("import_success").format(count=count),
+            "success",
         )
-        self.page.overlay.append(snack)
-        snack.open = True
 
         self.on_data_change()
         self.page.update()

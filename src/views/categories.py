@@ -522,13 +522,8 @@ class CategoriesView:
         descriptions = db.get_all_unique_descriptions(transaction_type)
 
         if len(descriptions) < 2:
-            snack = ft.SnackBar(
-                ft.Text(t("cat_need_at_least_two_descriptions")),
-                bgcolor=ft.Colors.WARNING,
-            )
-            self.page.overlay.append(snack)
-            snack.open = True
-            self.page.update()
+            from src.components.notification import show_notification
+            show_notification(self.page, t("cat_need_at_least_two_descriptions"), "warning")
             return
 
         self.merge_modal = MergeDescriptionsModal(
@@ -545,13 +540,8 @@ class CategoriesView:
         descriptions = db.get_all_unique_descriptions(transaction_type)
 
         if not descriptions:
-            snack = ft.SnackBar(
-                ft.Text(t("cat_no_descriptions")),
-                bgcolor=ft.Colors.WARNING,
-            )
-            self.page.overlay.append(snack)
-            snack.open = True
-            self.page.update()
+            from src.components.notification import show_notification
+            show_notification(self.page, t("cat_no_descriptions"), "warning")
             return
 
         self.rename_modal = RenameDescriptionModal(
@@ -569,30 +559,23 @@ class CategoriesView:
 
             if success:
                 logger.info("Descriptions merged: '%s' -> '%s'", source, target)
-                snack = ft.SnackBar(
-                    ft.Text(
-                        t("cat_merge_success").format(source=source, target=target)
-                    ),
-                    bgcolor=PeadraTheme.success,
-                )
                 # Rafraîchir les données et l'affichage
                 self.refresh()
                 if self.on_data_change:
                     self.on_data_change()
-            else:
-                snack = ft.SnackBar(
-                    ft.Text(t("cat_merge_failed")),
-                    bgcolor=ft.Colors.ERROR,
+                
+                from src.components.notification import show_notification
+                show_notification(
+                    self.page,
+                    t("cat_merge_success").format(source=source, target=target),
+                    "success",
                 )
+            else:
+                from src.components.notification import show_notification
+                show_notification(self.page, t("cat_merge_failed"), "error")
         except Exception as e:
-            snack = ft.SnackBar(
-                ft.Text(f"Erreur: {str(e)}"),
-                bgcolor=ft.Colors.ERROR,
-            )
-
-        self.page.overlay.append(snack)
-        snack.open = True
-        self.page.update()
+            from src.components.notification import show_notification
+            show_notification(self.page, f"Erreur: {str(e)}", "error")
 
     def _on_rename_description(self, old_description: str, new_description: str):
         """Callback pour le renommage de description."""
@@ -605,29 +588,22 @@ class CategoriesView:
                     old_description,
                     new_description,
                 )
-                snack = ft.SnackBar(
-                    ft.Text(
-                        t("cat_rename_success").format(
-                            old=old_description, new=new_description
-                        )
-                    ),
-                    bgcolor=PeadraTheme.success,
-                )
                 # Rafraîchir les données et l'affichage
                 self.refresh()
                 if self.on_data_change:
                     self.on_data_change()
-            else:
-                snack = ft.SnackBar(
-                    ft.Text(t("cat_rename_failed")),
-                    bgcolor=ft.Colors.ERROR,
+                
+                from src.components.notification import show_notification
+                show_notification(
+                    self.page,
+                    t("cat_rename_success").format(
+                        old=old_description, new=new_description
+                    ),
+                    "success",
                 )
+            else:
+                from src.components.notification import show_notification
+                show_notification(self.page, t("cat_rename_failed"), "error")
         except Exception as e:
-            snack = ft.SnackBar(
-                ft.Text(f"Erreur: {str(e)}"),
-                bgcolor=ft.Colors.ERROR,
-            )
-
-        self.page.overlay.append(snack)
-        snack.open = True
-        self.page.update()
+            from src.components.notification import show_notification
+            show_notification(self.page, f"Erreur: {str(e)}", "error")

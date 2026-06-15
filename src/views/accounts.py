@@ -172,14 +172,12 @@ class AccountsView:
                 self.refresh()
                 self.on_data_change()
 
-                snack = ft.SnackBar(
-                    content=ft.Text(
-                        t("acc_merge_success").format(target_name=target_name)
-                    )
+                from src.components.notification import show_notification
+                show_notification(
+                    self.page,
+                    t("acc_merge_success").format(target_name=target_name),
+                    "success",
                 )
-                self.page.overlay.append(snack)
-                snack.open = True
-                self.page.update()
 
         self.merge_dialog = ft.AlertDialog(
             modal=True,

@@ -10,7 +10,7 @@ from src.components.theme import PeadraTheme
 
 class ModernNotification(ft.Container):
     def __init__(self, page: ft.Page, message: str, type: str = "info", duration: int = 4000):
-        self.page = page
+        self.target_page = page
         self.message = message
         self.type = type
         self.duration = duration
@@ -54,7 +54,7 @@ class ModernNotification(ft.Container):
                                 size=13,
                                 weight=ft.FontWeight.W_500,
                             ),
-                            max_width=240,
+                            width=220,
                         )
                     ]
                 ),
@@ -80,7 +80,7 @@ class ModernNotification(ft.Container):
             shadow=ft.BoxShadow(
                 spread_radius=1,
                 blur_radius=15,
-                color=ft.colors.with_opacity(0.1, "#000000"),
+                color=ft.Colors.with_opacity(0.1, "#000000"),
                 offset=ft.Offset(0, 5)
             ),
             # Animation initiale (cachée et décalée vers la droite)
@@ -92,46 +92,50 @@ class ModernNotification(ft.Container):
 
     def show(self):
         # Fermer et retirer les notifications existantes pour éviter la superposition
-        active_notifications = [c for c in self.page.overlay if isinstance(c, ModernNotification)]
+        active_notifications = [c for c in self.target_page.overlay if isinstance(c, ModernNotification)]
         for notif in active_notifications:
             notif.dismiss_now()
 
-        self.page.overlay.append(self)
-        self.page.update()
+        self.is_dismissing = False
+        self.target_page.overlay.append(self)
+        self.target_page.update()
         
         # Animer l'apparition
         self.opacity = 1
         self.offset = ft.Offset(0, 0)
-        self.page.update()
+        self.target_page.update()
 
-        # Démarrer le minuteur de fermeture automatique
+        # Démarrer le minuteur de fermeture automatique via run_thread
         if self.duration > 0:
-            self.timer = threading.Timer(self.duration / 1000.0, self.dismiss)
-            self.timer.start()
+            self.target_page.run_thread(self._auto_dismiss_run)
+
+    def _auto_dismiss_run(self):
+        time.sleep(self.duration / 1000.0)
+        if not getattr(self, "is_dismissing", False):
+            self.dismiss()
 
     def dismiss(self, e=None):
-        if hasattr(self, "timer"):
-            self.timer.cancel()
-        
-        def run_dismiss():
-            self.opacity = 0
-            self.offset = ft.Offset(1.2, 0)
-            try:
-                self.page.update()
-                time.sleep(0.3)
-                self.dismiss_now()
-            except Exception:
-                pass
+        if getattr(self, "is_dismissing", False):
+            return
+        self.is_dismissing = True
+        self.target_page.run_thread(self._run_dismiss)
 
-        threading.Thread(target=run_dismiss, daemon=True).start()
+    def _run_dismiss(self):
+        self.opacity = 0
+        self.offset = ft.Offset(1.2, 0)
+        try:
+            self.target_page.update()
+            time.sleep(0.3)
+            self.dismiss_now()
+        except Exception:
+            pass
 
     def dismiss_now(self):
-        if hasattr(self, "timer"):
-            self.timer.cancel()
-        if self in self.page.overlay:
+        self.is_dismissing = True
+        if self in self.target_page.overlay:
             try:
-                self.page.overlay.remove(self)
-                self.page.update()
+                self.target_page.overlay.remove(self)
+                self.target_page.update()
             except Exception:
                 pass
 

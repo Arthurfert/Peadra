@@ -903,6 +903,7 @@ class ImportDialog:
 
         self._prepare_transactions()
 
+        total = len(self.parsed_transactions)
         count = 0
         for parsed_trans in self.parsed_transactions:
             try:
@@ -943,6 +944,13 @@ class ImportDialog:
         self._close_dialog(None)
 
         from src.components.notification import show_notification
+
+        if count < total:
+            show_notification(
+                self.page,
+                t("import_partial_failure").format(failed=total - count, total=total),
+                "error",
+            )
         show_notification(
             self.page,
             t("import_success").format(count=count),

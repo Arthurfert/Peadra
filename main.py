@@ -249,15 +249,8 @@ class PeadraApp:
 
     def _show_snackbar(self, message: str, success: bool = True):
         """Affiche une notification."""
-        color = PeadraTheme.success if success else PeadraTheme.error
-        snackbar = ft.SnackBar(
-            content=ft.Text(message, color=ft.Colors.WHITE),
-            bgcolor=color,
-            duration=3000,
-        )
-        self.page.overlay.append(snackbar)
-        snackbar.open = True
-        self.page.update()
+        from src.components.notification import show_notification
+        show_notification(self.page, message, "success" if success else "error")
 
     def _open_settings(self, e):
         """Ouvre la vue des paramètres ou la ferme si elle est déjà ouverte."""

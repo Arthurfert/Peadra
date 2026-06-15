@@ -3,7 +3,6 @@ Système de notifications modernes pour Peadra.
 Affiche des toasts élégants en bas à droite de l'écran avec un design épuré.
 """
 
-import threading
 import time
 import flet as ft
 from src.components.theme import PeadraTheme

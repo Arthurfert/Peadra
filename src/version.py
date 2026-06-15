@@ -4,4 +4,4 @@ Cette valeur doit correspondre au tag GitHub Release utilisé pour diffuser
 les binaires.
 """
 
-__version__ = "1.8.6"
+__version__ = "1.8.7"

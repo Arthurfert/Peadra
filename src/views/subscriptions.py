@@ -67,13 +67,8 @@ class SubscriptionsView:
 
         db.process_recurring_transactions()
 
-        snack = ft.SnackBar(
-            ft.Text(t("sub_update_success"), color=ft.Colors.WHITE),
-            bgcolor=PeadraTheme.success,
-        )
-        self.page.overlay.append(snack)
-        snack.open = True
-        self.page.update()
+        from src.components.notification import show_notification
+        show_notification(self.page, t("sub_update_success"), "success")
 
         logger.info(
             "Recurring transaction updated: id=%s desc='%s' amount=%s",
@@ -89,12 +84,8 @@ class SubscriptionsView:
         db.delete_transaction(id)
         logger.info("Recurring transaction deleted: id=%s", id)
 
-        snack = ft.SnackBar(
-            ft.Text(t("msg_subscription_deleted"), color=ft.Colors.WHITE),
-            bgcolor=PeadraTheme.success,
-        )
-        self.page.overlay.append(snack)
-        snack.open = True
+        from src.components.notification import show_notification
+        show_notification(self.page, t("msg_subscription_deleted"), "success")
 
         self.on_data_change()
         self.refresh()

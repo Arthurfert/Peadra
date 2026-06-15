@@ -942,15 +942,12 @@ class ImportDialog:
 
         self._close_dialog(None)
 
-        bg_col = PeadraTheme.success
-        snack = ft.SnackBar(
-            content=ft.Text(
-                t("import_success").format(count=count), color=ft.Colors.WHITE
-            ),
-            bgcolor=bg_col,
+        from src.components.notification import show_notification
+        show_notification(
+            self.page,
+            t("import_success").format(count=count),
+            "success",
         )
-        self.page.overlay.append(snack)
-        snack.open = True
 
         self.on_data_change()
         self.page.update()

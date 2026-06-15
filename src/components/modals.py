@@ -775,26 +775,16 @@ class MergeDescriptionsModal:
             return
 
         if not self.source_dropdown.value or not self.target_dropdown.value:
-            snack = ft.SnackBar(
-                ft.Text(translate("val_required")),
-                bgcolor=ft.Colors.ERROR,
-            )
-            self.page.overlay.append(snack)
-            snack.open = True
-            self.page.update()
+            from src.components.notification import show_notification
+            show_notification(self.page, translate("val_required"), "error")
             return
 
         source_val = self.source_dropdown.value
         target_val = self.target_dropdown.value
 
         if source_val == target_val:
-            snack = ft.SnackBar(
-                ft.Text(translate("val_invalid_operation")),
-                bgcolor=ft.Colors.ERROR,
-            )
-            self.page.overlay.append(snack)
-            snack.open = True
-            self.page.update()
+            from src.components.notification import show_notification
+            show_notification(self.page, translate("val_invalid_operation"), "error")
             return
 
         self.close()
@@ -913,13 +903,8 @@ class RenameDescriptionModal:
             return
 
         if not self.description_dropdown.value or not self.new_name_field.value:
-            snack = ft.SnackBar(
-                ft.Text(translate("val_required")),
-                bgcolor=ft.Colors.ERROR,
-            )
-            self.page.overlay.append(snack)
-            snack.open = True
-            self.page.update()
+            from src.components.notification import show_notification
+            show_notification(self.page, translate("val_required"), "error")
             return
 
         old_name = self.description_dropdown.value
@@ -931,13 +916,8 @@ class RenameDescriptionModal:
         new_name = new_name_raw.strip()
 
         if old_name.lower() == new_name.lower():
-            snack = ft.SnackBar(
-                ft.Text(translate("val_invalid_operation")),
-                bgcolor=ft.Colors.ERROR,
-            )
-            self.page.overlay.append(snack)
-            snack.open = True
-            self.page.update()
+            from src.components.notification import show_notification
+            show_notification(self.page, translate("val_invalid_operation"), "error")
             return
 
         self.close()

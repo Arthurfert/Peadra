@@ -227,6 +227,8 @@ class ImportDialog:
             allowed_extensions=["csv"],
         )
 
+        self._dialog_busy = False
+
         self.current_file_path: Optional[str] = None
         self.current_file_hash: Optional[str] = None
         self.preview_data: List[Dict[str, Any]] = []
@@ -254,6 +256,12 @@ class ImportDialog:
 
         self.column_mappers: List[ft.Dropdown] = []
         self.csv_headers: List[str] = []
+
+        self.select_file_btn = ft.ElevatedButton(
+            t("import_select_file_btn"),
+            icon=ft.Icons.FOLDER_OPEN,
+            on_click=self._on_pick_files,
+        )
 
         self.status_text = ft.Text(t("import_no_file"), color=PeadraTheme.text_secondary)
 
@@ -325,11 +333,7 @@ class ImportDialog:
                 ft.Container(height=10),
                 ft.Row(
                     [
-                        ft.ElevatedButton(
-                            t("import_select_file_btn"),
-                            icon=ft.Icons.FOLDER_OPEN,
-                            on_click=self._on_pick_files,
-                        ),
+                        self.select_file_btn,
                         ft.Container(width=10),
                         ft.Container(content=self.status_text, expand=True),
                     ],
@@ -376,11 +380,29 @@ class ImportDialog:
             scroll=ft.ScrollMode.AUTO,
         )
 
+    def _safe_show_dialog(self, dialog: ft.AlertDialog):
+        try:
+            self.page.show_dialog(dialog)
+        except AssertionError:
+            try:
+                dialog.open = True
+                self.page.update()
+            except Exception:
+                pass
+        except Exception as e:
+            logger.warning("Failed to show dialog: %s", e)
+
+    def _safe_close_dialog(self, dialog: ft.AlertDialog):
+        try:
+            dialog.open = False
+            self.page.update()
+        except Exception:
+            pass
+
     def open(self):
         """Ouvre la boîte de dialogue."""
         self._load_accounts()
-        self.page.show_dialog(self.dialog)
-        self.page.update()
+        self._safe_show_dialog(self.dialog)
 
     def _load_accounts(self):
         """Charge la liste des comptes."""
@@ -435,8 +457,7 @@ class ImportDialog:
 
     def _close_dialog(self, e):
         """Ferme la boîte de dialogue."""
-        self.dialog.open = False
-        self.page.update()
+        self._safe_close_dialog(self.dialog)
 
     def update_theme(self, is_dark: bool):
         """Met à jour le thème."""
@@ -448,26 +469,30 @@ class ImportDialog:
         self.page.update()
 
     def _show_mapping_help(self, e):
-        self.page.show_dialog(self.mapping_help_dialog)
-        self.page.update()
+        self._safe_show_dialog(self.mapping_help_dialog)
 
     def _close_mapping_help(self, e):
-        self.mapping_help_dialog.open = False
-        self.page.update()
+        self._safe_close_dialog(self.mapping_help_dialog)
 
     def _on_pick_files(self, _):
         """Ouvre le sélecteur de fichiers personnalisé."""
-        self.dialog.open = False
-        self.page.update()
+        if self._dialog_busy:
+            return
+        self._dialog_busy = True
+        self.select_file_btn.disabled = True
+        self._safe_close_dialog(self.dialog)
         self.custom_file_picker.open()
 
     def _on_custom_picker_cancel(self):
         """Callback quand le picker est annulé."""
-        self.page.show_dialog(self.dialog)
-        self.page.update()
+        self._dialog_busy = False
+        self.select_file_btn.disabled = False
+        self._safe_show_dialog(self.dialog)
 
     def _on_custom_file_selected(self, file_path: str):
         """Callback quand un fichier est choisi."""
+        self._dialog_busy = False
+        self.select_file_btn.disabled = False
         try:
             self.current_file_hash = calculate_file_hash(file_path)
             is_duplicate = db.is_file_imported(self.current_file_hash)
@@ -485,15 +510,12 @@ class ImportDialog:
         """Affiche un avertissement si le fichier a déjà été importé."""
 
         def on_continue(_):
-            warning_dialog.open = False
-            self.page.update()
+            self._safe_close_dialog(warning_dialog)
             self._proceed_with_file_selection(file_path)
 
         def on_cancel(_):
-            warning_dialog.open = False
-            self.page.update()
-            self.page.show_dialog(self.dialog)
-            self.page.update()
+            self._safe_close_dialog(warning_dialog)
+            self._safe_show_dialog(self.dialog)
 
         warning_dialog = ft.AlertDialog(
             title=ft.Text(t("import_duplicate_warning"), color=PeadraTheme.text_secondary),
@@ -508,12 +530,11 @@ class ImportDialog:
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
-        self.page.show_dialog(warning_dialog)
-        self.page.update()
+        self._safe_show_dialog(warning_dialog)
 
     def _proceed_with_file_selection(self, file_path: str):
         """Continue la sélection de fichier après validation."""
-        self.page.show_dialog(self.dialog)
+        self._safe_show_dialog(self.dialog)
 
         self.current_file_path = file_path
         self.status_text.value = os.path.basename(file_path)

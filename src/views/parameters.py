@@ -24,13 +24,11 @@ from ..i18n import t
 from ..logger import get_current_log_path
 from ..update_manager import (
     _copy_current_executable_to_temp,
-    auto_update_if_needed,
     check_for_update,
     download_file_with_progress,
     fetch_latest_release,
     get_current_version,
     is_frozen_app,
-    run_update_mode,
 )
 
 
@@ -204,7 +202,7 @@ class ParametersView:
     ):
         self.page = page
         self.theme_mode = theme_mode
-        self.is_dark = theme_mode != "light"
+        self.is_dark = theme_mode not in PeadraTheme.LIGHT_THEMES
         self.on_data_change = on_data_change
         self.on_toggle_theme = on_toggle_theme
         self.on_import = on_import
@@ -286,7 +284,7 @@ class ParametersView:
     def update_theme(self, theme_mode: str):
         """Met à jour le thème."""
         self.theme_mode = theme_mode
-        self.is_dark = theme_mode != "light"
+        self.is_dark = theme_mode not in PeadraTheme.LIGHT_THEMES
 
     def refresh(self):
         """Rafraîchit la vue (gérée par la reconstruction globale de l'UI)."""
@@ -860,8 +858,6 @@ class ParametersView:
                         str(downloaded_path),
                         "--target",
                         str(current_executable),
-                        "--terminate-pid",
-                        str(os.getpid()),
                         "--restart-args",
                         json.dumps(restart_args),
                     ],
@@ -892,42 +888,10 @@ class ParametersView:
             )
             logger.debug("queued complete message")
 
-            # Demander la fermeture de la fenêtre depuis le thread UI
+            # Demander la fermeture de la fenêtre Flet
             self.page.pubsub.send_all({"session": progress_session, "type": "shutdown"})
-
-            # Attendre que les messages soient traités
             time.sleep(0.15)
-
-            # Tentative de fermeture locale (en secours) puis sortie forcée.
-            try:
-                logger.info("attempting graceful shutdown (SIGTERM)")
-                import signal
-
-                os.kill(os.getpid(), signal.SIGTERM)
-                time.sleep(0.05)
-            except Exception as e:
-                logger.warning("SIGTERM failed: %s", e)
-
-            # On Windows, SIGTERM may not terminate the process; attempt TerminateProcess
-            try:
-                if sys.platform.startswith("win"):
-                    logger.info("attempting Windows TerminateProcess fallback")
-                    import ctypes
-
-                    try:
-                        ctypes.windll.kernel32.TerminateProcess(
-                            ctypes.windll.kernel32.GetCurrentProcess(), 0
-                        )
-                    except Exception as ce:
-                        logger.warning("TerminateProcess failed: %s", ce)
-            except Exception:
-                pass
-
-            try:
-                logger.info("final os._exit(0)")
-                os._exit(0)
-            except Exception as e:
-                logger.warning("os._exit failed: %s", e)
+            self.page.window.destroy() # type: ignore ; close window after update
 
         except Exception as exc:
             self.page.pubsub.send_all(
@@ -1178,6 +1142,11 @@ class ParametersView:
                     t("param_autumn_theme"),
                     get_asset_path("assets/Dashboard_Autumn.jpg"),
                     "autumn",
+                ),
+                self._build_theme_option(
+                    t("param_summer_theme"),
+                    get_asset_path("assets/Dashboard_Summer.jpg"),
+                    "summer",
                 ),
             ],
             spacing=20,

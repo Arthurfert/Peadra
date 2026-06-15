@@ -33,7 +33,7 @@ class PeadraApp:
     def __init__(self, page: ft.Page, theme_mode: str = "dark"):
         self.page = page
         self.theme_mode = theme_mode
-        self.is_dark = theme_mode != "light"
+        self.is_dark = theme_mode not in PeadraTheme.LIGHT_THEMES
 
         self.current_view_index = 0
 
@@ -90,7 +90,7 @@ class PeadraApp:
         theme_mode = db.get_app_setting("theme_mode", "dark") or "dark"
         PeadraTheme.set_theme(theme_mode)
         self.page.theme = PeadraTheme.get_flet_theme()
-        self.page.theme_mode = ft.ThemeMode.DARK if theme_mode != "light" else ft.ThemeMode.LIGHT
+        self.page.theme_mode = ft.ThemeMode.DARK if theme_mode not in PeadraTheme.LIGHT_THEMES else ft.ThemeMode.LIGHT
         self.page.bgcolor = PeadraTheme.bg
         self.page.title = "Peadra - Login"
         self.page.vertical_alignment = ft.MainAxisAlignment.CENTER
@@ -111,8 +111,7 @@ class PeadraApp:
     def _setup_page(self):
         """Configure la page principale."""
         self.page.title = "Peadra - Financial Asset Tracker"
-        self.page.window.width = 1400
-        self.page.window.height = 900
+        self.page.window.maximized = True
         self.page.window.min_width = 1000
         self.page.window.min_height = 700
         self.page.padding = 0
@@ -181,7 +180,7 @@ class PeadraApp:
         """Bascule/définit le thème."""
         logger.info("Theme toggled to %s", theme_mode)
         self.theme_mode = theme_mode
-        self.is_dark = theme_mode != "light"
+        self.is_dark = theme_mode not in PeadraTheme.LIGHT_THEMES
 
         # Sauvegarder dans la base de données
         db.set_setting("theme_mode", theme_mode)
@@ -430,11 +429,12 @@ def main(page: ft.Page):
     initial_theme = db.get_app_setting("theme_mode", "dark") or "dark"
     PeadraTheme.set_theme(initial_theme)
     page.theme = PeadraTheme.get_flet_theme()
-    page.theme_mode = ft.ThemeMode.DARK if initial_theme != "light" else ft.ThemeMode.LIGHT
+    page.theme_mode = ft.ThemeMode.DARK if initial_theme not in PeadraTheme.LIGHT_THEMES else ft.ThemeMode.LIGHT
     page.bgcolor = PeadraTheme.bg
     page.title = "Peadra - Login"
     page.window.width = 1400
     page.window.height = 900
+    page.window.maximized = True
     page.window.min_width = 1000
     page.window.min_height = 700
     page.padding = 0
@@ -471,7 +471,6 @@ if __name__ == "__main__":
     parser.add_argument("--apply-update", action="store_true")
     parser.add_argument("--source")
     parser.add_argument("--target")
-    parser.add_argument("--terminate-pid")
     parser.add_argument("--restart-args")
     args, _ = parser.parse_known_args()
 
@@ -482,17 +481,10 @@ if __name__ == "__main__":
                 restart_args = json.loads(args.restart_args)
             except json.JSONDecodeError:
                 restart_args = []
-        terminate_pid = None
-        if args.terminate_pid:
-            try:
-                terminate_pid = int(args.terminate_pid)
-            except ValueError:
-                terminate_pid = None
         exit_code = run_update_mode(
             args.source,
             args.target,
             restart_args,
-            terminate_pid=terminate_pid,
         )
         # Sortie forcée du helper onefile pour éviter toute instance résiduelle.
         os._exit(exit_code)

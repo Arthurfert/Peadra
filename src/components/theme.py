@@ -62,6 +62,7 @@ class _ThemeMeta(type):
 
 class PeadraTheme(metaclass=_ThemeMeta):
     current_theme: str = "dark"
+    LIGHT_THEMES: frozenset = frozenset({"light", "summer"})
 
     THEMES: dict[str, ThemeColors] = {
         "light": ThemeColors(
@@ -142,41 +143,79 @@ class PeadraTheme(metaclass=_ThemeMeta):
         ),
         "autumn": ThemeColors(
             name="autumn",
-            bg="#8d2020",                     # page background (Warm rich space blue)
-            surface="#650000",                # cards, containers, sidebar, header (Deep Space Blue)
-            text="#f8f4dc",                   # primary text (Vanilla Custard) 
-            text_secondary="#fee0a4",         # secondary text, chart grid lines (Sunflower Gold)
-            primary_dark="#240000",           # Flet color_scheme_seed
-            primary_medium="#360000",         # Flet primary
-            primary_light="#6c0000",          # login focus border
-            accent="#f77f00",                 # Flet secondary (Princeton Orange)
-            success="#10b981",                # income amounts
-            warning="#fcbf49",                # warning indicators
-            error="#d62828",                  # Flag Red
-            info="#3b82f6",                   # info indicators
-            chart_tooltip_bg="#490000",       # chart tooltip background
-            border_color="#6c0000",           # card/container borders
-            divider="#6c0000",                # section separators, subtle borders
-            nav_selected_bg="#6c0000",        # navigation active item background
-            nav_selected_fg="#eae2b7",        # navigation active item text/icon
-            transfer_color="#f77f00",         # transfer transaction icon color
-            income_bg="#064e3b",              # income row background
-            expense_bg="#7f1d1d",             # expense row background
-            transfer_bg="#1e3a8a",            # transfer row background
-            income_icon="#10b981",            # income icon
-            expense_icon="#d62828",           # expense icon
-            transfer_icon="#f77f00",          # transfer icon
-            delete_color="#d62828",           # delete/cancel buttons
-            add_color="#f77f00",              # add/create buttons
-            placeholder_color="#778e9a",      # secondary labels
-            chart_income="#10b981",           # income bar/legend color
-            chart_expense="#d62828",          # expense bar/legend color
-            chart_asset="#f77f00",            # asset/stat card icon
-            chart_asset_bg="#381d02",         # asset stat card background
-            savings_bg="#381d02",             # savings stat card background
-            savings_icon="#fcbf49",           # savings stat card icon
-            pie_hover_text="#490000",         # pie chart touch/hover label text
-            chart_palette=("#f77f00", "#fcbf49", "#d62828", "#eae2b7", "#10b981", "#3b82f6", "#8b5cf6"),
+            bg="#000022",                     # Prussian Blue - page background
+            surface="#12123a",                # Dark indigo - cards, containers, sidebar, header
+            text="#fbf5f3",                   # Snow - primary text
+            text_secondary="#c4b5b0",         # Warm muted Snow - secondary text
+            primary_dark="#000015",           # Deepest navy - Flet color_scheme_seed
+            primary_medium="#000022",         # Prussian Blue - Flet primary
+            primary_light="#1a1a5e",          # Lighter indigo - login focus border
+            accent="#e28413",                 # Amber Earth - Flet secondary (main accent)
+            success="#10b981",                # Emerald - income amounts
+            warning="#e28413",                # Amber Earth - warning indicators
+            error="#c42847",                  # Intense Cherry - errors
+            info="#4a6fa5",                   # Muted blue - info indicators
+            chart_tooltip_bg="#1a1a5e",       # Lighter indigo - chart tooltip background
+            border_color="#222255",           # Subtle blue border
+            divider="#1a1a4e",                # Section separators
+            nav_selected_bg="#222255",        # Navigation active item background
+            nav_selected_fg="#fbf5f3",        # Snow - navigation active item text/icon
+            transfer_color="#e28413",         # Amber Earth - transfer icon color
+            income_bg="#0a2e1a",              # Dark green - income row background
+            expense_bg="#3a0a1a",             # Dark raspberry - expense row background
+            transfer_bg="#0f0f3d",            # Dark blue - transfer row background
+            income_icon="#10b981",            # Emerald - income icon
+            expense_icon="#de3c4b",           # Raspberry - expense icon
+            transfer_icon="#e28413",          # Amber Earth - transfer icon
+            delete_color="#c42847",           # Intense Cherry - delete/cancel buttons
+            add_color="#e28413",              # Amber Earth - add/create buttons
+            placeholder_color="#6b6b8a",      # Muted gray-blue - secondary labels
+            chart_income="#10b981",           # Emerald - income bar/legend
+            chart_expense="#de3c4b",          # Raspberry - expense bar/legend
+            chart_asset="#e28413",            # Amber Earth - asset/stat card icon
+            chart_asset_bg="#2a1a05",         # Dark warm - asset stat card background
+            savings_bg="#2a1a05",             # Dark warm - savings stat card background
+            savings_icon="#e28413",           # Amber Earth - savings stat card icon
+            pie_hover_text="#fbf5f3",         # Snow - pie chart hover label
+            chart_palette=("#e28413", "#de3c4b", "#c42847", "#fbf5f3", "#10b981", "#4a6fa5", "#8b5cf6"),
+        ),
+        "summer": ThemeColors(
+            name="summer",
+            bg="#fcfbe7",                     # Light Sand - page background
+            surface="#f9f9f9",                # Bright Snow - cards, containers, sidebar, header
+            text="#1a2a4a",                   # Deep navy - primary text
+            text_secondary="#1c3d5e",         # Muted sky blue - secondary text
+            primary_dark="#0a2a4a",           # Deep sky - Flet color_scheme_seed
+            primary_medium="#2a6a9a",         # Medium blue - Flet primary
+            primary_light="#5aa9e6",          # Cool Sky - login focus border
+            accent="#5aa9e6",                 # Cool Sky - Flet secondary (main accent)
+            success="#10b981",                # Emerald - income amounts
+            warning="#ffca0a",                # Bright Amber - warning indicators
+            error="#e74c3c",                  # Red - errors
+            info="#5aa9e6",                   # Cool Sky - info indicators
+            chart_tooltip_bg="#ffffff",       # White - chart tooltip background
+            border_color="#b8d2e1",           # Subtle sky blue border
+            divider="#becbd1",                # Subtle sky blue divider
+            nav_selected_bg="#d0e8ff",        # Soft blue - nav selected bg
+            nav_selected_fg="#1a3a5a",        # Dark navy - nav selected text
+            transfer_color="#5aa9e6",         # Cool Sky - transfer icon color
+            income_bg="#d1fae5",              # Soft green - income row background
+            expense_bg="#ffe0e0",             # Soft coral - expense row background
+            transfer_bg="#d0ecff",            # Soft sky blue - transfer row background
+            income_icon="#10b981",            # Emerald - income icon
+            expense_icon="#e74c3c",           # Red - expense icon
+            transfer_icon="#5aa9e6",          # Cool Sky - transfer icon
+            delete_color="#e74c3c",           # Red - delete/cancel buttons
+            add_color="#5aa9e6",              # Cool Sky - add/create buttons
+            placeholder_color="#7192a8",      # Muted sky - secondary labels
+            chart_income="#10b981",           # Emerald - income bar/legend
+            chart_expense="#e74c3c",          # Red - expense bar/legend
+            chart_asset="#ffca0a",            # Bright Amber - asset/stat card icon
+            chart_asset_bg="#fff8e0",         # Warm cream - asset stat card background
+            savings_bg="#fff8e0",             # Warm cream - savings stat card background
+            savings_icon="#ffe45e",           # Royal Gold - savings stat card icon
+            pie_hover_text="#1a2a4a",         # Deep navy - pie chart hover label
+            chart_palette=("#5aa9e6", "#7fc8f8", "#ffe45e", "#ffca0a", "#10b981", "#e74c3c", "#8b5cf6"),
         ),
     }
 
@@ -230,7 +269,7 @@ class PeadraTheme(metaclass=_ThemeMeta):
     @staticmethod
     def get_flet_theme() -> ft.Theme:
         colors = PeadraTheme.THEMES[PeadraTheme.current_theme]
-        is_dark = PeadraTheme.current_theme != "light"
+        is_dark = PeadraTheme.current_theme not in PeadraTheme.LIGHT_THEMES
         if is_dark:
             return ft.Theme(
                 color_scheme_seed=colors.primary_dark,

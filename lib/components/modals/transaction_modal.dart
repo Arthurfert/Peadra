@@ -77,6 +77,9 @@ class _TransactionModalState extends State<TransactionModal> {
           ? widget.accounts[1].id
           : widget.accounts.first.id;
     }
+
+    _descController.addListener(() => setState(() {}));
+    _amountController.addListener(() => setState(() {}));
   }
 
   @override

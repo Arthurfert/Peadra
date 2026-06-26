@@ -6,8 +6,6 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../database/database_manager.dart';
-import '../models/transaction.dart';
-import '../models/account.dart';
 
 class ExportService {
   final DatabaseManager _db = DatabaseManager.instance;
@@ -81,7 +79,7 @@ class ExportService {
   }) async {
     final dir = await getApplicationDocumentsDirectory();
     final timestamp = DateTime.now().toIso8601String().substring(0, 19).replaceAll(':', '-');
-    final name = fileName ?? 'peadra_export_${timestamp}.${format}';
+    final name = fileName ?? 'peadra_export_$timestamp.$format';
     final filePath = p.join(dir.path, name);
 
     await File(filePath).writeAsString(content);

@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../i18n/translator.dart';
 import '../providers/auth_provider.dart';
 import '../providers/theme_provider.dart';
-import '../providers/settings_provider.dart';
 import '../components/theme/paedra_colors.dart';
 import '../responsive/responsive_layout.dart';
 import '../database/database_manager.dart';

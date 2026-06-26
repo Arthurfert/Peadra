@@ -42,7 +42,6 @@ class PeadraApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
-    final langProvider = context.watch<LanguageProvider>();
     final colors = PeadraTheme.getColors(themeProvider.themeName);
 
     return MaterialApp(

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../database/database_manager.dart';
-import '../utils/constants.dart';
 
 class AuthProvider extends ChangeNotifier {
   int? _userId;

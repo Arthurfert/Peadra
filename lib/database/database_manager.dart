@@ -10,8 +10,6 @@ import '../models/account.dart';
 import '../models/description.dart';
 import '../models/transaction.dart';
 import '../models/recurring_transaction.dart';
-import '../models/setting.dart';
-import '../models/user.dart';
 import '../utils/constants.dart';
 import '../services/currency_service.dart';
 import '../services/auth_service.dart';
@@ -970,6 +968,115 @@ class DatabaseManager {
       });
     }
     return result;
+  }
+
+  // ==================== DASHBOARD DATA ====================
+
+  Future<List<Map<String, dynamic>>> getCashFlowData({int months = 6}) async {
+    final db = await database;
+    final now = DateTime.now();
+    final startDate = DateTime(now.year, now.month - months + 1, 1)
+        .toIso8601String()
+        .substring(0, 10);
+
+    final rows = await db.rawQuery('''
+      SELECT strftime('%Y-%m', t.date) as month,
+             t.transaction_type as type,
+             SUM(t.amount) as amount
+      FROM transactions t
+      WHERE t.date >= ? AND t.user_id = ?
+      GROUP BY month, t.transaction_type
+      ORDER BY month
+    ''', [startDate, _userId]);
+
+    return rows.map((r) => {
+      'month': r['month'],
+      'type': r['type'],
+      'amount': (r['amount'] as num).toDouble(),
+    }).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> getAssetsHistory({int months = 6}) async {
+    final db = await database;
+    final now = DateTime.now();
+    final results = <Map<String, dynamic>>[];
+
+    for (int i = months - 1; i >= 0; i--) {
+      final month = DateTime(now.year, now.month - i + 1, 1);
+      final nextMonth = DateTime(month.year, month.month + 1, 1);
+      final endDate = nextMonth.toIso8601String().substring(0, 10);
+
+      final result = await db.rawQuery('''
+        SELECT COALESCE(SUM(CASE WHEN transaction_type = 'income' THEN amount
+                                 WHEN transaction_type = 'expense' THEN -amount
+                                 ELSE 0 END), 0) as total
+        FROM transactions
+        WHERE date < ? AND user_id = ?
+      ''', [endDate, _userId]);
+
+      results.add({
+        'month': month,
+        'label': _getMonthLabel(month.month),
+        'value': (result.first['total'] as num?)?.toDouble() ?? 0.0,
+      });
+    }
+
+    return results;
+  }
+
+  String _getMonthLabel(int month) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return months[month - 1];
+  }
+
+  Future<Map<String, double>> getCurrentMonthDistribution({
+    required String transactionType,
+  }) async {
+    final db = await database;
+    final now = DateTime.now();
+    final startDate = DateTime(now.year, now.month, 1)
+        .toIso8601String()
+        .substring(0, 10);
+    final endDate = now.toIso8601String().substring(0, 10);
+
+    final rows = await db.rawQuery('''
+      SELECT LOWER(COALESCE(d.name, 'Uncategorized')) as category,
+             SUM(t.amount) as amount
+      FROM transactions t
+      LEFT JOIN descriptions d ON t.description_id = d.id
+      WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
+      GROUP BY category
+      ORDER BY amount DESC
+    ''', [transactionType, startDate, endDate, _userId]);
+
+    final result = <String, double>{};
+    for (final row in rows) {
+      final category = row['category'] as String;
+      if (!_isTransferDescription(category)) {
+        result[category] = (row['amount'] as num).toDouble();
+      }
+    }
+    return result;
+  }
+
+  Future<double> getPreviousMonthTotal() async {
+    final db = await database;
+    final now = DateTime.now();
+    final previousMonth = DateTime(now.year, now.month - 1, 1);
+    final startDate = previousMonth.toIso8601String().substring(0, 10);
+    final endMonth = DateTime(now.year, now.month, 1);
+    final endDate = endMonth.toIso8601String().substring(0, 10);
+
+    final result = await db.rawQuery('''
+      SELECT COALESCE(SUM(CASE WHEN transaction_type = 'income' THEN amount
+                               WHEN transaction_type = 'expense' THEN -amount
+                               ELSE 0 END), 0) as total
+      FROM transactions
+      WHERE date >= ? AND date < ? AND user_id = ?
+    ''', [startDate, endDate, _userId]);
+
+    return (result.first['total'] as num?)?.toDouble() ?? 0.0;
   }
 
   // ==================== SETTINGS ====================

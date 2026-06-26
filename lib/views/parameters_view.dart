@@ -9,7 +9,6 @@ import '../database/database_manager.dart';
 import '../components/theme/paedra_colors.dart';
 import '../services/currency_service.dart';
 import '../services/export_service.dart';
-import '../utils/constants.dart';
 import 'import_data_view.dart';
 
 class ParametersView extends StatefulWidget {

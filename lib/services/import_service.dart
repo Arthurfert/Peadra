@@ -1,12 +1,8 @@
 import 'dart:io';
-import 'dart:math';
 
 import 'package:csv/csv.dart';
-import 'package:path/path.dart' as p;
 
 import '../database/database_manager.dart';
-import '../models/account.dart';
-import '../models/transaction.dart';
 
 /// Column mapping keys from CSV headers to internal fields.
 enum ColumnMapping {
@@ -523,7 +519,7 @@ class ImportService {
         final txId = await _db.addTransaction(
           accountId: accountId,
           date: dateFormatted,
-          amount: amount!.abs(),
+          amount: amount.abs(),
           description: description ?? '',
           transactionType: resolvedType,
           currency: currency,

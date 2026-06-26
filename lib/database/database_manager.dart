@@ -823,6 +823,55 @@ class DatabaseManager {
         .toList();
   }
 
+  Future<List<Map<String, dynamic>>> getCategoryDistribution({
+    String transactionType = 'expense',
+    int limit = 8,
+  }) async {
+    final db = await database;
+    final now = DateTime.now();
+    final startDate = now.subtract(const Duration(days: 180)).toIso8601String().substring(0, 10);
+    final endDate = now.toIso8601String().substring(0, 10);
+
+    final rows = await db.rawQuery('''
+      SELECT LOWER(COALESCE(d.name, 'Uncategorized')) as description,
+             strftime('%Y-%m', t.date) as month,
+             t.transaction_type as type,
+             SUM(t.amount) as amount
+      FROM transactions t
+      LEFT JOIN descriptions d ON t.description_id = d.id
+      WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
+      GROUP BY description, month, t.transaction_type
+      ORDER BY month, amount DESC
+    ''', [transactionType, startDate, endDate, _userId]);
+
+    final results = <Map<String, dynamic>>[];
+    for (final row in rows) {
+      final desc = (row['description'] as String?) ?? 'Uncategorized';
+      if (_isTransferDescription(desc)) continue;
+      results.add({
+        'description': desc,
+        'month': row['month'],
+        'type': row['type'],
+        'amount': (row['amount'] as num).toDouble(),
+      });
+    }
+
+    // If limit is set, group and take top N
+    if (limit > 0) {
+      final byDesc = <String, double>{};
+      for (final r in results) {
+        final d = r['description'] as String;
+        byDesc[d] = (byDesc[d] ?? 0) + (r['amount'] as double);
+      }
+      final sorted = byDesc.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      final topDescs = sorted.take(limit).map((e) => e.key).toSet();
+      return results.where((r) => topDescs.contains(r['description'])).toList();
+    }
+
+    return results;
+  }
+
   Future<Map<String, Map<String, Map<String, double>>>> getDescriptionMonthlyData(
       String startDate, String endDate) async {
     final db = await database;

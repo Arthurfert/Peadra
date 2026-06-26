@@ -8,7 +8,9 @@ import '../providers/language_provider.dart';
 import '../database/database_manager.dart';
 import '../components/theme/paedra_colors.dart';
 import '../services/currency_service.dart';
+import '../services/export_service.dart';
 import '../utils/constants.dart';
+import 'import_data_view.dart';
 
 class ParametersView extends StatefulWidget {
   const ParametersView({super.key});
@@ -46,6 +48,12 @@ class _ParametersViewState extends State<ParametersView> {
           const SizedBox(height: 16),
           _buildSection(Translator.t('param_transactions'), colors, [
             _buildDisplayLimitTile(settings, colors),
+          ]),
+          const SizedBox(height: 16),
+          _buildSection(Translator.t('btn_import'), colors, [
+            _buildImportTile(colors),
+            _buildExportJsonTile(colors),
+            _buildExportCsvTile(colors),
           ]),
         ],
       ),
@@ -165,6 +173,84 @@ class _ParametersViewState extends State<ParametersView> {
           if (v != null) settings.setDisplayLimit(v, _db);
         },
       ),
+    );
+  }
+
+  Widget _buildImportTile(PeadraColors colors) {
+    return ListTile(
+      leading: Icon(Icons.upload_file, color: colors.accent),
+      title: Text(Translator.t('btn_import'),
+          style: TextStyle(color: colors.text)),
+      subtitle: Text(Translator.t('import_select_csv_desc'),
+          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+      trailing: Icon(Icons.chevron_right, color: colors.placeholderColor),
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const ImportDataView()),
+        );
+      },
+    );
+  }
+
+  Widget _buildExportJsonTile(PeadraColors colors) {
+    return ListTile(
+      leading: Icon(Icons.file_download, color: colors.accent),
+      title: Text('${Translator.t('btn_export')} JSON',
+          style: TextStyle(color: colors.text)),
+      subtitle: Text('Export transactions as JSON',
+          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+      onTap: () async {
+        try {
+          final exportService = ExportService();
+          final content = await exportService.exportToJson();
+          final path = await exportService.saveToFile(
+              content: content, format: 'json');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                  content: Text(
+                      Translator.t('msg_export_success').replaceAll('{file_path}', path))),
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(Translator.t('msg_export_error'))),
+            );
+          }
+        }
+      },
+    );
+  }
+
+  Widget _buildExportCsvTile(PeadraColors colors) {
+    return ListTile(
+      leading: Icon(Icons.table_chart, color: colors.accent),
+      title: Text('${Translator.t('btn_export')} CSV',
+          style: TextStyle(color: colors.text)),
+      subtitle: Text('Export transactions as CSV',
+          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+      onTap: () async {
+        try {
+          final exportService = ExportService();
+          final content = await exportService.exportToCsv();
+          final path = await exportService.saveToFile(
+              content: content, format: 'csv');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                  content: Text(
+                      Translator.t('msg_export_success').replaceAll('{file_path}', path))),
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(Translator.t('msg_export_error'))),
+            );
+          }
+        }
+      },
     );
   }
 }

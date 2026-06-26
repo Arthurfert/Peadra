@@ -41,6 +41,7 @@ class _LoginViewState extends State<LoginView> {
     if (mounted) {
       setState(() {
         _existingUsers = users;
+        if (users.isEmpty) _isLoginMode = false;
       });
     }
   }

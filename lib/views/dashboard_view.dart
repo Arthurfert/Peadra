@@ -8,7 +8,9 @@ import '../providers/auth_provider.dart';
 import '../database/database_manager.dart';
 import '../components/theme/paedra_colors.dart';
 import '../services/currency_service.dart';
-import '../utils/formatters.dart';
+import '../components/charts/monthly_bar_chart.dart';
+import '../components/charts/category_pie_chart.dart';
+import '../responsive/responsive_layout.dart';
 
 class DashboardView extends StatefulWidget {
   const DashboardView({super.key});
@@ -24,6 +26,7 @@ class _DashboardViewState extends State<DashboardView> {
   double _savings = 0;
   Map<String, double> _monthlySummary = {};
   List<Map<String, dynamic>> _accountsDistribution = [];
+  List<Map<String, dynamic>> _categoryDistribution = [];
   bool _loading = true;
 
   @override
@@ -33,19 +36,23 @@ class _DashboardViewState extends State<DashboardView> {
   }
 
   Future<void> _loadData() async {
-    final total = await _db.getTotalPatrimony();
-    final bal = await _db.getBalance();
-    final sav = await _db.getSavingsTotal();
-    final monthly = await _db.getMonthlySummary();
-    final dist = await _db.getAccountsDistribution();
+    final results = await Future.wait([
+      _db.getTotalPatrimony(),
+      _db.getBalance(),
+      _db.getSavingsTotal(),
+      _db.getMonthlySummary(),
+      _db.getAccountsDistribution(),
+      _db.getCategoryDistribution(transactionType: 'expense', limit: 8),
+    ]);
 
     if (mounted) {
       setState(() {
-        _totalPatrimony = total;
-        _balance = bal;
-        _savings = sav;
-        _monthlySummary = monthly;
-        _accountsDistribution = dist;
+        _totalPatrimony = results[0] as double;
+        _balance = results[1] as double;
+        _savings = results[2] as double;
+        _monthlySummary = results[3] as Map<String, double>;
+        _accountsDistribution = results[4] as List<Map<String, dynamic>>;
+        _categoryDistribution = results[5] as List<Map<String, dynamic>>;
         _loading = false;
       });
     }
@@ -64,6 +71,8 @@ class _DashboardViewState extends State<DashboardView> {
       );
     }
 
+    final isPhone = ResponsiveLayout.isPhone(context);
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -80,8 +89,28 @@ class _DashboardViewState extends State<DashboardView> {
           const SizedBox(height: 24),
           _buildStatCards(colors, currency),
           const SizedBox(height: 24),
+
+          // Charts row
+          if (isPhone) ...[
+            _buildBarChartCard(colors),
+            const SizedBox(height: 16),
+            _buildPieChartCard(colors),
+          ] else ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(flex: 3, child: _buildBarChartCard(colors)),
+                const SizedBox(width: 16),
+                Expanded(flex: 2, child: _buildPieChartCard(colors)),
+              ],
+            ),
+          ],
+          const SizedBox(height: 24),
+
+          // Monthly summary
           _buildMonthlySummary(colors, currency),
           const SizedBox(height: 24),
+
           if (_accountsDistribution.isNotEmpty)
             _buildAccountDistribution(colors, currency),
         ],
@@ -165,6 +194,50 @@ class _DashboardViewState extends State<DashboardView> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBarChartCard(PeadraColors colors) {
+    return Card(
+      color: colors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: SizedBox(
+          height: 220,
+          child: MonthlyBarChart(
+            data: _categoryDistribution,
+            colors: colors,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPieChartCard(PeadraColors colors) {
+    // Convert category distribution for pie chart
+    final pieData = _categoryDistribution
+        .where((d) => d['type'] == 'expense')
+        .map((d) => {
+              'label': d['description'] ?? d['name'] ?? '',
+              'amount': d['amount'] as double,
+            })
+        .toList();
+
+    return Card(
+      color: colors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: SizedBox(
+          height: 220,
+          child: CategoryPieChart(
+            data: pieData,
+            colors: colors,
+            title: Translator.t('chart_top_expenses'),
+          ),
         ),
       ),
     );

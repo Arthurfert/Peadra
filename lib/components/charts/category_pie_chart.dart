@@ -57,7 +57,7 @@ class CategoryPieChart extends StatelessWidget {
           title: pct >= 5 ? '${pct.toStringAsFixed(1)}%' : '',
           color: color,
           radius: 100,
-          titleStyle: TextStyle(
+          titleStyle: const TextStyle(
             color: Colors.white,
             fontSize: 12,
             fontWeight: FontWeight.bold,

@@ -115,7 +115,7 @@ class MonthlyBarChart extends StatelessWidget {
                         : Translator.t('chart_incomes');
                     return BarTooltipItem(
                       '$m\n$label: ${rod.toY.toStringAsFixed(2)}',
-                      TextStyle(color: Colors.white, fontSize: 12),
+                      const TextStyle(color: Colors.white, fontSize: 12),
                     );
                   },
                 ),
@@ -156,14 +156,14 @@ class MonthlyBarChart extends StatelessWidget {
                     },
                   ),
                 ),
-                topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
               ),
               gridData: FlGridData(
                 show: true,
                 drawVerticalLine: false,
                 getDrawingHorizontalLine: (value) => FlLine(
-                  color: colors.borderColor.withOpacity(0.3),
+                  color: colors.borderColor.withValues(alpha: 0.3),
                   strokeWidth: 1,
                 ),
               ),

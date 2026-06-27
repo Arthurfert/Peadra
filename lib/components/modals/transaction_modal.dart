@@ -312,7 +312,7 @@ class _TransactionModalState extends State<TransactionModal> {
           onPressed: _validate() ? _save : null,
           style: ElevatedButton.styleFrom(
             backgroundColor: colors.accent,
-            disabledBackgroundColor: colors.placeholderColor.withOpacity(0.3),
+            disabledBackgroundColor: colors.placeholderColor.withValues(alpha: 0.3),
           ),
           child: Text(Translator.t('btn_save'),
               style: const TextStyle(color: Colors.white)),
@@ -341,7 +341,7 @@ class _TransactionModalState extends State<TransactionModal> {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
-            color: isSelected ? color.withOpacity(0.15) : colors.bg,
+            color: isSelected ? color.withValues(alpha: 0.15) : colors.bg,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: isSelected ? color : colors.borderColor,
@@ -437,7 +437,7 @@ class _TransactionModalState extends State<TransactionModal> {
 
   Widget _buildAccountDropdown(PeadraColors colors) {
     return DropdownButtonFormField<int>(
-      value: _selectedAccountId,
+      initialValue: _selectedAccountId,
       isExpanded: true,
       decoration: InputDecoration(
         labelText: Translator.t('trans_account'),
@@ -462,7 +462,7 @@ class _TransactionModalState extends State<TransactionModal> {
     return Column(
       children: [
         DropdownButtonFormField<int>(
-          value: _sourceAccountId,
+          initialValue: _sourceAccountId,
           isExpanded: true,
           decoration: InputDecoration(
             labelText: Translator.t('trans_account_from'),
@@ -477,7 +477,7 @@ class _TransactionModalState extends State<TransactionModal> {
         ),
         const SizedBox(height: 12),
         DropdownButtonFormField<int>(
-          value: _destAccountId,
+          initialValue: _destAccountId,
           isExpanded: true,
           decoration: InputDecoration(
             labelText: Translator.t('trans_account_to'),
@@ -517,7 +517,7 @@ class _TransactionModalState extends State<TransactionModal> {
               style: TextStyle(color: colors.text)),
           value: _isRecurring,
           onChanged: (v) => setState(() => _isRecurring = v),
-          activeColor: colors.accent,
+          activeThumbColor: colors.accent,
           contentPadding: EdgeInsets.zero,
         ),
         if (_isRecurring) ...[
@@ -540,7 +540,7 @@ class _TransactionModalState extends State<TransactionModal> {
               Expanded(
                 flex: 2,
                 child: DropdownButtonFormField<String>(
-                  value: _recurringFrequency,
+                  initialValue: _recurringFrequency,
                   isExpanded: true,
                   decoration: InputDecoration(
                     labelText: Translator.t('trans_frequency_label'),

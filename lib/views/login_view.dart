@@ -38,10 +38,15 @@ class _LoginViewState extends State<LoginView> {
 
   Future<void> _loadUsers() async {
     final users = await _authService.getAllUsernames();
+    final lastUser = await _db.getAppSetting('last_username');
     if (mounted) {
       setState(() {
         _existingUsers = users;
-        if (users.isEmpty) _isLoginMode = false;
+        if (users.isEmpty) {
+          _isLoginMode = false;
+        } else if (lastUser != null && users.contains(lastUser)) {
+          _selectedUser = lastUser;
+        }
       });
     }
   }
@@ -159,6 +164,8 @@ class _LoginViewState extends State<LoginView> {
     await themeProvider.loadFromSettings(_db);
     await langProvider.loadFromSettings(_db);
 
+    await _db.setAppSetting('last_username', username);
+
     _db.processRecurringTransactions();
     _db.fetchExchangeRates();
 
@@ -208,8 +215,9 @@ class _LoginViewState extends State<LoginView> {
                 const SizedBox(height: 32),
 
                 if (_isLoginMode) ...[
-                  if (_existingUsers.isNotEmpty) ...[
+                  if (_existingUsers.isNotEmpty)
                     DropdownButtonFormField<String>(
+                      key: ValueKey(_selectedUser),
                       value: _selectedUser,
                       hint: Text(
                         Translator.t('login_user'),
@@ -228,16 +236,6 @@ class _LoginViewState extends State<LoginView> {
                         fillColor: colors.bg,
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    TextButton(
-                      onPressed: _toggleMode,
-                      child: Text(
-                        Translator.t('login_create_account'),
-                        style: TextStyle(color: colors.accent),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
                 ] else ...[
                   TextField(
                     controller: _usernameController,
@@ -250,15 +248,6 @@ class _LoginViewState extends State<LoginView> {
                       fillColor: colors.bg,
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  if (!_isLoginMode && _existingUsers.isNotEmpty)
-                    TextButton(
-                      onPressed: _toggleMode,
-                      child: Text(
-                        Translator.t('login_connect_account'),
-                        style: TextStyle(color: colors.accent),
-                      ),
-                    ),
                 ],
 
                 const SizedBox(height: 12),
@@ -332,6 +321,32 @@ class _LoginViewState extends State<LoginView> {
                           ),
                   ),
                 ),
+
+                if (_isLoginMode && _existingUsers.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Center(
+                    child: TextButton(
+                      onPressed: _toggleMode,
+                      child: Text(
+                        Translator.t('login_create_account'),
+                        style: TextStyle(color: colors.accent),
+                      ),
+                    ),
+                  ),
+                ],
+
+                if (!_isLoginMode && _existingUsers.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Center(
+                    child: TextButton(
+                      onPressed: _toggleMode,
+                      child: Text(
+                        Translator.t('login_connect_account'),
+                        style: TextStyle(color: colors.accent),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

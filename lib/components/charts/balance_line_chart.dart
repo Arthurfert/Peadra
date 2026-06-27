@@ -68,7 +68,7 @@ class BalanceLineChart extends StatelessWidget {
                     return spots.map((s) {
                       return LineTooltipItem(
                         s.y.toStringAsFixed(2),
-                        TextStyle(color: Colors.white, fontSize: 12),
+                        const TextStyle(color: Colors.white, fontSize: 12),
                       );
                     }).toList();
                   },
@@ -111,14 +111,14 @@ class BalanceLineChart extends StatelessWidget {
                     },
                   ),
                 ),
-                topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
               ),
               gridData: FlGridData(
                 show: true,
                 drawVerticalLine: false,
                 getDrawingHorizontalLine: (value) => FlLine(
-                  color: colors.borderColor.withOpacity(0.3),
+                  color: colors.borderColor.withValues(alpha: 0.3),
                   strokeWidth: 1,
                 ),
               ),
@@ -143,7 +143,7 @@ class BalanceLineChart extends StatelessWidget {
                   belowBarData: showArea
                       ? BarAreaData(
                           show: true,
-                          color: lineColor.withOpacity(0.1),
+                          color: lineColor.withValues(alpha: 0.1),
                         )
                       : BarAreaData(show: false),
                 ),

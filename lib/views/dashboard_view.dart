@@ -134,9 +134,9 @@ class _DashboardViewState extends State<DashboardView> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(flex: 3, child: _buildInflowsOutflowsChart(colors)),
+                    Expanded(flex: 1, child: _buildInflowsOutflowsChart(colors)),
                     const SizedBox(width: 16),
-                    Expanded(flex: 2, child: _buildTotalAssetsChart(colors)),
+                    Expanded(flex: 1, child: _buildTotalAssetsChart(colors)),
                   ],
                 ),
               ],
@@ -190,52 +190,74 @@ class _DashboardViewState extends State<DashboardView> {
         ? ((currentExpenses - _previousExpenses) / _previousExpenses * 100)
         : 0.0;
 
+    final cards = [
+      _buildStatCard(
+        title: 'Current Balance',
+        value: CurrencyService.formatAmount(_balance, currency),
+        change: balanceChange,
+        icon: Icons.account_balance_wallet,
+        iconColor: colors.info,
+        bgColor: colors.info.withValues(alpha: 0.15),
+        colors: colors,
+      ),
+      _buildStatCard(
+        title: 'Income',
+        value: CurrencyService.formatAmount(currentIncome, currency),
+        change: incomeChange,
+        icon: Icons.trending_up,
+        iconColor: colors.success,
+        bgColor: colors.incomeBg,
+        colors: colors,
+      ),
+      _buildStatCard(
+        title: 'Expenses',
+        value: CurrencyService.formatAmount(currentExpenses, currency),
+        change: expensesChange,
+        icon: Icons.trending_down,
+        iconColor: colors.error,
+        bgColor: colors.expenseBg,
+        colors: colors,
+      ),
+      _buildStatCard(
+        title: 'Savings Outside',
+        value: CurrencyService.formatAmount(_savings, currency),
+        change: 0,
+        icon: Icons.savings,
+        iconColor: colors.savingsIcon,
+        bgColor: colors.savingsBg,
+        colors: colors,
+      ),
+    ];
+
     return LayoutBuilder(
       builder: (context, constraints) {
-        final crossCount = constraints.maxWidth > 600 ? 4 : 2;
-        return GridView.count(
-          crossAxisCount: crossCount,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          childAspectRatio: 1.8,
+        final isWide = constraints.maxWidth > 600;
+        if (isWide) {
+          return Row(
+            children: [
+              for (int i = 0; i < cards.length; i++) ...[
+                if (i > 0) const SizedBox(width: 12),
+                Expanded(child: cards[i]),
+              ],
+            ],
+          );
+        }
+        return Column(
           children: [
-            _buildStatCard(
-              title: 'Current Balance',
-              value: CurrencyService.formatAmount(_balance, currency),
-              change: balanceChange,
-              icon: Icons.account_balance_wallet,
-              iconColor: colors.info,
-              bgColor: colors.info.withValues(alpha: 0.15),
-              colors: colors,
+            Row(
+              children: [
+                Expanded(child: cards[0]),
+                const SizedBox(width: 12),
+                Expanded(child: cards[1]),
+              ],
             ),
-            _buildStatCard(
-              title: 'Income',
-              value: CurrencyService.formatAmount(currentIncome, currency),
-              change: incomeChange,
-              icon: Icons.trending_up,
-              iconColor: colors.success,
-              bgColor: colors.incomeBg,
-              colors: colors,
-            ),
-            _buildStatCard(
-              title: 'Expenses',
-              value: CurrencyService.formatAmount(currentExpenses, currency),
-              change: expensesChange,
-              icon: Icons.trending_down,
-              iconColor: colors.error,
-              bgColor: colors.expenseBg,
-              colors: colors,
-            ),
-            _buildStatCard(
-              title: 'Savings Outside',
-              value: CurrencyService.formatAmount(_savings, currency),
-              change: 0,
-              icon: Icons.savings,
-              iconColor: colors.savingsIcon,
-              bgColor: colors.savingsBg,
-              colors: colors,
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(child: cards[2]),
+                const SizedBox(width: 12),
+                Expanded(child: cards[3]),
+              ],
             ),
           ],
         );
@@ -259,7 +281,7 @@ class _DashboardViewState extends State<DashboardView> {
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -275,7 +297,7 @@ class _DashboardViewState extends State<DashboardView> {
                 _buildChangeIndicator(change, colors),
               ],
             ),
-            const Spacer(),
+            const SizedBox(height: 12),
             Text(
               title,
               style: TextStyle(
@@ -534,10 +556,14 @@ class _DashboardViewState extends State<DashboardView> {
                 final idx = value.toInt();
                 if (idx >= 0 && idx < displayMonths.length) {
                   final m = displayMonths[idx];
+                  final monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                  final monthNum = int.tryParse(m.split('-').last) ?? 1;
+                  final label = monthNames[(monthNum - 1).clamp(0, 11)];
                   return Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
-                      m.length > 3 ? m.substring(0, 3) : m,
+                      label,
                       style: TextStyle(color: colors.textSecondary, fontSize: 11),
                     ),
                   );
@@ -686,13 +712,19 @@ class _DashboardViewState extends State<DashboardView> {
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
+              interval: 1,
               getTitlesWidget: (value, meta) {
                 final idx = value.toInt();
                 if (idx >= 0 && idx < labels.length) {
+                  final label = labels[idx];
+                  final showLabel = idx == 0 ||
+                      idx == labels.length - 1 ||
+                      label != labels[idx - 1];
+                  if (!showLabel) return const Text('');
                   return Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
-                      labels[idx],
+                      label,
                       style: TextStyle(color: colors.textSecondary, fontSize: 10),
                     ),
                   );

@@ -3,8 +3,9 @@ import 'package:fl_chart/fl_chart.dart';
 
 import '../../components/theme/paedra_colors.dart';
 import '../../i18n/translator.dart';
+import '../../services/currency_service.dart';
 
-class CategoryPieChart extends StatelessWidget {
+class CategoryPieChart extends StatefulWidget {
   final List<Map<String, dynamic>> data;
   final PeadraColors colors;
   final String title;
@@ -17,19 +18,27 @@ class CategoryPieChart extends StatelessWidget {
   });
 
   @override
+  State<CategoryPieChart> createState() => _CategoryPieChartState();
+}
+
+class _CategoryPieChartState extends State<CategoryPieChart> {
+  int? _touchedIndex;
+
+  @override
   Widget build(BuildContext context) {
-    if (data.isEmpty) {
+    if (widget.data.isEmpty) {
       return Center(
         child: Text(Translator.t('dashboard_no_data'),
-            style: TextStyle(color: colors.textSecondary)),
+            style: TextStyle(color: widget.colors.textSecondary)),
       );
     }
 
-    final total = data.fold<double>(0, (sum, d) => sum + (d['amount'] as double));
+    final total = widget.data.fold<double>(
+        0, (sum, d) => sum + (d['amount'] as double));
     if (total == 0) {
       return Center(
         child: Text(Translator.t('dashboard_no_data'),
-            style: TextStyle(color: colors.textSecondary)),
+            style: TextStyle(color: widget.colors.textSecondary)),
       );
     }
 
@@ -45,21 +54,22 @@ class CategoryPieChart extends StatelessWidget {
     ];
 
     final sections = <PieChartSectionData>[];
-    for (int i = 0; i < data.length; i++) {
-      final d = data[i];
+    for (int i = 0; i < widget.data.length; i++) {
+      final d = widget.data[i];
       final amount = d['amount'] as double;
-      final pct = (amount / total * 100);
       final color = chartColors[i % chartColors.length];
+      final isTouched = _touchedIndex == i;
+      final radius = isTouched ? 55.0 : 45.0;
 
       sections.add(
         PieChartSectionData(
           value: amount,
-          title: pct >= 5 ? '${pct.toStringAsFixed(1)}%' : '',
+          title: isTouched ? CurrencyService.formatAmount(amount, 'EUR') : '',
           color: color,
-          radius: 100,
+          radius: radius,
           titleStyle: const TextStyle(
             color: Colors.white,
-            fontSize: 12,
+            fontSize: 11,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -67,13 +77,14 @@ class CategoryPieChart extends StatelessWidget {
     }
 
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        if (title.isNotEmpty) ...[
-          Text(title,
+        if (widget.title.isNotEmpty) ...[
+          Text(widget.title,
               style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: colors.text)),
+                  color: widget.colors.text)),
           const SizedBox(height: 8),
         ],
         Expanded(
@@ -83,26 +94,44 @@ class CategoryPieChart extends StatelessWidget {
                 flex: 3,
                 child: PieChart(
                   PieChartData(
+                    pieTouchData: PieTouchData(
+                      touchCallback: (FlTouchEvent event, pieTouchResponse) {
+                        setState(() {
+                          if (!event.isInterestedForInteractions ||
+                              pieTouchResponse == null ||
+                              pieTouchResponse.touchedSection == null) {
+                            _touchedIndex = null;
+                            return;
+                          }
+                          _touchedIndex = pieTouchResponse
+                              .touchedSection!.touchedSectionIndex;
+                        });
+                      },
+                    ),
                     sections: sections,
-                    centerSpaceRadius: 30,
+                    centerSpaceRadius: 25,
                     sectionsSpace: 2,
                     borderData: FlBorderData(show: false),
                   ),
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
               Expanded(
                 flex: 2,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (int i = 0; i < data.length && i < 8; i++) ...[
+                    for (int i = 0;
+                        i < widget.data.length && i < 8;
+                        i++) ...[
                       _legendItem(
                         color: chartColors[i % chartColors.length],
-                        label: data[i]['label'] ?? '',
-                        amount: data[i]['amount'] as double,
-                        pct: (data[i]['amount'] as double) / total * 100,
+                        label: widget.data[i]['label'] ?? '',
+                        amount: widget.data[i]['amount'] as double,
+                        pct: (widget.data[i]['amount'] as double) /
+                            total *
+                            100,
                       ),
                       const SizedBox(height: 4),
                     ],

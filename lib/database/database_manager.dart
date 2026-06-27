@@ -984,7 +984,9 @@ class DatabaseManager {
              t.transaction_type as type,
              SUM(t.amount) as amount
       FROM transactions t
+      LEFT JOIN descriptions d ON t.description_id = d.id
       WHERE t.date >= ? AND t.user_id = ?
+        AND (d.name IS NULL OR LOWER(d.name) NOT LIKE 'transfer to %' AND LOWER(d.name) NOT LIKE 'transfer from %')
       GROUP BY month, t.transaction_type
       ORDER BY month
     ''', [startDate, _userId]);

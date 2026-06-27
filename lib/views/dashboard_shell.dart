@@ -3,8 +3,10 @@ import 'package:provider/provider.dart';
 
 import '../i18n/translator.dart';
 import '../providers/auth_provider.dart';
+import '../providers/settings_provider.dart';
 import '../providers/theme_provider.dart';
 import '../components/theme/paedra_colors.dart';
+import '../services/currency_service.dart';
 import '../responsive/responsive_layout.dart';
 import '../database/database_manager.dart';
 import 'login_view.dart';
@@ -24,6 +26,7 @@ class DashboardShell extends StatefulWidget {
 
 class _DashboardShellState extends State<DashboardShell> {
   int _selectedIndex = 0;
+  double _totalPatrimony = 0;
 
   final _views = const [
     DashboardView(),
@@ -32,6 +35,29 @@ class _DashboardShellState extends State<DashboardShell> {
     SubscriptionsView(),
     CategoriesView(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTotalPatrimony();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _loadTotalPatrimony();
+  }
+
+  Future<void> _loadTotalPatrimony() async {
+    final db = DatabaseManager.instance;
+    if (db.userId == null) return;
+    final total = await db.getTotalPatrimony();
+    if (mounted) {
+      setState(() {
+        _totalPatrimony = total;
+      });
+    }
+  }
 
   void _onNavTap(int index) {
     if (index == 5) {
@@ -56,19 +82,69 @@ class _DashboardShellState extends State<DashboardShell> {
   Widget build(BuildContext context) {
     final themeName = context.watch<ThemeProvider>().themeName;
     final colors = PeadraTheme.getColors(themeName);
+    final isDark = context.watch<ThemeProvider>().isDark;
     final screenSize = ResponsiveLayout.getScreenSize(context);
 
     return Scaffold(
-      backgroundColor: colors.bg,
-      body: Row(
+      backgroundColor: colors.surface,
+      body: Column(
         children: [
-          if (screenSize != ScreenSize.phone)
-            _buildSidebar(colors, screenSize),
-          Expanded(child: _views[_selectedIndex]),
+          if (screenSize != ScreenSize.phone) _buildTopBar(colors, isDark),
+          Expanded(
+            child: Row(
+              children: [
+                if (screenSize != ScreenSize.phone)
+                  _buildSidebar(colors, screenSize),
+                Expanded(child: _buildContent(colors)),
+              ],
+            ),
+          ),
         ],
       ),
       bottomNavigationBar:
           screenSize == ScreenSize.phone ? _buildBottomNav(colors) : null,
+    );
+  }
+
+  Widget _buildTopBar(PeadraColors colors, bool isDark) {
+    return Container(
+      height: 72,
+      color: colors.surface,
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Row(
+        children: [
+          Image.asset(
+            isDark ? 'assets/Peadra_white.png' : 'assets/Peadra.png',
+            height: 40,
+            errorBuilder: (context, error, stackTrace) => Icon(
+              Icons.pets,
+              color: colors.accent,
+              size: 32,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            'Peadra',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: colors.text,
+            ),
+          ),
+          const Spacer(),
+          IconButton(
+            icon: Icon(Icons.settings, color: colors.textSecondary),
+            onPressed: () => _onNavTap(5),
+            tooltip: Translator.t('tooltip_settings'),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            icon: Icon(Icons.logout, color: colors.textSecondary),
+            onPressed: _logout,
+            tooltip: Translator.t('tooltip_logout'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -89,7 +165,7 @@ class _DashboardShellState extends State<DashboardShell> {
       color: colors.surface,
       child: Column(
         children: [
-          const SizedBox(height: 24),
+          const SizedBox(height: 8),
           ...items.asMap().entries.map((entry) {
             final i = entry.key;
             final item = entry.value;
@@ -105,27 +181,82 @@ class _DashboardShellState extends State<DashboardShell> {
             );
           }),
           const Spacer(),
-          _buildNavItem(
-            iconOff: Icons.settings_outlined,
-            iconOn: Icons.settings,
-            label: Translator.t('nav_parameters'),
-            isSelected: false,
-            colors: colors,
-            isCompact: isCompact,
-            onTap: () => _onNavTap(5),
-          ),
-          _buildNavItem(
-            iconOff: Icons.logout_outlined,
-            iconOn: Icons.logout,
-            label: Translator.t('btn_logout'),
-            isSelected: false,
-            colors: colors,
-            isCompact: isCompact,
-            onTap: _logout,
-          ),
+          _buildTotalAssets(colors, isCompact),
           const SizedBox(height: 16),
         ],
       ),
+    );
+  }
+
+  Widget _buildTotalAssets(PeadraColors colors, bool isCompact) {
+    final currency = context.watch<SettingsProvider>().currency;
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(
+        horizontal: isCompact ? 8 : 20,
+        vertical: 16,
+      ),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: const BorderRadius.only(
+          topRight: Radius.circular(12),
+        ),
+      ),
+      child: isCompact
+          ? Column(
+              children: [
+                Icon(Icons.account_balance_wallet, color: colors.accent, size: 24),
+                const SizedBox(height: 6),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    CurrencyService.formatAmount(_totalPatrimony, currency),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: colors.text,
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Total Assets',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: colors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    CurrencyService.formatAmount(_totalPatrimony, currency),
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: colors.text,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildContent(PeadraColors colors) {
+    return Container(
+      margin: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colors.bg,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: _views[_selectedIndex],
     );
   }
 

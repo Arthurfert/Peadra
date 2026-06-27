@@ -149,7 +149,7 @@ class ImportService {
     }
 
     final dialect = detectDialect(content);
-    final rows = CsvToListConverter(
+    final rows = const CsvToListConverter(
       shouldParseNumbers: false,
       eol: '\n',
     ).convert(content);
@@ -397,7 +397,7 @@ class ImportService {
     final content = await file.readAsString();
     final hash = await calculateFileHash(filePath);
     final dialect = detectDialect(content);
-    final rows = CsvToListConverter(
+    final rows = const CsvToListConverter(
       shouldParseNumbers: false,
       eol: '\n',
     ).convert(content);

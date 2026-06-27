@@ -25,7 +25,7 @@ class _TransactionsViewState extends State<TransactionsView> {
   List<Account> _accounts = [];
   bool _loading = true;
   String _searchQuery = '';
-  int _displayLimit = 30;
+  final int _displayLimit = 30;
   bool _hasMore = true;
 
   @override
@@ -345,7 +345,7 @@ class _TransactionsViewState extends State<TransactionsView> {
           color: colors.error,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Icon(Icons.delete, color: Colors.white),
+        child: const Icon(Icons.delete, color: Colors.white),
       ),
       confirmDismiss: (direction) async {
         _deleteTransaction(txn);

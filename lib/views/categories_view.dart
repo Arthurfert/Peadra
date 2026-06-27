@@ -133,7 +133,7 @@ class _CategoriesViewState extends State<CategoriesView> {
                     color: colors.placeholderColor, fontSize: 12),
               ),
               trailing: Text(
-                '${(item['total'] as num).toStringAsFixed(2)}',
+                (item['total'] as num).toStringAsFixed(2),
                 style: TextStyle(
                   color: accentColor,
                   fontWeight: FontWeight.w600,

@@ -170,7 +170,7 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
           ),
         ),
         Text(
-          '${pct.toStringAsFixed(1)}%',
+          CurrencyService.formatAmount(amount, 'EUR'),
           style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
         ),
       ],

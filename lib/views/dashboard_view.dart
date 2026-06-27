@@ -21,7 +21,6 @@ class DashboardView extends StatefulWidget {
 
 class _DashboardViewState extends State<DashboardView> {
   final _db = DatabaseManager.instance;
-  double _totalPatrimony = 0;
   double _balance = 0;
   double _savings = 0;
   double _previousBalance = 0;
@@ -44,7 +43,6 @@ class _DashboardViewState extends State<DashboardView> {
 
   Future<void> _loadData() async {
     final results = await Future.wait([
-      _db.getTotalPatrimony(),
       _db.getBalance(),
       _db.getSavingsTotal(),
       _db.getMonthlySummary(),
@@ -58,16 +56,15 @@ class _DashboardViewState extends State<DashboardView> {
 
     if (mounted) {
       setState(() {
-        _totalPatrimony = results[0] as double;
-        _balance = results[1] as double;
-        _savings = results[2] as double;
-        _monthlySummary = results[3] as Map<String, double>;
-        _accountsDistribution = results[4] as List<Map<String, dynamic>>;
-        _cashFlowData = results[5] as List<Map<String, dynamic>>;
-        _assetsHistory = results[6] as List<Map<String, dynamic>>;
-        _monthlyExpenses = results[7] as Map<String, double>;
-        _monthlyIncomes = results[8] as Map<String, double>;
-        final prevSummary = results[9] as Map<String, double>;
+        _balance = results[0] as double;
+        _savings = results[1] as double;
+        _monthlySummary = results[2] as Map<String, double>;
+        _accountsDistribution = results[3] as List<Map<String, dynamic>>;
+        _cashFlowData = results[4] as List<Map<String, dynamic>>;
+        _assetsHistory = results[5] as List<Map<String, dynamic>>;
+        _monthlyExpenses = results[6] as Map<String, double>;
+        _monthlyIncomes = results[7] as Map<String, double>;
+        final prevSummary = results[8] as Map<String, double>;
         _previousBalance = prevSummary['balance'] ?? 0;
         _previousIncome = prevSummary['income'] ?? 0;
         _previousExpenses = prevSummary['expenses'] ?? 0;
@@ -91,13 +88,11 @@ class _DashboardViewState extends State<DashboardView> {
 
     final isPhone = ResponsiveLayout.isPhone(context);
 
-    return Stack(
-      children: [
-        SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
               // Header
               Text(
                 Translator.t('dash_title'),
@@ -109,7 +104,7 @@ class _DashboardViewState extends State<DashboardView> {
               ),
               const SizedBox(height: 4),
               Text(
-                '${Translator.t("dash_welcome")}$username! ${Translator.t("dash_overview")}',
+                '${Translator.t("dash_welcome")}$username${Translator.t("dash_overview")}',
                 style: TextStyle(
                   fontSize: 14,
                   color: colors.textSecondary,
@@ -162,17 +157,8 @@ class _DashboardViewState extends State<DashboardView> {
                 ),
               ],
               const SizedBox(height: 80),
-            ],
-          ),
-        ),
-
-        // Total Assets overlay
-        Positioned(
-          bottom: 16,
-          left: 16,
-          child: _buildTotalAssetsOverlay(colors, currency),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -542,7 +528,7 @@ class _DashboardViewState extends State<DashboardView> {
                   : Translator.t('chart_expenses');
               return BarTooltipItem(
                 '$m\n$label: ${rod.toY.toStringAsFixed(2)}',
-                TextStyle(color: Colors.white, fontSize: 12),
+                const TextStyle(color: Colors.white, fontSize: 12),
               );
             },
           ),
@@ -587,8 +573,8 @@ class _DashboardViewState extends State<DashboardView> {
               },
             ),
           ),
-          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         ),
         gridData: FlGridData(
           show: true,
@@ -616,7 +602,7 @@ class _DashboardViewState extends State<DashboardView> {
           ),
         ),
         const SizedBox(width: 4),
-        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey)),
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
       ],
     );
   }
@@ -701,7 +687,7 @@ class _DashboardViewState extends State<DashboardView> {
                 final label = idx < labels.length ? labels[idx] : '';
                 return LineTooltipItem(
                   '$label\n${s.y.toStringAsFixed(2)}',
-                  TextStyle(color: Colors.white, fontSize: 12),
+                  const TextStyle(color: Colors.white, fontSize: 12),
                 );
               }).toList();
             },
@@ -748,8 +734,8 @@ class _DashboardViewState extends State<DashboardView> {
               },
             ),
           ),
-          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         ),
         gridData: FlGridData(
           show: true,
@@ -833,35 +819,4 @@ class _DashboardViewState extends State<DashboardView> {
     );
   }
 
-  Widget _buildTotalAssetsOverlay(PeadraColors colors, String currency) {
-    return Card(
-      color: colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Total Assets',
-              style: TextStyle(
-                fontSize: 12,
-                color: colors.textSecondary,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              CurrencyService.formatAmount(_totalPatrimony, currency),
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: colors.text,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }

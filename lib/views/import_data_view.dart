@@ -345,7 +345,7 @@ class _ImportDataViewState extends State<ImportDataView> {
 
           // Transaction type
           DropdownButtonFormField<String>(
-            value: _transactionType,
+            initialValue: _transactionType,
             isExpanded: true,
             decoration: InputDecoration(
               labelText: Translator.t('import_transaction_type'),
@@ -363,7 +363,7 @@ class _ImportDataViewState extends State<ImportDataView> {
 
           // Account
           DropdownButtonFormField<int>(
-            value: _selectedAccountId,
+            initialValue: _selectedAccountId,
             isExpanded: true,
             decoration: InputDecoration(
               labelText: Translator.t('trans_account'),

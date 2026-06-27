@@ -80,7 +80,7 @@ class _AccountsViewState extends State<AccountsView> {
                       )
                     : GridView.builder(
                         gridDelegate:
-                            SliverGridDelegateWithMaxCrossAxisExtent(
+                            const SliverGridDelegateWithMaxCrossAxisExtent(
                           maxCrossAxisExtent: 300,
                           childAspectRatio: 1.6,
                           mainAxisSpacing: 12,
@@ -224,7 +224,7 @@ class _AccountsViewState extends State<AccountsView> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: type,
+                initialValue: type,
                 decoration: InputDecoration(
                   labelText: Translator.t('acc_type'),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
@@ -283,7 +283,7 @@ class _AccountsViewState extends State<AccountsView> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: type,
+                initialValue: type,
                 decoration: InputDecoration(
                   labelText: Translator.t('acc_type'),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),

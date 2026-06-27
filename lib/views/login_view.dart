@@ -218,7 +218,7 @@ class _LoginViewState extends State<LoginView> {
                   if (_existingUsers.isNotEmpty)
                     DropdownButtonFormField<String>(
                       key: ValueKey(_selectedUser),
-                      value: _selectedUser,
+                      initialValue: _selectedUser,
                       hint: Text(
                         Translator.t('login_user'),
                         style: TextStyle(color: colors.placeholderColor),

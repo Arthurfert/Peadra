@@ -53,9 +53,23 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
       const Color(0xFF607D8B),
     ];
 
+    final processedData = <Map<String, dynamic>>[];
+    double otherAmount = 0;
+    for (final d in widget.data) {
+      final amount = d['amount'] as double;
+      if (amount / total >= 0.03) {
+        processedData.add(d);
+      } else {
+        otherAmount += amount;
+      }
+    }
+    if (otherAmount > 0) {
+      processedData.add({'label': 'Other', 'amount': otherAmount});
+    }
+
     final sections = <PieChartSectionData>[];
-    for (int i = 0; i < widget.data.length; i++) {
-      final d = widget.data[i];
+    for (int i = 0; i < processedData.length; i++) {
+      final d = processedData[i];
       final amount = d['amount'] as double;
       final color = chartColors[i % chartColors.length];
       final isTouched = _touchedIndex == i;
@@ -123,13 +137,13 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     for (int i = 0;
-                        i < widget.data.length && i < 8;
+                        i < processedData.length && i < 8;
                         i++) ...[
                       _legendItem(
                         color: chartColors[i % chartColors.length],
-                        label: widget.data[i]['label'] ?? '',
-                        amount: widget.data[i]['amount'] as double,
-                        pct: (widget.data[i]['amount'] as double) /
+                        label: processedData[i]['label'] ?? '',
+                        amount: processedData[i]['amount'] as double,
+                        pct: (processedData[i]['amount'] as double) /
                             total *
                             100,
                       ),

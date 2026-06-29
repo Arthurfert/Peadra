@@ -13,6 +13,7 @@ import '../services/currency_service.dart';
 import '../services/export_service.dart';
 import 'import_data_view.dart';
 import 'login_view.dart';
+import '../responsive/responsive_layout.dart';
 
 class ParametersView extends StatefulWidget {
   const ParametersView({super.key});
@@ -42,76 +43,124 @@ class _ParametersViewState extends State<ParametersView> {
         iconTheme: IconThemeData(color: colors.text),
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
         children: [
           _buildSection(Translator.t('param_general'), colors, [
             _buildLanguageTile(lang, colors),
             _buildCurrencyTile(settings, colors),
             _buildThemeTile(colors),
-          ]),
-          const SizedBox(height: 16),
+          ], icon: Icons.settings),
+          const SizedBox(height: 8),
           _buildSection(Translator.t('param_transactions'), colors, [
             _buildDisplayLimitTile(settings, colors),
-          ]),
-          const SizedBox(height: 16),
+          ], icon: Icons.receipt_long),
+          const SizedBox(height: 8),
           _buildSection(Translator.t('param_charts'), colors, [
             _buildMonthModeTile(settings, colors),
             _buildMaxPieCategoriesTile(settings, colors),
-          ]),
-          const SizedBox(height: 16),
+          ], icon: Icons.bar_chart),
+          const SizedBox(height: 8),
           _buildSection(Translator.t('param_security'), colors, [
             _buildUsernameTile(auth, colors),
             _buildPasswordTile(colors),
-          ]),
-          const SizedBox(height: 16),
+          ], icon: Icons.shield),
+          const SizedBox(height: 8),
           _buildSection(Translator.t('param_import'), colors, [
             _buildImportTile(colors),
             _buildExportJsonTile(colors),
             _buildExportCsvTile(colors),
-          ]),
-          const SizedBox(height: 16),
+          ], icon: Icons.import_export),
+          const SizedBox(height: 8),
           _buildSection(Translator.t('param_danger_zone'), colors, [
             _buildDeleteAccountTile(colors),
-          ]),
+          ], icon: Icons.warning_amber, iconColor: colors.error),
         ],
       ),
     );
   }
 
   Widget _buildSection(
-      String title, PeadraColors colors, List<Widget> children) {
+      String title, PeadraColors colors, List<Widget> children, {
+      IconData? icon, Color? iconColor}) {
+    final isPhone = ResponsiveLayout.isPhone(context);
+    final sectionColor = iconColor ?? colors.accent;
+
+    return Card(
+      color: colors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      clipBehavior: Clip.antiAlias,
+      child: isPhone
+          ? _buildSectionVertical(title, colors, children, sectionColor, icon)
+          : _buildSectionHorizontal(title, colors, children, sectionColor, icon),
+    );
+  }
+
+  Widget _buildSectionVertical(
+      String title, PeadraColors colors, List<Widget> children,
+      Color sectionColor, IconData? icon) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            if (title == Translator.t('param_security'))
-              Icon(Icons.shield, color: colors.accent, size: 20),
-            if (title == Translator.t('param_charts'))
-              Icon(Icons.bar_chart, color: colors.accent, size: 20),
-            if (title == Translator.t('param_danger_zone'))
-              Icon(Icons.warning, color: colors.error, size: 20),
-            if (title == Translator.t('param_security') ||
-                title == Translator.t('param_charts') ||
-                title == Translator.t('param_danger_zone'))
-              const SizedBox(width: 8),
-            Text(title,
-                style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: title == Translator.t('param_danger_zone')
-                        ? colors.error
-                        : colors.accent)),
-          ],
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: sectionColor.withValues(alpha: 0.1),
+          ),
+          child: Row(
+            children: [
+              if (icon != null) ...[
+                Icon(icon, color: sectionColor, size: 16),
+                const SizedBox(width: 6),
+              ],
+              Text(title,
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: sectionColor)),
+            ],
+          ),
         ),
-        const SizedBox(height: 8),
-        Card(
-          color: colors.surface,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: Column(children: children),
-        ),
+        Column(children: children),
       ],
+    );
+  }
+
+  Widget _buildSectionHorizontal(
+      String title, PeadraColors colors, List<Widget> children,
+      Color sectionColor, IconData? icon) {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            width: 110,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            decoration: BoxDecoration(
+              color: sectionColor.withValues(alpha: 0.1),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, color: sectionColor, size: 20),
+                  const SizedBox(height: 6),
+                ],
+                Text(title,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: sectionColor)),
+              ],
+            ),
+          ),
+          VerticalDivider(width: 1, color: colors.borderColor),
+          Expanded(
+            child: Column(children: children),
+          ),
+        ],
+      ),
     );
   }
 

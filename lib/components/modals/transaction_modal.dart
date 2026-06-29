@@ -386,17 +386,20 @@ class _TransactionModalState extends State<TransactionModal> {
         border: Border.all(color: colors.borderColor),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: ListView.builder(
-        shrinkWrap: true,
-        itemCount: _suggestions.length,
-        itemBuilder: (context, index) {
-          final s = _suggestions[index];
-          return ListTile(
-            dense: true,
-            title: Text(s, style: TextStyle(color: colors.text, fontSize: 14)),
-            onTap: () => _selectSuggestion(s),
-          );
-        },
+      child: Material(
+        color: Colors.transparent,
+        child: ListView.builder(
+          shrinkWrap: true,
+          itemCount: _suggestions.length,
+          itemBuilder: (context, index) {
+            final s = _suggestions[index];
+            return ListTile(
+              dense: true,
+              title: Text(s, style: TextStyle(color: colors.text, fontSize: 14)),
+              onTap: () => _selectSuggestion(s),
+            );
+          },
+        ),
       ),
     );
   }

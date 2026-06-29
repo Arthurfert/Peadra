@@ -732,6 +732,7 @@ class DatabaseManager {
     String transactionType = 'expense',
     int numMonths = 6,
     int limit = 5,
+    int minCount = 1,
   }) async {
     final db = await database;
     final now = DateTime.now();
@@ -746,8 +747,9 @@ class DatabaseManager {
       LEFT JOIN descriptions d ON t.description_id = d.id
       WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
       GROUP BY desc
+      HAVING count >= ?
       ORDER BY total DESC
-    ''', [transactionType, startDate, endDate, _userId]);
+    ''', [transactionType, startDate, endDate, _userId, minCount]);
 
     final results = <Map<String, dynamic>>[];
     for (final row in rows) {

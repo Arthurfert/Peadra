@@ -50,6 +50,8 @@ class _TransactionModalState extends State<TransactionModal> {
   String _selectedCurrency = 'EUR';
   List<String> _suggestions = [];
   bool _showSuggestions = false;
+  double? _exchangeRate;
+  double? _convertedAmount;
 
   @override
   void initState() {
@@ -75,7 +77,11 @@ class _TransactionModalState extends State<TransactionModal> {
     }
 
     _descController.addListener(() => setState(() {}));
-    _amountController.addListener(() => setState(() {}));
+    _amountController.addListener(_onAmountChanged);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _updateExchangeRate();
+    });
   }
 
   @override
@@ -86,6 +92,78 @@ class _TransactionModalState extends State<TransactionModal> {
     _notesController.dispose();
     _newAccountController.dispose();
     super.dispose();
+  }
+
+  void _onAmountChanged() {
+    setState(() {
+      _convertedAmount = null;
+    });
+    _updateConvertedAmount();
+  }
+
+  Future<void> _updateExchangeRate() async {
+    if (_transactionType != 'transfer' || _sourceAccountId == null || _destAccountId == null) {
+      setState(() {
+        _exchangeRate = null;
+        _convertedAmount = null;
+      });
+      return;
+    }
+
+    final srcCurrency = _getSourceCurrency();
+    final destCurrency = _getDestCurrency();
+
+    if (srcCurrency == destCurrency) {
+      setState(() {
+        _exchangeRate = null;
+        _convertedAmount = null;
+      });
+      return;
+    }
+
+    final rate = await _db.getExchangeRate(srcCurrency, destCurrency);
+    setState(() {
+      _exchangeRate = rate;
+    });
+    _updateConvertedAmount();
+  }
+
+  void _updateConvertedAmount() {
+    if (_exchangeRate == null) {
+      setState(() {
+        _convertedAmount = null;
+      });
+      return;
+    }
+
+    final amount = double.tryParse(_amountController.text);
+    if (amount != null && amount > 0) {
+      setState(() {
+        _convertedAmount = amount * _exchangeRate!;
+      });
+    } else {
+      setState(() {
+        _convertedAmount = null;
+      });
+    }
+  }
+
+  String _getSourceCurrency() {
+    if (_sourceAccountId == null) return 'EUR';
+    final acct = widget.accounts.firstWhere(
+      (a) => a.id == _sourceAccountId,
+      orElse: () => widget.accounts.first,
+    );
+    return acct.currency.isNotEmpty ? acct.currency : 'EUR';
+  }
+
+  String _getDestCurrency() {
+    if (_destAccountId == null) return 'EUR';
+    final acct = widget.accounts.firstWhere(
+      (a) => a.id == _destAccountId,
+      orElse: () => widget.accounts.first,
+    );
+    return acct.currency.isNotEmpty ? acct.currency : 'EUR';
   }
 
   void _onDescriptionChanged(String value) async {
@@ -457,7 +535,11 @@ class _TransactionModalState extends State<TransactionModal> {
           items: widget.accounts
               .map((a) => DropdownMenuItem(value: a.id, child: Text(a.name)))
               .toList(),
-          onChanged: (v) => setState(() => _sourceAccountId = v),
+          onChanged: (v) {
+            setState(() => _sourceAccountId = v);
+            _updateExchangeRate();
+            _updateConvertedAmount();
+          },
         ),
         const SizedBox(height: 12),
         DropdownButtonFormField<int>(
@@ -472,8 +554,53 @@ class _TransactionModalState extends State<TransactionModal> {
           items: widget.accounts
               .map((a) => DropdownMenuItem(value: a.id, child: Text(a.name)))
               .toList(),
-          onChanged: (v) => setState(() => _destAccountId = v),
+          onChanged: (v) {
+            setState(() => _destAccountId = v);
+            _updateExchangeRate();
+            _updateConvertedAmount();
+          },
         ),
+        if (_exchangeRate != null && _convertedAmount != null) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colors.accent.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: colors.accent.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.currency_exchange, color: colors.accent, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Rate: 1 ${_getSourceCurrency()} = ${_exchangeRate!.toStringAsFixed(4)} ${_getDestCurrency()}',
+                        style: TextStyle(
+                          color: colors.text,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${CurrencyService.formatAmount(double.tryParse(_amountController.text) ?? 0, _getSourceCurrency())} = ${CurrencyService.formatAmount(_convertedAmount!, _getDestCurrency())}',
+                        style: TextStyle(
+                          color: colors.accent,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }

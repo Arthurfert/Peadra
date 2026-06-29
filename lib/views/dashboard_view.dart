@@ -34,24 +34,36 @@ class _DashboardViewState extends State<DashboardView> {
   Map<String, double> _monthlyIncomes = {};
   bool _loading = true;
   int _selectedMonths = 6;
+  String _lastCurrency = '';
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final currency = context.watch<SettingsProvider>().currency;
+    if (currency != _lastCurrency) {
+      _lastCurrency = currency;
+      _loadData();
+    }
   }
 
   Future<void> _loadData() async {
+    final currency = context.read<SettingsProvider>().currency;
+
     final results = await Future.wait([
-      _db.getBalance(),
-      _db.getSavingsTotal(),
-      _db.getMonthlySummary(),
-      _db.getAccountsDistribution(),
-      _db.getCashFlowData(months: _selectedMonths),
-      _db.getAssetsHistory(months: _selectedMonths),
-      _db.getCurrentMonthDistribution(transactionType: 'expense'),
-      _db.getCurrentMonthDistribution(transactionType: 'income'),
-      _db.getMonthlySummary(year: DateTime.now().year, month: DateTime.now().month - 1),
+      _db.getBalance(targetCurrency: currency),
+      _db.getSavingsTotal(targetCurrency: currency),
+      _db.getMonthlySummary(targetCurrency: currency),
+      _db.getAccountsDistribution(targetCurrency: currency),
+      _db.getCashFlowData(months: _selectedMonths, targetCurrency: currency),
+      _db.getAssetsHistory(months: _selectedMonths, targetCurrency: currency),
+      _db.getCurrentMonthDistribution(transactionType: 'expense', targetCurrency: currency),
+      _db.getCurrentMonthDistribution(transactionType: 'income', targetCurrency: currency),
+      _db.getMonthlySummary(year: DateTime.now().year, month: DateTime.now().month - 1, targetCurrency: currency),
     ]);
 
     if (mounted) {
@@ -74,15 +86,17 @@ class _DashboardViewState extends State<DashboardView> {
   }
 
   Future<void> _loadChartData() async {
+    final currency = context.read<SettingsProvider>().currency;
+
     final results = await Future.wait([
-      _db.getCashFlowData(months: _selectedMonths),
-      _db.getAssetsHistory(months: _selectedMonths),
+      _db.getCashFlowData(months: _selectedMonths, targetCurrency: currency),
+      _db.getAssetsHistory(months: _selectedMonths, targetCurrency: currency),
     ]);
 
     if (mounted) {
       setState(() {
-        _cashFlowData = results[0] as List<Map<String, dynamic>>;
-        _assetsHistory = results[1] as List<Map<String, dynamic>>;
+        _cashFlowData = results[0];
+        _assetsHistory = results[1];
       });
     }
   }
@@ -153,20 +167,20 @@ class _DashboardViewState extends State<DashboardView> {
 
               // Pie charts
               if (isPhone) ...[
-                _buildPieChartCard(colors, 'This Month Expenses', _monthlyExpenses),
+                _buildPieChartCard(colors, 'This Month Expenses', _monthlyExpenses, currency),
                 const SizedBox(height: 16),
-                _buildPieChartCard(colors, 'This Month Incomes', _monthlyIncomes),
+                _buildPieChartCard(colors, 'This Month Incomes', _monthlyIncomes, currency),
                 const SizedBox(height: 16),
-                _buildAssetsDistributionPieChart(colors),
+                _buildAssetsDistributionPieChart(colors, currency),
               ] else ...[
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(child: _buildPieChartCard(colors, 'This Month Expenses', _monthlyExpenses)),
+                    Expanded(child: _buildPieChartCard(colors, 'This Month Expenses', _monthlyExpenses, currency)),
                     const SizedBox(width: 16),
-                    Expanded(child: _buildPieChartCard(colors, 'This Month Incomes', _monthlyIncomes)),
+                    Expanded(child: _buildPieChartCard(colors, 'This Month Incomes', _monthlyIncomes, currency)),
                     const SizedBox(width: 16),
-                    Expanded(child: _buildAssetsDistributionPieChart(colors)),
+                    Expanded(child: _buildAssetsDistributionPieChart(colors, currency)),
                   ],
                 ),
               ],
@@ -802,7 +816,7 @@ class _DashboardViewState extends State<DashboardView> {
     );
   }
 
-  Widget _buildPieChartCard(PeadraColors colors, String title, Map<String, double> data) {
+  Widget _buildPieChartCard(PeadraColors colors, String title, Map<String, double> data, String currency) {
     final pieData = data.entries.map((e) => {
       'label': e.key,
       'amount': e.value,
@@ -819,16 +833,19 @@ class _DashboardViewState extends State<DashboardView> {
             data: pieData,
             colors: colors,
             title: title,
+            currency: currency,
           ),
         ),
       ),
     );
   }
 
-  Widget _buildAssetsDistributionPieChart(PeadraColors colors) {
+  Widget _buildAssetsDistributionPieChart(PeadraColors colors, String currency) {
     final pieData = _accountsDistribution.map((a) => {
       'label': a['name'] as String,
       'amount': (a['value'] as num).toDouble(),
+      'nativeValue': (a['nativeValue'] as num?)?.toDouble(),
+      'currency': a['currency'] as String?,
       'color': a['color'] as String,
     }).toList();
 
@@ -843,6 +860,7 @@ class _DashboardViewState extends State<DashboardView> {
             data: pieData,
             colors: colors,
             title: Translator.t('dash_assets_distribution'),
+            currency: currency,
           ),
         ),
       ),

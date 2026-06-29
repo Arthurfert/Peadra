@@ -9,12 +9,14 @@ class CategoryPieChart extends StatefulWidget {
   final List<Map<String, dynamic>> data;
   final PeadraColors colors;
   final String title;
+  final String currency;
 
   const CategoryPieChart({
     super.key,
     required this.data,
     required this.colors,
     this.title = '',
+    this.currency = 'EUR',
   });
 
   @override
@@ -77,10 +79,13 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
       final isTouched = _touchedIndex == i;
       final radius = isTouched ? 55.0 : 45.0;
 
+      final itemCurrency = (d['currency'] as String?) ?? widget.currency;
+      final displayAmount = (d['nativeValue'] as double?) ?? amount;
+
       sections.add(
         PieChartSectionData(
           value: amount,
-          title: isTouched ? CurrencyService.formatAmount(amount, 'EUR') : '',
+          title: isTouched ? CurrencyService.formatAmount(displayAmount, itemCurrency) : '',
           color: color,
           radius: radius,
           titleStyle: const TextStyle(
@@ -147,6 +152,8 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
                             : chartColors[i % chartColors.length],
                         label: processedData[i]['label'] ?? '',
                         amount: processedData[i]['amount'] as double,
+                        displayAmount: (processedData[i]['nativeValue'] as double?) ?? (processedData[i]['amount'] as double),
+                        itemCurrency: (processedData[i]['currency'] as String?) ?? widget.currency,
                         pct: (processedData[i]['amount'] as double) /
                             total *
                             100,
@@ -167,6 +174,8 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
     required Color color,
     required String label,
     required double amount,
+    required double displayAmount,
+    required String itemCurrency,
     required double pct,
   }) {
     return Row(
@@ -188,7 +197,7 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
           ),
         ),
         Text(
-          CurrencyService.formatAmount(amount, 'EUR'),
+          CurrencyService.formatAmount(displayAmount, itemCurrency),
           style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
         ),
       ],

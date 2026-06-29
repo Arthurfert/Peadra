@@ -27,6 +27,7 @@ class DashboardShell extends StatefulWidget {
 class _DashboardShellState extends State<DashboardShell> {
   int _selectedIndex = 0;
   double _totalPatrimony = 0;
+  String _lastCurrency = '';
 
   final _views = const [
     DashboardView(),
@@ -38,19 +39,23 @@ class _DashboardShellState extends State<DashboardShell> {
   @override
   void initState() {
     super.initState();
-    _loadTotalPatrimony();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _loadTotalPatrimony();
+    final currency = context.watch<SettingsProvider>().currency;
+    if (currency != _lastCurrency) {
+      _lastCurrency = currency;
+      _loadTotalPatrimony();
+    }
   }
 
   Future<void> _loadTotalPatrimony() async {
     final db = DatabaseManager.instance;
     if (db.userId == null) return;
-    final total = await db.getTotalPatrimony();
+    final currency = context.read<SettingsProvider>().currency;
+    final total = await db.getTotalPatrimony(targetCurrency: currency);
     if (mounted) {
       setState(() {
         _totalPatrimony = total;

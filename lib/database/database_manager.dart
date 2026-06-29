@@ -354,7 +354,7 @@ class DatabaseManager {
 
   // ==================== TRANSACTIONS ====================
 
-  Future<String?> _getAccountCurrency(int accountId) async {
+  Future<String?> getAccountCurrency(int accountId) async {
     final db = await database;
     final result = await db.rawQuery(
       'SELECT currency FROM accounts WHERE id = ? AND user_id = ?',
@@ -380,7 +380,7 @@ class DatabaseManager {
 
     String effectiveCurrency = currency ?? defaultCurrency;
     if (accountId != null) {
-      final acctCurrency = await _getAccountCurrency(accountId);
+      final acctCurrency = await getAccountCurrency(accountId);
       if (acctCurrency != null) effectiveCurrency = acctCurrency;
     }
 
@@ -505,81 +505,165 @@ class DatabaseManager {
 
   // ==================== STATISTICS ====================
 
-  Future<double> getTotalPatrimony() async {
-    final db = await database;
-    final result = await db.rawQuery('''
-      SELECT COALESCE(SUM(CASE WHEN transaction_type = 'income' THEN amount
-                               WHEN transaction_type = 'expense' THEN -amount
-                               ELSE 0 END), 0) as total
-      FROM transactions WHERE user_id = ?
-    ''', [_userId]);
-    return (result.first['total'] as num?)?.toDouble() ?? 0.0;
-  }
-
-  Future<double> getBalance() async {
+  Future<double> getTotalPatrimony({String targetCurrency = 'EUR'}) async {
     final db = await database;
     final result = await db.rawQuery('''
       SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
                                WHEN t.transaction_type = 'expense' THEN -t.amount
-                               ELSE 0 END), 0) as total
+                               ELSE 0 END), 0) as total,
+             COALESCE(NULLIF(t.currency, ''), 'EUR') as currency
+      FROM transactions t WHERE t.user_id = ?
+      GROUP BY currency
+    ''', [_userId]);
+
+    double total = 0.0;
+    for (final row in result) {
+      final amount = (row['total'] as num?)?.toDouble() ?? 0.0;
+      final txnCurrency = (row['currency'] as String?) ?? 'EUR';
+      if (txnCurrency == targetCurrency) {
+        total += amount;
+      } else {
+        final rate = await getExchangeRate(txnCurrency, targetCurrency);
+        total += amount * (rate ?? 1.0);
+      }
+    }
+    return total;
+  }
+
+  Future<double> getBalance({String targetCurrency = 'EUR'}) async {
+    final db = await database;
+    final rows = await db.rawQuery('''
+      SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
+                               WHEN t.transaction_type = 'expense' THEN -t.amount
+                               ELSE 0 END), 0) as total,
+             COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
       FROM transactions t
       LEFT JOIN accounts a ON t.account_id = a.id
       WHERE (a.type = 'checking' OR t.account_id IS NULL) AND t.user_id = ?
+      GROUP BY a.currency
     ''', [_userId]);
-    return (result.first['total'] as num?)?.toDouble() ?? 0.0;
+
+    double total = 0.0;
+    for (final row in rows) {
+      final amount = (row['total'] as num?)?.toDouble() ?? 0.0;
+      final txnCurrency = (row['currency'] as String?) ?? 'EUR';
+      if (txnCurrency == targetCurrency) {
+        total += amount;
+      } else {
+        final rate = await getExchangeRate(txnCurrency, targetCurrency);
+        total += amount * (rate ?? 1.0);
+      }
+    }
+    return total;
   }
 
-  Future<double> getSavingsTotal() async {
+  Future<double> getSavingsTotal({String targetCurrency = 'EUR'}) async {
     final db = await database;
-    final result = await db.rawQuery('''
+    final rows = await db.rawQuery('''
       SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
                                WHEN t.transaction_type = 'expense' THEN -t.amount
-                               ELSE 0 END), 0) as total
+                               ELSE 0 END), 0) as total,
+             COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
       FROM transactions t
       LEFT JOIN accounts a ON t.account_id = a.id
       WHERE a.type = 'savings' AND t.user_id = ?
+      GROUP BY a.currency
     ''', [_userId]);
-    return (result.first['total'] as num?)?.toDouble() ?? 0.0;
+
+    double total = 0.0;
+    for (final row in rows) {
+      final amount = (row['total'] as num?)?.toDouble() ?? 0.0;
+      final txnCurrency = (row['currency'] as String?) ?? 'EUR';
+      if (txnCurrency == targetCurrency) {
+        total += amount;
+      } else {
+        final rate = await getExchangeRate(txnCurrency, targetCurrency);
+        total += amount * (rate ?? 1.0);
+      }
+    }
+    return total;
   }
 
-  Future<double> getHistoryPatrimony(String dateLimit) async {
+  Future<double> getHistoryPatrimony(String dateLimit, {String targetCurrency = 'EUR'}) async {
     final db = await database;
-    final result = await db.rawQuery('''
-      SELECT COALESCE(SUM(CASE WHEN transaction_type = 'income' THEN amount
-                               WHEN transaction_type = 'expense' THEN -amount
-                               ELSE 0 END), 0) as total
-      FROM transactions WHERE date < ? AND user_id = ?
-    ''', [dateLimit, _userId]);
-    return (result.first['total'] as num?)?.toDouble() ?? 0.0;
-  }
-
-  Future<double> getHistoryBalance(String dateLimit) async {
-    final db = await database;
-    final result = await db.rawQuery('''
+    final rows = await db.rawQuery('''
       SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
                                WHEN t.transaction_type = 'expense' THEN -t.amount
-                               ELSE 0 END), 0) as total
+                               ELSE 0 END), 0) as total,
+             COALESCE(NULLIF(t.currency, ''), 'EUR') as currency
+      FROM transactions t WHERE t.date < ? AND t.user_id = ?
+      GROUP BY currency
+    ''', [dateLimit, _userId]);
+
+    double total = 0.0;
+    for (final row in rows) {
+      final amount = (row['total'] as num?)?.toDouble() ?? 0.0;
+      final txnCurrency = (row['currency'] as String?) ?? 'EUR';
+      if (txnCurrency == targetCurrency) {
+        total += amount;
+      } else {
+        final rate = await getExchangeRate(txnCurrency, targetCurrency);
+        total += amount * (rate ?? 1.0);
+      }
+    }
+    return total;
+  }
+
+  Future<double> getHistoryBalance(String dateLimit, {String targetCurrency = 'EUR'}) async {
+    final db = await database;
+    final rows = await db.rawQuery('''
+      SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
+                               WHEN t.transaction_type = 'expense' THEN -t.amount
+                               ELSE 0 END), 0) as total,
+             COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
       FROM transactions t
       LEFT JOIN accounts a ON t.account_id = a.id
       WHERE t.date < ? AND (a.type = 'checking' OR t.account_id IS NULL) AND t.user_id = ?
+      GROUP BY a.currency
     ''', [dateLimit, _userId]);
-    return (result.first['total'] as num?)?.toDouble() ?? 0.0;
+
+    double total = 0.0;
+    for (final row in rows) {
+      final amount = (row['total'] as num?)?.toDouble() ?? 0.0;
+      final txnCurrency = (row['currency'] as String?) ?? 'EUR';
+      if (txnCurrency == targetCurrency) {
+        total += amount;
+      } else {
+        final rate = await getExchangeRate(txnCurrency, targetCurrency);
+        total += amount * (rate ?? 1.0);
+      }
+    }
+    return total;
   }
 
-  Future<double> getHistorySavings(String dateLimit) async {
+  Future<double> getHistorySavings(String dateLimit, {String targetCurrency = 'EUR'}) async {
     final db = await database;
-    final result = await db.rawQuery('''
+    final rows = await db.rawQuery('''
       SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
                                WHEN t.transaction_type = 'expense' THEN -t.amount
-                               ELSE 0 END), 0) as total
+                               ELSE 0 END), 0) as total,
+             COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
       FROM transactions t
       LEFT JOIN accounts a ON t.account_id = a.id
       WHERE t.date < ? AND a.type = 'savings' AND t.user_id = ?
+      GROUP BY a.currency
     ''', [dateLimit, _userId]);
-    return (result.first['total'] as num?)?.toDouble() ?? 0.0;
+
+    double total = 0.0;
+    for (final row in rows) {
+      final amount = (row['total'] as num?)?.toDouble() ?? 0.0;
+      final txnCurrency = (row['currency'] as String?) ?? 'EUR';
+      if (txnCurrency == targetCurrency) {
+        total += amount;
+      } else {
+        final rate = await getExchangeRate(txnCurrency, targetCurrency);
+        total += amount * (rate ?? 1.0);
+      }
+    }
+    return total;
   }
 
-  Future<Map<String, double>> getMonthlySummary({int? year, int? month}) async {
+  Future<Map<String, double>> getMonthlySummary({int? year, int? month, String targetCurrency = 'EUR'}) async {
     final now = DateTime.now();
     final y = year ?? now.year;
     final m = month ?? now.month;
@@ -589,17 +673,34 @@ class DatabaseManager {
     final endDate = '$endYear-${endMonth.toString().padLeft(2, '0')}-01';
 
     final db = await database;
-    final result = await db.rawQuery('''
+    final rows = await db.rawQuery('''
       SELECT
-        COALESCE(SUM(CASE WHEN transaction_type = 'income' THEN amount ELSE 0 END), 0) as income,
-        COALESCE(SUM(CASE WHEN transaction_type = 'expense' THEN amount ELSE 0 END), 0) as expenses
+        COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount ELSE 0 END), 0) as income,
+        COALESCE(SUM(CASE WHEN t.transaction_type = 'expense' THEN t.amount ELSE 0 END), 0) as expenses,
+        COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
       FROM transactions t
       LEFT JOIN accounts a ON t.account_id = a.id
       WHERE (t.date >= ? AND t.date < ?) AND (a.type = 'checking' OR t.account_id IS NULL) AND t.user_id = ?
+      GROUP BY a.currency
     ''', [startDate, endDate, _userId]);
 
-    final income = (result.first['income'] as num?)?.toDouble() ?? 0.0;
-    final expenses = (result.first['expenses'] as num?)?.toDouble() ?? 0.0;
+    double income = 0.0;
+    double expenses = 0.0;
+    for (final row in rows) {
+      final txnIncome = (row['income'] as num?)?.toDouble() ?? 0.0;
+      final txnExpenses = (row['expenses'] as num?)?.toDouble() ?? 0.0;
+      final txnCurrency = (row['currency'] as String?) ?? 'EUR';
+
+      if (txnCurrency == targetCurrency) {
+        income += txnIncome;
+        expenses += txnExpenses;
+      } else {
+        final rate = await getExchangeRate(txnCurrency, targetCurrency);
+        final factor = rate ?? 1.0;
+        income += txnIncome * factor;
+        expenses += txnExpenses * factor;
+      }
+    }
     return {'income': income, 'expenses': expenses, 'balance': income - expenses};
   }
 
@@ -623,10 +724,10 @@ class DatabaseManager {
     return {'income': income, 'expenses': expenses, 'balance': income - expenses};
   }
 
-  Future<List<Map<String, dynamic>>> getAccountsDistribution() async {
+  Future<List<Map<String, dynamic>>> getAccountsDistribution({String targetCurrency = 'EUR'}) async {
     final db = await database;
     final rows = await db.rawQuery('''
-      SELECT a.name, a.color,
+      SELECT a.name, a.color, a.currency as account_currency,
              COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
                                WHEN t.transaction_type = 'expense' THEN -t.amount
                                ELSE 0 END), 0) AS balance
@@ -637,9 +738,28 @@ class DatabaseManager {
       ORDER BY a.name
     ''', [_userId, _userId]);
 
-    return rows
-        .map((r) => {'name': r['name'], 'color': r['color'], 'value': r['balance']})
-        .toList();
+    final results = <Map<String, dynamic>>[];
+    for (final row in rows) {
+      final rawBalance = (row['balance'] as num?)?.toDouble() ?? 0.0;
+      final acctCurrency = (row['account_currency'] as String?) ?? 'EUR';
+
+      double convertedBalance;
+      if (acctCurrency == targetCurrency) {
+        convertedBalance = rawBalance;
+      } else {
+        final rate = await getExchangeRate(acctCurrency, targetCurrency);
+        convertedBalance = rawBalance * (rate ?? 1.0);
+      }
+
+      results.add({
+        'name': row['name'],
+        'color': row['color'],
+        'value': convertedBalance,
+        'nativeValue': rawBalance,
+        'currency': acctCurrency,
+      });
+    }
+    return results;
   }
 
   Future<List<Map<String, dynamic>>> getCategoryDistribution({
@@ -795,7 +915,7 @@ class DatabaseManager {
 
   // ==================== DASHBOARD DATA ====================
 
-  Future<List<Map<String, dynamic>>> getCashFlowData({int months = 6}) async {
+  Future<List<Map<String, dynamic>>> getCashFlowData({int months = 6, String targetCurrency = 'EUR'}) async {
     final db = await database;
     final now = DateTime.now();
     final startDate = DateTime(now.year, now.month - months + 1, 1)
@@ -805,23 +925,50 @@ class DatabaseManager {
     final rows = await db.rawQuery('''
       SELECT strftime('%Y-%m', t.date) as month,
              t.transaction_type as type,
-             SUM(t.amount) as amount
+             SUM(t.amount) as amount,
+             COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
       FROM transactions t
+      LEFT JOIN accounts a ON t.account_id = a.id
       LEFT JOIN descriptions d ON t.description_id = d.id
       WHERE t.date >= ? AND t.user_id = ?
         AND (d.name IS NULL OR LOWER(d.name) NOT LIKE 'transfer to %' AND LOWER(d.name) NOT LIKE 'transfer from %')
-      GROUP BY month, t.transaction_type
+      GROUP BY month, t.transaction_type, a.currency
       ORDER BY month
     ''', [startDate, _userId]);
 
-    return rows.map((r) => {
-      'month': r['month'],
-      'type': r['type'],
-      'amount': (r['amount'] as num).toDouble(),
-    }).toList();
+    final monthMap = <String, Map<String, double>>{};
+    for (final r in rows) {
+      final monthKey = r['month'] as String;
+      final type = r['type'] as String;
+      final amount = (r['amount'] as num).toDouble();
+      final txnCurrency = (r['currency'] as String?) ?? 'EUR';
+
+      double convertedAmount;
+      if (txnCurrency == targetCurrency) {
+        convertedAmount = amount;
+      } else {
+        final rate = await getExchangeRate(txnCurrency, targetCurrency);
+        convertedAmount = amount * (rate ?? 1.0);
+      }
+
+      monthMap.putIfAbsent(monthKey, () => {});
+      monthMap[monthKey]![type] = (monthMap[monthKey]![type] ?? 0) + convertedAmount;
+    }
+
+    final results = <Map<String, dynamic>>[];
+    for (final entry in monthMap.entries) {
+      for (final typeEntry in entry.value.entries) {
+        results.add({
+          'month': entry.key,
+          'type': typeEntry.key,
+          'amount': typeEntry.value,
+        });
+      }
+    }
+    return results;
   }
 
-  Future<List<Map<String, dynamic>>> getAssetsHistory({int months = 6}) async {
+  Future<List<Map<String, dynamic>>> getAssetsHistory({int months = 6, String targetCurrency = 'EUR'}) async {
     final db = await database;
     final now = DateTime.now();
     final results = <Map<String, dynamic>>[];
@@ -831,18 +978,34 @@ class DatabaseManager {
       final nextMonth = DateTime(month.year, month.month + 1, 1);
       final endDate = nextMonth.toIso8601String().substring(0, 10);
 
-      final result = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN transaction_type = 'income' THEN amount
-                                 WHEN transaction_type = 'expense' THEN -amount
-                                 ELSE 0 END), 0) as total
-        FROM transactions
-        WHERE date < ? AND user_id = ?
+      final rows = await db.rawQuery('''
+        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
+                                 WHEN t.transaction_type = 'expense' THEN -t.amount
+                                 ELSE 0 END), 0) as total,
+               COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
+        FROM transactions t
+        LEFT JOIN accounts a ON t.account_id = a.id
+        WHERE t.date < ? AND t.user_id = ?
+        GROUP BY a.currency
       ''', [endDate, _userId]);
+
+      double totalValue = 0.0;
+      for (final row in rows) {
+        final amount = (row['total'] as num?)?.toDouble() ?? 0.0;
+        final txnCurrency = (row['currency'] as String?) ?? 'EUR';
+
+        if (txnCurrency == targetCurrency) {
+          totalValue += amount;
+        } else {
+          final rate = await getExchangeRate(txnCurrency, targetCurrency);
+          totalValue += amount * (rate ?? 1.0);
+        }
+      }
 
       results.add({
         'month': month,
         'label': _getMonthLabel(month.month),
-        'value': (result.first['total'] as num?)?.toDouble() ?? 0.0,
+        'value': totalValue,
       });
     }
 
@@ -857,6 +1020,7 @@ class DatabaseManager {
 
   Future<Map<String, double>> getCurrentMonthDistribution({
     required String transactionType,
+    String targetCurrency = 'EUR',
   }) async {
     final db = await database;
     final now = DateTime.now();
@@ -867,20 +1031,31 @@ class DatabaseManager {
 
     final rows = await db.rawQuery('''
       SELECT LOWER(COALESCE(d.name, 'Uncategorized')) as category,
-             SUM(t.amount) as amount
+             SUM(t.amount) as amount,
+             COALESCE(NULLIF(t.currency, ''), 'EUR') as currency
       FROM transactions t
       LEFT JOIN descriptions d ON t.description_id = d.id
       WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-      GROUP BY category
+      GROUP BY category, t.currency
       ORDER BY amount DESC
     ''', [transactionType, startDate, endDate, _userId]);
 
     final result = <String, double>{};
     for (final row in rows) {
       final category = row['category'] as String;
-      if (!_isTransferDescription(category)) {
-        result[category] = (row['amount'] as num).toDouble();
+      if (_isTransferDescription(category)) continue;
+      final rawAmount = (row['amount'] as num).toDouble();
+      final txnCurrency = (row['currency'] as String?) ?? 'EUR';
+
+      double convertedAmount;
+      if (txnCurrency == targetCurrency) {
+        convertedAmount = rawAmount;
+      } else {
+        final rate = await getExchangeRate(txnCurrency, targetCurrency);
+        convertedAmount = rawAmount * (rate ?? 1.0);
       }
+
+      result[category] = (result[category] ?? 0) + convertedAmount;
     }
     return result;
   }

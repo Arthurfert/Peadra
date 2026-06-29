@@ -163,9 +163,7 @@ class _TransactionsViewState extends State<TransactionsView> {
         for (var j = i + 1; j < txns.length; j++) {
           if (consumed.contains(txns[j].id)) continue;
           final other = txns[j];
-          if (other.date == txn.date &&
-              other.amount == txn.amount &&
-              other.accountName == destAccountName) {
+          if (other.date == txn.date && other.accountName == destAccountName) {
             final otherDesc =
                 (other.notes ?? other.descriptionName ?? '').trim();
             if (RegExp(r'^Transfer from .+$', caseSensitive: false)
@@ -186,9 +184,7 @@ class _TransactionsViewState extends State<TransactionsView> {
         for (var j = i + 1; j < txns.length; j++) {
           if (consumed.contains(txns[j].id)) continue;
           final other = txns[j];
-          if (other.date == txn.date &&
-              other.amount == txn.amount &&
-              other.accountName == srcAccountName) {
+          if (other.date == txn.date && other.accountName == srcAccountName) {
             final otherDesc =
                 (other.notes ?? other.descriptionName ?? '').trim();
             if (RegExp(r'^Transfer to .+$', caseSensitive: false)
@@ -309,27 +305,40 @@ class _TransactionsViewState extends State<TransactionsView> {
       final destId = data['dest_id'] as int;
       final amount = data['amount'] as double;
       final date = data['date'] as String;
-      final currency = data['currency'] as String;
       final srcName = data['source_name'] as String;
       final destName = data['dest_name'] as String;
 
-      // Create paired transactions
+      // Get account currencies
+      final srcCurrency = await _db.getAccountCurrency(srcId);
+      final destCurrency = await _db.getAccountCurrency(destId);
+
+      double destAmount = amount;
+      if (srcCurrency != null && destCurrency != null && srcCurrency != destCurrency) {
+        final rate = await _db.getExchangeRate(srcCurrency, destCurrency);
+        if (rate != null) {
+          destAmount = amount * rate;
+        }
+      }
+
+      // Create source transaction (expense)
       await _db.addTransaction(
         accountId: srcId,
         date: date,
         amount: amount,
         description: 'Transfer to $destName',
         transactionType: 'expense',
-        currency: currency,
+        currency: srcCurrency,
         notes: 'Transfer to $destName',
       );
+
+      // Create destination transaction (income) with converted amount
       await _db.addTransaction(
         accountId: destId,
         date: date,
-        amount: amount,
+        amount: destAmount,
         description: 'Transfer from $srcName',
         transactionType: 'income',
-        currency: currency,
+        currency: destCurrency,
         notes: 'Transfer from $srcName',
       );
 
@@ -604,13 +613,26 @@ class _TransactionsViewState extends State<TransactionsView> {
   Widget _buildMergedTransferTile(
       _DisplayItem item, PeadraColors colors, String defaultCurrency) {
     final txn = item.transaction!;
-    final displayCurrency =
+    final pairedTxn = item.pairedTransaction;
+    final srcCurrency =
         (txn.accountCurrency != null && txn.accountCurrency!.isNotEmpty)
             ? txn.accountCurrency!
             : (txn.currency.isNotEmpty ? txn.currency : defaultCurrency);
+    final destCurrency = (pairedTxn != null &&
+            pairedTxn.accountCurrency != null &&
+            pairedTxn.accountCurrency!.isNotEmpty)
+        ? pairedTxn.accountCurrency!
+        : (pairedTxn != null && pairedTxn.currency.isNotEmpty
+            ? pairedTxn.currency
+            : defaultCurrency);
     final transferTitle = Translator.t(
       'trans_transfer_from_to',
     ).replaceAll('{source}', item.sourceName ?? '?').replaceAll('{dest}', item.destName ?? '?');
+
+    final isSameCurrency = srcCurrency == destCurrency;
+    final amountText = isSameCurrency
+        ? CurrencyService.formatAmount(txn.amount, srcCurrency)
+        : '${CurrencyService.formatAmount(txn.amount, srcCurrency)} → ${CurrencyService.formatAmount(pairedTxn?.amount ?? txn.amount, destCurrency)}';
 
     final isPhone = ResponsiveLayout.isPhone(context);
 
@@ -645,11 +667,11 @@ class _TransactionsViewState extends State<TransactionsView> {
           ),
         ),
         trailing: Text(
-          CurrencyService.formatAmount(txn.amount, displayCurrency),
+          amountText,
           style: TextStyle(
             color: colors.transferColor,
             fontWeight: FontWeight.w600,
-            fontSize: 14,
+            fontSize: isSameCurrency ? 14 : 12,
           ),
         ),
         onTap: () => _showTransactionModal(editTxn: txn),

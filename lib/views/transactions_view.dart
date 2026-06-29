@@ -29,98 +29,6 @@ class _DisplayItem {
   bool get isMergedTransfer => pairedTransaction != null;
 }
 
-class _HoverDeleteWrapper extends StatefulWidget {
-  final Widget child;
-  final VoidCallback onDelete;
-  final PeadraColors colors;
-
-  const _HoverDeleteWrapper({
-    required this.child,
-    required this.onDelete,
-    required this.colors,
-  });
-
-  @override
-  State<_HoverDeleteWrapper> createState() => _HoverDeleteWrapperState();
-}
-
-class _HoverDeleteWrapperState extends State<_HoverDeleteWrapper>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _slideAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 150),
-    );
-    _slideAnimation = Tween<double>(begin: 0, end: -56).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _onHover(bool hovering) {
-    if (hovering) {
-      _controller.forward();
-    } else {
-      _controller.reverse();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: MouseRegion(
-        onEnter: (_) => _onHover(true),
-        onExit: (_) => _onHover(false),
-        child: AnimatedBuilder(
-          animation: _controller,
-          builder: (context, child) {
-            return Stack(
-              clipBehavior: Clip.hardEdge,
-              children: [
-                Positioned.fill(
-                  child: GestureDetector(
-                    onTap: widget.onDelete,
-                    child: Opacity(
-                      opacity: _controller.value,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: widget.colors.error,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: const Align(
-                          alignment: Alignment.centerRight,
-                          child: Icon(Icons.delete, color: Colors.white, size: 24),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                Transform.translate(
-                  offset: Offset(_slideAnimation.value, 0),
-                  child: child,
-                ),
-              ],
-            );
-          },
-          child: widget.child,
-        ),
-      ),
-    );
-  }
-}
-
 class TransactionsView extends StatefulWidget {
   const TransactionsView({super.key});
 
@@ -405,6 +313,176 @@ class _TransactionsViewState extends State<TransactionsView> {
     }
   }
 
+  void _showTransactionPreview(TransactionWithDetails txn, {TransactionWithDetails? pairedTxn}) async {
+    final themeName = context.read<ThemeProvider>().themeName;
+    final colors = PeadraTheme.getColors(themeName);
+    final currency = context.read<SettingsProvider>().currency;
+    final displayCurrency =
+        (txn.accountCurrency != null && txn.accountCurrency!.isNotEmpty)
+            ? txn.accountCurrency!
+            : (txn.currency.isNotEmpty ? txn.currency : currency);
+
+    final isIncome = txn.transactionType == 'income';
+    final isTransfer = txn.transactionType == 'transfer';
+    final bgColor = isIncome
+        ? colors.incomeBg
+        : isTransfer
+            ? colors.transferBg
+            : colors.expenseBg;
+    final iconColor = isIncome
+        ? colors.incomeIcon
+        : isTransfer
+            ? colors.transferIcon
+            : colors.expenseIcon;
+    final icon = isIncome
+        ? Icons.arrow_downward
+        : isTransfer
+            ? Icons.swap_horiz
+            : Icons.arrow_upward;
+    final sign = isIncome ? '+' : isTransfer ? '' : '-';
+
+    final title = pairedTxn != null
+        ? Translator.t('trans_transfer_from_to')
+            .replaceAll('{source}', txn.accountName ?? '?')
+            .replaceAll('{dest}', pairedTxn.accountName ?? '?')
+        : (txn.descriptionName ?? '-');
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: colors.surface,
+        contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        content: SizedBox(
+          width: 400,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: bgColor,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(icon, color: iconColor, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        color: colors.text,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              _previewRow(Translator.t('trans_account'), txn.accountName ?? '-', colors),
+              _previewRow(
+                Translator.t('trans_type'),
+                isIncome
+                    ? Translator.t('trans_income')
+                    : isTransfer
+                        ? Translator.t('trans_transfer')
+                        : Translator.t('trans_expense'),
+                colors,
+              ),
+              _previewRow(Translator.t('trans_date'), txn.date, colors),
+              _previewRow(
+                Translator.t('trans_amount'),
+                '$sign${CurrencyService.formatAmount(txn.amount, displayCurrency)}',
+                colors,
+                valueColor: isIncome
+                    ? colors.success
+                    : isTransfer
+                        ? colors.transferColor
+                        : colors.error,
+              ),
+              if (pairedTxn != null) ...[
+                _previewRow(
+                  '${Translator.t('trans_amount')} (${pairedTxn.accountName ?? '-'})',
+                  '+${CurrencyService.formatAmount(pairedTxn.amount, displayCurrency)}',
+                  colors,
+                  valueColor: colors.success,
+                ),
+              ],
+              if (txn.notes != null && txn.notes!.isNotEmpty)
+                _previewRow(Translator.t('trans_notes'), txn.notes!, colors),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(Translator.t('btn_cancel')),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _deleteTransaction(txn);
+              if (pairedTxn != null) {
+                await _db.deleteTransaction(pairedTxn.id!);
+              }
+              _loadTransactions();
+            },
+            child: Text(Translator.t('btn_delete'),
+                style: TextStyle(color: colors.error)),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _showTransactionModal(editTxn: txn);
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: colors.accent,
+            ),
+            child: Text(Translator.t('btn_edit')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _previewRow(String label, String value, PeadraColors colors, {Color? valueColor}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: TextStyle(
+                color: colors.placeholderColor,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                color: valueColor ?? colors.text,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeName = context.watch<ThemeProvider>().themeName;
@@ -573,11 +651,13 @@ class _TransactionsViewState extends State<TransactionsView> {
             fontSize: 14,
           ),
         ),
-        onTap: () => _showTransactionModal(editTxn: txn),
+        onTap: isPhone
+            ? () => _showTransactionModal(editTxn: txn)
+            : () => _showTransactionPreview(txn),
       ),
     );
 
-    if (ResponsiveLayout.isPhone(context)) {
+    if (isPhone) {
       return Dismissible(
         key: ValueKey(txn.id),
         direction: DismissDirection.endToStart,
@@ -600,12 +680,8 @@ class _TransactionsViewState extends State<TransactionsView> {
       );
     }
 
-    return _HoverDeleteWrapper(
-      onDelete: () async {
-        await _deleteTransaction(txn);
-        _loadTransactions();
-      },
-      colors: colors,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
       child: card,
     );
   }
@@ -674,11 +750,13 @@ class _TransactionsViewState extends State<TransactionsView> {
             fontSize: isSameCurrency ? 14 : 12,
           ),
         ),
-        onTap: () => _showTransactionModal(editTxn: txn),
+        onTap: isPhone
+            ? () => _showTransactionModal(editTxn: txn)
+            : () => _showTransactionPreview(txn, pairedTxn: pairedTxn),
       ),
     );
 
-    if (ResponsiveLayout.isPhone(context)) {
+    if (isPhone) {
       return Dismissible(
         key: ValueKey('transfer-${txn.id}'),
         direction: DismissDirection.endToStart,
@@ -704,15 +782,8 @@ class _TransactionsViewState extends State<TransactionsView> {
       );
     }
 
-    return _HoverDeleteWrapper(
-      onDelete: () async {
-        await _deleteTransaction(txn);
-        if (item.pairedTransaction != null) {
-          await _db.deleteTransaction(item.pairedTransaction!.id!);
-        }
-        _loadTransactions();
-      },
-      colors: colors,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
       child: card,
     );
   }

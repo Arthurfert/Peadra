@@ -73,6 +73,20 @@ class _DashboardViewState extends State<DashboardView> {
     }
   }
 
+  Future<void> _loadChartData() async {
+    final results = await Future.wait([
+      _db.getCashFlowData(months: _selectedMonths),
+      _db.getAssetsHistory(months: _selectedMonths),
+    ]);
+
+    if (mounted) {
+      setState(() {
+        _cashFlowData = results[0] as List<Map<String, dynamic>>;
+        _assetsHistory = results[1] as List<Map<String, dynamic>>;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeName = context.watch<ThemeProvider>().themeName;
@@ -373,9 +387,8 @@ class _DashboardViewState extends State<DashboardView> {
             onTap: () {
               setState(() {
                 _selectedMonths = option['value'] as int;
-                _loading = true;
               });
-              _loadData();
+              _loadChartData();
             },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -649,12 +662,26 @@ class _DashboardViewState extends State<DashboardView> {
       );
     }
 
+    final firstValue = _assetsHistory.first['value'] as double;
+    int startIndex = 0;
+    for (int i = 1; i < _assetsHistory.length; i++) {
+      if ((_assetsHistory[i]['value'] as double) != firstValue) {
+        startIndex = i > 0 ? i - 1 : 0;
+        break;
+      }
+      if (i == _assetsHistory.length - 1) {
+        startIndex = 0;
+      }
+    }
+
+    final trimmedHistory = _assetsHistory.sublist(startIndex);
+
     final spots = <FlSpot>[];
     final labels = <String>[];
 
-    for (int i = 0; i < _assetsHistory.length; i++) {
-      spots.add(FlSpot(i.toDouble(), _assetsHistory[i]['value'] as double));
-      labels.add(_assetsHistory[i]['label'] as String);
+    for (int i = 0; i < trimmedHistory.length; i++) {
+      spots.add(FlSpot(i.toDouble(), trimmedHistory[i]['value'] as double));
+      labels.add(trimmedHistory[i]['label'] as String);
     }
 
     double minY = spots.first.y;
@@ -677,6 +704,8 @@ class _DashboardViewState extends State<DashboardView> {
 
     return LineChart(
       LineChartData(
+        minX: 0,
+        maxX: (spots.length - 1).toDouble(),
         minY: minY,
         maxY: maxY,
         lineTouchData: LineTouchData(

@@ -10,6 +10,7 @@ class CategoryPieChart extends StatefulWidget {
   final PeadraColors colors;
   final String title;
   final String currency;
+  final int maxCategories;
 
   const CategoryPieChart({
     super.key,
@@ -17,6 +18,7 @@ class CategoryPieChart extends StatefulWidget {
     required this.colors,
     this.title = '',
     this.currency = 'EUR',
+    this.maxCategories = 5,
   });
 
   @override
@@ -55,11 +57,15 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
       const Color(0xFF607D8B),
     ];
 
+    final sortedData = List<Map<String, dynamic>>.from(widget.data)
+      ..sort((a, b) => (b['amount'] as double).compareTo(a['amount'] as double));
+
     final processedData = <Map<String, dynamic>>[];
     double otherAmount = 0;
-    for (final d in widget.data) {
+    for (int i = 0; i < sortedData.length; i++) {
+      final d = sortedData[i];
       final amount = d['amount'] as double;
-      if (amount / total >= 0.03) {
+      if (i < widget.maxCategories) {
         processedData.add(d);
       } else {
         otherAmount += amount;
@@ -144,7 +150,7 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     for (int i = 0;
-                        i < processedData.length && i < 8;
+                        i < processedData.length && i < widget.maxCategories + 1;
                         i++) ...[
                       _legendItem(
                         color: processedData[i].containsKey('color') && processedData[i]['color'] != null

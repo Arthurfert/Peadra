@@ -72,6 +72,27 @@ class AuthService {
     return results.first['username'] as String;
   }
 
+  Future<bool> updatePassword(int userId, String oldPassword, String newPassword) async {
+    if (newPassword.isEmpty) {
+      throw ArgumentError('New password cannot be empty.');
+    }
+    final db = await _db.database;
+    final rows = await db.rawQuery(
+      'SELECT password_hash FROM users WHERE id = ?',
+      [userId],
+    );
+    if (rows.isEmpty) return false;
+    if (!verifyPassword(oldPassword, rows.first['password_hash'] as String)) {
+      throw ArgumentError('Old password is incorrect.');
+    }
+    final newHash = hashPassword(newPassword);
+    final count = await db.rawUpdate(
+      'UPDATE users SET password_hash = ? WHERE id = ?',
+      [newHash, userId],
+    );
+    return count > 0;
+  }
+
   Future<bool> updateUsername(int userId, String newUsername) async {
     if (newUsername.trim().isEmpty) {
       throw ArgumentError('Username cannot be empty.');

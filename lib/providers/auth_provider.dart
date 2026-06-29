@@ -18,6 +18,11 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setUsername(String username) {
+    _username = username;
+    notifyListeners();
+  }
+
   void logout(DatabaseManager db) {
     _userId = null;
     _username = '';

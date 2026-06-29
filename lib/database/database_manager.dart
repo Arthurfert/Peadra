@@ -704,23 +704,40 @@ class DatabaseManager {
     return {'income': income, 'expenses': expenses, 'balance': income - expenses};
   }
 
-  Future<Map<String, double>> getRollingSummary({int days = 30}) async {
+  Future<Map<String, double>> getRollingSummary({int days = 30, String targetCurrency = 'EUR'}) async {
     final now = DateTime.now();
     final endDate = now.toIso8601String().substring(0, 10);
     final startDate = now.subtract(Duration(days: days)).toIso8601String().substring(0, 10);
 
     final db = await database;
-    final result = await db.rawQuery('''
+    final rows = await db.rawQuery('''
       SELECT
-        COALESCE(SUM(CASE WHEN transaction_type = 'income' THEN amount ELSE 0 END), 0) as income,
-        COALESCE(SUM(CASE WHEN transaction_type = 'expense' THEN amount ELSE 0 END), 0) as expenses
+        COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount ELSE 0 END), 0) as income,
+        COALESCE(SUM(CASE WHEN t.transaction_type = 'expense' THEN t.amount ELSE 0 END), 0) as expenses,
+        COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
       FROM transactions t
       LEFT JOIN accounts a ON t.account_id = a.id
       WHERE (t.date >= ? AND t.date <= ?) AND (a.type = 'checking' OR t.account_id IS NULL) AND t.user_id = ?
+      GROUP BY a.currency
     ''', [startDate, endDate, _userId]);
 
-    final income = (result.first['income'] as num?)?.toDouble() ?? 0.0;
-    final expenses = (result.first['expenses'] as num?)?.toDouble() ?? 0.0;
+    double income = 0.0;
+    double expenses = 0.0;
+    for (final row in rows) {
+      final txnIncome = (row['income'] as num?)?.toDouble() ?? 0.0;
+      final txnExpenses = (row['expenses'] as num?)?.toDouble() ?? 0.0;
+      final txnCurrency = (row['currency'] as String?) ?? 'EUR';
+
+      if (txnCurrency == targetCurrency) {
+        income += txnIncome;
+        expenses += txnExpenses;
+      } else {
+        final rate = await getExchangeRate(txnCurrency, targetCurrency);
+        final factor = rate ?? 1.0;
+        income += txnIncome * factor;
+        expenses += txnExpenses * factor;
+      }
+    }
     return {'income': income, 'expenses': expenses, 'balance': income - expenses};
   }
 
@@ -1028,6 +1045,47 @@ class DatabaseManager {
         .toIso8601String()
         .substring(0, 10);
     final endDate = now.toIso8601String().substring(0, 10);
+
+    final rows = await db.rawQuery('''
+      SELECT LOWER(COALESCE(d.name, 'Uncategorized')) as category,
+             SUM(t.amount) as amount,
+             COALESCE(NULLIF(t.currency, ''), 'EUR') as currency
+      FROM transactions t
+      LEFT JOIN descriptions d ON t.description_id = d.id
+      WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
+      GROUP BY category, t.currency
+      ORDER BY amount DESC
+    ''', [transactionType, startDate, endDate, _userId]);
+
+    final result = <String, double>{};
+    for (final row in rows) {
+      final category = row['category'] as String;
+      if (_isTransferDescription(category)) continue;
+      final rawAmount = (row['amount'] as num).toDouble();
+      final txnCurrency = (row['currency'] as String?) ?? 'EUR';
+
+      double convertedAmount;
+      if (txnCurrency == targetCurrency) {
+        convertedAmount = rawAmount;
+      } else {
+        final rate = await getExchangeRate(txnCurrency, targetCurrency);
+        convertedAmount = rawAmount * (rate ?? 1.0);
+      }
+
+      result[category] = (result[category] ?? 0) + convertedAmount;
+    }
+    return result;
+  }
+
+  Future<Map<String, double>> getRollingMonthDistribution({
+    required String transactionType,
+    int days = 30,
+    String targetCurrency = 'EUR',
+  }) async {
+    final db = await database;
+    final now = DateTime.now();
+    final endDate = now.toIso8601String().substring(0, 10);
+    final startDate = now.subtract(Duration(days: days)).toIso8601String().substring(0, 10);
 
     final rows = await db.rawQuery('''
       SELECT LOWER(COALESCE(d.name, 'Uncategorized')) as category,

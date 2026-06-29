@@ -517,7 +517,9 @@ class _TransactionsViewState extends State<TransactionsView> {
     final sign = isIncome ? '+' : isTransfer ? '' : '-';
 
     final displayCurrency =
-        txn.currency.isNotEmpty ? txn.currency : defaultCurrency;
+        (txn.accountCurrency != null && txn.accountCurrency!.isNotEmpty)
+            ? txn.accountCurrency!
+            : (txn.currency.isNotEmpty ? txn.currency : defaultCurrency);
     final isPhone = ResponsiveLayout.isPhone(context);
 
     final card = Card(
@@ -603,7 +605,9 @@ class _TransactionsViewState extends State<TransactionsView> {
       _DisplayItem item, PeadraColors colors, String defaultCurrency) {
     final txn = item.transaction!;
     final displayCurrency =
-        txn.currency.isNotEmpty ? txn.currency : defaultCurrency;
+        (txn.accountCurrency != null && txn.accountCurrency!.isNotEmpty)
+            ? txn.accountCurrency!
+            : (txn.currency.isNotEmpty ? txn.currency : defaultCurrency);
     final transferTitle = Translator.t(
       'trans_transfer_from_to',
     ).replaceAll('{source}', item.sourceName ?? '?').replaceAll('{dest}', item.destName ?? '?');

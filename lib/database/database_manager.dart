@@ -826,7 +826,7 @@ class DatabaseManager {
     final now = DateTime.now();
     final results = <Map<String, dynamic>>[];
 
-    for (int i = months - 1; i >= 0; i--) {
+    for (int i = months; i >= 1; i--) {
       final month = DateTime(now.year, now.month - i + 1, 1);
       final nextMonth = DateTime(month.year, month.month + 1, 1);
       final endDate = nextMonth.toIso8601String().substring(0, 10);

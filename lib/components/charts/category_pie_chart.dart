@@ -71,7 +71,9 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
     for (int i = 0; i < processedData.length; i++) {
       final d = processedData[i];
       final amount = d['amount'] as double;
-      final color = chartColors[i % chartColors.length];
+      final color = d.containsKey('color') && d['color'] != null
+          ? PeadraTheme.hexToColor(d['color'] as String)
+          : chartColors[i % chartColors.length];
       final isTouched = _touchedIndex == i;
       final radius = isTouched ? 55.0 : 45.0;
 
@@ -140,7 +142,9 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
                         i < processedData.length && i < 8;
                         i++) ...[
                       _legendItem(
-                        color: chartColors[i % chartColors.length],
+                        color: processedData[i].containsKey('color') && processedData[i]['color'] != null
+                            ? PeadraTheme.hexToColor(processedData[i]['color'] as String)
+                            : chartColors[i % chartColors.length],
                         label: processedData[i]['label'] ?? '',
                         amount: processedData[i]['amount'] as double,
                         pct: (processedData[i]['amount'] as double) /

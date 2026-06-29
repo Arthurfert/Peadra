@@ -800,6 +800,7 @@ class _DashboardViewState extends State<DashboardView> {
     final pieData = _accountsDistribution.map((a) => {
       'label': a['name'] as String,
       'amount': (a['value'] as num).toDouble(),
+      'color': a['color'] as String,
     }).toList();
 
     return Card(

@@ -207,54 +207,80 @@ class _AccountsViewState extends State<AccountsView> {
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: colors.surface,
-        title: Text(Translator.t('acc_add_account'),
-            style: TextStyle(color: colors.text)),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameCtrl,
-                decoration: InputDecoration(
-                  labelText: Translator.t('acc_name'),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: colors.surface,
+          title: Text(Translator.t('acc_add_account'),
+              style: TextStyle(color: colors.text)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  decoration: InputDecoration(
+                    labelText: Translator.t('acc_name'),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: type,
-                decoration: InputDecoration(
-                  labelText: Translator.t('acc_type'),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: type,
+                  decoration: InputDecoration(
+                    labelText: Translator.t('acc_type'),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  items: [
+                    DropdownMenuItem(value: 'checking', child: Text(Translator.t('acc_checking'))),
+                    DropdownMenuItem(value: 'savings', child: Text(Translator.t('acc_savings'))),
+                  ],
+                  onChanged: (v) => setDialogState(() => type = v ?? 'savings'),
                 ),
-                items: [
-                  DropdownMenuItem(value: 'checking', child: Text(Translator.t('acc_checking'))),
-                  DropdownMenuItem(value: 'savings', child: Text(Translator.t('acc_savings'))),
-                ],
-                onChanged: (v) => type = v ?? 'savings',
-              ),
-            ],
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: currency,
+                  decoration: InputDecoration(
+                    labelText: Translator.t('acc_currency'),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  items: CurrencyService.allCodes
+                      .take(10)
+                      .map((c) => DropdownMenuItem(
+                            value: c,
+                            child: Text('$c ${CurrencyService.getSymbol(c)}'),
+                          ))
+                      .toList(),
+                  onChanged: (v) => setDialogState(() => currency = v ?? 'EUR'),
+                ),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(Translator.t('acc_color'),
+                      style: TextStyle(color: colors.text, fontSize: 12)),
+                ),
+                const SizedBox(height: 8),
+                _buildColorPicker(color, (c) => setDialogState(() => color = c)),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(Translator.t('btn_cancel')),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (nameCtrl.text.trim().isEmpty) return;
+                await _db.addAccount(nameCtrl.text.trim(), color, type, currency);
+                Navigator.pop(ctx);
+                _loadAccounts();
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
+              child: Text(Translator.t('btn_save'),
+                  style: const TextStyle(color: Colors.white)),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(Translator.t('btn_cancel')),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (nameCtrl.text.trim().isEmpty) return;
-              await _db.addAccount(nameCtrl.text.trim(), color, type, currency);
-              Navigator.pop(ctx);
-              _loadAccounts();
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
-            child: Text(Translator.t('btn_save'),
-                style: const TextStyle(color: Colors.white)),
-          ),
-        ],
       ),
     );
   }
@@ -263,63 +289,91 @@ class _AccountsViewState extends State<AccountsView> {
     final nameCtrl = TextEditingController(text: acct.name);
     String type = acct.type;
     String color = acct.color;
+    String currency = acct.currency.isNotEmpty ? acct.currency : context.read<SettingsProvider>().currency;
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: colors.surface,
-        title: Text(Translator.t('acc_edit_account'),
-            style: TextStyle(color: colors.text)),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameCtrl,
-                decoration: InputDecoration(
-                  labelText: Translator.t('acc_name'),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: colors.surface,
+          title: Text(Translator.t('acc_edit_account'),
+              style: TextStyle(color: colors.text)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  decoration: InputDecoration(
+                    labelText: Translator.t('acc_name'),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: type,
-                decoration: InputDecoration(
-                  labelText: Translator.t('acc_type'),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: type,
+                  decoration: InputDecoration(
+                    labelText: Translator.t('acc_type'),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  items: [
+                    DropdownMenuItem(value: 'checking', child: Text(Translator.t('acc_checking'))),
+                    DropdownMenuItem(value: 'savings', child: Text(Translator.t('acc_savings'))),
+                  ],
+                  onChanged: (v) => setDialogState(() => type = v ?? acct.type),
                 ),
-                items: [
-                  DropdownMenuItem(value: 'checking', child: Text(Translator.t('acc_checking'))),
-                  DropdownMenuItem(value: 'savings', child: Text(Translator.t('acc_savings'))),
-                ],
-                onChanged: (v) => type = v ?? acct.type,
-              ),
-            ],
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: currency,
+                  decoration: InputDecoration(
+                    labelText: Translator.t('acc_currency'),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  items: CurrencyService.allCodes
+                      .take(10)
+                      .map((c) => DropdownMenuItem(
+                            value: c,
+                            child: Text('$c ${CurrencyService.getSymbol(c)}'),
+                          ))
+                      .toList(),
+                  onChanged: (v) => setDialogState(() => currency = v ?? 'EUR'),
+                ),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(Translator.t('acc_color'),
+                      style: TextStyle(color: colors.text, fontSize: 12)),
+                ),
+                const SizedBox(height: 8),
+                _buildColorPicker(color, (c) => setDialogState(() => color = c)),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(Translator.t('btn_cancel')),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (nameCtrl.text.trim().isEmpty) return;
+                await _db.updateAccount(
+                  acct.id!,
+                  nameCtrl.text.trim(),
+                  color,
+                  type: type,
+                  currency: currency,
+                  updateNameInTransactions: true,
+                );
+                Navigator.pop(ctx);
+                _loadAccounts();
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
+              child: Text(Translator.t('btn_save'),
+                  style: const TextStyle(color: Colors.white)),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(Translator.t('btn_cancel')),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (nameCtrl.text.trim().isEmpty) return;
-              await _db.updateAccount(
-                acct.id!,
-                nameCtrl.text.trim(),
-                color,
-                type: type,
-                updateNameInTransactions: true,
-              );
-              Navigator.pop(ctx);
-              _loadAccounts();
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
-            child: Text(Translator.t('btn_save'),
-                style: const TextStyle(color: Colors.white)),
-          ),
-        ],
       ),
     );
   }
@@ -351,6 +405,66 @@ class _AccountsViewState extends State<AccountsView> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildColorPicker(String currentColor, Function(String) onColorSelected) {
+    final presetColors = [
+      '#F44336',
+      '#E91E63',
+      '#9C27B0',
+      '#673AB7',
+      '#3F51B5',
+      '#2196F3',
+      '#03A9F4',
+      '#00BCD4',
+      '#009688',
+      '#4CAF50',
+      '#8BC34A',
+      '#CDDC39',
+      '#FFEB3B',
+      '#FFC107',
+      '#FF9800',
+      '#FF5722',
+      '#795548',
+      '#9E9E9E',
+      '#607D8B',
+      '#1976D2',
+    ];
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: presetColors.map((hex) {
+        final isSelected = hex == currentColor;
+        return GestureDetector(
+          onTap: () => onColorSelected(hex),
+          child: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: PeadraTheme.hexToColor(hex),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: isSelected ? Colors.white : Colors.transparent,
+                width: 3,
+              ),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: PeadraTheme.hexToColor(hex).withValues(alpha: 0.6),
+                        blurRadius: 8,
+                        spreadRadius: 1,
+                      )
+                    ]
+                  : null,
+            ),
+            child: isSelected
+                ? const Icon(Icons.check, color: Colors.white, size: 18)
+                : null,
+          ),
+        );
+      }).toList(),
     );
   }
 }

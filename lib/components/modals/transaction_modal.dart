@@ -41,8 +41,6 @@ class _TransactionModalState extends State<TransactionModal> {
   final _descController = TextEditingController();
   final _amountController = TextEditingController();
   final _notesController = TextEditingController();
-  final _recurringIntervalController = TextEditingController(text: '1');
-  final _recurringEndDateController = TextEditingController();
   final _newAccountController = TextEditingController();
 
   String _transactionType = 'expense';
@@ -50,8 +48,6 @@ class _TransactionModalState extends State<TransactionModal> {
   int? _sourceAccountId;
   int? _destAccountId;
   String _selectedCurrency = 'EUR';
-  bool _isRecurring = false;
-  String _recurringFrequency = 'monthly';
   List<String> _suggestions = [];
   bool _showSuggestions = false;
 
@@ -88,8 +84,6 @@ class _TransactionModalState extends State<TransactionModal> {
     _descController.dispose();
     _amountController.dispose();
     _notesController.dispose();
-    _recurringIntervalController.dispose();
-    _recurringEndDateController.dispose();
     _newAccountController.dispose();
     super.dispose();
   }
@@ -166,15 +160,6 @@ class _TransactionModalState extends State<TransactionModal> {
           : null,
       'currency': _selectedCurrency,
     };
-
-    if (_isRecurring) {
-      data['is_recurring'] = true;
-      data['frequency'] = _recurringFrequency;
-      data['interval'] = int.tryParse(_recurringIntervalController.text) ?? 1;
-      data['end_date'] = _recurringEndDateController.text.isNotEmpty
-          ? _recurringEndDateController.text
-          : null;
-    }
 
     if (_transactionType == 'transfer') {
       data['source_id'] = _sourceAccountId;
@@ -266,10 +251,6 @@ class _TransactionModalState extends State<TransactionModal> {
 
           // Notes
           _buildNotesField(colors),
-          const SizedBox(height: 12),
-
-          // Recurring toggle
-          _buildRecurringSection(colors),
         ],
       ),
     );
@@ -508,84 +489,4 @@ class _TransactionModalState extends State<TransactionModal> {
     );
   }
 
-  Widget _buildRecurringSection(PeadraColors colors) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SwitchListTile(
-          title: Text(Translator.t('trans_recurring'),
-              style: TextStyle(color: colors.text)),
-          value: _isRecurring,
-          onChanged: (v) => setState(() => _isRecurring = v),
-          activeThumbColor: colors.accent,
-          contentPadding: EdgeInsets.zero,
-        ),
-        if (_isRecurring) ...[
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _recurringIntervalController,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: Translator.t('trans_every'),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                    filled: true,
-                    fillColor: colors.bg,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 2,
-                child: DropdownButtonFormField<String>(
-                  initialValue: _recurringFrequency,
-                  isExpanded: true,
-                  decoration: InputDecoration(
-                    labelText: Translator.t('trans_frequency_label'),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                    filled: true,
-                    fillColor: colors.bg,
-                  ),
-                  items: [
-                    DropdownMenuItem(
-                        value: 'daily',
-                        child: Text(Translator.t('freq_daily'))),
-                    DropdownMenuItem(
-                        value: 'weekly',
-                        child: Text(Translator.t('freq_weekly'))),
-                    DropdownMenuItem(
-                        value: 'monthly',
-                        child: Text(Translator.t('freq_monthly'))),
-                    DropdownMenuItem(
-                        value: 'yearly',
-                        child: Text(Translator.t('freq_yearly'))),
-                  ],
-                  onChanged: (v) =>
-                      setState(() => _recurringFrequency = v ?? 'monthly'),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _recurringEndDateController,
-            readOnly: true,
-            onTap: () => _pickDate(_recurringEndDateController),
-            decoration: InputDecoration(
-              labelText: Translator.t('trans_end_date'),
-              suffixIcon:
-                  Icon(Icons.calendar_today, color: colors.placeholderColor),
-              border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10)),
-              filled: true,
-              fillColor: colors.bg,
-            ),
-          ),
-        ],
-      ],
-    );
-  }
 }

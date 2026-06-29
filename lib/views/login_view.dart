@@ -166,7 +166,6 @@ class _LoginViewState extends State<LoginView> {
 
     await _db.setAppSetting('last_username', username);
 
-    _db.processRecurringTransactions();
     _db.fetchExchangeRates();
 
     Navigator.of(context).pushReplacement(

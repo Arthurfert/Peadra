@@ -13,7 +13,7 @@ import 'login_view.dart';
 import 'dashboard_view.dart';
 import 'transactions_view.dart';
 import 'accounts_view.dart';
-import 'subscriptions_view.dart';
+
 import 'categories_view.dart';
 import 'parameters_view.dart';
 
@@ -32,7 +32,6 @@ class _DashboardShellState extends State<DashboardShell> {
     DashboardView(),
     TransactionsView(),
     AccountsView(),
-    SubscriptionsView(),
     CategoriesView(),
   ];
 
@@ -156,7 +155,6 @@ class _DashboardShellState extends State<DashboardShell> {
       (Icons.dashboard_outlined, Icons.dashboard, Translator.t('nav_dashboard')),
       (Icons.receipt_long_outlined, Icons.receipt_long, Translator.t('nav_transactions')),
       (Icons.account_balance_wallet_outlined, Icons.account_balance_wallet, Translator.t('nav_accounts')),
-      (Icons.calendar_month_outlined, Icons.calendar_month, Translator.t('nav_subscriptions')),
       (Icons.bubble_chart_outlined, Icons.bubble_chart, Translator.t('nav_categories')),
     ];
 
@@ -329,7 +327,7 @@ class _DashboardShellState extends State<DashboardShell> {
         border: Border(top: BorderSide(color: colors.borderColor)),
       ),
       child: BottomNavigationBar(
-        currentIndex: _selectedIndex.clamp(0, 4),
+        currentIndex: _selectedIndex.clamp(0, 3),
         onTap: _onNavTap,
         type: BottomNavigationBarType.fixed,
         backgroundColor: colors.surface,
@@ -352,11 +350,6 @@ class _DashboardShellState extends State<DashboardShell> {
             icon: const Icon(Icons.account_balance_wallet_outlined),
             activeIcon: const Icon(Icons.account_balance_wallet),
             label: Translator.t('nav_accounts'),
-          ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.calendar_month_outlined),
-            activeIcon: const Icon(Icons.calendar_month),
-            label: Translator.t('nav_subscriptions'),
           ),
           BottomNavigationBarItem(
             icon: const Icon(Icons.bubble_chart_outlined),

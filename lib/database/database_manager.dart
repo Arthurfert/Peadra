@@ -9,7 +9,7 @@ import 'package:sqflite/sqflite.dart';
 import '../models/account.dart';
 import '../models/description.dart';
 import '../models/transaction.dart';
-import '../models/recurring_transaction.dart';
+
 import '../utils/constants.dart';
 import '../services/currency_service.dart';
 import '../services/auth_service.dart';
@@ -97,26 +97,6 @@ class DatabaseManager {
         FOREIGN KEY (user_id) REFERENCES users(id),
         FOREIGN KEY (account_id) REFERENCES accounts(id),
         FOREIGN KEY (description_id) REFERENCES descriptions(id)
-      )
-    ''');
-
-    await db.execute('''
-      CREATE TABLE recurring_transactions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        description TEXT NOT NULL,
-        amount REAL NOT NULL,
-        account_id INTEGER,
-        transaction_type TEXT NOT NULL CHECK(transaction_type IN ('income', 'expense', 'transfer')),
-        frequency TEXT NOT NULL CHECK(frequency IN ('daily', 'weekly', 'monthly', 'yearly')),
-        interval INTEGER DEFAULT 1,
-        start_date DATE NOT NULL,
-        next_due_date DATE NOT NULL,
-        end_date DATE,
-        last_generated DATE,
-        active BOOLEAN DEFAULT 1,
-        FOREIGN KEY (user_id) REFERENCES users(id),
-        FOREIGN KEY (account_id) REFERENCES accounts(id)
       )
     ''');
 
@@ -513,173 +493,6 @@ class DatabaseManager {
       [_userId],
     );
     return result.first['MIN(date)'] as String?;
-  }
-
-  // ==================== RECURRING TRANSACTIONS ====================
-
-  Future<int?> addRecurringTransaction({
-    required String description,
-    required double amount,
-    required String transactionType,
-    required String frequency,
-    required String startDate,
-    int interval = 1,
-    int? accountId,
-    String? endDate,
-    String? nextDueDate,
-  }) async {
-    final db = await database;
-    return await db.insert('recurring_transactions', {
-      'user_id': _userId,
-      'description': description,
-      'amount': amount,
-      'transaction_type': transactionType,
-      'frequency': frequency,
-      'interval': interval,
-      'start_date': startDate,
-      'next_due_date': nextDueDate ?? startDate,
-      'end_date': endDate,
-      'account_id': accountId,
-    });
-  }
-
-  Future<bool> updateRecurringTransaction({
-    required int id,
-    required String description,
-    required double amount,
-    required String transactionType,
-    required String frequency,
-    required String startDate,
-    int interval = 1,
-    int? accountId,
-    String? endDate,
-  }) async {
-    final db = await database;
-    final count = await db.update(
-      'recurring_transactions',
-      {
-        'description': description,
-        'amount': amount,
-        'transaction_type': transactionType,
-        'frequency': frequency,
-        'interval': interval,
-        'start_date': startDate,
-        'account_id': accountId,
-        'end_date': endDate,
-      },
-      where: 'id = ? AND user_id = ?',
-      whereArgs: [id, _userId],
-    );
-    return count > 0;
-  }
-
-  Future<bool> deleteRecurringTransaction(int id) async {
-    final db = await database;
-    final count = await db.delete(
-      'recurring_transactions',
-      where: 'id = ? AND user_id = ?',
-      whereArgs: [id, _userId],
-    );
-    return count > 0;
-  }
-
-  Future<List<RecurringTransaction>> getRecurringTransactions({DateTime? displayMonth}) async {
-    final db = await database;
-    List<Map<String, dynamic>> rows;
-
-    if (displayMonth == null) {
-      rows = await db.query(
-        'recurring_transactions',
-        where: 'active = 1 AND user_id = ?',
-        whereArgs: [_userId],
-      );
-    } else {
-      final firstDay = DateTime(displayMonth.year, displayMonth.month, 1)
-          .toIso8601String()
-          .substring(0, 10);
-      rows = await db.rawQuery('''
-        SELECT * FROM recurring_transactions
-        WHERE user_id = ? AND (active = 1 OR (end_date IS NOT NULL AND end_date >= ?))
-      ''', [_userId, firstDay]);
-    }
-
-    return rows.map((r) => RecurringTransaction.fromMap(r)).toList();
-  }
-
-  Future<void> processRecurringTransactions() async {
-    final db = await database;
-    final today = DateTime.now();
-    final todayStr = today.toIso8601String().substring(0, 10);
-
-    final rows = await db.rawQuery(
-      'SELECT * FROM recurring_transactions WHERE active = 1 AND next_due_date <= ? AND user_id = ?',
-      [todayStr, _userId],
-    );
-
-    for (final rtRow in rows) {
-      var currentDue = DateTime.parse(rtRow['next_due_date'] as String);
-
-      while (!currentDue.isAfter(today)) {
-        if (rtRow['end_date'] != null) {
-          final endDate = DateTime.parse(rtRow['end_date'] as String);
-          if (currentDue.isAfter(endDate)) {
-            await db.rawUpdate(
-              'UPDATE recurring_transactions SET active = 0 WHERE id = ?',
-              [rtRow['id']],
-            );
-            break;
-          }
-        }
-
-        await addTransaction(
-          date: currentDue.toIso8601String().substring(0, 10),
-          description: rtRow['description'] as String,
-          amount: (rtRow['amount'] as num).toDouble(),
-          transactionType: rtRow['transaction_type'] as String,
-          accountId: rtRow['account_id'] as int?,
-          notes: 'Frequency: ${rtRow['frequency']}\nStart: ${rtRow['start_date']}\nNext Due: ${rtRow['next_due_date']}',
-        );
-
-        final nextDate = _calculateNextDate(
-          currentDue,
-          rtRow['frequency'] as String,
-          rtRow['interval'] as int,
-        );
-
-        await db.rawUpdate(
-          'UPDATE recurring_transactions SET last_generated = ?, next_due_date = ? WHERE id = ?',
-          [currentDue.toIso8601String().substring(0, 10),
-           nextDate.toIso8601String().substring(0, 10),
-           rtRow['id']],
-        );
-
-        currentDue = nextDate;
-      }
-    }
-  }
-
-  DateTime _calculateNextDate(DateTime current, String frequency, int interval) {
-    switch (frequency) {
-      case 'daily':
-        return current.add(Duration(days: interval));
-      case 'weekly':
-        return current.add(Duration(days: 7 * interval));
-      case 'monthly':
-        var newMonth = current.month + interval;
-        var newYear = current.year + (newMonth - 1) ~/ 12;
-        newMonth = (newMonth - 1) % 12 + 1;
-        final lastDay = DateTime(newYear, newMonth + 1, 0).day;
-        final newDay = current.day < lastDay ? current.day : lastDay;
-        return DateTime(newYear, newMonth, newDay);
-      case 'yearly':
-        try {
-          return DateTime(current.year + interval, current.month, current.day);
-        } catch (_) {
-          return DateTime(current.year + interval, 2, 28);
-        }
-      default:
-        return current;
-    }
   }
 
   // ==================== STATISTICS ====================
@@ -1257,7 +1070,6 @@ class DatabaseManager {
     await db.delete('descriptions', where: 'user_id = ?', whereArgs: [_userId]);
     await db.delete('imported_files', where: 'user_id = ?', whereArgs: [_userId]);
     await db.delete('settings', where: 'user_id = ?', whereArgs: [_userId]);
-    await db.delete('recurring_transactions', where: 'user_id = ?', whereArgs: [_userId]);
     await db.delete('users', where: 'id = ?', whereArgs: [_userId]);
     _userId = null;
     return true;

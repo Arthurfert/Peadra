@@ -67,7 +67,6 @@ class _ParametersViewState extends State<ParametersView> {
           const SizedBox(height: 8),
           _buildSection(Translator.t('param_import'), colors, [
             _buildImportTile(colors),
-            _buildExportJsonTile(colors),
             _buildExportCsvTile(colors),
           ], icon: Icons.import_export),
           const SizedBox(height: 8),
@@ -571,37 +570,6 @@ class _ParametersViewState extends State<ParametersView> {
         Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const ImportDataView()),
         );
-      },
-    );
-  }
-
-  Widget _buildExportJsonTile(PeadraColors colors) {
-    return ListTile(
-      leading: Icon(Icons.file_download, color: colors.accent),
-      title: Text('${Translator.t('btn_export')} JSON',
-          style: TextStyle(color: colors.text)),
-      subtitle: Text('Export transactions as JSON',
-          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
-      onTap: () async {
-        try {
-          final exportService = ExportService();
-          final content = await exportService.exportToJson();
-          final path =
-              await exportService.saveToFile(content: content, format: 'json');
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                  content: Text(Translator.t('msg_export_success')
-                      .replaceAll('{file_path}', path))),
-            );
-          }
-        } catch (e) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(Translator.t('msg_export_error'))),
-            );
-          }
-        }
       },
     );
   }

@@ -255,6 +255,14 @@ class DatabaseManager {
         "UPDATE transactions SET notes = REPLACE(notes, ?, ?) WHERE notes LIKE ? AND user_id = ?",
         ['Transfer from $oldName', 'Transfer from $name', 'Transfer from %', _userId],
       );
+      await db.rawUpdate(
+        "UPDATE descriptions SET name = REPLACE(name, ?, ?) WHERE name LIKE ? AND user_id = ?",
+        ['Transfer to $oldName', 'Transfer to $name', 'Transfer to %', _userId],
+      );
+      await db.rawUpdate(
+        "UPDATE descriptions SET name = REPLACE(name, ?, ?) WHERE name LIKE ? AND user_id = ?",
+        ['Transfer from $oldName', 'Transfer from $name', 'Transfer from %', _userId],
+      );
     }
 
     return count > 0;

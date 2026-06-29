@@ -12,6 +12,115 @@ import '../components/modals/transaction_modal.dart';
 import '../services/currency_service.dart';
 import '../responsive/responsive_layout.dart';
 
+class _DisplayItem {
+  final TransactionWithDetails? transaction;
+  final TransactionWithDetails? pairedTransaction;
+  final String? sourceName;
+  final String? destName;
+
+  const _DisplayItem.single(this.transaction)
+      : pairedTransaction = null,
+        sourceName = null,
+        destName = null;
+
+  const _DisplayItem.transfer(
+      this.transaction, this.pairedTransaction, this.sourceName, this.destName);
+
+  bool get isMergedTransfer => pairedTransaction != null;
+}
+
+class _HoverDeleteWrapper extends StatefulWidget {
+  final Widget child;
+  final VoidCallback onDelete;
+  final PeadraColors colors;
+
+  const _HoverDeleteWrapper({
+    required this.child,
+    required this.onDelete,
+    required this.colors,
+  });
+
+  @override
+  State<_HoverDeleteWrapper> createState() => _HoverDeleteWrapperState();
+}
+
+class _HoverDeleteWrapperState extends State<_HoverDeleteWrapper>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _slideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 150),
+    );
+    _slideAnimation = Tween<double>(begin: 0, end: -56).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onHover(bool hovering) {
+    if (hovering) {
+      _controller.forward();
+    } else {
+      _controller.reverse();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: MouseRegion(
+        onEnter: (_) => _onHover(true),
+        onExit: (_) => _onHover(false),
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, child) {
+            return Stack(
+              clipBehavior: Clip.hardEdge,
+              children: [
+                Positioned.fill(
+                  child: GestureDetector(
+                    onTap: widget.onDelete,
+                    child: Opacity(
+                      opacity: _controller.value,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: widget.colors.error,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: const Align(
+                          alignment: Alignment.centerRight,
+                          child: Icon(Icons.delete, color: Colors.white, size: 24),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Transform.translate(
+                  offset: Offset(_slideAnimation.value, 0),
+                  child: child,
+                ),
+              ],
+            );
+          },
+          child: widget.child,
+        ),
+      ),
+    );
+  }
+}
+
 class TransactionsView extends StatefulWidget {
   const TransactionsView({super.key});
 
@@ -21,17 +130,86 @@ class TransactionsView extends StatefulWidget {
 
 class _TransactionsViewState extends State<TransactionsView> {
   final _db = DatabaseManager.instance;
-  List<TransactionWithDetails> _transactions = [];
+  List<_DisplayItem> _displayItems = [];
   List<Account> _accounts = [];
   bool _loading = true;
   String _searchQuery = '';
   final int _displayLimit = 30;
   bool _hasMore = true;
+  int _lastRawFetchCount = 0;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  List<_DisplayItem> _mergeTransfers(List<TransactionWithDetails> txns) {
+    final consumed = <int>{};
+    final result = <_DisplayItem>[];
+
+    for (var i = 0; i < txns.length; i++) {
+      if (consumed.contains(txns[i].id)) continue;
+      final txn = txns[i];
+      final desc = (txn.notes ?? txn.descriptionName ?? '').trim();
+
+      final toMatch = RegExp(r'^Transfer to (.+)$', caseSensitive: false)
+          .firstMatch(desc);
+      final fromMatch = RegExp(r'^Transfer from (.+)$', caseSensitive: false)
+          .firstMatch(desc);
+
+      if (toMatch != null) {
+        final destAccountName = toMatch.group(1)!;
+        for (var j = i + 1; j < txns.length; j++) {
+          if (consumed.contains(txns[j].id)) continue;
+          final other = txns[j];
+          if (other.date == txn.date &&
+              other.amount == txn.amount &&
+              other.accountName == destAccountName) {
+            final otherDesc =
+                (other.notes ?? other.descriptionName ?? '').trim();
+            if (RegExp(r'^Transfer from .+$', caseSensitive: false)
+                .hasMatch(otherDesc)) {
+              consumed.add(txn.id!);
+              consumed.add(other.id!);
+              result.add(_DisplayItem.transfer(
+                  txn, other, txn.accountName, other.accountName));
+              break;
+            }
+          }
+        }
+        if (!consumed.contains(txn.id)) {
+          result.add(_DisplayItem.single(txn));
+        }
+      } else if (fromMatch != null) {
+        final srcAccountName = fromMatch.group(1)!;
+        for (var j = i + 1; j < txns.length; j++) {
+          if (consumed.contains(txns[j].id)) continue;
+          final other = txns[j];
+          if (other.date == txn.date &&
+              other.amount == txn.amount &&
+              other.accountName == srcAccountName) {
+            final otherDesc =
+                (other.notes ?? other.descriptionName ?? '').trim();
+            if (RegExp(r'^Transfer to .+$', caseSensitive: false)
+                .hasMatch(otherDesc)) {
+              consumed.add(txn.id!);
+              consumed.add(other.id!);
+              result.add(_DisplayItem.transfer(
+                  other, txn, other.accountName, txn.accountName));
+              break;
+            }
+          }
+        }
+        if (!consumed.contains(txn.id)) {
+          result.add(_DisplayItem.single(txn));
+        }
+      } else {
+        result.add(_DisplayItem.single(txn));
+      }
+    }
+
+    return result;
   }
 
   Future<void> _loadData() async {
@@ -43,8 +221,9 @@ class _TransactionsViewState extends State<TransactionsView> {
 
     if (mounted) {
       setState(() {
-        _transactions = txns;
+        _displayItems = _mergeTransfers(txns);
         _accounts = accounts;
+        _lastRawFetchCount = txns.length;
         _hasMore = txns.length == _displayLimit;
         _loading = false;
       });
@@ -53,7 +232,7 @@ class _TransactionsViewState extends State<TransactionsView> {
 
   Future<void> _loadTransactions({bool loadMore = false}) async {
     final limit = loadMore ? null : _displayLimit;
-    final offset = loadMore ? _transactions.length : 0;
+    final offset = loadMore ? _lastRawFetchCount : 0;
     final txns = await _db.getTransactions(
       limit: limit,
       offset: offset,
@@ -62,11 +241,13 @@ class _TransactionsViewState extends State<TransactionsView> {
 
     if (mounted) {
       setState(() {
+        final newItems = _mergeTransfers(txns);
         if (loadMore) {
-          _transactions.addAll(txns);
+          _displayItems.addAll(newItems);
         } else {
-          _transactions = txns;
+          _displayItems = newItems;
         }
+        _lastRawFetchCount = txns.length;
         _hasMore = txns.length == (_displayLimit);
         _loading = false;
       });
@@ -179,7 +360,7 @@ class _TransactionsViewState extends State<TransactionsView> {
     _loadTransactions();
   }
 
-  void _deleteTransaction(TransactionWithDetails txn) async {
+  Future<void> _deleteTransaction(TransactionWithDetails txn) async {
     final themeName = context.read<ThemeProvider>().themeName;
     final colors = PeadraTheme.getColors(themeName);
 
@@ -207,7 +388,6 @@ class _TransactionsViewState extends State<TransactionsView> {
 
     if (confirmed == true) {
       await _db.deleteTransaction(txn.id!);
-      _loadTransactions();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(Translator.t('msg_transaction_deleted'))),
@@ -278,7 +458,7 @@ class _TransactionsViewState extends State<TransactionsView> {
             child: _loading
                 ? Center(
                     child: CircularProgressIndicator(color: colors.accent))
-                : _transactions.isEmpty
+                : _displayItems.isEmpty
                     ? Center(
                         child: Text(
                           Translator.t('trans_no_recent'),
@@ -290,9 +470,9 @@ class _TransactionsViewState extends State<TransactionsView> {
                         onRefresh: () => _loadTransactions(),
                         child: ListView.builder(
                           itemCount:
-                              _transactions.length + (_hasMore ? 1 : 0),
+                              _displayItems.length + (_hasMore ? 1 : 0),
                           itemBuilder: (context, index) {
-                            if (index == _transactions.length) {
+                            if (index == _displayItems.length) {
                               return TextButton(
                                 onPressed: () =>
                                     _loadTransactions(loadMore: true),
@@ -300,7 +480,7 @@ class _TransactionsViewState extends State<TransactionsView> {
                               );
                             }
                             return _buildTransactionTile(
-                                _transactions[index], colors, currency);
+                                _displayItems[index], colors, currency);
                           },
                         ),
                       ),
@@ -311,7 +491,12 @@ class _TransactionsViewState extends State<TransactionsView> {
   }
 
   Widget _buildTransactionTile(
-      TransactionWithDetails txn, PeadraColors colors, String defaultCurrency) {
+      _DisplayItem item, PeadraColors colors, String defaultCurrency) {
+    if (item.isMergedTransfer) {
+      return _buildMergedTransferTile(item, colors, defaultCurrency);
+    }
+
+    final txn = item.transaction!;
     final isIncome = txn.transactionType == 'income';
     final isTransfer = txn.transactionType == 'transfer';
     final bgColor = isIncome
@@ -333,69 +518,176 @@ class _TransactionsViewState extends State<TransactionsView> {
 
     final displayCurrency =
         txn.currency.isNotEmpty ? txn.currency : defaultCurrency;
+    final isPhone = ResponsiveLayout.isPhone(context);
 
-    return Dismissible(
-      key: ValueKey(txn.id),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        margin: const EdgeInsets.only(bottom: 8),
-        decoration: BoxDecoration(
-          color: colors.error,
-          borderRadius: BorderRadius.circular(12),
+    final card = Card(
+      color: colors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: isPhone ? null : EdgeInsets.zero,
+      child: ListTile(
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: iconColor, size: 20),
         ),
-        child: const Icon(Icons.delete, color: Colors.white),
+        title: Text(
+          txn.descriptionName ?? '-',
+          style: TextStyle(
+            color: colors.text,
+            fontWeight: FontWeight.w500,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Text(
+          '${txn.date}${txn.accountName != null ? " · ${txn.accountName}" : ""}',
+          style: TextStyle(
+            color: colors.placeholderColor,
+            fontSize: 12,
+          ),
+        ),
+        trailing: Text(
+          '$sign${CurrencyService.formatAmount(txn.amount, displayCurrency)}',
+          style: TextStyle(
+            color: isIncome
+                ? colors.success
+                : isTransfer
+                    ? colors.transferColor
+                    : colors.error,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+        onTap: () => _showTransactionModal(editTxn: txn),
       ),
-      confirmDismiss: (direction) async {
-        _deleteTransaction(txn);
-        return false;
+    );
+
+    if (ResponsiveLayout.isPhone(context)) {
+      return Dismissible(
+        key: ValueKey(txn.id),
+        direction: DismissDirection.endToStart,
+        background: Container(
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.only(right: 20),
+          margin: const EdgeInsets.only(bottom: 8),
+          decoration: BoxDecoration(
+            color: colors.error,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(Icons.delete, color: Colors.white),
+        ),
+        confirmDismiss: (direction) async {
+          await _deleteTransaction(txn);
+          _loadTransactions();
+          return false;
+        },
+        child: card,
+      );
+    }
+
+    return _HoverDeleteWrapper(
+      onDelete: () async {
+        await _deleteTransaction(txn);
+        _loadTransactions();
       },
-      child: Card(
-        color: colors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.only(bottom: 8),
-        child: ListTile(
-          leading: Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: bgColor,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: iconColor, size: 20),
+      colors: colors,
+      child: card,
+    );
+  }
+
+  Widget _buildMergedTransferTile(
+      _DisplayItem item, PeadraColors colors, String defaultCurrency) {
+    final txn = item.transaction!;
+    final displayCurrency =
+        txn.currency.isNotEmpty ? txn.currency : defaultCurrency;
+    final transferTitle = Translator.t(
+      'trans_transfer_from_to',
+    ).replaceAll('{source}', item.sourceName ?? '?').replaceAll('{dest}', item.destName ?? '?');
+
+    final isPhone = ResponsiveLayout.isPhone(context);
+
+    final card = Card(
+      color: colors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: isPhone ? null : EdgeInsets.zero,
+      child: ListTile(
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: colors.transferBg,
+            borderRadius: BorderRadius.circular(10),
           ),
-          title: Text(
-            txn.descriptionName ?? '-',
-            style: TextStyle(
-              color: colors.text,
-              fontWeight: FontWeight.w500,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          subtitle: Text(
-            '${txn.date}${txn.accountName != null ? " · ${txn.accountName}" : ""}',
-            style: TextStyle(
-              color: colors.placeholderColor,
-              fontSize: 12,
-            ),
-          ),
-          trailing: Text(
-            '$sign${CurrencyService.formatAmount(txn.amount, displayCurrency)}',
-            style: TextStyle(
-              color: isIncome
-                  ? colors.success
-                  : isTransfer
-                      ? colors.transferColor
-                      : colors.error,
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-            ),
-          ),
-          onTap: () => _showTransactionModal(editTxn: txn),
+          child: Icon(Icons.swap_horiz, color: colors.transferIcon, size: 20),
         ),
+        title: Text(
+          transferTitle,
+          style: TextStyle(
+            color: colors.text,
+            fontWeight: FontWeight.w500,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Text(
+          txn.date,
+          style: TextStyle(
+            color: colors.placeholderColor,
+            fontSize: 12,
+          ),
+        ),
+        trailing: Text(
+          CurrencyService.formatAmount(txn.amount, displayCurrency),
+          style: TextStyle(
+            color: colors.transferColor,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+        onTap: () => _showTransactionModal(editTxn: txn),
       ),
+    );
+
+    if (ResponsiveLayout.isPhone(context)) {
+      return Dismissible(
+        key: ValueKey('transfer-${txn.id}'),
+        direction: DismissDirection.endToStart,
+        background: Container(
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.only(right: 20),
+          margin: const EdgeInsets.only(bottom: 8),
+          decoration: BoxDecoration(
+            color: colors.error,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(Icons.delete, color: Colors.white),
+        ),
+        confirmDismiss: (direction) async {
+          await _deleteTransaction(txn);
+          if (item.pairedTransaction != null) {
+            await _db.deleteTransaction(item.pairedTransaction!.id!);
+          }
+          _loadTransactions();
+          return false;
+        },
+        child: card,
+      );
+    }
+
+    return _HoverDeleteWrapper(
+      onDelete: () async {
+        await _deleteTransaction(txn);
+        if (item.pairedTransaction != null) {
+          await _db.deleteTransaction(item.pairedTransaction!.id!);
+        }
+        _loadTransactions();
+      },
+      colors: colors,
+      child: card,
     );
   }
 }

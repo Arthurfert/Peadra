@@ -1,48 +1,31 @@
-name: CI Peadra
+name: CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [main, master]
   pull_request:
+    branches: [main, master]
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.10", "3.11", "3.12"]
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: stable
+          cache: true
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
+      - name: Install SQLite3 native libraries
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev pkg-config
 
-    - name: Lint with Black
-      continue-on-error: true
-      run: |
-        # Check formatting without modifying files
-        black --check src tests
+      - name: Install dependencies
+        run: flutter pub get
 
-    - name: Lint with Pylint
-      continue-on-error: true
-      run: |
-        # Run pylint on src directory
-        # Disabling some common errors that might be noisy in a new project
-        # C0111: Missing docstring (optional enforcement)
-        # C0301: Line too long
-        pylint src --disable=C0111,C0301,C0411
+      - name: Analyze
+        run: flutter analyze --no-pub
 
-    - name: Test with pytest
-      run: |
-        # Run tests and generate coverage report
-        # Add src to PYTHONPATH so tests can import modules
-        export PYTHONPATH=$PYTHONPATH:$(pwd)
-        pytest --cov=src tests/
+      - name: Run tests
+        run: flutter test

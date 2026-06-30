@@ -1,79 +1,90 @@
 # Installation
 
 ## Prerequisites
-- Python 3.10 or higher
-- pip (Python package manager)
+
+- **Flutter SDK 3.5+** - [Install Flutter](https://docs.flutter.dev/get-started/install)
+- **Dart SDK** - Included with Flutter
+- Platform-specific tools:
+
+| Platform | Requirements |
+| -------- | ------------ |
+| Android  | Android Studio (or VS Code with Android extensions), Android SDK |
+| iOS      | Xcode (macOS only), CocoaPods |
+| Linux    | `sudo apt install clang cmake ninja-build pkg-config libgtk-3-dev` |
+| Windows  | Visual Studio 2022+ with "Desktop Development in C++" workload |
+| macOS    | Xcode, CocoaPods |
+
+Verify your setup:
+```bash
+flutter doctor
+```
 
 ## Setup
 
-1. Clone the repository: (if you don't have git, download the zip file)
+1. Clone the repository:
 ```bash
 git clone https://github.com/Arthurfert/Peadra.git
 cd Peadra
 ```
 
-2. Create a virtual environment (*recommended*):
+2. Install dependencies:
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+flutter pub get
 ```
 
-3. Install dependencies:
+3. Run in development mode (auto-detects connected device/emulator):
 ```bash
-pip install -r requirements.txt # Or requirements-dev.txt for pytests and linting
+flutter run
 ```
 
-4. Run the application:
+Or specify a platform explicitly:
 ```bash
-python main.py
+flutter run -d linux
+flutter run -d chrome
+flutter run -d <device-id>   # for mobile
 ```
 
-> [!WARNING]
-> For Ubuntu users, you might need to install the following dependencies:
-> ```bash
-> sudo apt install libmpv1
-> ```
-> If it doesn't work, try fixing it with this [stack overflow post](https://stackoverflow.com/questions/78007193/error-while-loading-shared-libraries-libmpv-so-1-cannot-open-shared-object-fil).
+## Build
 
-> [!TIP]
-> Use the Makefile to make all this easier ! (run `make help` for all available commands)
-
-# Package
-
-**You need to download the project before.**
-
-To package the app in one executable file (all OS) : 
-``` bash
-make pack
-```
-
-# Build (with entire dependencies files)
-
-**You need to download the project before.**
-
-## Windows
-
-Prerequisites : 
-- Visual Studio with *Desktop Development in C/C++* workload installed
-- On windows, you will need developers mode enabled
-
+### Android
 ```bash
-flet build windows
+flutter build apk --release
+# Output: build/app/outputs/flutter-apk/app-release.apk
 ```
 
-## Linux
-
+For app bundle (Play Store):
 ```bash
-flet build linux
+flutter build appbundle --release
 ```
 
-## MacOS
-
-Prerequisites : 
-- Rosetta 2 *on Apple Silicon* (for packaging)
-- Xcode (compile swift or objective-C code)
-- CocoaPods (install and compile flutter plugins)
-
+### iOS
 ```bash
-flet build macos
+flutter build ios --release
 ```
+Then archive and deploy via Xcode.
+
+### Linux
+```bash
+flutter build linux --release
+# Output: build/linux/x64/release/bundle/
+```
+
+### Windows
+```bash
+flutter build windows --release
+# Output: build/windows/x64/runner/Release/
+```
+
+### macOS
+```bash
+flutter build macos --release
+# Output: build/macos/Build/Products/Release/
+```
+
+## Database
+
+The SQLite database is created automatically on first launch:
+- **Mobile:** App documents directory (managed by OS)
+- **Desktop:** Current working directory (`peadra.db`)
+
+No manual setup or migrations required, tables are created via `CREATE TABLE IF NOT EXISTS`.

@@ -13,11 +13,9 @@ Peadra aims to become a local version of existing apps like *[Finary](https://fi
 > [!NOTE]
 > Due to banking related laws, an API access to your bank requires approbation by an organization. It is thus not currently possible.
 
-It is currently delevoped with desktop in mind, but may come to smartphones later.
-If so, a peer-to-peer encrypted sync may be implemented.
-
 ## Future Improvements & ideas
 
+- **Mobile version UI**
 - Budget view, with budget insights in dashboard/categories view
 - Compute trends + Tool to simulate/calculate economic specifics and effects on existing assets
 - Onboarding & tutorial

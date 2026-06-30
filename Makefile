@@ -1,4 +1,4 @@
-.PHONY: help pack clean run test install
+.PHONY: help run build-apk build-ios build-linux build-windows build-macos clean test
 
 # Detect OS
 ifeq ($(OS),Windows_NT)
@@ -9,80 +9,58 @@ else
     DETECTED_OS_NAME = Linux
 endif
 
-# Variables
 APP_NAME = Peadra
-ICON_WINDOWS = assets/icon.ico
-ICON_LINUX = assets/icon.png
-ICON_PATH = $(if $(filter windows,$(DETECTED_OS)),$(ICON_WINDOWS),$(ICON_LINUX))
-MAIN_FILE = main.py
-ASSETS_DIR = assets
 
 help:
-	@echo "Peadra Packaging Makefile"
+	@echo "Peadra Makefile"
 	@echo "=========================="
 	@echo "Detected OS: $(DETECTED_OS_NAME)"
 	@echo ""
 	@echo "Available targets:"
-	@echo "  make pack         - Package the app (auto-detects OS and icon)"
-	@echo "  make pack-windows - Force Windows packaging with .ico icon"
-	@echo "  make pack-linux   - Force Linux packaging with .png icon"
-	@echo "  make run          - Run the app in development mode"
-	@echo "  make clean        - Remove build and dist directories"
-	@echo "  make test         - Run tests"
-	@echo "  make install      - Install dependencies"
-	@echo "  make install-dev  - Install development dependencies"
-	@echo "  make help         - Show this help message"
-
-pack:
-	@echo "Packaging $(APP_NAME) for $(DETECTED_OS_NAME) with icon $(ICON_PATH)..."
-	flet pack -i $(ICON_PATH) -n $(APP_NAME) $(MAIN_FILE) \
-		--add-data "$(ASSETS_DIR):$(ASSETS_DIR)" \
-		--add-data "$(ASSETS_DIR)/Dashboard_Light.jpg:$(ASSETS_DIR)" \
-		--add-data "$(ASSETS_DIR)/Dashboard.jpg:$(ASSETS_DIR)" \
-		--hidden-import src.version src.update_manager
-	@echo "Packaging complete for $(DETECTED_OS_NAME)"
-
-pack-windows:
-	@echo "Packaging $(APP_NAME) for Windows with icon $(ICON_WINDOWS)..."
-	flet pack -i $(ICON_WINDOWS) -n $(APP_NAME) $(MAIN_FILE) \
-		--add-data "$(ASSETS_DIR):$(ASSETS_DIR)" \
-		--add-data "$(ASSETS_DIR)/Dashboard_Light.jpg:$(ASSETS_DIR)" \
-		--add-data "$(ASSETS_DIR)/Dashboard.jpg:$(ASSETS_DIR)" \
-		--hidden-import src.version src.update_manager
-	@echo "Windows packaging complete"
-
-pack-linux:
-	@echo "Packaging $(APP_NAME) for Linux with icon $(ICON_LINUX)..."
-	flet pack -i $(ICON_LINUX) -n $(APP_NAME) $(MAIN_FILE) \
-		--add-data "$(ASSETS_DIR):$(ASSETS_DIR)" \
-		--add-data "$(ASSETS_DIR)/Dashboard_Light.jpg:$(ASSETS_DIR)" \
-		--add-data "$(ASSETS_DIR)/Dashboard.jpg:$(ASSETS_DIR)" \
-		--hidden-import src.version src.update_manager
-	@echo "Linux packaging complete"
+	@echo "  make run             - Run the app in development mode"
+	@echo "  make build-linux     - Build for Linux (release)"
+	@echo "  make build-windows   - Build for Windows (release)"
+	@echo "  make build-macos     - Build for macOS (release)"
+	@echo "  make build-apk       - Build Android APK (release)"
+	@echo "  make build-ios       - Build for iOS (release)"
+	@echo "  make clean           - Remove build directories"
+	@echo "  make test            - Run tests"
+	@echo "  make doctor          - Check Flutter environment"
+	@echo "  make help            - Show this help message"
 
 run:
 	@echo "Running $(APP_NAME) in development mode..."
-	python $(MAIN_FILE)
+	flutter run
+
+build-linux:
+	@echo "Building $(APP_NAME) for Linux..."
+	flutter build linux --release
+
+build-windows:
+	@echo "Building $(APP_NAME) for Windows..."
+	flutter build windows --release
+
+build-macos:
+	@echo "Building $(APP_NAME) for macOS..."
+	flutter build macos --release
+
+build-apk:
+	@echo "Building $(APP_NAME) Android APK..."
+	flutter build apk --release
+
+build-ios:
+	@echo "Building $(APP_NAME) for iOS..."
+	flutter build ios --release
 
 clean:
 	@echo "Cleaning build artifacts..."
-	@if exist build rmdir /s /q build
-	@if exist dist rmdir /s /q dist
-	@if exist __pycache__ rmdir /s /q __pycache__
-	@if exist .pytest_cache rmdir /s /q .pytest_cache
-	@if exist *.spec del *.spec
+	flutter clean
 	@echo "Cleanup complete"
 
 test:
 	@echo "Running tests..."
-	pytest tests/ -v
+	flutter test
 
-install:
-	@echo "Installing dependencies..."
-	pip install -r requirements.txt
-	@echo "Dependencies installed"
-
-install-dev:
-	@echo "Installing development dependencies..."
-	pip install -r requirements-dev.txt
-	@echo "Development dependencies installed"
+doctor:
+	@echo "Checking Flutter environment..."
+	flutter doctor

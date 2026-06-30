@@ -1,0 +1,68 @@
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+
+import 'providers/auth_provider.dart';
+import 'providers/theme_provider.dart';
+import 'providers/language_provider.dart';
+import 'providers/settings_provider.dart';
+import 'database/database_manager.dart';
+import 'components/theme/paedra_colors.dart';
+import 'views/login_view.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  if (Platform.isLinux || Platform.isWindows || Platform.isMacOS) {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  }
+
+  final db = DatabaseManager.instance;
+  await db.database;
+
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => LanguageProvider()),
+        ChangeNotifierProvider(create: (_) => SettingsProvider()),
+      ],
+      child: const PeadraApp(),
+    ),
+  );
+}
+
+class PeadraApp extends StatelessWidget {
+  const PeadraApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = context.watch<ThemeProvider>();
+    final colors = PeadraTheme.getColors(themeProvider.themeName);
+
+    return MaterialApp(
+      title: 'Peadra',
+      debugShowCheckedModeBanner: false,
+      themeMode: themeProvider.themeMode,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: colors.accent,
+        brightness: Brightness.light,
+        scaffoldBackgroundColor: colors.bg,
+        cardColor: colors.surface,
+      ),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: colors.accent,
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: colors.bg,
+        cardColor: colors.surface,
+      ),
+      home: const LoginView(),
+    );
+  }
+}

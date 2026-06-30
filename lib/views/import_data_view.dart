@@ -8,7 +8,6 @@ import '../components/theme/paedra_colors.dart';
 import '../database/database_manager.dart';
 import '../models/account.dart';
 import '../services/import_service.dart';
-import '../responsive/responsive_layout.dart';
 
 class ImportDataView extends StatefulWidget {
   const ImportDataView({super.key});
@@ -24,12 +23,11 @@ class _ImportDataViewState extends State<ImportDataView> {
   int _currentStep = 0;
   List<Account> _accounts = [];
   int? _selectedAccountId;
-  String _transactionType = 'expense';
   ImportPreview? _preview;
   bool _loading = false;
   String? _error;
   ImportResult? _result;
-  List<PlatformFile>? _pickedFiles;
+  List<ImportMapping>? _userMappings;
 
   @override
   void initState() {
@@ -71,9 +69,20 @@ class _ImportDataViewState extends State<ImportDataView> {
       }
 
       final preview = await _importService.previewCsv(path);
+
+      if (preview.alreadyImported && mounted) {
+        final proceed = await _showDuplicateWarning();
+        if (!proceed) {
+          setState(() {
+            _loading = false;
+          });
+          return;
+        }
+      }
+
       setState(() {
         _preview = preview;
-        _pickedFiles = result.files;
+        _userMappings = List.from(preview.suggestedMappings);
         _loading = false;
         _currentStep = 1;
       });
@@ -83,6 +92,57 @@ class _ImportDataViewState extends State<ImportDataView> {
         _error = e.toString();
       });
     }
+  }
+
+  Future<bool> _showDuplicateWarning() async {
+    final themeName = context.read<ThemeProvider>().themeName;
+    final colors = PeadraTheme.getColors(themeName);
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: colors.surface,
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber, color: colors.warning),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(Translator.t('import_duplicate_warning'),
+                  style: TextStyle(color: colors.text, fontSize: 16)),
+            ),
+          ],
+        ),
+        content: Text(Translator.t('import_duplicate_content'),
+            style: TextStyle(color: colors.text)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(Translator.t('btn_cancel'),
+                style: TextStyle(color: colors.textSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(backgroundColor: colors.warning),
+            child: Text(Translator.t('import_anyway'),
+                style: const TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    return result ?? false;
+  }
+
+  void _updateMapping(int columnIndex, ColumnMapping newMapping) {
+    if (_userMappings == null) return;
+    setState(() {
+      _userMappings = _userMappings!.map((m) {
+        if (m.columnIndex == columnIndex) {
+          return ImportMapping(columnIndex, newMapping);
+        }
+        return m;
+      }).toList();
+    });
   }
 
   Future<void> _import() async {
@@ -97,8 +157,8 @@ class _ImportDataViewState extends State<ImportDataView> {
       final account = _accounts.firstWhere((a) => a.id == _selectedAccountId);
       final result = await _importService.importCsv(
         filePath: _preview!.filePath!,
-        mappings: _preview!.suggestedMappings,
-        transactionType: _transactionType,
+        mappings: _userMappings ?? _preview!.suggestedMappings,
+        transactionType: 'expense',
         accountId: _selectedAccountId!,
         currency: account.currency,
       );
@@ -120,18 +180,23 @@ class _ImportDataViewState extends State<ImportDataView> {
   Widget build(BuildContext context) {
     final themeName = context.watch<ThemeProvider>().themeName;
     final colors = PeadraTheme.getColors(themeName);
-    final isPhone = ResponsiveLayout.isPhone(context);
 
-    final content = Scaffold(
+    return Scaffold(
       backgroundColor: colors.bg,
-      appBar: isPhone
-          ? AppBar(
-              title: Text(Translator.t('import_title'),
-                  style: TextStyle(color: colors.text)),
-              backgroundColor: colors.surface,
-              iconTheme: IconThemeData(color: colors.text),
-            )
-          : null,
+      appBar: AppBar(
+        title: Text(Translator.t('import_title'),
+            style: TextStyle(color: colors.text)),
+        backgroundColor: colors.surface,
+        iconTheme: IconThemeData(color: colors.text),
+        actions: [
+          if (_currentStep < 2)
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(Translator.t('btn_cancel'),
+                  style: TextStyle(color: colors.textSecondary)),
+            ),
+        ],
+      ),
       body: Column(
         children: [
           // Stepper header
@@ -148,18 +213,6 @@ class _ImportDataViewState extends State<ImportDataView> {
           // Bottom actions
           _buildActions(colors),
         ],
-      ),
-    );
-
-    if (isPhone) return content;
-
-    // Desktop: show as dialog
-    return Dialog(
-      backgroundColor: colors.surface,
-      child: SizedBox(
-        width: 640,
-        height: 480,
-        child: content,
       ),
     );
   }
@@ -289,92 +342,173 @@ class _ImportDataViewState extends State<ImportDataView> {
   }
 
   Widget _buildConfigStep(PeadraColors colors) {
+    if (_preview == null) return const SizedBox.shrink();
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            Translator.t('import_configure'),
-            style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: colors.text),
-          ),
-          const SizedBox(height: 16),
-
-          // Preview table
-          if (_preview != null) ...[
-            Text(
-              Translator.t('import_preview'),
-              style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: colors.textSecondary),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              decoration: BoxDecoration(
-                border: Border.all(color: colors.borderColor),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: DataTable(
-                  columns: _preview!.headers
-                      .map((h) => DataColumn(
-                          label: Text(h,
-                              style: TextStyle(
-                                  fontSize: 12, color: colors.text))))
-                      .toList(),
-                  rows: _preview!.rows
-                      .map((row) => DataRow(
-                            cells: row
-                                .map((cell) => DataCell(Text(cell,
-                                    style: TextStyle(
-                                        fontSize: 11,
-                                        color: colors.textSecondary))))
-                                .toList(),
-                          ))
-                      .toList(),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-          ],
-
-          // Transaction type
-          DropdownButtonFormField<String>(
-            initialValue: _transactionType,
-            isExpanded: true,
-            decoration: InputDecoration(
-              labelText: Translator.t('import_transaction_type'),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-              filled: true,
-              fillColor: colors.bg,
-            ),
-            items: [
-              DropdownMenuItem(value: 'expense', child: Text(Translator.t('trans_expense'))),
-              DropdownMenuItem(value: 'income', child: Text(Translator.t('trans_income'))),
-            ],
-            onChanged: (v) => setState(() => _transactionType = v ?? 'expense'),
-          ),
-          const SizedBox(height: 12),
-
-          // Account
+          // Account dropdown
           DropdownButtonFormField<int>(
             initialValue: _selectedAccountId,
             isExpanded: true,
             decoration: InputDecoration(
               labelText: Translator.t('trans_account'),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               filled: true,
               fillColor: colors.bg,
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             ),
             items: _accounts
                 .map((a) => DropdownMenuItem(value: a.id, child: Text(a.name)))
                 .toList(),
             onChanged: (v) => setState(() => _selectedAccountId = v),
+          ),
+          const SizedBox(height: 16),
+
+          // Column mapping
+          Text(
+            Translator.t('import_column_mapping'),
+            style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: colors.text),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            Translator.t('import_mapping_hint'),
+            style: TextStyle(fontSize: 11, color: colors.textSecondary),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: colors.borderColor),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              children: [
+                // Header row
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: colors.bg,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(8),
+                      topRight: Radius.circular(8),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: Text(Translator.t('import_col_header'),
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: colors.textSecondary)),
+                      ),
+                      Expanded(
+                        flex: 3,
+                        child: Text(Translator.t('import_mapping_target'),
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: colors.textSecondary)),
+                      ),
+                    ],
+                  ),
+                ),
+                Divider(height: 1, color: colors.borderColor),
+                // Column rows
+                for (int i = 0; i < _preview!.headers.length; i++) ...[
+                  _buildColumnMappingRow(i, colors),
+                  if (i < _preview!.headers.length - 1) Divider(height: 1, color: colors.borderColor),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Preview table
+          Text(
+            Translator.t('import_preview'),
+            style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: colors.text),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: colors.borderColor),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                columns: _preview!.headers
+                    .map((h) => DataColumn(
+                        label: Text(h,
+                            style: TextStyle(
+                                fontSize: 11, color: colors.textSecondary, fontWeight: FontWeight.w500))))
+                    .toList(),
+                rows: _preview!.rows
+                    .map((row) => DataRow(
+                          cells: row
+                              .map((cell) => DataCell(Text(cell,
+                                  style: TextStyle(
+                                      fontSize: 11,
+                                      color: colors.text))))
+                              .toList(),
+                        ))
+                    .toList(),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildColumnMappingRow(int columnIndex, PeadraColors colors) {
+    final header = _preview!.headers[columnIndex];
+    final currentMapping = _userMappings
+        ?.firstWhere((m) => m.columnIndex == columnIndex,
+            orElse: () => ImportMapping(columnIndex, ColumnMapping.unused))
+        .mapping ?? ColumnMapping.unused;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(header,
+                style: TextStyle(fontSize: 12, color: colors.text),
+                overflow: TextOverflow.ellipsis),
+          ),
+          Expanded(
+            flex: 3,
+            child: DropdownButtonFormField<ColumnMapping>(
+              initialValue: currentMapping,
+              isExpanded: true,
+              isDense: true,
+              decoration: InputDecoration(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+                filled: true,
+                fillColor: colors.surface,
+                isCollapsed: true,
+              ),
+              items: const [
+                DropdownMenuItem(value: ColumnMapping.date, child: Text('Date')),
+                DropdownMenuItem(value: ColumnMapping.description, child: Text('Description')),
+                DropdownMenuItem(value: ColumnMapping.amount, child: Text('Amount')),
+                DropdownMenuItem(value: ColumnMapping.credit, child: Text('Credit')),
+                DropdownMenuItem(value: ColumnMapping.debit, child: Text('Debit')),
+                DropdownMenuItem(value: ColumnMapping.type, child: Text('Type')),
+                DropdownMenuItem(value: ColumnMapping.unused, child: Text('Unused')),
+              ],
+              onChanged: (v) {
+                if (v != null) _updateMapping(columnIndex, v);
+              },
+            ),
           ),
         ],
       ),
@@ -451,7 +585,7 @@ class _ImportDataViewState extends State<ImportDataView> {
 
   Widget _buildActions(PeadraColors colors) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border(top: BorderSide(color: colors.borderColor)),
@@ -459,25 +593,36 @@ class _ImportDataViewState extends State<ImportDataView> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          if (_currentStep > 0 && _currentStep < 2) ...[
+          if (_currentStep == 0) ...[
             TextButton(
-              onPressed: () => setState(() => _currentStep--),
-              child: Text(Translator.t('btn_back')),
+              onPressed: () => Navigator.pop(context),
+              child: Text(Translator.t('btn_cancel'),
+                  style: TextStyle(color: colors.textSecondary)),
             ),
             const SizedBox(width: 8),
-          ],
-          if (_currentStep == 0)
             ElevatedButton.icon(
               onPressed: _pickFile,
-              icon: const Icon(Icons.folder_open, color: Colors.white),
+              icon: const Icon(Icons.folder_open, color: Colors.white, size: 16),
               label: Text(Translator.t('import_browse'),
                   style: const TextStyle(color: Colors.white)),
               style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
             ),
+          ],
           if (_currentStep == 1) ...[
             TextButton(
+              onPressed: () => setState(() {
+                _currentStep = 0;
+                _preview = null;
+                _userMappings = null;
+              }),
+              child: Text(Translator.t('btn_back'),
+                  style: TextStyle(color: colors.textSecondary)),
+            ),
+            const SizedBox(width: 8),
+            TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text(Translator.t('btn_cancel')),
+              child: Text(Translator.t('btn_cancel'),
+                  style: TextStyle(color: colors.textSecondary)),
             ),
             const SizedBox(width: 8),
             ElevatedButton(

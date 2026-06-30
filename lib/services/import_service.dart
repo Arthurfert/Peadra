@@ -58,6 +58,7 @@ class ImportPreview {
   final CsvDialect detectedDialect;
   final String? filePath;
   final String? fileHash;
+  final bool alreadyImported;
 
   ImportPreview({
     required this.headers,
@@ -67,6 +68,7 @@ class ImportPreview {
     required this.detectedDialect,
     this.filePath,
     this.fileHash,
+    this.alreadyImported = false,
   });
 }
 
@@ -143,10 +145,7 @@ class ImportService {
     final hash = await calculateFileHash(filePath);
 
     // Check if already imported
-    final existing = await _db.getSetting('imported_file_$hash');
-    if (existing != null) {
-      throw Exception('File already imported: $filePath');
-    }
+    final alreadyImported = await _db.getSetting('imported_file_$hash') != null;
 
     final dialect = detectDialect(content);
     final rows = const CsvToListConverter(
@@ -183,6 +182,7 @@ class ImportService {
       detectedDialect: dialect,
       filePath: filePath,
       fileHash: hash,
+      alreadyImported: alreadyImported,
     );
   }
 

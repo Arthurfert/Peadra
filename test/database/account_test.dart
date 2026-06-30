@@ -1,13 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
-import '../../lib/models/account.dart';
+import 'package:peadra/models/account.dart';
 import '../helpers/test_helper.dart';
 
-int _dbCounter = 0;
-
 Future<Database> _openTestDb() async {
-  final name = 'account_test_${_dbCounter++}';
   return databaseFactoryFfi.openDatabase(
     inMemoryDatabasePath,
     options: OpenDatabaseOptions(
@@ -562,8 +559,8 @@ void main() {
           'notes': 'Transfer to Checking Account',
         });
 
-        final oldName = 'Checking Account';
-        final newName = 'My Checking';
+        const oldName = 'Checking Account';
+        const newName = 'My Checking';
         await db.rawUpdate(
           "UPDATE transactions SET notes = REPLACE(notes, ?, ?) WHERE notes LIKE ? AND user_id = ?",
           ['Transfer to $oldName', 'Transfer to $newName', 'Transfer to %', userId],

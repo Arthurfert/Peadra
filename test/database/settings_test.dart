@@ -193,7 +193,7 @@ void main() {
     });
 
     test('global settings are shared across users', () async {
-      final userId2 = await seedTestUser(db, username: 'user2');
+      await seedTestUser(db, username: 'user2');
 
       await db.rawInsert(
         'INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, ?, ?)',
@@ -698,7 +698,7 @@ void main() {
     });
 
     test('export account map structure matches Account.toMap', () async {
-      final acctIds = await seedTestAccounts(db, userId);
+      await seedTestAccounts(db, userId);
 
       final accounts = await db.query('accounts',
           where: 'user_id = ?', whereArgs: [userId], orderBy: 'name');

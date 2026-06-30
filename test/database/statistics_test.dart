@@ -465,8 +465,8 @@ void main() {
   // =========================================================================
   group('getMonthlySummary SQL', () {
     test('returns zero map when no transactions in month', () async {
-      final startDate = '2025-06-01';
-      final endDate = '2025-07-01';
+      const startDate = '2025-06-01';
+      const endDate = '2025-07-01';
 
       final rows = await db.rawQuery('''
         SELECT
@@ -504,8 +504,8 @@ void main() {
           accountId: accountIds[0], descriptionId: descId,
           date: '2025-07-01', amount: 1000, transactionType: 'income', currency: 'EUR');
 
-      final startDate = '2025-06-01';
-      final endDate = '2025-07-01';
+      const startDate = '2025-06-01';
+      const endDate = '2025-07-01';
 
       final rows = await db.rawQuery('''
         SELECT
@@ -538,8 +538,8 @@ void main() {
           accountId: accountIds[1], descriptionId: descId,
           date: '2025-06-01', amount: 5000, transactionType: 'income', currency: 'EUR');
 
-      final startDate = '2025-06-01';
-      final endDate = '2025-07-01';
+      const startDate = '2025-06-01';
+      const endDate = '2025-07-01';
 
       final rows = await db.rawQuery('''
         SELECT
@@ -834,7 +834,7 @@ void main() {
       }
       final sorted = byDesc.entries.toList()
         ..sort((a, b) => b.value.compareTo(a.value));
-      final limit = 2;
+      const limit = 2;
       final topDescs = sorted.take(limit).map((e) => e.key).toSet();
       final results = allRows.where((r) => topDescs.contains(r['description'])).toList();
 
@@ -1207,7 +1207,7 @@ void main() {
   group('getAssetsHistory SQL', () {
     test('returns all zero months when no transactions', () async {
       final now = DateTime.now();
-      final months = 3;
+      const months = 3;
       final results = <double>[];
 
       for (int i = months; i >= 1; i--) {
@@ -1255,7 +1255,7 @@ void main() {
           date: oneMonthAgo.toIso8601String().substring(0, 10),
           amount: 500, transactionType: 'income', currency: 'EUR');
 
-      final months = 3;
+      const months = 3;
       final results = <Map<String, dynamic>>[];
 
       for (int i = months; i >= 1; i--) {
@@ -1855,8 +1855,8 @@ void main() {
       expect(historyPatrimony, 2900.0);
 
       // --- Test getMonthlySummary for April ---
-      final aprStart = '2025-04-01';
-      final aprEnd = '2025-05-01';
+      const aprStart = '2025-04-01';
+      const aprEnd = '2025-05-01';
       final aprRows = await db.rawQuery('''
         SELECT
           COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount ELSE 0 END), 0) as income,

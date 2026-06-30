@@ -1,5 +1,4 @@
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import 'package:sqflite/sqflite.dart';
 
 /// Initialize sqflite_ffi for desktop testing.
 /// Must be called once before any database operations.

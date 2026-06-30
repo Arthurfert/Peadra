@@ -2,8 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import '../helpers/test_helper.dart';
 
-int _dbCounter = 0;
-
 Future<Database> _openTestDb() async {
   return databaseFactoryFfi.openDatabase(
     inMemoryDatabasePath,

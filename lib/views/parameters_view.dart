@@ -198,7 +198,6 @@ class _ParametersViewState extends State<ParametersView> {
         dropdownColor: colors.surface,
         style: TextStyle(color: colors.text),
         items: CurrencyService.allCodes
-            .take(10)
             .map((c) => DropdownMenuItem(
                   value: c,
                   child: Text('$c ${CurrencyService.getSymbol(c)}'),

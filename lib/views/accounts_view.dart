@@ -244,7 +244,6 @@ class _AccountsViewState extends State<AccountsView> {
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                   ),
                   items: CurrencyService.allCodes
-                      .take(10)
                       .map((c) => DropdownMenuItem(
                             value: c,
                             child: Text('$c ${CurrencyService.getSymbol(c)}'),
@@ -330,7 +329,6 @@ class _AccountsViewState extends State<AccountsView> {
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                   ),
                   items: CurrencyService.allCodes
-                      .take(10)
                       .map((c) => DropdownMenuItem(
                             value: c,
                             child: Text('$c ${CurrencyService.getSymbol(c)}'),

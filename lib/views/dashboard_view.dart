@@ -179,18 +179,18 @@ class _DashboardViewState extends State<DashboardView> {
 
               // Pie charts
               if (isPhone) ...[
-                _buildPieChartCard(colors, 'This Month Expenses', _monthlyExpenses, currency, maxPieCategories),
+                _buildPieChartCard(colors, Translator.t('dash_this_month_expenses'), _monthlyExpenses, currency, maxPieCategories),
                 const SizedBox(height: 16),
-                _buildPieChartCard(colors, 'This Month Incomes', _monthlyIncomes, currency, maxPieCategories),
+                _buildPieChartCard(colors, Translator.t('dash_this_month_incomes'), _monthlyIncomes, currency, maxPieCategories),
                 const SizedBox(height: 16),
                 _buildAssetsDistributionPieChart(colors, currency, maxPieCategories),
               ] else ...[
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(child: _buildPieChartCard(colors, 'This Month Expenses', _monthlyExpenses, currency, maxPieCategories)),
+                    Expanded(child: _buildPieChartCard(colors, Translator.t('dash_this_month_expenses'), _monthlyExpenses, currency, maxPieCategories)),
                     const SizedBox(width: 16),
-                    Expanded(child: _buildPieChartCard(colors, 'This Month Incomes', _monthlyIncomes, currency, maxPieCategories)),
+                    Expanded(child: _buildPieChartCard(colors, Translator.t('dash_this_month_incomes'), _monthlyIncomes, currency, maxPieCategories)),
                     const SizedBox(width: 16),
                     Expanded(child: _buildAssetsDistributionPieChart(colors, currency, maxPieCategories)),
                   ],
@@ -218,7 +218,7 @@ class _DashboardViewState extends State<DashboardView> {
 
     final cards = [
       _buildStatCard(
-        title: 'Current Balance',
+        title: Translator.t('dash_current_balance'),
         value: CurrencyService.formatAmount(_balance, currency),
         change: balanceChange,
         icon: Icons.account_balance_wallet,
@@ -227,7 +227,7 @@ class _DashboardViewState extends State<DashboardView> {
         colors: colors,
       ),
       _buildStatCard(
-        title: 'Income',
+        title: Translator.t('dash_income'),
         value: CurrencyService.formatAmount(currentIncome, currency),
         change: incomeChange,
         icon: Icons.trending_up,
@@ -236,7 +236,7 @@ class _DashboardViewState extends State<DashboardView> {
         colors: colors,
       ),
       _buildStatCard(
-        title: 'Expenses',
+        title: Translator.t('dash_expenses'),
         value: CurrencyService.formatAmount(currentExpenses, currency),
         change: expensesChange,
         icon: Icons.trending_down,
@@ -245,7 +245,7 @@ class _DashboardViewState extends State<DashboardView> {
         colors: colors,
       ),
       _buildStatCard(
-        title: 'Savings Outside',
+        title: Translator.t('dash_savings_outside'),
         value: CurrencyService.formatAmount(_savings, currency),
         change: 0,
         icon: Icons.savings,
@@ -395,10 +395,10 @@ class _DashboardViewState extends State<DashboardView> {
 
   Widget _buildTimeFilterButtons(PeadraColors colors) {
     final options = [
-      {'label': '3M', 'value': 3},
-      {'label': '6M', 'value': 6},
-      {'label': '1Y', 'value': 12},
-      {'label': 'All', 'value': 24},
+      {'label': Translator.t('period_3m'), 'value': 3},
+      {'label': Translator.t('period_6m'), 'value': 6},
+      {'label': Translator.t('period_1y'), 'value': 12},
+      {'label': Translator.t('segment_all'), 'value': 24},
     ];
 
     return Container(
@@ -450,7 +450,7 @@ class _DashboardViewState extends State<DashboardView> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Inflows / Outflows',
+                  Translator.t('dash_inflows_outflows'),
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -459,9 +459,9 @@ class _DashboardViewState extends State<DashboardView> {
                 ),
                 Row(
                   children: [
-                    _buildLegendDot(colors.success, 'Inflows'),
+                    _buildLegendDot(colors.success, Translator.t('dash_inflows')),
                     const SizedBox(width: 16),
-                    _buildLegendDot(colors.error, 'Outflows'),
+                    _buildLegendDot(colors.error, Translator.t('dash_outflows')),
                   ],
                 ),
               ],
@@ -581,10 +581,10 @@ class _DashboardViewState extends State<DashboardView> {
                 final idx = value.toInt();
                 if (idx >= 0 && idx < displayMonths.length) {
                   final m = displayMonths[idx];
-                  final monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
                   final monthNum = int.tryParse(m.split('-').last) ?? 1;
-                  final label = monthNames[(monthNum - 1).clamp(0, 11)];
+                  final monthKeys = ['month_jan_abbr', 'month_feb_abbr', 'month_mar_abbr', 'month_apr_abbr', 'month_may_abbr', 'month_jun_abbr',
+                                     'month_jul_abbr', 'month_aug_abbr', 'month_sep_abbr', 'month_oct_abbr', 'month_nov_abbr', 'month_dec_abbr'];
+                  final label = Translator.t(monthKeys[(monthNum - 1).clamp(0, 11)]);
                   return Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
@@ -659,14 +659,14 @@ class _DashboardViewState extends State<DashboardView> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Total Assets',
+                  Translator.t('dash_total_assets'),
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                     color: colors.text,
                   ),
                 ),
-                _buildLegendDot(colors.chartAsset, 'Total Assets'),
+                _buildLegendDot(colors.chartAsset, Translator.t('dash_total_assets')),
               ],
             ),
             const SizedBox(height: 16),

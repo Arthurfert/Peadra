@@ -252,7 +252,7 @@ class _TransactionModalState extends State<TransactionModal> {
           .name;
       data['source_name'] = srcName;
       data['dest_name'] = destName;
-      data['description'] = 'Transfer';
+      data['description'] = Translator.t('trans_transfer');
     } else {
       data['category_id'] = _selectedAccountId;
     }
@@ -578,7 +578,7 @@ class _TransactionModalState extends State<TransactionModal> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Rate: 1 ${_getSourceCurrency()} = ${_exchangeRate!.toStringAsFixed(4)} ${_getDestCurrency()}',
+                        '${Translator.t('modal_exchange_rate')}: 1 ${_getSourceCurrency()} = ${_exchangeRate!.toStringAsFixed(4)} ${_getDestCurrency()}',
                         style: TextStyle(
                           color: colors.text,
                           fontSize: 12,

@@ -72,7 +72,7 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
       }
     }
     if (otherAmount > 0) {
-      processedData.add({'label': 'Other', 'amount': otherAmount});
+      processedData.add({'label': Translator.t('dash_other'), 'amount': otherAmount});
     }
 
     final sections = <PieChartSectionData>[];

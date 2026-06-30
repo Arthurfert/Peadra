@@ -126,10 +126,10 @@ class _CategoriesViewState extends State<CategoriesView> {
 
   Widget _buildTimeFilterButtons(PeadraColors colors) {
     final options = [
-      {'label': '3M', 'value': 3},
-      {'label': '6M', 'value': 6},
-      {'label': '1Y', 'value': 12},
-      {'label': 'All', 'value': 24},
+      {'label': Translator.t('period_3m'), 'value': 3},
+      {'label': Translator.t('period_6m'), 'value': 6},
+      {'label': Translator.t('period_1y'), 'value': 12},
+      {'label': Translator.t('segment_all'), 'value': 24},
     ];
 
     return Container(
@@ -301,9 +301,9 @@ class _CategoriesViewState extends State<CategoriesView> {
     );
   }
 
-  static const _monthNames = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  static const _monthKeys = [
+    'month_jan_abbr', 'month_feb_abbr', 'month_mar_abbr', 'month_apr_abbr', 'month_may_abbr', 'month_jun_abbr',
+    'month_jul_abbr', 'month_aug_abbr', 'month_sep_abbr', 'month_oct_abbr', 'month_nov_abbr', 'month_dec_abbr',
   ];
 
   ({List<FlSpot> spots, List<String> labels}) _buildSpotsForDescription(
@@ -323,7 +323,7 @@ class _CategoriesViewState extends State<CategoriesView> {
       spots.add(FlSpot(i.toDouble(), amount));
       final monthNum =
           int.tryParse(sortedMonths[i].split('-').last) ?? 1;
-      labels.add(_monthNames[(monthNum - 1).clamp(0, 11)]);
+      labels.add(Translator.t(_monthKeys[(monthNum - 1).clamp(0, 11)]));
     }
     return (spots: spots, labels: labels);
   }

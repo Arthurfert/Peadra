@@ -63,7 +63,7 @@ class _ImportDataViewState extends State<ImportDataView> {
       if (path == null) {
         setState(() {
           _loading = false;
-          _error = 'File not found';
+          _error = Translator.t('import_file_not_found');
         });
         return;
       }
@@ -289,7 +289,7 @@ class _ImportDataViewState extends State<ImportDataView> {
             Icon(Icons.error_outline, size: 48, color: colors.expenseIcon),
             const SizedBox(height: 12),
             Text(
-              _error ?? 'Unknown error',
+              _error ?? Translator.t('import_unknown_error'),
               style: TextStyle(color: colors.text),
               textAlign: TextAlign.center,
             ),
@@ -496,14 +496,14 @@ class _ImportDataViewState extends State<ImportDataView> {
                 fillColor: colors.surface,
                 isCollapsed: true,
               ),
-              items: const [
-                DropdownMenuItem(value: ColumnMapping.date, child: Text('Date')),
-                DropdownMenuItem(value: ColumnMapping.description, child: Text('Description')),
-                DropdownMenuItem(value: ColumnMapping.amount, child: Text('Amount')),
-                DropdownMenuItem(value: ColumnMapping.credit, child: Text('Credit')),
-                DropdownMenuItem(value: ColumnMapping.debit, child: Text('Debit')),
-                DropdownMenuItem(value: ColumnMapping.type, child: Text('Type')),
-                DropdownMenuItem(value: ColumnMapping.unused, child: Text('Unused')),
+              items: [
+                DropdownMenuItem(value: ColumnMapping.date, child: Text(Translator.t('import_date'))),
+                DropdownMenuItem(value: ColumnMapping.description, child: Text(Translator.t('import_description'))),
+                DropdownMenuItem(value: ColumnMapping.amount, child: Text(Translator.t('import_amount'))),
+                DropdownMenuItem(value: ColumnMapping.credit, child: Text(Translator.t('import_credit'))),
+                DropdownMenuItem(value: ColumnMapping.debit, child: Text(Translator.t('import_debit'))),
+                DropdownMenuItem(value: ColumnMapping.type, child: Text(Translator.t('import_type'))),
+                DropdownMenuItem(value: ColumnMapping.unused, child: Text(Translator.t('import_unused'))),
               ],
               onChanged: (v) {
                 if (v != null) _updateMapping(columnIndex, v);

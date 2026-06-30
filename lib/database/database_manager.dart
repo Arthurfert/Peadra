@@ -13,6 +13,7 @@ import '../models/transaction.dart';
 import '../utils/constants.dart';
 import '../services/currency_service.dart';
 import '../services/auth_service.dart';
+import '../i18n/translator.dart';
 
 class DatabaseManager {
   static Database? _database;
@@ -1030,9 +1031,10 @@ class DatabaseManager {
   }
 
   String _getMonthLabel(int month) {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return months[month - 1];
+    const keys = ['month_jan_abbr', 'month_feb_abbr', 'month_mar_abbr', 'month_apr_abbr',
+                  'month_may_abbr', 'month_jun_abbr', 'month_jul_abbr', 'month_aug_abbr',
+                  'month_sep_abbr', 'month_oct_abbr', 'month_nov_abbr', 'month_dec_abbr'];
+    return Translator.t(keys[(month - 1).clamp(0, 11)]);
   }
 
   Future<Map<String, double>> getCurrentMonthDistribution({

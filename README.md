@@ -23,45 +23,33 @@ Track your assets, manage transactions across multiple accounts and currencies, 
 ## Features
 
 **Portfolio & Asset Management**
-> **Comprehensive Overview:** Track your current balance, asset distribution, and financial evolution over time.
-> **Interactive Charts:** Bar charts, pie charts, and line charts for visual insights into spending patterns and trends.
-> **Category Insights:** Organize transactions into categories with the ability to dynamically rename, merge, and restructure them.
-> **Subscription Tracking:** Monitor recurring transactions and active subscriptions at a glance.
+- **Comprehensive Overview:** Track your current balance, asset distribution, and financial evolution over time.
+- **Interactive Charts:** Bar charts, pie charts, and line charts for visual insights into spending patterns and trends.
+- **Category Insights:** Organize transactions into categories with the ability to dynamically rename, merge, and restructure them.
+- **Subscription Tracking:** Monitor recurring transactions and active subscriptions at a glance.
 
 **Account & Transaction Management**
-> **Full Operations & Multi-Currency:** Easily add, modify, or delete transactions (expense, income, transfer), in any of 36 supported currencies with automatic exchange rate conversion.
-> **Multi-Account Support:** Manage multiple distinct accounts with independent tracking and color coding.
-> **Multi-User Authentication:** Secure access control for different users on the same device, with SHA-256 password hashing.
-> **Smart Autocomplete:** Transaction descriptions are auto-suggested from your history as you type.
+- **Full Operations & Multi-Currency:** Easily add, modify, or delete transactions (expense, income, transfer), in any of 36 supported currencies with automatic exchange rate conversion.
+- **Multi-Account Support:** Manage multiple distinct accounts with independent tracking and color coding.
+- **Multi-User Authentication:** Secure access control for different users on the same device, with SHA-256 password hashing.
+- **Smart Autocomplete:** Transaction descriptions are auto-suggested from your history as you type.
 
 **Data Control & System**
-> **Local & Secure:** Powered by a local SQLite database. Your financial data never leaves your machine.
-> **Flexible Data Portability:** Seamlessly import data via CSV files with automatic column detection and dialect parsing, and export your history in both JSON and CSV formats.
-> **Responsive Design:** Adaptive layout that works beautifully on phones, tablets, and desktops.
-> **Theming:** Four built-in themes — Light, Dark, Autumn, and Summer.
-> **Bilingual:** Full English and French language support.
+- **Local & Secure:** Powered by a local SQLite database. Your financial data never leaves your machine.
+- **Flexible Data Portability:** Seamlessly import data via CSV files with automatic column detection and dialect parsing, and export your history in both JSON and CSV formats.
+- **Responsive Design:** Adaptive layout that works beautifully on phones, tablets, and desktops.
+- **Theming:** Four built-in themes - Light, Dark, Autumn, and Summer.
 
-**Supported platforms:** Android, iOS, Linux, Windows, macOS. (UI is fully ready for desktop only but mobile is coming)
+**Supported platforms:** Android, iOS, Linux, Windows, macOS. (UI is fully ready for desktop only but mobile is coming)  
 **Supported languages:** English, French.
 
 > ...and many more features [to come](TODO.md) !
 
 ## Install
 
-Build from source for your target platform:
+To install the app, please download your designated installer in the `Release` section.
 
-| Platform  | Command                         |
-| --------- | ------------------------------- |
-| Android   | `flutter build apk --release`   |
-| iOS       | `flutter build ios --release`   |
-| Linux     | `flutter build linux --release` |
-| Windows   | `flutter build windows --release` |
-| macOS     | `flutter build macos --release` |
-
-For detailed setup instructions, see [INSTALLATION.md](./INSTALLATION.md).
-
-> [!NOTE]
-> The database is automatically created on first launch in your platform's application data directory.
+For developper's setup instructions, see [INSTALLATION.md](./INSTALLATION.md).
 
 ## Technologies
 

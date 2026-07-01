@@ -11,6 +11,7 @@ import '../components/theme/paedra_colors.dart';
 import '../services/auth_service.dart';
 import '../services/currency_service.dart';
 import '../services/export_service.dart';
+import '../services/update_service.dart';
 import 'import_data_view.dart';
 import 'login_view.dart';
 import '../responsive/responsive_layout.dart';
@@ -25,6 +26,40 @@ class ParametersView extends StatefulWidget {
 class _ParametersViewState extends State<ParametersView> {
   final _db = DatabaseManager.instance;
   final _authService = AuthService(DatabaseManager.instance);
+  final _updateService = UpdateService();
+
+  String _currentVersion = '';
+  UpdateInfo? _availableUpdate;
+  _UpdateStatus _updateStatus = _UpdateStatus.idle;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    final version = await _updateService.getCurrentVersion();
+    if (mounted) setState(() => _currentVersion = version);
+  }
+
+  Future<void> _checkForUpdate() async {
+    setState(() => _updateStatus = _UpdateStatus.checking);
+    try {
+      final update = await _updateService.checkForUpdate();
+      if (!mounted) return;
+      setState(() {
+        if (update != null) {
+          _availableUpdate = update;
+          _updateStatus = _UpdateStatus.available;
+        } else {
+          _updateStatus = _UpdateStatus.upToDate;
+        }
+      });
+    } catch (e) {
+      if (mounted) setState(() => _updateStatus = _UpdateStatus.error);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -69,6 +104,13 @@ class _ParametersViewState extends State<ParametersView> {
             _buildImportTile(colors),
             _buildExportCsvTile(colors),
           ], icon: Icons.import_export),
+          const SizedBox(height: 8),
+          _buildSection(Translator.t('param_updates'), colors, [
+            _buildVersionTile(colors),
+            _buildCheckUpdateTile(colors),
+            if (_updateStatus == _UpdateStatus.available && _availableUpdate != null)
+              _buildUpdateAvailableTile(colors),
+          ], icon: Icons.system_update),
           const SizedBox(height: 8),
           _buildSection(Translator.t('param_danger_zone'), colors, [
             _buildDeleteAccountTile(colors),
@@ -625,6 +667,91 @@ class _ParametersViewState extends State<ParametersView> {
     );
   }
 
+  Widget _buildVersionTile(PeadraColors colors) {
+    return ListTile(
+      title: Text(Translator.t('param_version'),
+          style: TextStyle(color: colors.text)),
+      trailing: Text(
+        _currentVersion.isNotEmpty ? 'v$_currentVersion' : '...',
+        style: TextStyle(
+          color: colors.textSecondary,
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCheckUpdateTile(PeadraColors colors) {
+    final isChecking = _updateStatus == _UpdateStatus.checking;
+    return ListTile(
+      title: Text(Translator.t('param_check_updates'),
+          style: TextStyle(color: colors.text)),
+      subtitle: Text(_updateStatusText(colors),
+          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+      trailing: isChecking
+          ? SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: colors.accent,
+              ),
+            )
+          : IconButton(
+              icon: Icon(Icons.refresh, color: colors.accent),
+              onPressed: _checkForUpdate,
+            ),
+    );
+  }
+
+  Widget _buildUpdateAvailableTile(PeadraColors colors) {
+    return ListTile(
+      leading: Icon(Icons.download, color: colors.success),
+      title: Text(
+        Translator.t('param_update_status_available',
+            params: {'version': _availableUpdate!.version}),
+        style: TextStyle(color: colors.success, fontWeight: FontWeight.w600),
+      ),
+      subtitle: _availableUpdate!.releaseNotes.isNotEmpty
+          ? Text(
+              _availableUpdate!.releaseNotes,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: colors.placeholderColor, fontSize: 12),
+            )
+          : null,
+      trailing: ElevatedButton.icon(
+        icon: const Icon(Icons.open_in_new, color: Colors.white, size: 16),
+        label: Text(Translator.t('param_install_update'),
+            style: const TextStyle(color: Colors.white, fontSize: 12)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: colors.success,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        onPressed: () =>
+            _updateService.openDownloadUrl(_availableUpdate!.downloadUrl),
+      ),
+    );
+  }
+
+  String _updateStatusText(PeadraColors colors) {
+    switch (_updateStatus) {
+      case _UpdateStatus.idle:
+        return Translator.t('param_update_status_idle');
+      case _UpdateStatus.checking:
+        return Translator.t('param_update_status_checking');
+      case _UpdateStatus.available:
+        return '';
+      case _UpdateStatus.upToDate:
+        return Translator.t('param_update_status_up_to_date');
+      case _UpdateStatus.error:
+        return Translator.t('param_update_status_error', params: {'error': ''});
+    }
+  }
+
   void _showDeleteAccountDialog(PeadraColors colors) {
     final passwordController = TextEditingController();
 
@@ -722,3 +849,5 @@ class _ParametersViewState extends State<ParametersView> {
     );
   }
 }
+
+enum _UpdateStatus { idle, checking, available, upToDate, error }

@@ -7,6 +7,7 @@ import '../providers/settings_provider.dart';
 import '../providers/theme_provider.dart';
 import '../components/theme/paedra_colors.dart';
 import '../services/currency_service.dart';
+import '../services/update_service.dart';
 import '../responsive/responsive_layout.dart';
 import '../database/database_manager.dart';
 import 'login_view.dart';
@@ -28,6 +29,8 @@ class _DashboardShellState extends State<DashboardShell> {
   int _selectedIndex = 0;
   double _totalPatrimony = 0;
   String _lastCurrency = '';
+  UpdateInfo? _availableUpdate;
+  bool _updateBannerDismissed = false;
 
   final _views = const [
     DashboardView(),
@@ -39,6 +42,14 @@ class _DashboardShellState extends State<DashboardShell> {
   @override
   void initState() {
     super.initState();
+    _checkForUpdate();
+  }
+
+  Future<void> _checkForUpdate() async {
+    final update = await UpdateService().checkForUpdate();
+    if (mounted && update != null) {
+      setState(() => _availableUpdate = update);
+    }
   }
 
   @override
@@ -93,6 +104,8 @@ class _DashboardShellState extends State<DashboardShell> {
       backgroundColor: colors.surface,
       body: Column(
         children: [
+          if (_availableUpdate != null && !_updateBannerDismissed)
+            _buildUpdateBanner(colors),
           if (screenSize != ScreenSize.phone) _buildTopBar(colors, isDark),
           Expanded(
             child: Row(
@@ -362,6 +375,50 @@ class _DashboardShellState extends State<DashboardShell> {
             label: Translator.t('nav_categories'),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildUpdateBanner(PeadraColors colors) {
+    return Material(
+      color: colors.success.withValues(alpha: 0.1),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: [
+              Icon(Icons.system_update, color: colors.success, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  Translator.t('param_update_status_available',
+                      params: {'version': _availableUpdate!.version}),
+                  style: TextStyle(
+                    color: colors.text,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: () => UpdateService()
+                    .openDownloadUrl(_availableUpdate!.downloadUrl),
+                child: Text(
+                  Translator.t('param_install_update'),
+                  style: TextStyle(
+                    color: colors.success,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: Icon(Icons.close, color: colors.placeholderColor, size: 18),
+                onPressed: () => setState(() => _updateBannerDismissed = true),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

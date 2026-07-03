@@ -756,9 +756,9 @@ void main() {
       final now = DateTime.now();
       final startDate = now.subtract(const Duration(days: 180)).toIso8601String().substring(0, 10);
       final endDate = now.toIso8601String().substring(0, 10);
-      final sameMonthDate1 = DateTime(now.year, now.month, 5).toIso8601String().substring(0, 10);
-      final sameMonthDate2 = DateTime(now.year, now.month, 15).toIso8601String().substring(0, 10);
-      final sameMonthDate3 = DateTime(now.year, now.month, 1).toIso8601String().substring(0, 10);
+      final sameMonthDate1 = now.subtract(const Duration(days: 10)).toIso8601String().substring(0, 10);
+      final sameMonthDate2 = now.subtract(const Duration(days: 5)).toIso8601String().substring(0, 10);
+      final sameMonthDate3 = now.subtract(const Duration(days: 15)).toIso8601String().substring(0, 10);
 
       final foodId = await seedTestDescription(db, userId, 'Food');
       final rentId = await seedTestDescription(db, userId, 'Rent');
@@ -795,7 +795,7 @@ void main() {
       final now = DateTime.now();
       final startDate = now.subtract(const Duration(days: 180)).toIso8601String().substring(0, 10);
       final endDate = now.toIso8601String().substring(0, 10);
-      final txnDate = DateTime(now.year, now.month, 5).toIso8601String().substring(0, 10);
+      final txnDate = now.subtract(const Duration(days: 10)).toIso8601String().substring(0, 10);
 
       final d1 = await seedTestDescription(db, userId, 'Food');
       final d2 = await seedTestDescription(db, userId, 'Rent');
@@ -940,7 +940,7 @@ void main() {
       final now = DateTime.now();
       final startDate = now.subtract(const Duration(days: 180)).toIso8601String().substring(0, 10);
       final endDate = now.toIso8601String().substring(0, 10);
-      final txnDate = DateTime(now.year, now.month, 5).toIso8601String().substring(0, 10);
+      final txnDate = now.subtract(const Duration(days: 10)).toIso8601String().substring(0, 10);
 
       final d1 = await seedTestDescription(db, userId, 'Cheap Item');
       final d2 = await seedTestDescription(db, userId, 'Expensive Item');
@@ -977,9 +977,9 @@ void main() {
       final now = DateTime.now();
       final startDate = now.subtract(const Duration(days: 180)).toIso8601String().substring(0, 10);
       final endDate = now.toIso8601String().substring(0, 10);
-      final txnDate1 = DateTime(now.year, now.month, 5).toIso8601String().substring(0, 10);
-      final txnDate2 = DateTime(now.year, now.month, 10).toIso8601String().substring(0, 10);
-      final txnDate3 = DateTime(now.year, now.month, 15).toIso8601String().substring(0, 10);
+      final txnDate1 = now.subtract(const Duration(days: 10)).toIso8601String().substring(0, 10);
+      final txnDate2 = now.subtract(const Duration(days: 5)).toIso8601String().substring(0, 10);
+      final txnDate3 = now.subtract(const Duration(days: 1)).toIso8601String().substring(0, 10);
 
       final d1 = await seedTestDescription(db, userId, 'Single Purchase');
       final d2 = await seedTestDescription(db, userId, 'Repeated Purchase');
@@ -1327,15 +1327,15 @@ void main() {
       final rentId = await seedTestDescription(db, userId, 'Rent');
       await seedTestTransaction(db, userId,
           accountId: accountIds[0], descriptionId: foodId,
-          date: '${now.year}-${now.month.toString().padLeft(2, '0')}-05',
+          date: now.subtract(const Duration(days: 1)).toIso8601String().substring(0, 10),
           amount: 80, transactionType: 'expense', currency: 'EUR');
       await seedTestTransaction(db, userId,
           accountId: accountIds[0], descriptionId: foodId,
-          date: '${now.year}-${now.month.toString().padLeft(2, '0')}-15',
+          date: now.toIso8601String().substring(0, 10),
           amount: 120, transactionType: 'expense', currency: 'EUR');
       await seedTestTransaction(db, userId,
           accountId: accountIds[0], descriptionId: rentId,
-          date: '${now.year}-${now.month.toString().padLeft(2, '0')}-01',
+          date: now.subtract(const Duration(days: 2)).toIso8601String().substring(0, 10),
           amount: 1000, transactionType: 'expense', currency: 'EUR');
 
       final rows = await db.rawQuery('''
@@ -1522,7 +1522,7 @@ void main() {
       final now = DateTime.now();
       final startDate = now.subtract(const Duration(days: 180)).toIso8601String().substring(0, 10);
       final endDate = now.toIso8601String().substring(0, 10);
-      final txnDate = DateTime(now.year, now.month, 5).toIso8601String().substring(0, 10);
+      final txnDate = now.subtract(const Duration(days: 10)).toIso8601String().substring(0, 10);
 
       final foodId = await seedTestDescription(db, userId, 'Food');
       final transferId = await seedTestDescription(db, userId, 'Transfer to Savings');

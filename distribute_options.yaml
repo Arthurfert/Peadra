@@ -7,9 +7,7 @@ releases:
         package:
           platform: linux
           target: deb
-        publish_to: github
       - name: build-windows-msix
         package:
           platform: windows
           target: msix
-        publish_to: github

@@ -55,11 +55,16 @@ jobs:
       - name: Build deb package
         run: fastforge package --platform linux --targets deb
 
+      - name: List output files
+        run: find . -name "*.deb" -o -name "*.changes" -o -name "*.buildinfo" | head -20
+
       - name: Upload deb artifact
         uses: actions/upload-artifact@v4
         with:
           name: peadra-linux-deb
-          path: dist/*.deb
+          path: |
+            dist/**/*.deb
+            **/*.deb
 
   build-windows:
     needs: test
@@ -83,8 +88,13 @@ jobs:
       - name: Build msix package
         run: fastforge package --platform windows --targets msix
 
+      - name: List output files
+        run: Get-ChildItem -Recurse -Filter "*.msix" | Select-Object FullName
+
       - name: Upload msix artifact
         uses: actions/upload-artifact@v4
         with:
           name: peadra-windows-msix
-          path: dist/*.msix
+          path: |
+            dist/**/*.msix
+            **/*.msix

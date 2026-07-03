@@ -23,18 +23,26 @@ class UpdateInfo {
   factory UpdateInfo.fromJson(Map<String, dynamic> json) {
     final assets = json['assets'] as List<dynamic>? ?? [];
     String downloadUrl = json['html_url'] ?? '';
+    String? linuxDebUrl;
+    String? linuxRpmUrl;
+    String? linuxAppImageUrl;
     for (final asset in assets) {
       final name = asset['name'] ?? '';
-      if (Platform.isLinux && name.contains('.AppImage')) {
-        downloadUrl = asset['browser_download_url'] ?? '';
-        break;
-      } else if (Platform.isWindows && name.contains('.exe')) {
-        downloadUrl = asset['browser_download_url'] ?? '';
+      final url = asset['browser_download_url'] ?? '';
+      if (Platform.isLinux) {
+        if (name.contains('.deb')) linuxDebUrl = url;
+        if (name.contains('.rpm')) linuxRpmUrl = url;
+        if (name.contains('.AppImage')) linuxAppImageUrl = url;
+      } else if (Platform.isWindows && name.contains('.msi')) {
+        downloadUrl = url;
         break;
       } else if (Platform.isMacOS && name.contains('.dmg')) {
-        downloadUrl = asset['browser_download_url'] ?? '';
+        downloadUrl = url;
         break;
       }
+    }
+    if (Platform.isLinux) {
+      downloadUrl = linuxDebUrl ?? linuxRpmUrl ?? linuxAppImageUrl ?? downloadUrl;
     }
 
     return UpdateInfo(
@@ -59,7 +67,7 @@ class UpdateService {
   Future<UpdateInfo?> checkForUpdate() async {
     try {
       final url = Uri.parse(
-          'https://api.github.com/repos/$_repoOwner/$_repoName/releases/latest');
+          'https://api.github.com/repos/Arthurfert/Peadra/releases/latest');
       final response = await http.get(url).timeout(const Duration(seconds: 10));
 
       if (response.statusCode != 200) return null;

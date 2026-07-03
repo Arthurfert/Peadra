@@ -1,0 +1,24 @@
+display_name: Peadra
+package_name: peadra
+maintainer:
+  name: Peadra
+  email: peadra@example.com
+priority: optional
+section: x11
+installed_size: 6604
+essential: false
+icon: assets/icon.png
+
+keywords:
+  - Finance
+  - Assets
+  - Tracker
+  - Budget
+
+generic_name: Financial Asset Tracker
+
+categories:
+  - Finance
+  - Office
+
+startup_notify: true

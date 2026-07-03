@@ -29,3 +29,59 @@ jobs:
 
       - name: Run tests
         run: flutter test
+
+  build-linux:
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Install fastforge
+        run: dart pub global activate fastforge
+
+      - name: Build deb package
+        run: fastforge package --platform linux --targets deb
+
+      - name: Upload deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: peadra-linux-deb
+          path: dist/*.deb
+
+  build-windows:
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Install fastforge
+        run: dart pub global activate fastforge
+
+      - name: Build msix package
+        run: fastforge package --platform windows --targets msix
+
+      - name: Upload msix artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: peadra-windows-msix
+          path: dist/*.msix

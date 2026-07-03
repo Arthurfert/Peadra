@@ -135,7 +135,7 @@ class ImportService {
   }
 
   /// Parse CSV content and auto-detect column mappings.
-  Future<ImportPreview> previewCsv(String filePath) async {
+  Future<ImportPreview> previewCsv(String filePath, {String? delimiter}) async {
     final file = File(filePath);
     if (!await file.exists()) {
       throw Exception('File not found: $filePath');
@@ -147,10 +147,13 @@ class ImportService {
     // Check if already imported
     final alreadyImported = await _db.getSetting('imported_file_$hash') != null;
 
-    final dialect = detectDialect(content);
-    final rows = const CsvToListConverter(
+    final dialect = delimiter != null
+        ? CsvDialect(fieldDelimiter: delimiter)
+        : detectDialect(content);
+    final rows = CsvToListConverter(
       shouldParseNumbers: false,
       eol: '\n',
+      fieldDelimiter: dialect.fieldDelimiter,
     ).convert(content);
 
     if (rows.isEmpty) {
@@ -388,6 +391,7 @@ class ImportService {
     required String transactionType,
     required int accountId,
     required String currency,
+    String? delimiter,
   }) async {
     final file = File(filePath);
     if (!await file.exists()) {
@@ -396,10 +400,13 @@ class ImportService {
 
     final content = await file.readAsString();
     final hash = await calculateFileHash(filePath);
-    final dialect = detectDialect(content);
-    final rows = const CsvToListConverter(
+    final dialect = delimiter != null
+        ? CsvDialect(fieldDelimiter: delimiter)
+        : detectDialect(content);
+    final rows = CsvToListConverter(
       shouldParseNumbers: false,
       eol: '\n',
+      fieldDelimiter: dialect.fieldDelimiter,
     ).convert(content);
 
     if (rows.isEmpty) {
@@ -450,7 +457,11 @@ class ImportService {
               if (value.isNotEmpty) description = value;
               break;
             case ColumnMapping.amount:
-              amount = _parseNumber(value);
+              final parsedAmount = _parseNumber(value);
+              if (parsedAmount != null) {
+                amount = parsedAmount.abs();
+                type ??= parsedAmount >= 0 ? 'income' : 'expense';
+              }
               break;
             case ColumnMapping.credit:
               final creditAmount = _parseNumber(value);

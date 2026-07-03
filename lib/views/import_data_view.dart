@@ -23,6 +23,7 @@ class _ImportDataViewState extends State<ImportDataView> {
   int _currentStep = 0;
   List<Account> _accounts = [];
   int? _selectedAccountId;
+  String? _selectedDelimiter;
   ImportPreview? _preview;
   bool _loading = false;
   String? _error;
@@ -68,7 +69,7 @@ class _ImportDataViewState extends State<ImportDataView> {
         return;
       }
 
-      final preview = await _importService.previewCsv(path);
+      final preview = await _importService.previewCsv(path, delimiter: _selectedDelimiter);
 
       if (preview.alreadyImported && mounted) {
         final proceed = await _showDuplicateWarning();
@@ -145,6 +146,24 @@ class _ImportDataViewState extends State<ImportDataView> {
     });
   }
 
+  Future<void> _repickFile() async {
+    if (_preview?.filePath == null) return;
+    try {
+      setState(() => _loading = true);
+      final preview = await _importService.previewCsv(_preview!.filePath!, delimiter: _selectedDelimiter);
+      setState(() {
+        _preview = preview;
+        _userMappings = List.from(preview.suggestedMappings);
+        _loading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _loading = false;
+        _error = e.toString();
+      });
+    }
+  }
+
   Future<void> _import() async {
     if (_preview == null || _selectedAccountId == null) return;
 
@@ -161,6 +180,7 @@ class _ImportDataViewState extends State<ImportDataView> {
         transactionType: 'expense',
         accountId: _selectedAccountId!,
         currency: account.currency,
+        delimiter: _selectedDelimiter,
       );
 
       setState(() {
@@ -349,6 +369,38 @@ class _ImportDataViewState extends State<ImportDataView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Separator dropdown
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  initialValue: _selectedDelimiter,
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    labelText: Translator.t('import_separator'),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    filled: true,
+                    fillColor: colors.bg,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                  items: [
+                    DropdownMenuItem(value: null, child: Text(Translator.t('import_separator_auto'))),
+                    DropdownMenuItem(value: ',', child: Text(Translator.t('import_separator_comma'))),
+                    DropdownMenuItem(value: ';', child: Text(Translator.t('import_separator_semicolon'))),
+                    DropdownMenuItem(value: '\t', child: Text(Translator.t('import_separator_tab'))),
+                    DropdownMenuItem(value: '|', child: Text(Translator.t('import_separator_pipe'))),
+                  ],
+                  onChanged: (v) {
+                    setState(() => _selectedDelimiter = v);
+                    _repickFile();
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
           // Account dropdown
           DropdownButtonFormField<int>(
             initialValue: _selectedAccountId,

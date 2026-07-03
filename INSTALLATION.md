@@ -85,6 +85,6 @@ flutter build macos --release
 
 The SQLite database is created automatically on first launch:
 - **Mobile:** App documents directory (managed by OS)
-- **Desktop:** Current working directory (`peadra.db`)
+- **Desktop:** `~/.Peadra/peadra.db` (Linux/macOS) or `%USERPROFILE%\.Peadra\peadra.db` (Windows)
 
 No manual setup or migrations required, tables are created via `CREATE TABLE IF NOT EXISTS`.

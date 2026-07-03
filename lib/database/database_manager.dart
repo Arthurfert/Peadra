@@ -37,7 +37,14 @@ class DatabaseManager {
       final dir = await getApplicationDocumentsDirectory();
       path = join(dir.path, dbName);
     } else {
-      path = join(Directory.current.path, dbName);
+      final home = Platform.environment['HOME'] ??
+          Platform.environment['USERPROFILE'] ??
+          Directory.current.path;
+      final peadraDir = Directory(join(home, '.Peadra'));
+      if (!peadraDir.existsSync()) {
+        await peadraDir.create(recursive: true);
+      }
+      path = join(peadraDir.path, dbName);
     }
 
     return openDatabase(
@@ -1326,5 +1333,18 @@ class DatabaseManager {
     final db = await database;
     await db.close();
     _database = null;
+  }
+
+  // ==================== BACKUP ====================
+
+  Future<void> backup() async {
+    final db = await database;
+    final path = db.path;
+    final dbFile = File(path);
+    if (!dbFile.existsSync()) return;
+
+    final timestamp = DateTime.now().toIso8601String().substring(0, 19).replaceAll(':', '-');
+    final backupPath = join(dbFile.parent.path, 'peadra_$timestamp.db');
+    await dbFile.copy(backupPath);
   }
 }

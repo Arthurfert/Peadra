@@ -13,6 +13,10 @@ Peadra aims to become a local version of existing apps like *[Finary](https://fi
 > [!NOTE]
 > Due to banking related laws, an API access to your bank requires approbation by an organization. It is thus not currently possible.
 
+## Currently in dev branch
+
+- Database stored in .peadra subfolder and database backup.
+
 ## Future Improvements & ideas
 
 - **Mobile version UI**

@@ -22,6 +22,7 @@ void main() async {
 
   final db = DatabaseManager.instance;
   await db.database;
+  await db.backup();
 
   runApp(
     MultiProvider(

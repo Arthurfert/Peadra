@@ -1334,4 +1334,17 @@ class DatabaseManager {
     await db.close();
     _database = null;
   }
+
+  // ==================== BACKUP ====================
+
+  Future<void> backup() async {
+    final db = await database;
+    final path = db.path;
+    final dbFile = File(path);
+    if (!dbFile.existsSync()) return;
+
+    final timestamp = DateTime.now().toIso8601String().substring(0, 19).replaceAll(':', '-');
+    final backupPath = join(dbFile.parent.path, 'peadra_$timestamp.db');
+    await dbFile.copy(backupPath);
+  }
 }

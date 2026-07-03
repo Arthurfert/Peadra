@@ -98,3 +98,42 @@ jobs:
           path: |
             dist/**/*.msix
             **/*.msix
+
+  release:
+    needs: [build-linux, build-windows]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from pubspec.yaml
+        id: version
+        run: echo "tag=v$(grep 'version:' pubspec.yaml | head -1 | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: peadra-linux-deb
+          path: artifacts/linux
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: peadra-windows-msix
+          path: artifacts/windows
+
+      - name: List artifacts
+        run: find artifacts -type f
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          generate_release_notes: true
+          files: |
+            artifacts/linux/**/*.deb
+            artifacts/windows/**/*.msix

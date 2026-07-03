@@ -33,7 +33,7 @@ class UpdateInfo {
         if (name.contains('.deb')) linuxDebUrl = url;
         if (name.contains('.rpm')) linuxRpmUrl = url;
         if (name.contains('.AppImage')) linuxAppImageUrl = url;
-      } else if (Platform.isWindows && name.contains('.exe')) {
+      } else if (Platform.isWindows && name.contains('.msi')) {
         downloadUrl = url;
         break;
       } else if (Platform.isMacOS && name.contains('.dmg')) {

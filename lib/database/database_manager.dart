@@ -37,7 +37,14 @@ class DatabaseManager {
       final dir = await getApplicationDocumentsDirectory();
       path = join(dir.path, dbName);
     } else {
-      path = join(Directory.current.path, dbName);
+      final home = Platform.environment['HOME'] ??
+          Platform.environment['USERPROFILE'] ??
+          Directory.current.path;
+      final peadraDir = Directory(join(home, '.Peadra'));
+      if (!peadraDir.existsSync()) {
+        await peadraDir.create(recursive: true);
+      }
+      path = join(peadraDir.path, dbName);
     }
 
     return openDatabase(

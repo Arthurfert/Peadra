@@ -1,0 +1,15 @@
+output: dist/
+
+releases:
+  - name: stable
+    jobs:
+      - name: build-linux-deb
+        package:
+          platform: linux
+          target: deb
+        publish_to: github
+      - name: build-windows-msix
+        package:
+          platform: windows
+          target: msix
+        publish_to: github

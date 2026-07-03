@@ -15,7 +15,7 @@ Peadra aims to become a local version of existing apps like *[Finary](https://fi
 
 ## Currently in dev branch
 
-- Database stored in .peadra subfolder
+- Database stored in .peadra subfolder and database backup.
 
 ## Future Improvements & ideas
 

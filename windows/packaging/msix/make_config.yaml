@@ -5,3 +5,4 @@ capabilities: internetClient
 publisher: CN=Peadra
 certificate_path: windows/packaging/msix/peadra.pfx
 certificate_password: YOUR_PASSWORD
+install_certificate: false

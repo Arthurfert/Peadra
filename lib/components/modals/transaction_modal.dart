@@ -56,7 +56,7 @@ class _TransactionModalState extends State<TransactionModal> {
   @override
   void initState() {
     super.initState();
-    _transactionType = widget.transactionType;
+    _transactionType = widget.editTransaction?.transactionType ?? widget.transactionType;
 
     if (widget.editTransaction != null) {
       final tx = widget.editTransaction!;
@@ -298,11 +298,9 @@ class _TransactionModalState extends State<TransactionModal> {
             const SizedBox.shrink(),
           const SizedBox(height: 16),
 
-          // Type selector for new transactions
-          if (widget.editTransaction == null) ...[
-            _buildTypeSelector(colors),
-            const SizedBox(height: 16),
-          ],
+          // Type selector
+          _buildTypeSelector(colors, enabled: widget.editTransaction == null || widget.editTransaction!.transactionType != 'transfer'),
+          const SizedBox(height: 16),
 
           // Date
           _buildDateField(colors),
@@ -380,23 +378,23 @@ class _TransactionModalState extends State<TransactionModal> {
     );
   }
 
-  Widget _buildTypeSelector(PeadraColors colors) {
+  Widget _buildTypeSelector(PeadraColors colors, {bool enabled = true}) {
     return Row(
       children: [
-        _buildTypeChip('expense', Translator.t('trans_expense'), colors.expenseIcon, colors),
+        _buildTypeChip('expense', Translator.t('trans_expense'), colors.expenseIcon, colors, enabled: enabled),
         const SizedBox(width: 8),
-        _buildTypeChip('income', Translator.t('trans_income'), colors.incomeIcon, colors),
+        _buildTypeChip('income', Translator.t('trans_income'), colors.incomeIcon, colors, enabled: enabled),
         const SizedBox(width: 8),
-        _buildTypeChip('transfer', Translator.t('trans_transfer'), colors.transferIcon, colors),
+        _buildTypeChip('transfer', Translator.t('trans_transfer'), colors.transferIcon, colors, enabled: enabled),
       ],
     );
   }
 
-  Widget _buildTypeChip(String type, String label, Color color, PeadraColors colors) {
+  Widget _buildTypeChip(String type, String label, Color color, PeadraColors colors, {bool enabled = true}) {
     final isSelected = _transactionType == type;
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => _transactionType = type),
+        onTap: enabled ? () => setState(() => _transactionType = type) : null,
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
@@ -411,7 +409,7 @@ class _TransactionModalState extends State<TransactionModal> {
             child: Text(
               label,
               style: TextStyle(
-                color: isSelected ? color : colors.textSecondary,
+                color: enabled ? (isSelected ? color : colors.textSecondary) : colors.placeholderColor,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                 fontSize: 13,
               ),

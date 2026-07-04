@@ -174,6 +174,7 @@ class _TransactionsViewState extends State<TransactionsView> {
             accounts: accounts,
             onSave: (data) => _handleSave(data, editTxn: editTxn),
             editTransaction: editTxn,
+            transactionType: editTxn?.transactionType ?? 'expense',
           ),
         ),
       );
@@ -184,6 +185,7 @@ class _TransactionsViewState extends State<TransactionsView> {
           accounts: accounts,
           onSave: (data) => _handleSave(data, editTxn: editTxn),
           editTransaction: editTxn,
+          transactionType: editTxn?.transactionType ?? 'expense',
         ),
       );
     }

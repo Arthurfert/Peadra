@@ -82,7 +82,7 @@ jobs:
       - name: Decode signing certificate
         run: |
           $pfxBytes = [Convert]::FromBase64String("${{ secrets.MSIX_CERTIFICATE }}")
-          [IO.File]::WriteAllBytes("${{ github.workspace }}\peadra.pfx", $pfxBytes)
+          [IO.File]::WriteAllBytes("${{ github.workspace }}\windows\packaging\msix\peadra.pfx", $pfxBytes)
         shell: pwsh
 
       - name: Install dependencies

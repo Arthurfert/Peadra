@@ -660,7 +660,6 @@ class _ParametersViewState extends State<ParametersView> {
 
   Widget _buildImportTile(PeadraColors colors) {
     return ListTile(
-      leading: Icon(Icons.upload_file, color: colors.accent),
       title: Text(Translator.t('btn_import'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('import_select_csv_desc'),
@@ -676,7 +675,6 @@ class _ParametersViewState extends State<ParametersView> {
 
   Widget _buildExportCsvTile(PeadraColors colors) {
     return ListTile(
-      leading: Icon(Icons.table_chart, color: colors.accent),
       title: Text('${Translator.t('btn_export')} CSV',
           style: TextStyle(color: colors.text)),
       subtitle: Text('Export transactions as CSV',
@@ -687,7 +685,7 @@ class _ParametersViewState extends State<ParametersView> {
           final content = await exportService.exportToCsv();
           final path =
               await exportService.saveToFile(content: content, format: 'csv');
-          if (mounted) {
+          if (mounted && path != null) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                   content: Text(Translator.t('msg_export_success')

@@ -98,11 +98,12 @@ jobs:
 
       - name: Export certificate public key
         run: |
-          $cert = Get-ChildItem -Path Cert:\CurrentUser\My -CodeSigningCert |
-                  Where-Object { $_.Subject -eq "CN=Peadra" } | Select-Object -First 1
-          if ($cert) {
-            Export-Certificate -Cert $cert -FilePath peadra.cer
-          }
+          $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
+            "${{ github.workspace }}\windows\packaging\msix\peadra.pfx",
+            "${{ secrets.MSIX_CERTIFICATE_PASSWORD }}",
+            [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable
+          )
+          Export-Certificate -Cert $cert -FilePath peadra.cer -Type CERT
         shell: pwsh
 
       - name: List output files
@@ -121,7 +122,7 @@ jobs:
         with:
           name: peadra-certificate
           path: peadra.cer
-        if: hashFiles('peadra.cer') != ''
+          if-no-files-found: ignore
 
   release:
     needs: [build-linux, build-windows]

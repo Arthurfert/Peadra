@@ -81,6 +81,7 @@ jobs:
 
       - name: Decode signing certificate
         run: |
+          New-Item -ItemType Directory -Force -Path "${{ github.workspace }}\windows\packaging\msix" | Out-Null
           $pfxBytes = [Convert]::FromBase64String("${{ secrets.MSIX_CERTIFICATE }}")
           [IO.File]::WriteAllBytes("${{ github.workspace }}\windows\packaging\msix\peadra.pfx", $pfxBytes)
         shell: pwsh

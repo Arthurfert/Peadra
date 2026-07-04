@@ -7,11 +7,13 @@ class SettingsProvider extends ChangeNotifier {
   int _maxPieCategories = defaultMaxPieCategories;
   String _monthMode = defaultMonthMode;
   String _currency = defaultCurrency;
+  int _maxBackups = defaultMaxBackups;
 
   int get displayLimit => _displayLimit;
   int get maxPieCategories => _maxPieCategories;
   String get monthMode => _monthMode;
   String get currency => _currency;
+  int get maxBackups => _maxBackups;
 
   Future<void> loadFromSettings(DatabaseManager db) async {
     _displayLimit = int.tryParse(
@@ -24,6 +26,10 @@ class SettingsProvider extends ChangeNotifier {
         defaultMaxPieCategories;
     _monthMode = await db.getSetting('month_mode', defaultValue: defaultMonthMode) ?? defaultMonthMode;
     _currency = await db.getSetting('currency', defaultValue: defaultCurrency) ?? defaultCurrency;
+    _maxBackups = int.tryParse(
+          await db.getSetting('max_backups', defaultValue: defaultMaxBackups.toString()) ?? defaultMaxBackups.toString(),
+        ) ??
+        defaultMaxBackups;
     notifyListeners();
   }
 
@@ -48,6 +54,12 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setCurrency(String currency, DatabaseManager db) async {
     _currency = currency;
     await db.setSetting('currency', currency);
+    notifyListeners();
+  }
+
+  Future<void> setMaxBackups(int max, DatabaseManager db) async {
+    _maxBackups = max;
+    await db.setSetting('max_backups', max.toString());
     notifyListeners();
   }
 }

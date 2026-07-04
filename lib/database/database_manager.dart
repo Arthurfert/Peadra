@@ -147,6 +147,7 @@ class DatabaseManager {
   void setUserId(int userId) {
     _userId = userId;
     _insertDefaultAccounts();
+    cleanupUnusedDescriptions();
   }
 
   Future<void> _insertDefaultAccounts() async {
@@ -358,6 +359,16 @@ class DatabaseManager {
       [newName.trim(), descriptionId, _userId],
     );
     return count > 0;
+  }
+
+  Future<void> cleanupUnusedDescriptions() async {
+    if (_userId == null) return;
+    final db = await database;
+    await db.rawDelete('''
+      DELETE FROM descriptions
+      WHERE user_id = ?
+        AND id NOT IN (SELECT DISTINCT description_id FROM transactions WHERE user_id = ?)
+    ''', [_userId, _userId]);
   }
 
   // ==================== TRANSACTIONS ====================

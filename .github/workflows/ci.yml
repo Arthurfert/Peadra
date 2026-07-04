@@ -88,13 +88,10 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Install fastforge
-        run: dart pub global activate fastforge
-
       - name: Build msix package
         run: |
-          (Get-Content windows/packaging/msix/make_config.yaml) -replace 'YOUR_PASSWORD', '${{ secrets.MSIX_CERTIFICATE_PASSWORD }}' | Set-Content windows/packaging/msix/make_config.yaml
-          fastforge package --platform windows --targets msix
+          (Get-Content pubspec.yaml) -replace 'YOUR_PASSWORD', '${{ secrets.MSIX_CERTIFICATE_PASSWORD }}' | Set-Content pubspec.yaml
+          dart run msix:create
 
       - name: Export certificate public key
         run: |

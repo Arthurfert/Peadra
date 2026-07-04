@@ -70,3 +70,6 @@ Thumbs.db
 # Build scripts & installers
 *.iss
 installer/
+
+# Certificates
+*.pfx

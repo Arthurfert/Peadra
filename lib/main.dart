@@ -11,6 +11,7 @@ import 'providers/settings_provider.dart';
 import 'database/database_manager.dart';
 import 'components/theme/paedra_colors.dart';
 import 'views/login_view.dart';
+import 'utils/constants.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,7 +23,10 @@ void main() async {
 
   final db = DatabaseManager.instance;
   await db.database;
-  await db.backup();
+
+  final maxBackupsStr = await db.getSetting('max_backups', defaultValue: defaultMaxBackups.toString());
+  final maxBackups = int.tryParse(maxBackupsStr ?? '') ?? defaultMaxBackups;
+  await db.backup(maxBackups: maxBackups);
 
   runApp(
     MultiProvider(

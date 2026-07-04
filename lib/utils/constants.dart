@@ -10,5 +10,6 @@ const String defaultMonthMode = 'strict';
 const String defaultCurrency = 'EUR';
 const String defaultTheme = 'dark';
 const String defaultLanguage = 'en';
+const int defaultMaxBackups = 5;
 
 const int globalSettingsUserId = 0;

@@ -70,12 +70,13 @@ class CurrencyService {
 
   static String formatAmount(double amount, String currencyCode) {
     final symbol = getSymbol(currencyCode);
+    final prefix = amount < 0 ? '-' : '';
     final abs = amount.abs();
     final formatted = abs.toStringAsFixed(2).replaceAllMapped(
           RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
           (m) => '${m[1]},',
         );
-    return '$formatted $symbol';
+    return '$prefix$formatted $symbol';
   }
 
   static String formatWithConversion(

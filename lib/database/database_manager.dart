@@ -147,6 +147,7 @@ class DatabaseManager {
   void setUserId(int userId) {
     _userId = userId;
     _insertDefaultAccounts();
+    cleanupUnusedDescriptions();
   }
 
   Future<void> _insertDefaultAccounts() async {
@@ -358,6 +359,16 @@ class DatabaseManager {
       [newName.trim(), descriptionId, _userId],
     );
     return count > 0;
+  }
+
+  Future<void> cleanupUnusedDescriptions() async {
+    if (_userId == null) return;
+    final db = await database;
+    await db.rawDelete('''
+      DELETE FROM descriptions
+      WHERE user_id = ?
+        AND id NOT IN (SELECT DISTINCT description_id FROM transactions WHERE user_id = ?)
+    ''', [_userId, _userId]);
   }
 
   // ==================== TRANSACTIONS ====================
@@ -1337,7 +1348,7 @@ class DatabaseManager {
 
   // ==================== BACKUP ====================
 
-  Future<void> backup() async {
+  Future<void> backup({int maxBackups = 5}) async {
     final db = await database;
     final path = db.path;
     final dbFile = File(path);
@@ -1346,5 +1357,23 @@ class DatabaseManager {
     final timestamp = DateTime.now().toIso8601String().substring(0, 19).replaceAll(':', '-');
     final backupPath = join(dbFile.parent.path, 'peadra_$timestamp.db');
     await dbFile.copy(backupPath);
+
+    _cleanupOldBackups(dbFile.parent.path, maxBackups);
+  }
+
+  void _cleanupOldBackups(String dirPath, int maxBackups) {
+    final dir = Directory(dirPath);
+    final backups = dir.listSync().whereType<File>().where((f) {
+      final name = f.path.split(Platform.pathSeparator).last;
+      return name.startsWith('peadra_') && name.endsWith('.db');
+    }).toList();
+
+    if (backups.length <= maxBackups) return;
+
+    backups.sort((a, b) => a.path.compareTo(b.path));
+    final toDelete = backups.sublist(0, backups.length - maxBackups);
+    for (final file in toDelete) {
+      file.deleteSync();
+    }
   }
 }

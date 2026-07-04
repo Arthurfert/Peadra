@@ -30,18 +30,18 @@ class _DashboardShellState extends State<DashboardShell> {
   double _totalPatrimony = 0;
   String _lastCurrency = '';
   UpdateInfo? _availableUpdate;
+  late final List<Widget> _views;
   bool _updateBannerDismissed = false;
-
-  final _views = const [
-    DashboardView(),
-    TransactionsView(),
-    AccountsView(),
-    CategoriesView(),
-  ];
 
   @override
   void initState() {
     super.initState();
+    _views = [
+      const DashboardView(),
+      TransactionsView(onDataChanged: _loadTotalPatrimony),
+      const AccountsView(),
+      const CategoriesView(),
+    ];
     _checkForUpdate();
   }
 
@@ -78,10 +78,13 @@ class _DashboardShellState extends State<DashboardShell> {
     if (index == 5) {
       Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const ParametersView()),
-      );
+      ).then((_) => _loadTotalPatrimony());
       return;
     }
     setState(() => _selectedIndex = index);
+    if (index == 0) {
+      _loadTotalPatrimony();
+    }
   }
 
   void _logout() {

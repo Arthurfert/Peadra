@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -94,6 +96,11 @@ class _ParametersViewState extends State<ParametersView> {
             _buildMonthModeTile(settings, colors),
             _buildMaxPieCategoriesTile(settings, colors),
           ], icon: Icons.bar_chart),
+          const SizedBox(height: 8),
+          _buildSection(Translator.t('param_database'), colors, [
+            _buildMaxBackupsTile(settings, colors),
+            _buildLocateDatabaseTile(colors),
+          ], icon: Icons.storage),
           const SizedBox(height: 8),
           _buildSection(Translator.t('param_security'), colors, [
             _buildUsernameTile(auth, colors),
@@ -398,6 +405,58 @@ class _ParametersViewState extends State<ParametersView> {
     );
   }
 
+  Widget _buildMaxBackupsTile(SettingsProvider settings, PeadraColors colors) {
+    return ListTile(
+      title: Text(Translator.t('param_max_backups'),
+          style: TextStyle(color: colors.text)),
+      subtitle: Text(Translator.t('param_max_backups_desc'),
+          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+      trailing: DropdownButton<int>(
+        value: settings.maxBackups,
+        dropdownColor: colors.surface,
+        style: TextStyle(color: colors.text),
+        items: [1, 2, 3, 5, 10, 15, 20]
+            .map((n) => DropdownMenuItem(value: n, child: Text(n.toString())))
+            .toList(),
+        onChanged: (v) async {
+          if (v != null) settings.setMaxBackups(v, _db);
+        },
+      ),
+    );
+  }
+
+  Widget _buildLocateDatabaseTile(PeadraColors colors) {
+    return ListTile(
+      title: Text(Translator.t('param_locate_database'),
+          style: TextStyle(color: colors.text)),
+      subtitle: Text(Translator.t('param_locate_database_desc'),
+          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+      trailing: ElevatedButton.icon(
+        icon: const Icon(Icons.folder_open, color: Colors.white, size: 16),
+        label: Text(Translator.t('param_locate_database'),
+            style: const TextStyle(color: Colors.white, fontSize: 12)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: colors.accent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        onPressed: () async {
+          final dbPath = _db.database.then((db) => db.path);
+          final path = await dbPath;
+          final dir = File(path).parent.path;
+          if (Platform.isLinux) {
+            await Process.run('xdg-open', [dir]);
+          } else if (Platform.isMacOS) {
+            await Process.run('open', [dir]);
+          } else if (Platform.isWindows) {
+            await Process.run('explorer', [dir]);
+          }
+        },
+      ),
+    );
+  }
+
   Widget _buildUsernameTile(AuthProvider auth, PeadraColors colors) {
     final controller = TextEditingController(text: auth.username);
     return ListTile(
@@ -601,7 +660,6 @@ class _ParametersViewState extends State<ParametersView> {
 
   Widget _buildImportTile(PeadraColors colors) {
     return ListTile(
-      leading: Icon(Icons.upload_file, color: colors.accent),
       title: Text(Translator.t('btn_import'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('import_select_csv_desc'),
@@ -617,7 +675,6 @@ class _ParametersViewState extends State<ParametersView> {
 
   Widget _buildExportCsvTile(PeadraColors colors) {
     return ListTile(
-      leading: Icon(Icons.table_chart, color: colors.accent),
       title: Text('${Translator.t('btn_export')} CSV',
           style: TextStyle(color: colors.text)),
       subtitle: Text('Export transactions as CSV',
@@ -628,7 +685,7 @@ class _ParametersViewState extends State<ParametersView> {
           final content = await exportService.exportToCsv();
           final path =
               await exportService.saveToFile(content: content, format: 'csv');
-          if (mounted) {
+          if (mounted && path != null) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                   content: Text(Translator.t('msg_export_success')

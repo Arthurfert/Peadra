@@ -2,8 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 
 import 'package:csv/csv.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
+import 'package:file_picker/file_picker.dart';
 
 import '../database/database_manager.dart';
 
@@ -72,17 +71,23 @@ class ExportService {
   }
 
   /// Save export to file and return the path.
-  Future<String> saveToFile({
+  /// Opens a file picker dialog for the user to choose the save location.
+  Future<String?> saveToFile({
     required String content,
     required String format,
     String? fileName,
   }) async {
-    final dir = await getApplicationDocumentsDirectory();
     final timestamp = DateTime.now().toIso8601String().substring(0, 19).replaceAll(':', '-');
     final name = fileName ?? 'peadra_export_$timestamp.$format';
-    final filePath = p.join(dir.path, name);
 
-    await File(filePath).writeAsString(content);
-    return filePath;
+    final result = await FilePicker.platform.saveFile(
+      dialogTitle: 'Export $format',
+      fileName: name,
+    );
+
+    if (result == null) return null;
+
+    await File(result).writeAsString(content);
+    return result;
   }
 }

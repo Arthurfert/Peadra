@@ -377,31 +377,55 @@ class _AccountsViewState extends State<AccountsView> {
   }
 
   void _showDeleteConfirmation(AccountWithBalance acct, PeadraColors colors) {
+    bool deleteTransactions = false;
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: colors.surface,
-        title: Text(Translator.t('acc_delete_account'),
-            style: TextStyle(color: colors.text)),
-        content: Text(Translator.t('acc_delete_confirm'),
-            style: TextStyle(color: colors.textSecondary)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(Translator.t('btn_cancel')),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: colors.surface,
+          title: Text(Translator.t('acc_delete_account'),
+              style: TextStyle(color: colors.text)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(Translator.t('acc_delete_confirm'),
+                  style: TextStyle(color: colors.textSecondary)),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Checkbox(
+                    value: deleteTransactions,
+                    onChanged: (v) => setDialogState(() => deleteTransactions = v ?? false),
+                    activeColor: colors.deleteColor,
+                  ),
+                  Expanded(
+                    child: Text(Translator.t('acc_delete_transactions'),
+                        style: TextStyle(color: colors.text, fontSize: 13)),
+                  ),
+                ],
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () async {
-              await _db.deleteAccount(acct.id!, deleteTransactions: false);
-              Navigator.pop(ctx);
-              _loadAccounts();
-            },
-            style:
-                ElevatedButton.styleFrom(backgroundColor: colors.deleteColor),
-            child: Text(Translator.t('btn_delete'),
-                style: const TextStyle(color: Colors.white)),
-          ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(Translator.t('btn_cancel')),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                await _db.deleteAccount(acct.id!, deleteTransactions: deleteTransactions);
+                Navigator.pop(ctx);
+                _loadAccounts();
+              },
+              style:
+                  ElevatedButton.styleFrom(backgroundColor: colors.deleteColor),
+              child: Text(Translator.t('btn_delete'),
+                  style: const TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
       ),
     );
   }

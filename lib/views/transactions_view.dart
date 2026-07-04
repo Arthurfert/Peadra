@@ -30,7 +30,9 @@ class _DisplayItem {
 }
 
 class TransactionsView extends StatefulWidget {
-  const TransactionsView({super.key});
+  final VoidCallback? onDataChanged;
+
+  const TransactionsView({super.key, this.onDataChanged});
 
   @override
   State<TransactionsView> createState() => _TransactionsViewState();
@@ -275,6 +277,7 @@ class _TransactionsViewState extends State<TransactionsView> {
     }
 
     _loadTransactions();
+    widget.onDataChanged?.call();
   }
 
   Future<void> _deleteTransaction(TransactionWithDetails txn) async {
@@ -310,6 +313,8 @@ class _TransactionsViewState extends State<TransactionsView> {
           SnackBar(content: Text(Translator.t('msg_transaction_deleted'))),
         );
       }
+      _loadTransactions();
+      widget.onDataChanged?.call();
     }
   }
 
@@ -433,6 +438,7 @@ class _TransactionsViewState extends State<TransactionsView> {
                 await _db.deleteTransaction(pairedTxn.id!);
               }
               _loadTransactions();
+              widget.onDataChanged?.call();
             },
             child: Text(Translator.t('btn_delete'),
                 style: TextStyle(color: colors.error)),
@@ -674,6 +680,7 @@ class _TransactionsViewState extends State<TransactionsView> {
         confirmDismiss: (direction) async {
           await _deleteTransaction(txn);
           _loadTransactions();
+          widget.onDataChanged?.call();
           return false;
         },
         child: card,
@@ -776,6 +783,7 @@ class _TransactionsViewState extends State<TransactionsView> {
             await _db.deleteTransaction(item.pairedTransaction!.id!);
           }
           _loadTransactions();
+          widget.onDataChanged?.call();
           return false;
         },
         child: card,

@@ -17,7 +17,11 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   if (Platform.isLinux || Platform.isWindows || Platform.isMacOS) {
-    sqfliteFfiInit();
+    try {
+      sqfliteFfiInit();
+    } catch (e) {
+      stderr.writeln('sqfliteFfiInit failed: $e');
+    }
     databaseFactory = databaseFactoryFfi;
   }
 

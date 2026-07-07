@@ -89,18 +89,6 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Copy sqlite3.dll for release packaging
-        run: |
-          $config = Get-Content ".dart_tool\package_config.json" | ConvertFrom-Json
-          $pkg = $config.packages | Where-Object { $_.name -eq "sqflite_common_ffi" }
-          $rootUri = $pkg.rootUri -replace 'file:///', ''
-          $dllPath = Join-Path $rootUri "lib\src\windows\sqlite3.dll"
-          $outputDir = "build\windows\x64\runner\Release"
-          New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
-          Copy-Item $dllPath (Join-Path $outputDir "sqlite3.dll") -Force
-          Write-Host "Copied sqlite3.dll to $outputDir"
-        shell: pwsh
-
       - name: Build msix package
         run: |
           (Get-Content pubspec.yaml) -replace 'YOUR_PASSWORD', '${{ secrets.MSIX_CERTIFICATE_PASSWORD }}' | Set-Content pubspec.yaml

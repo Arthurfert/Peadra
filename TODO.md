@@ -15,7 +15,7 @@ Peadra aims to become a local version of existing apps like *[Finary](https://fi
 
 ## Currently in dev branch
 
-
+Trying to get the .msix package to work (windows installer)
 
 ## Future Improvements & ideas
 

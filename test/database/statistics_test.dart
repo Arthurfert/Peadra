@@ -756,9 +756,9 @@ void main() {
       final now = DateTime.now();
       final startDate = now.subtract(const Duration(days: 180)).toIso8601String().substring(0, 10);
       final endDate = now.toIso8601String().substring(0, 10);
-      final sameMonthDate1 = now.subtract(const Duration(days: 10)).toIso8601String().substring(0, 10);
-      final sameMonthDate2 = now.subtract(const Duration(days: 5)).toIso8601String().substring(0, 10);
-      final sameMonthDate3 = now.subtract(const Duration(days: 15)).toIso8601String().substring(0, 10);
+      final sameMonthDate1 = now.subtract(const Duration(days: 3)).toIso8601String().substring(0, 10);
+      final sameMonthDate2 = now.subtract(const Duration(days: 2)).toIso8601String().substring(0, 10);
+      final sameMonthDate3 = now.subtract(const Duration(days: 1)).toIso8601String().substring(0, 10);
 
       final foodId = await seedTestDescription(db, userId, 'Food');
       final rentId = await seedTestDescription(db, userId, 'Rent');

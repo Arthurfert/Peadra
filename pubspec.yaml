@@ -40,9 +40,10 @@ msix_config:
   identity_name: com.peadra.app
   msix_version: 2.0.2.0
   logo_path: windows/runner/resources/app_icon.ico
-  capabilities: internetClient
+  capabilities: internetClient, runFullTrust
   publisher: CN=Peadra
   certificate_path: windows/packaging/msix/peadra.pfx
   certificate_password: YOUR_PASSWORD
   install_certificate: false
   sign_msix: true
+  build_files_folder: build/windows/x64/runner/Release

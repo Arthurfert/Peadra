@@ -13,9 +13,9 @@ Peadra aims to become a local version of existing apps like *[Finary](https://fi
 > [!NOTE]
 > Due to banking related laws, an API access to your bank requires approbation by an organization. It is thus not currently possible.
 
-## Currently in dev branch
+## Currently in development
 
-Trying to get the .msix package to work (windows installer)
+- Fixed windows installer
 
 ## Future Improvements & ideas
 

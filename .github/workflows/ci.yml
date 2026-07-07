@@ -92,7 +92,8 @@ jobs:
       - name: Build msix package
         run: |
           (Get-Content pubspec.yaml) -replace 'YOUR_PASSWORD', '${{ secrets.MSIX_CERTIFICATE_PASSWORD }}' | Set-Content pubspec.yaml
-          dart run msix:create
+          $version = (Select-String -Path pubspec.yaml -Pattern '^version: (.+)$').Matches[0].Groups[1].Value.Trim()
+          dart run msix:create --output-name "peadra-$version-windows"
 
       - name: Export certificate public key
         run: |

@@ -79,6 +79,7 @@ class _NotificationWidgetState extends State<_NotificationWidget>
   late final AnimationController _controller;
   late final Animation<Offset> _slideAnimation;
   late final Animation<double> _fadeAnimation;
+  bool _disposed = false;
 
   @override
   void initState() {
@@ -104,14 +105,17 @@ class _NotificationWidgetState extends State<_NotificationWidget>
     _controller.forward();
 
     Future.delayed(const Duration(seconds: 4), () {
-      if (mounted) {
-        _controller.reverse().then((_) => widget.onDismiss());
+      if (!_disposed) {
+        _controller.reverse().then((_) {
+          if (!_disposed) widget.onDismiss();
+        });
       }
     });
   }
 
   @override
   void dispose() {
+    _disposed = true;
     _controller.dispose();
     super.dispose();
   }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../lib/components/notification/peadra_notification.dart';
+import 'package:peadra/components/notification/peadra_notification.dart';
 
 Widget buildApp() {
   return MaterialApp(
@@ -14,15 +14,6 @@ Widget buildApp() {
       ),
     ),
   );
-}
-
-Future<void> showNotification(
-  WidgetTester tester, {
-  required String message,
-  NotificationType type = NotificationType.success,
-}) async {
-  await tester.tap(find.text('SHOW'));
-  // Need to find the context of the button to show notification
 }
 
 void main() {
@@ -114,29 +105,53 @@ void main() {
       expect(find.text('Temporary notification'), findsNothing);
     });
 
-    testWidgets('shows multiple notifications simultaneously',
+    testWidgets('stacks notifications vertically', (tester) async {
+      await tester.pumpWidget(buildApp());
+
+      final context = tester.element(find.text('SHOW'));
+      PeadraNotification.show(context, message: 'First');
+      await tester.pump();
+      PeadraNotification.show(context, message: 'Second');
+      await tester.pump();
+
+      expect(find.text('First'), findsOneWidget);
+      expect(find.text('Second'), findsOneWidget);
+      // Both use Positioned widgets in the overlay
+      expect(find.byType(Positioned), findsAtLeast(2));
+
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pump(const Duration(milliseconds: 400));
+    });
+
+    testWidgets('remaining notification moves down when one dismisses',
         (tester) async {
       await tester.pumpWidget(buildApp());
 
       final context = tester.element(find.text('SHOW'));
-      PeadraNotification.show(context, message: 'First notification');
+      // Show first notification and wait 3 seconds
+      PeadraNotification.show(context, message: 'Bottom');
       await tester.pump();
-      expect(find.text('First notification'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 3));
 
-      PeadraNotification.show(
-        context,
-        message: 'Second notification',
-        type: NotificationType.error,
-      );
+      // Show second notification (Bottom has 1 second left, Top has 4 seconds)
+      PeadraNotification.show(context, message: 'Top');
       await tester.pump();
 
-      expect(find.text('First notification'), findsOneWidget);
-      expect(find.text('Second notification'), findsOneWidget);
-      expect(find.byIcon(Icons.check_circle), findsOneWidget);
-      expect(find.byIcon(Icons.error), findsOneWidget);
+      expect(find.text('Bottom'), findsOneWidget);
+      expect(find.text('Top'), findsOneWidget);
 
+      // Pump past Bottom's dismissal
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // Bottom should have dismissed, Top should still be visible
+      expect(find.text('Bottom'), findsNothing);
+      expect(find.text('Top'), findsOneWidget);
+
+      // Let Top's timer complete before test ends
       await tester.pump(const Duration(seconds: 5));
       await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('Top'), findsNothing);
     });
   });
 }

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 enum NotificationType { success, error, warning, info }
 
 class PeadraNotification {
+  static final List<OverlayEntry> _entries = [];
+
   static void show(
     BuildContext context, {
     required String message,
@@ -11,17 +13,29 @@ class PeadraNotification {
     final state = Overlay.of(context);
     final colors = _getColors(type);
 
-    late OverlayEntry entry;
+    late final OverlayEntry entry;
     entry = OverlayEntry(
-      builder: (context) => _NotificationWidget(
-        message: message,
-        backgroundColor: colors.$1,
-        icon: colors.$2,
-        iconColor: colors.$3,
-        onDismiss: () => entry.remove(),
-      ),
+      builder: (_) {
+        final index = _entries.indexOf(entry);
+        if (index == -1) return const SizedBox.shrink();
+        return _NotificationWidget(
+          message: message,
+          backgroundColor: colors.$1,
+          icon: colors.$2,
+          iconColor: colors.$3,
+          offsetIndex: index,
+          onDismiss: () {
+            entry.remove();
+            _entries.remove(entry);
+            for (final e in _entries) {
+              e.markNeedsBuild();
+            }
+          },
+        );
+      },
     );
 
+    _entries.add(entry);
     state.insert(entry);
   }
 
@@ -60,6 +74,7 @@ class _NotificationWidget extends StatefulWidget {
   final Color backgroundColor;
   final IconData icon;
   final Color iconColor;
+  final int offsetIndex;
   final VoidCallback onDismiss;
 
   const _NotificationWidget({
@@ -67,6 +82,7 @@ class _NotificationWidget extends StatefulWidget {
     required this.backgroundColor,
     required this.icon,
     required this.iconColor,
+    required this.offsetIndex,
     required this.onDismiss,
   });
 
@@ -80,10 +96,12 @@ class _NotificationWidgetState extends State<_NotificationWidget>
   late final Animation<Offset> _slideAnimation;
   late final Animation<double> _fadeAnimation;
   bool _disposed = false;
+  int _previousOffsetIndex = 0;
 
   @override
   void initState() {
     super.initState();
+    _previousOffsetIndex = widget.offsetIndex;
 
     _controller = AnimationController(
       vsync: this,
@@ -114,16 +132,24 @@ class _NotificationWidgetState extends State<_NotificationWidget>
   }
 
   @override
+  void didUpdateWidget(_NotificationWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _previousOffsetIndex = oldWidget.offsetIndex;
+  }
+
+  @override
   void dispose() {
     _disposed = true;
     _controller.dispose();
     super.dispose();
   }
 
+  double get _bottomOffset => 24.0 + widget.offsetIndex * 72.0;
+
   @override
   Widget build(BuildContext context) {
     return Positioned(
-      bottom: 24,
+      bottom: _bottomOffset,
       right: 24,
       child: SlideTransition(
         position: _slideAnimation,

@@ -6,6 +6,7 @@ import '../i18n/translator.dart';
 import '../providers/theme_provider.dart';
 import '../database/database_manager.dart';
 import '../components/theme/paedra_colors.dart';
+import '../components/notification/peadra_notification.dart';
 
 class CategoriesView extends StatefulWidget {
   const CategoriesView({super.key});
@@ -449,9 +450,7 @@ class _CategoriesViewState extends State<CategoriesView> {
 
     if (names.length < 2) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(Translator.t('cat_need_at_least_two_descriptions'))),
-        );
+        PeadraNotification.show(context, message: Translator.t('cat_need_at_least_two_descriptions'), type: NotificationType.warning);
       }
       return;
     }
@@ -531,15 +530,13 @@ class _CategoriesViewState extends State<CategoriesView> {
     if (result == true && sourceName != null && targetName != null) {
       final success = await _db.mergeDescriptions(sourceName!, targetName!);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(success
-                ? Translator.t('cat_merge_success')
-                    .replaceAll('{source}', sourceName!)
-                    .replaceAll('{target}', targetName!)
-                : Translator.t('cat_merge_failed')),
-          ),
-        );
+        if (success) {
+          PeadraNotification.show(context, message: Translator.t('cat_merge_success')
+              .replaceAll('{source}', sourceName!)
+              .replaceAll('{target}', targetName!));
+        } else {
+          PeadraNotification.show(context, message: Translator.t('cat_merge_failed'), type: NotificationType.error);
+        }
         if (success) _loadData();
       }
     }
@@ -551,9 +548,7 @@ class _CategoriesViewState extends State<CategoriesView> {
 
     if (names.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(Translator.t('cat_no_descriptions'))),
-        );
+        PeadraNotification.show(context, message: Translator.t('cat_no_descriptions'), type: NotificationType.warning);
       }
       return;
     }
@@ -634,15 +629,13 @@ class _CategoriesViewState extends State<CategoriesView> {
       final newName = newNameCtrl.text.trim();
       final success = await _db.renameDescription(desc.id!, newName);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(success
-                ? Translator.t('cat_rename_success')
-                    .replaceAll('{old}', selectedName!)
-                    .replaceAll('{new}', newName)
-                : Translator.t('cat_rename_failed')),
-          ),
-        );
+        if (success) {
+          PeadraNotification.show(context, message: Translator.t('cat_rename_success')
+              .replaceAll('{old}', selectedName!)
+              .replaceAll('{new}', newName));
+        } else {
+          PeadraNotification.show(context, message: Translator.t('cat_rename_failed'), type: NotificationType.error);
+        }
         if (success) _loadData();
       }
     }

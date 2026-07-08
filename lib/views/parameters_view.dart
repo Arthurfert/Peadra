@@ -13,6 +13,7 @@ import '../components/theme/paedra_colors.dart';
 import '../services/auth_service.dart';
 import '../services/currency_service.dart';
 import '../services/export_service.dart';
+import '../components/notification/peadra_notification.dart';
 import '../services/update_service.dart';
 import 'import_data_view.dart';
 import 'login_view.dart';
@@ -495,17 +496,11 @@ class _ParametersViewState extends State<ParametersView> {
                   await _authService.updateUsername(auth.userId!, value.trim());
               if (success && mounted) {
                 auth.setUsername(value.trim());
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                      content:
-                          Text(Translator.t('param_username_saved'))),
-                );
+                PeadraNotification.show(context, message: Translator.t('param_username_saved'));
               }
             } catch (e) {
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(e.toString())),
-                );
+                PeadraNotification.show(context, message: e.toString(), type: NotificationType.error);
               }
             }
           },
@@ -610,18 +605,11 @@ class _ParametersViewState extends State<ParametersView> {
               final confirmPass = confirmPasswordController.text;
 
               if (oldPass.isEmpty || newPass.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                      content: Text(Translator.t('param_password_empty'))),
-                );
+                PeadraNotification.show(context, message: Translator.t('param_password_empty'), type: NotificationType.warning);
                 return;
               }
               if (newPass != confirmPass) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                      content:
-                          Text(Translator.t('param_password_mismatch'))),
-                );
+                PeadraNotification.show(context, message: Translator.t('param_password_mismatch'), type: NotificationType.warning);
                 return;
               }
 
@@ -631,19 +619,11 @@ class _ParametersViewState extends State<ParametersView> {
                     auth.userId!, oldPass, newPass);
                 if (success && mounted) {
                   Navigator.of(ctx).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                        content:
-                            Text(Translator.t('param_password_saved'))),
-                  );
+                  PeadraNotification.show(context, message: Translator.t('param_password_saved'));
                 }
               } catch (e) {
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                        content:
-                            Text(Translator.t('param_old_password_incorrect'))),
-                  );
+                  PeadraNotification.show(context, message: Translator.t('param_old_password_incorrect'), type: NotificationType.error);
                 }
               }
             },
@@ -686,17 +666,12 @@ class _ParametersViewState extends State<ParametersView> {
           final path =
               await exportService.saveToFile(content: content, format: 'csv');
           if (mounted && path != null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                  content: Text(Translator.t('msg_export_success')
-                      .replaceAll('{file_path}', path))),
-            );
+            PeadraNotification.show(context, message: Translator.t('msg_export_success')
+                .replaceAll('{file_path}', path));
           }
         } catch (e) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(Translator.t('msg_export_error'))),
-            );
+            PeadraNotification.show(context, message: Translator.t('msg_export_error'), type: NotificationType.error);
           }
         }
       },
@@ -862,11 +837,7 @@ class _ParametersViewState extends State<ParametersView> {
             onPressed: () async {
               final password = passwordController.text;
               if (password.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                      content:
-                          Text(Translator.t('param_delete_password_required'))),
-                );
+                PeadraNotification.show(context, message: Translator.t('param_delete_password_required'), type: NotificationType.warning);
                 return;
               }
 
@@ -881,17 +852,11 @@ class _ParametersViewState extends State<ParametersView> {
                     (route) => false,
                   );
                 } else if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                        content: Text(
-                            Translator.t('param_delete_password_incorrect'))),
-                  );
+                  PeadraNotification.show(context, message: Translator.t('param_delete_password_incorrect'), type: NotificationType.error);
                 }
               } catch (e) {
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(e.toString())),
-                  );
+                  PeadraNotification.show(context, message: e.toString(), type: NotificationType.error);
                 }
               }
             },

@@ -9,6 +9,7 @@ import '../models/transaction.dart';
 import '../models/account.dart';
 import '../components/theme/paedra_colors.dart';
 import '../components/modals/transaction_modal.dart';
+import '../components/notification/peadra_notification.dart';
 import '../services/currency_service.dart';
 import '../responsive/responsive_layout.dart';
 
@@ -207,9 +208,7 @@ class _TransactionsViewState extends State<TransactionsView> {
         currency: data['currency'],
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(Translator.t('msg_transaction_modified'))),
-        );
+        PeadraNotification.show(context, message: Translator.t('msg_transaction_modified'));
       }
     } else if (isTransfer) {
       // Create transfer
@@ -255,9 +254,7 @@ class _TransactionsViewState extends State<TransactionsView> {
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(Translator.t('msg_transfer_completed'))),
-        );
+        PeadraNotification.show(context, message: Translator.t('msg_transfer_completed'));
       }
     } else {
       // Create regular transaction
@@ -272,9 +269,7 @@ class _TransactionsViewState extends State<TransactionsView> {
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(Translator.t('msg_transaction_added'))),
-        );
+        PeadraNotification.show(context, message: Translator.t('msg_transaction_added'));
       }
     }
 
@@ -311,9 +306,7 @@ class _TransactionsViewState extends State<TransactionsView> {
     if (confirmed == true) {
       await _db.deleteTransaction(txn.id!);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(Translator.t('msg_transaction_deleted'))),
-        );
+        PeadraNotification.show(context, message: Translator.t('msg_transaction_deleted'));
       }
       _loadTransactions();
       widget.onDataChanged?.call();

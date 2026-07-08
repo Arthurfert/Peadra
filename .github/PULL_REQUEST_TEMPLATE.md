@@ -12,9 +12,6 @@ Please include a summary of the changes and related context. Include any relevan
 ## How Has This Been Tested?
 Please describe the tests that you ran to verify your changes.
 
-## Screenshots (if applicable):
-Add screenshots here if this PR involves UI changes.
-
 ## Related Issues (if applicable)
 Closes #(issue number)
 

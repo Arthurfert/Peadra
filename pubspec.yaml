@@ -22,7 +22,6 @@ dependencies:
   file_picker: ^9.0.1
   url_launcher: ^6.2.0
   package_info_plus: ^8.3.1
-  window_manager: ^0.3.8
 
 dev_dependencies:
   flutter_test:

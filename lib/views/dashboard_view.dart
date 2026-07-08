@@ -856,7 +856,7 @@ class _DashboardViewState extends State<DashboardView> {
   Widget _buildAssetsDistributionPieChart(PeadraColors colors, String currency, int maxCategories) {
     final pieData = _accountsDistribution.map((a) => {
       'label': a['name'] as String,
-      'amount': (a['value'] as num).toDouble(),
+      'amount': ((a['value'] as num).toDouble()).clamp(0.0, double.infinity),
       'nativeValue': (a['nativeValue'] as num?)?.toDouble(),
       'currency': a['currency'] as String?,
       'color': a['color'] as String,

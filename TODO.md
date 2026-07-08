@@ -17,6 +17,7 @@ Peadra aims to become a local version of existing apps like *[Finary](https://fi
 
 - Fixed a bug where a negative account would prevent the assets distribution pie chart to render.
 - Notifications enhanced : modern look instead of the snackbar
+- Native window maximization at startup
 
 ## Future Improvements & ideas
 

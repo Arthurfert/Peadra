@@ -2,6 +2,12 @@
   <img src="./assets/Peadra-logo.png" alt="Peadra's logo" style="height:200px;margin:0;">
 </div>
 
+<div align="center">
+  <a href="https://deepwiki.com/Arthurfert/Peadra"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
+  <a href="https://github.com/Arthurfert/Peadra?tab=GPL-3.0-1-ov-file)"><img src="https://img.shields.io/badge/License-GPL%203.0-brightgreen.svg"></a>
+  <img src="https://img.shields.io/github/v/release/Arthurfert/Peadra">
+</div>
+
 ## Screenshots
 
 |                 Dashboard                 |                  Transactions                  |

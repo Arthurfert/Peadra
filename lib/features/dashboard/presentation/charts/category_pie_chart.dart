@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 
-import '../../components/theme/paedra_colors.dart';
-import '../../i18n/translator.dart';
-import '../../services/currency_service.dart';
+import '../../../../core/theme/paedra_colors.dart';
+import '../../../../core/i18n/translator.dart';
+import '../../../../core/services/currency_service.dart';
 
 class CategoryPieChart extends StatefulWidget {
   final List<Map<String, dynamic>> data;
@@ -58,7 +58,8 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
     ];
 
     final sortedData = List<Map<String, dynamic>>.from(widget.data)
-      ..sort((a, b) => (b['amount'] as double).compareTo(a['amount'] as double));
+      ..sort((a, b) =>
+          (b['amount'] as double).compareTo(a['amount'] as double));
 
     final processedData = <Map<String, dynamic>>[];
     double otherAmount = 0;
@@ -72,7 +73,8 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
       }
     }
     if (otherAmount > 0) {
-      processedData.add({'label': Translator.t('dash_other'), 'amount': otherAmount});
+      processedData.add(
+          {'label': Translator.t('dash_other'), 'amount': otherAmount});
     }
 
     final sections = <PieChartSectionData>[];
@@ -91,7 +93,9 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
       sections.add(
         PieChartSectionData(
           value: amount,
-          title: isTouched ? CurrencyService.formatAmount(displayAmount, itemCurrency) : '',
+          title: isTouched
+              ? CurrencyService.formatAmount(displayAmount, itemCurrency)
+              : '',
           color: color,
           radius: radius,
           titleStyle: const TextStyle(
@@ -122,7 +126,8 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
                 child: PieChart(
                   PieChartData(
                     pieTouchData: PieTouchData(
-                      touchCallback: (FlTouchEvent event, pieTouchResponse) {
+                      touchCallback:
+                          (FlTouchEvent event, pieTouchResponse) {
                         setState(() {
                           if (!event.isInterestedForInteractions ||
                               pieTouchResponse == null ||
@@ -150,16 +155,23 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     for (int i = 0;
-                        i < processedData.length && i < widget.maxCategories + 1;
+                        i < processedData.length &&
+                            i < widget.maxCategories + 1;
                         i++) ...[
                       _legendItem(
-                        color: processedData[i].containsKey('color') && processedData[i]['color'] != null
-                            ? PeadraTheme.hexToColor(processedData[i]['color'] as String)
+                        color: processedData[i].containsKey('color') &&
+                                processedData[i]['color'] != null
+                            ? PeadraTheme.hexToColor(
+                                processedData[i]['color'] as String)
                             : chartColors[i % chartColors.length],
                         label: processedData[i]['label'] ?? '',
                         amount: processedData[i]['amount'] as double,
-                        displayAmount: (processedData[i]['nativeValue'] as double?) ?? (processedData[i]['amount'] as double),
-                        itemCurrency: (processedData[i]['currency'] as String?) ?? widget.currency,
+                        displayAmount:
+                            (processedData[i]['nativeValue'] as double?) ??
+                                (processedData[i]['amount'] as double),
+                        itemCurrency:
+                            (processedData[i]['currency'] as String?) ??
+                                widget.currency,
                         pct: (processedData[i]['amount'] as double) /
                             total *
                             100,

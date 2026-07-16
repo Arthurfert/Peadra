@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 
-import '../i18n/translator.dart';
-import '../providers/theme_provider.dart';
-import '../components/theme/paedra_colors.dart';
-import '../database/database_manager.dart';
-import '../models/account.dart';
-import '../services/import_service.dart';
+import '../../../core/i18n/translator.dart';
+import '../../../core/providers/theme_provider.dart';
+import '../../../core/theme/paedra_colors.dart';
+import '../../../core/database/database_manager.dart';
+import '../../../core/models/account.dart';
+import '../../../core/services/import_service.dart';
 
 class ImportDataView extends StatefulWidget {
   const ImportDataView({super.key});

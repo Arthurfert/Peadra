@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 
-import '../../components/theme/paedra_colors.dart';
-import '../../i18n/translator.dart';
+import '../../../../core/theme/paedra_colors.dart';
+import '../../../../core/i18n/translator.dart';
 
 class MonthlyBarChart extends StatelessWidget {
   final List<Map<String, dynamic>> data;
@@ -26,7 +26,6 @@ class MonthlyBarChart extends StatelessWidget {
     final expenseData = data.where((d) => d['type'] == 'expense').toList();
     final incomeData = data.where((d) => d['type'] == 'income').toList();
 
-    // Merge by month
     final months = <String>{};
     for (final d in expenseData) {
       months.add(d['month'] ?? '');
@@ -75,13 +74,15 @@ class MonthlyBarChart extends StatelessWidget {
               toY: expense,
               color: colors.expenseIcon,
               width: 12,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(4)),
             ),
             BarChartRodData(
               toY: income,
               color: colors.incomeIcon,
               width: 12,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(4)),
             ),
           ],
         ),
@@ -90,7 +91,6 @@ class MonthlyBarChart extends StatelessWidget {
 
     return Column(
       children: [
-        // Legend
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -133,7 +133,8 @@ class MonthlyBarChart extends StatelessWidget {
                           padding: const EdgeInsets.only(top: 4),
                           child: Text(
                             m.length > 3 ? m.substring(0, 3) : m,
-                            style: TextStyle(color: colors.textSecondary, fontSize: 11),
+                            style: TextStyle(
+                                color: colors.textSecondary, fontSize: 11),
                           ),
                         );
                       }
@@ -151,13 +152,16 @@ class MonthlyBarChart extends StatelessWidget {
                         value >= 1000
                             ? '${(value / 1000).toStringAsFixed(1)}k'
                             : value.toStringAsFixed(0),
-                        style: TextStyle(color: colors.textSecondary, fontSize: 10),
+                        style: TextStyle(
+                            color: colors.textSecondary, fontSize: 10),
                       );
                     },
                   ),
                 ),
-                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                topTitles:
+                    const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                rightTitles:
+                    const AxisTitles(sideTitles: SideTitles(showTitles: false)),
               ),
               gridData: FlGridData(
                 show: true,

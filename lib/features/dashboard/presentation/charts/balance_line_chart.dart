@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 
-import '../../components/theme/paedra_colors.dart';
-import '../../i18n/translator.dart';
+import '../../../../core/theme/paedra_colors.dart';
+import '../../../../core/i18n/translator.dart';
 
 class BalanceLineChart extends StatelessWidget {
   final List<FlSpot> spots;
@@ -34,7 +34,6 @@ class BalanceLineChart extends StatelessWidget {
       if (s.y > maxY) maxY = s.y;
     }
 
-    // Pad Y axis
     final range = maxY - minY;
     if (range == 0) {
       minY -= 1;
@@ -111,8 +110,10 @@ class BalanceLineChart extends StatelessWidget {
                     },
                   ),
                 ),
-                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                topTitles:
+                    const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                rightTitles:
+                    const AxisTitles(sideTitles: SideTitles(showTitles: false)),
               ),
               gridData: FlGridData(
                 show: true,

@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../i18n/translator.dart';
-import '../providers/auth_provider.dart';
-import '../providers/theme_provider.dart';
-import '../providers/language_provider.dart';
-import '../database/database_manager.dart';
-import '../services/auth_service.dart';
-import '../components/theme/paedra_colors.dart';
-import 'dashboard_shell.dart';
+import '../../../core/i18n/translator.dart';
+import '../../../core/providers/auth_provider.dart';
+import '../../../core/providers/theme_provider.dart';
+import '../../../core/providers/language_provider.dart';
+import '../../../core/database/database_manager.dart';
+import '../../../core/services/auth_service.dart';
+import '../../../core/theme/paedra_colors.dart';
+import '../../dashboard/presentation/dashboard_shell.dart';
 
 class LoginView extends StatefulWidget {
   const LoginView({super.key});

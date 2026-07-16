@@ -195,8 +195,8 @@ class DatabaseManager {
     final rows = await db.rawQuery('''
       SELECT a.*,
              COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                               WHEN t.transaction_type = 'expense' THEN -t.amount
-                               ELSE 0 END), 0) AS balance
+                                WHEN t.transaction_type = 'expense' THEN -t.amount
+                                ELSE 0 END), 0) AS balance
       FROM accounts a
       LEFT JOIN transactions t ON t.account_id = a.id AND t.user_id = ?
       WHERE a.user_id = ?

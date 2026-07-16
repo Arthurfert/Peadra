@@ -4,14 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
-import 'providers/auth_provider.dart';
-import 'providers/theme_provider.dart';
-import 'providers/language_provider.dart';
-import 'providers/settings_provider.dart';
-import 'database/database_manager.dart';
-import 'components/theme/paedra_colors.dart';
-import 'views/login_view.dart';
-import 'utils/constants.dart';
+import 'core/providers/auth_provider.dart';
+import 'core/providers/theme_provider.dart';
+import 'core/providers/language_provider.dart';
+import 'core/providers/settings_provider.dart';
+import 'core/database/database_manager.dart';
+import 'core/theme/paedra_colors.dart';
+import 'features/auth/presentation/login_view.dart';
+import 'core/utils/constants.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

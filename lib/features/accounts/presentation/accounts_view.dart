@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../i18n/translator.dart';
-import '../providers/theme_provider.dart';
-import '../providers/settings_provider.dart';
-import '../database/database_manager.dart';
-import '../models/account.dart';
-import '../components/theme/paedra_colors.dart';
-import '../services/currency_service.dart';
+import '../../../core/i18n/translator.dart';
+import '../../../core/providers/theme_provider.dart';
+import '../../../core/providers/settings_provider.dart';
+import '../../../core/database/database_manager.dart';
+import '../../../core/models/account.dart';
+import '../../../core/theme/paedra_colors.dart';
+import '../../../core/services/currency_service.dart';
 
 class AccountsView extends StatefulWidget {
   const AccountsView({super.key});

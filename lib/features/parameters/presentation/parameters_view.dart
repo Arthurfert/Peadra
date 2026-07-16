@@ -3,21 +3,21 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../i18n/translator.dart';
-import '../providers/auth_provider.dart';
-import '../providers/theme_provider.dart';
-import '../providers/settings_provider.dart';
-import '../providers/language_provider.dart';
-import '../database/database_manager.dart';
-import '../components/theme/paedra_colors.dart';
-import '../services/auth_service.dart';
-import '../services/currency_service.dart';
-import '../services/export_service.dart';
-import '../components/notification/peadra_notification.dart';
-import '../services/update_service.dart';
-import 'import_data_view.dart';
-import 'login_view.dart';
-import '../responsive/responsive_layout.dart';
+import '../../../core/i18n/translator.dart';
+import '../../../core/providers/auth_provider.dart';
+import '../../../core/providers/theme_provider.dart';
+import '../../../core/providers/settings_provider.dart';
+import '../../../core/providers/language_provider.dart';
+import '../../../core/database/database_manager.dart';
+import '../../../core/theme/paedra_colors.dart';
+import '../../../core/services/auth_service.dart';
+import '../../../core/services/currency_service.dart';
+import '../../../core/services/export_service.dart';
+import '../../../shared/widgets/peadra_notification.dart';
+import '../../../core/services/update_service.dart';
+import '../../import_data/presentation/import_data_view.dart';
+import '../../auth/presentation/login_view.dart';
+import '../../../core/responsive/responsive_layout.dart';
 
 class ParametersView extends StatefulWidget {
   const ParametersView({super.key});

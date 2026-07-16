@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:peadra/components/notification/peadra_notification.dart';
+import 'package:peadra/shared/widgets/peadra_notification.dart';
 
 Widget buildApp() {
   return MaterialApp(

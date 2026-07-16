@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 
-import '../i18n/translator.dart';
-import '../providers/theme_provider.dart';
-import '../database/database_manager.dart';
-import '../components/theme/paedra_colors.dart';
-import '../components/notification/peadra_notification.dart';
+import '../../../core/i18n/translator.dart';
+import '../../../core/providers/theme_provider.dart';
+import '../../../core/database/database_manager.dart';
+import '../../../core/theme/paedra_colors.dart';
+import '../../../shared/widgets/peadra_notification.dart';
 
 class CategoriesView extends StatefulWidget {
   const CategoriesView({super.key});

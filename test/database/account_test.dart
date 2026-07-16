@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
-import 'package:peadra/models/account.dart';
+import 'package:peadra/core/models/account.dart';
 import '../helpers/test_helper.dart';
 
 Future<Database> _openTestDb() async {

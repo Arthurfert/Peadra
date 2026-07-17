@@ -70,26 +70,57 @@ For developper's setup instructions, see [INSTALLATION.md](./INSTALLATION.md).
 
 ```
 Peadra/
-├── pubspec.yaml                # Flutter/Dart dependencies
+├── pubspec.yaml                       # Flutter/Dart dependencies
 ├── lib/
-│   ├── main.dart               # App entry point
-│   ├── database/
-│   │   └── database_manager.dart  # SQLite database layer
-│   ├── models/                 # Data models (User, Account, Transaction, etc.)
-│   ├── services/               # Auth, currency, import, export, update
-│   ├── providers/              # State management (Provider)
-│   ├── views/                  # App screens (dashboard, transactions, etc.)
-│   ├── components/             # Reusable widgets, modals, charts
-│   ├── responsive/             # Layout breakpoints (phone/tablet/desktop)
-│   ├── i18n/                   # Translations (EN/FR)
-│   └── utils/                  # Constants, formatters
-├── android/                    # Android platform files
-├── ios/                        # iOS platform files
-├── linux/                      # Linux platform files
-├── windows/                    # Windows platform files
-├── macos/                      # macOS platform files
-└── assets/                     # Images, icons
+│   ├── main.dart                      # App entry point
+│   ├── core/                          # Shared infrastructure
+│   │   ├── database/
+│   │   │   └── database_manager.dart  # SQLite database layer
+│   │   ├── models/                    # Data models (User, Account, Transaction…)
+│   │   ├── services/                  # Auth, currency, import, export, update
+│   │   ├── providers/                 # State management (Provider)
+│   │   ├── i18n/                      # Translations (EN/FR)
+│   │   ├── theme/                     # Color schemes & theming
+│   │   ├── utils/                     # Constants, formatters
+│   │   └── responsive/                # Layout breakpoints (phone/tablet/desktop)
+│   ├── features/                      # Feature-first modules
+│   │   ├── auth/presentation/
+│   │   │   └── login_view.dart
+│   │   ├── dashboard/presentation/
+│   │   │   ├── charts/                # Shared chart widgets
+│   │   │   ├── dashboard_shell.dart   # Entrypoint → LayoutBuilder
+│   │   │   ├── dashboard_shell_desktop.dart
+│   │   │   ├── dashboard_shell_mobile.dart
+│   │   │   ├── dashboard_view.dart    # Entrypoint → LayoutBuilder
+│   │   │   ├── dashboard_view_desktop.dart
+│   │   │   └── dashboard_view_mobile.dart
+│   │   ├── transactions/presentation/
+│   │   │   ├── transactions_view.dart
+│   │   │   └── widgets/transaction_modal.dart
+│   │   ├── accounts/presentation/
+│   │   │   └── accounts_view.dart
+│   │   ├── categories/presentation/
+│   │   │   └── categories_view.dart
+│   │   ├── parameters/presentation/
+│   │   │   └── parameters_view.dart
+│   │   └── import_data/presentation/
+│   │       └── import_data_view.dart
+│   └── shared/widgets/
+│       └── peadra_notification.dart
+├── android/                           # Android platform files
+├── ios/                               # iOS platform files
+├── linux/                             # Linux platform files
+├── windows/                           # Windows platform files
+├── macos/                             # macOS platform files
+└── assets/                            # Images, icons
 ```
+
+**Adaptive pattern:** Screens with fundamentally different layouts use a
+`LayoutBuilder` entrypoint that delegates to separate desktop/mobile files.
+These share all business logic and state from the parent widget, keeping
+platform-specific UI isolated without code duplication. Smaller responsive
+tweaks (grid columns, padding) stay inline. The dashboard above illustrates
+this pattern — other features follow the same approach where needed.
 
 ## License
 

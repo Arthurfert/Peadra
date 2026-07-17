@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/paedra_colors.dart';
+import '../../../core/theme/peadra_colors.dart';
 import '../../../core/services/update_service.dart';
 
 class DashboardShellMobile extends StatelessWidget {

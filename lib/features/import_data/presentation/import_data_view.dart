@@ -4,7 +4,7 @@ import 'package:file_picker/file_picker.dart';
 
 import '../../../core/i18n/translator.dart';
 import '../../../core/providers/theme_provider.dart';
-import '../../../core/theme/paedra_colors.dart';
+import '../../../core/theme/peadra_colors.dart';
 import '../../../core/database/database_manager.dart';
 import '../../../core/models/account.dart';
 import '../../../core/services/import_service.dart';

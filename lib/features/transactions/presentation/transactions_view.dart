@@ -7,7 +7,7 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../core/database/database_manager.dart';
 import '../../../core/models/transaction.dart';
 import '../../../core/models/account.dart';
-import '../../../core/theme/paedra_colors.dart';
+import '../../../core/theme/peadra_colors.dart';
 import 'widgets/transaction_modal.dart';
 import '../../../shared/widgets/peadra_notification.dart';
 import '../../../core/services/currency_service.dart';

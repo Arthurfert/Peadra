@@ -5,7 +5,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../../../core/i18n/translator.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../../core/database/database_manager.dart';
-import '../../../core/theme/paedra_colors.dart';
+import '../../../core/theme/peadra_colors.dart';
 import '../../../shared/widgets/peadra_notification.dart';
 
 class CategoriesView extends StatefulWidget {

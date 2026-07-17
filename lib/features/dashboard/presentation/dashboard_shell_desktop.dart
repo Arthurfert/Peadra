@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../core/i18n/translator.dart';
 import '../../../core/providers/settings_provider.dart';
-import '../../../core/theme/paedra_colors.dart';
+import '../../../core/theme/peadra_colors.dart';
 import '../../../core/services/currency_service.dart';
 import '../../../core/services/update_service.dart';
 import '../../../core/responsive/responsive_layout.dart';

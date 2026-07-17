@@ -7,7 +7,7 @@ import '../../../core/providers/theme_provider.dart';
 import '../../../core/providers/language_provider.dart';
 import '../../../core/database/database_manager.dart';
 import '../../../core/services/auth_service.dart';
-import '../../../core/theme/paedra_colors.dart';
+import '../../../core/theme/peadra_colors.dart';
 import '../../dashboard/presentation/dashboard_shell.dart';
 
 class LoginView extends StatefulWidget {

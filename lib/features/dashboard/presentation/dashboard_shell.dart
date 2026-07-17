@@ -5,7 +5,7 @@ import '../../../core/i18n/translator.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/theme_provider.dart';
-import '../../../core/theme/paedra_colors.dart';
+import '../../../core/theme/peadra_colors.dart';
 import '../../../core/services/update_service.dart';
 import '../../../core/database/database_manager.dart';
 import '../../auth/presentation/login_view.dart';

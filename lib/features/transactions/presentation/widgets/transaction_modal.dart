@@ -6,7 +6,7 @@ import '../../../../core/providers/theme_provider.dart';
 import '../../../../core/database/database_manager.dart';
 import '../../../../core/models/account.dart';
 import '../../../../core/models/transaction.dart';
-import '../../../../core/theme/paedra_colors.dart';
+import '../../../../core/theme/peadra_colors.dart';
 import '../../../../core/services/currency_service.dart';
 import '../../../../core/responsive/responsive_layout.dart';
 

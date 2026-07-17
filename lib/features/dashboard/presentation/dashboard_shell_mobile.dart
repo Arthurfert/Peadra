@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/i18n/translator.dart';
 import '../../../core/theme/paedra_colors.dart';
 import '../../../core/services/update_service.dart';
 
@@ -69,28 +68,28 @@ class DashboardShellMobile extends StatelessWidget {
         backgroundColor: colors.surface,
         selectedItemColor: colors.accent,
         unselectedItemColor: colors.placeholderColor,
-        selectedFontSize: 12,
-        unselectedFontSize: 12,
-        items: [
+        selectedFontSize: 0,
+        unselectedFontSize: 0,
+        items: const [
           BottomNavigationBarItem(
-            icon: const Icon(Icons.dashboard_outlined),
-            activeIcon: const Icon(Icons.dashboard),
-            label: Translator.t('nav_dashboard'),
+            icon: Icon(Icons.dashboard_outlined),
+            activeIcon: Icon(Icons.dashboard),
+            label: '',
           ),
           BottomNavigationBarItem(
-            icon: const Icon(Icons.receipt_long_outlined),
-            activeIcon: const Icon(Icons.receipt_long),
-            label: Translator.t('nav_transactions'),
+            icon: Icon(Icons.receipt_long_outlined),
+            activeIcon: Icon(Icons.receipt_long),
+            label: '',
           ),
           BottomNavigationBarItem(
-            icon: const Icon(Icons.account_balance_wallet_outlined),
-            activeIcon: const Icon(Icons.account_balance_wallet),
-            label: Translator.t('nav_accounts'),
+            icon: Icon(Icons.account_balance_wallet_outlined),
+            activeIcon: Icon(Icons.account_balance_wallet),
+            label: '',
           ),
           BottomNavigationBarItem(
-            icon: const Icon(Icons.bubble_chart_outlined),
-            activeIcon: const Icon(Icons.bubble_chart),
-            label: Translator.t('nav_categories'),
+            icon: Icon(Icons.bubble_chart_outlined),
+            activeIcon: Icon(Icons.bubble_chart),
+            label: '',
           ),
         ],
       ),

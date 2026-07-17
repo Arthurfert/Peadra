@@ -74,7 +74,7 @@ class _DashboardShellState extends State<DashboardShell> {
   }
 
   void _onNavTap(int index) {
-    if (index == 5) {
+    if (index == 4 || index == 5) {
       Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const ParametersView()),
       ).then((_) => _loadTotalPatrimony());

@@ -55,7 +55,7 @@ class DashboardShellMobile extends StatelessWidget {
       ),
       clipBehavior: Clip.antiAlias,
       child: BottomNavigationBar(
-        currentIndex: selectedIndex.clamp(0, 3),
+        currentIndex: selectedIndex.clamp(0, 4),
         onTap: onNavTap,
         type: BottomNavigationBarType.fixed,
         backgroundColor: colors.surface,
@@ -82,6 +82,11 @@ class DashboardShellMobile extends StatelessWidget {
           BottomNavigationBarItem(
             icon: Icon(Icons.bubble_chart_outlined),
             activeIcon: Icon(Icons.bubble_chart),
+            label: '',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings_outlined),
+            activeIcon: Icon(Icons.settings),
             label: '',
           ),
         ],

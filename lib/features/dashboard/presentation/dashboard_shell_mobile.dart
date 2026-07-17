@@ -32,7 +32,7 @@ class DashboardShellMobile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: colors.surface,
+      backgroundColor: colors.bg,
       body: Column(
         children: [
           if (updateBanner != null) updateBanner!,
@@ -44,23 +44,16 @@ class DashboardShellMobile extends StatelessWidget {
   }
 
   Widget _buildContent() {
-    return Container(
-      margin: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.bg,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: views[selectedIndex.clamp(0, views.length - 1)],
-    );
+    return views[selectedIndex.clamp(0, views.length - 1)];
   }
 
   Widget _buildBottomNav() {
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
-        border: Border(top: BorderSide(color: colors.borderColor)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
+      clipBehavior: Clip.antiAlias,
       child: BottomNavigationBar(
         currentIndex: selectedIndex.clamp(0, 3),
         onTap: onNavTap,

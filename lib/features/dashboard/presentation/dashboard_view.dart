@@ -292,20 +292,16 @@ class _DashboardViewState extends State<DashboardView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              Translator.t('dash_cash_flow'),
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: colors.text,
-              ),
-            ),
-            _buildTimeFilterButtons(colors),
-          ],
+        Text(
+          Translator.t('dash_cash_flow'),
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: colors.text,
+          ),
         ),
+        const SizedBox(height: 12),
+        _buildTimeFilterButtons(colors),
       ],
     );
   }
@@ -324,6 +320,7 @@ class _DashboardViewState extends State<DashboardView> {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: options.map((option) {
           final isSelected = _selectedMonths == option['value'];
           return GestureDetector(

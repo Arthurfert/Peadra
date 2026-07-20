@@ -7,6 +7,7 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../../core/theme/peadra_colors.dart';
 import '../../../core/services/update_service.dart';
+import '../../../core/responsive/responsive_layout.dart';
 import '../../../core/database/database_manager.dart';
 import '../../auth/presentation/login_view.dart';
 import '../../transactions/presentation/transactions_view.dart';
@@ -40,6 +41,7 @@ class _DashboardShellState extends State<DashboardShell> {
       TransactionsView(onDataChanged: _loadTotalPatrimony),
       const AccountsView(),
       const CategoriesView(),
+      const ParametersView(showBackButton: false),
     ];
     _checkForUpdate();
   }
@@ -75,9 +77,14 @@ class _DashboardShellState extends State<DashboardShell> {
 
   void _onNavTap(int index) {
     if (index == 4 || index == 5) {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const ParametersView()),
-      ).then((_) => _loadTotalPatrimony());
+      if (ResponsiveLayout.isPhone(context)) {
+        setState(() => _selectedIndex = 4);
+        _loadTotalPatrimony();
+      } else {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const ParametersView()),
+        ).then((_) => _loadTotalPatrimony());
+      }
       return;
     }
     setState(() => _selectedIndex = index);

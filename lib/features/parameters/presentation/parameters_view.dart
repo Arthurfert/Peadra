@@ -20,7 +20,9 @@ import '../../auth/presentation/login_view.dart';
 import '../../../core/responsive/responsive_layout.dart';
 
 class ParametersView extends StatefulWidget {
-  const ParametersView({super.key});
+  final bool showBackButton;
+
+  const ParametersView({super.key, this.showBackButton = true});
 
   @override
   State<ParametersView> createState() => _ParametersViewState();
@@ -79,6 +81,7 @@ class _ParametersViewState extends State<ParametersView> {
             style: TextStyle(color: colors.text)),
         backgroundColor: colors.surface,
         iconTheme: IconThemeData(color: colors.text),
+        automaticallyImplyLeading: widget.showBackButton,
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),

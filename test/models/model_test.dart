@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:peadra/models/account.dart';
-import 'package:peadra/models/transaction.dart';
-import 'package:peadra/models/description.dart' as desc_model;
-import 'package:peadra/models/setting.dart';
-import 'package:peadra/models/user.dart';
+import 'package:peadra/core/models/account.dart';
+import 'package:peadra/core/models/transaction.dart';
+import 'package:peadra/core/models/description.dart' as desc_model;
+import 'package:peadra/core/models/setting.dart';
+import 'package:peadra/core/models/user.dart';
 
 void main() {
   group('Account', () {

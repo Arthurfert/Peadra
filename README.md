@@ -2,6 +2,12 @@
   <img src="./assets/Peadra-logo.png" alt="Peadra's logo" style="height:200px;margin:0;">
 </div>
 
+<div align="center">
+  <a href="https://deepwiki.com/Arthurfert/Peadra"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
+  <a href="https://github.com/Arthurfert/Peadra?tab=GPL-3.0-1-ov-file)"><img src="https://img.shields.io/badge/License-GPL%203.0-brightgreen.svg"></a>
+  <img src="https://img.shields.io/github/v/release/Arthurfert/Peadra">
+</div>
+
 ## Screenshots
 
 |                 Dashboard                 |                  Transactions                  |
@@ -23,24 +29,24 @@ Track your assets, manage transactions across multiple accounts and currencies, 
 ## Features
 
 **Portfolio & Asset Management**
-- **Comprehensive Overview:** Track your current balance, asset distribution, and financial evolution over time.
-- **Interactive Charts:** Bar charts, pie charts, and line charts for visual insights into spending patterns and trends.
-- **Category Insights:** Organize transactions into categories with the ability to dynamically rename, merge, and restructure them.
-- **Subscription Tracking:** Monitor recurring transactions and active subscriptions at a glance.
+- Track your current balance, asset distribution, and financial evolution over time.
+- Bar charts, pie charts, and line charts for visual insights into spending patterns and trends.
+- Organize transactions into categories with the ability to dynamically rename, merge, and restructure them.
+- Monitor recurring transactions and active subscriptions at a glance.
 
 **Account & Transaction Management**
-- **Full Operations & Multi-Currency:** Easily add, modify, or delete transactions (expense, income, transfer), in any of 36 supported currencies with automatic exchange rate conversion.
-- **Multi-Account Support:** Manage multiple distinct accounts with independent tracking and color coding.
-- **Multi-User Authentication:** Secure access control for different users on the same device, with SHA-256 password hashing.
-- **Smart Autocomplete:** Transaction descriptions are auto-suggested from your history as you type.
+- Easily add, modify, or delete transactions (expense, income, transfer), in any of 36 supported currencies with automatic exchange rate conversion.
+- Manage multiple distinct accounts with independent tracking and color coding.
+- Secure access control for different users on the same device, with SHA-256 password hashing.
+- Transaction descriptions are auto-suggested from your history as you type.
 
 **Data Control & System**
-- **Local & Secure:** Powered by a local SQLite database. Your financial data never leaves your machine.
-- **Flexible Data Portability:** Seamlessly import data via CSV files with automatic column detection and dialect parsing, and export your history in both JSON and CSV formats.
-- **Responsive Design:** Adaptive layout that works beautifully on phones, tablets, and desktops.
-- **Theming:** Four built-in themes - Light, Dark, Autumn, and Summer.
+- Powered by a local SQLite database. Your financial data never leaves your machine.
+- Seamlessly import data via CSV files with automatic column detection and dialect parsing, and export your history in both JSON and CSV formats.
+- Adaptive layout that works beautifully on phones, tablets, and desktops.
+- Four built-in themes - Light, Dark, Autumn, and Summer.
 
-**Supported platforms:** Android, iOS, Linux, Windows, macOS. (UI is fully ready for desktop only but mobile is coming)  
+**Supported platforms:** Linux, Windows, Android. (The Apple ecosystem is theoretically supported, but has'nt been tested).  
 **Supported languages:** English, French.
 
 > ...and many more features [to come](TODO.md) !
@@ -64,26 +70,57 @@ For developper's setup instructions, see [INSTALLATION.md](./INSTALLATION.md).
 
 ```
 Peadra/
-├── pubspec.yaml                # Flutter/Dart dependencies
+├── pubspec.yaml                       # Flutter/Dart dependencies
 ├── lib/
-│   ├── main.dart               # App entry point
-│   ├── database/
-│   │   └── database_manager.dart  # SQLite database layer
-│   ├── models/                 # Data models (User, Account, Transaction, etc.)
-│   ├── services/               # Auth, currency, import, export, update
-│   ├── providers/              # State management (Provider)
-│   ├── views/                  # App screens (dashboard, transactions, etc.)
-│   ├── components/             # Reusable widgets, modals, charts
-│   ├── responsive/             # Layout breakpoints (phone/tablet/desktop)
-│   ├── i18n/                   # Translations (EN/FR)
-│   └── utils/                  # Constants, formatters
-├── android/                    # Android platform files
-├── ios/                        # iOS platform files
-├── linux/                      # Linux platform files
-├── windows/                    # Windows platform files
-├── macos/                      # macOS platform files
-└── assets/                     # Images, icons
+│   ├── main.dart                      # App entry point
+│   ├── core/                          # Shared infrastructure
+│   │   ├── database/
+│   │   │   └── database_manager.dart  # SQLite database layer
+│   │   ├── models/                    # Data models (User, Account, Transaction…)
+│   │   ├── services/                  # Auth, currency, import, export, update
+│   │   ├── providers/                 # State management (Provider)
+│   │   ├── i18n/                      # Translations (EN/FR)
+│   │   ├── theme/                     # Color schemes & theming
+│   │   ├── utils/                     # Constants, formatters
+│   │   └── responsive/                # Layout breakpoints (phone/tablet/desktop)
+│   ├── features/                      # Feature-first modules
+│   │   ├── auth/presentation/
+│   │   │   └── login_view.dart
+│   │   ├── dashboard/presentation/
+│   │   │   ├── charts/                # Shared chart widgets
+│   │   │   ├── dashboard_shell.dart   # Entrypoint → LayoutBuilder
+│   │   │   ├── dashboard_shell_desktop.dart
+│   │   │   ├── dashboard_shell_mobile.dart
+│   │   │   ├── dashboard_view.dart    # Entrypoint → LayoutBuilder
+│   │   │   ├── dashboard_view_desktop.dart
+│   │   │   └── dashboard_view_mobile.dart
+│   │   ├── transactions/presentation/
+│   │   │   ├── transactions_view.dart
+│   │   │   └── widgets/transaction_modal.dart
+│   │   ├── accounts/presentation/
+│   │   │   └── accounts_view.dart
+│   │   ├── categories/presentation/
+│   │   │   └── categories_view.dart
+│   │   ├── parameters/presentation/
+│   │   │   └── parameters_view.dart
+│   │   └── import_data/presentation/
+│   │       └── import_data_view.dart
+│   └── shared/widgets/
+│       └── peadra_notification.dart
+├── android/                           # Android platform files
+├── ios/                               # iOS platform files
+├── linux/                             # Linux platform files
+├── windows/                           # Windows platform files
+├── macos/                             # macOS platform files
+└── assets/                            # Images, icons
 ```
+
+**Adaptive pattern:** Screens with fundamentally different layouts use a
+`LayoutBuilder` entrypoint that delegates to separate desktop/mobile files.
+These share all business logic and state from the parent widget, keeping
+platform-specific UI isolated without code duplication. Smaller responsive
+tweaks (grid columns, padding) stay inline. The dashboard above illustrates
+this pattern — other features follow the same approach where needed.
 
 ## License
 

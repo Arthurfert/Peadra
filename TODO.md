@@ -15,7 +15,7 @@ Peadra aims to become a local version of existing apps like *[Finary](https://fi
 
 ## Currently in development
 
-- Mobile version UI (same UI but optimized for mobile UX)
+
 
 ## Future Improvements & ideas
 

@@ -123,8 +123,41 @@ jobs:
           path: peadra.cer
           if-no-files-found: ignore
 
+  build-android:
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate launcher icons
+        run: dart run flutter_launcher_icons
+
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Rename APK with version
+        run: |
+          version=$(grep '^version:' pubspec.yaml | head -1 | awk '{print $2}')
+          cp build/app/outputs/flutter-apk/app-release.apk "build/app/outputs/flutter-apk/peadra-${version}-android.apk"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: peadra-android-apk
+          path: build/app/outputs/flutter-apk/peadra-*-android.apk
+
   release:
-    needs: [build-linux, build-windows]
+    needs: [build-linux, build-windows, build-android]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
@@ -156,6 +189,12 @@ jobs:
           path: artifacts/windows
         continue-on-error: true
 
+      - name: Download Android APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: peadra-android-apk
+          path: artifacts/android
+
       - name: List artifacts
         run: find artifacts -type f
 
@@ -169,3 +208,4 @@ jobs:
             artifacts/linux/**/*.deb
             artifacts/windows/**/*.msix
             artifacts/windows/**/*.cer
+            artifacts/android/**/*.apk

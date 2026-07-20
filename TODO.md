@@ -15,10 +15,11 @@ Peadra aims to become a local version of existing apps like *[Finary](https://fi
 
 ## Currently in development
 
-- **Mobile version UI**
+- Mobile version UI (same UI but optimized for mobile UX)
 
 ## Future Improvements & ideas
 
+- Desktop and Mobile peer-to-peer sync
 - Budget view, with budget insights in dashboard/categories view
 - Compute trends + Tool to simulate/calculate economic specifics and effects on existing assets
 - Onboarding & tutorial

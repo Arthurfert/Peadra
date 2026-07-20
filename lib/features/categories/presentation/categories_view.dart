@@ -6,6 +6,7 @@ import '../../../core/i18n/translator.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../../core/database/database_manager.dart';
 import '../../../core/theme/peadra_colors.dart';
+import '../../../core/responsive/responsive_layout.dart';
 import '../../../shared/widgets/peadra_notification.dart';
 
 class CategoriesView extends StatefulWidget {
@@ -63,40 +64,72 @@ class _CategoriesViewState extends State<CategoriesView> {
   Widget build(BuildContext context) {
     final themeName = context.watch<ThemeProvider>().themeName;
     final colors = PeadraTheme.getColors(themeName);
+    final isPhone = ResponsiveLayout.isPhone(context);
 
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Text(
-                Translator.t('nav_categories'),
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: colors.text,
+          if (isPhone) ...[
+            Text(
+              Translator.t('nav_categories'),
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: colors.text,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                _buildToolButton(
+                  icon: Icons.merge,
+                  label: Translator.t('cat_merge_descriptions'),
+                  colors: colors,
+                  onPressed: () => _showMergeDialog(colors),
                 ),
-              ),
-              const Spacer(),
-              _buildToolButton(
-                icon: Icons.merge,
-                tooltip: Translator.t('cat_merge_descriptions'),
-                colors: colors,
-                onPressed: () => _showMergeDialog(colors),
-              ),
-              const SizedBox(width: 8),
-              _buildToolButton(
-                icon: Icons.edit,
-                tooltip: Translator.t('cat_rename_description'),
-                colors: colors,
-                onPressed: () => _showRenameDialog(colors),
-              ),
-              const SizedBox(width: 12),
-              _buildTimeFilterButtons(colors),
-            ],
-          ),
+                const SizedBox(width: 8),
+                _buildToolButton(
+                  icon: Icons.edit,
+                  label: Translator.t('cat_rename_description'),
+                  colors: colors,
+                  onPressed: () => _showRenameDialog(colors),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _buildTimeFilterButtons(colors),
+          ] else ...[
+            Row(
+              children: [
+                Text(
+                  Translator.t('nav_categories'),
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: colors.text,
+                  ),
+                ),
+                const Spacer(),
+                _buildToolButton(
+                  icon: Icons.merge,
+                  label: Translator.t('cat_merge_descriptions'),
+                  colors: colors,
+                  onPressed: () => _showMergeDialog(colors),
+                ),
+                const SizedBox(width: 8),
+                _buildToolButton(
+                  icon: Icons.edit,
+                  label: Translator.t('cat_rename_description'),
+                  colors: colors,
+                  onPressed: () => _showRenameDialog(colors),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _buildTimeFilterButtons(colors),
+          ],
           const SizedBox(height: 16),
           Expanded(
             child: _loading
@@ -139,6 +172,7 @@ class _CategoriesViewState extends State<CategoriesView> {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: options.map((option) {
           final isSelected = _selectedMonths == option['value'];
           return GestureDetector(
@@ -172,22 +206,33 @@ class _CategoriesViewState extends State<CategoriesView> {
 
   Widget _buildToolButton({
     required IconData icon,
-    required String tooltip,
+    required String label,
     required PeadraColors colors,
     required VoidCallback onPressed,
   }) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(icon, color: colors.textSecondary, size: 20),
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: colors.textSecondary, size: 18),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -494,9 +494,14 @@ class _CategoriesViewState extends State<CategoriesView> {
     );
   }
 
+  static bool _isTransfer(String name) {
+    final lower = name.trim().toLowerCase();
+    return lower.startsWith('transfer to ') || lower.startsWith('transfer from ');
+  }
+
   Future<void> _showMergeDialog(PeadraColors colors) async {
     final descriptions = await _db.getAllDescriptions();
-    final names = descriptions.map((d) => d.name).toList();
+    final names = descriptions.map((d) => d.name).where((n) => !_isTransfer(n)).toList();
 
     if (names.length < 2) {
       if (mounted) {
@@ -594,7 +599,7 @@ class _CategoriesViewState extends State<CategoriesView> {
 
   Future<void> _showRenameDialog(PeadraColors colors) async {
     final descriptions = await _db.getAllDescriptions();
-    final names = descriptions.map((d) => d.name).toList();
+    final names = descriptions.map((d) => d.name).where((n) => !_isTransfer(n)).toList();
 
     if (names.isEmpty) {
       if (mounted) {

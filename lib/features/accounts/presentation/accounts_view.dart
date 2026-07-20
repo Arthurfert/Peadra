@@ -141,6 +141,7 @@ class _AccountsViewState extends State<AccountsView> {
                   ),
                 ),
                 PopupMenuButton<String>(
+                  tooltip: Translator.t('btn_menu'),
                   icon: Icon(Icons.more_vert,
                       color: colors.placeholderColor, size: 20),
                   onSelected: (v) => _handleMenuAction(v, acct, colors),

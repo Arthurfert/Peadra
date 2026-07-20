@@ -240,7 +240,13 @@ class _CategoriesViewState extends State<CategoriesView> {
 
   Widget _buildSection(String title, List<Map<String, dynamic>> items,
       Color accentColor, PeadraColors colors) {
-    if (items.isEmpty) {
+    final itemsWithGraph = items.where((item) {
+      final desc = item['description'] as String;
+      final data = _buildSpotsForDescription(desc);
+      return data.spots.length > 1;
+    }).toList();
+
+    if (itemsWithGraph.isEmpty) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -272,6 +278,7 @@ class _CategoriesViewState extends State<CategoriesView> {
                 : constraints.maxWidth > 550
                     ? 2
                     : 1;
+
             return GridView.count(
               crossAxisCount: crossAxisCount,
               shrinkWrap: true,
@@ -279,7 +286,7 @@ class _CategoriesViewState extends State<CategoriesView> {
               mainAxisSpacing: 12,
               crossAxisSpacing: 12,
               childAspectRatio: 1.8,
-              children: items.map((item) {
+              children: itemsWithGraph.map((item) {
                 final desc = item['description'] as String;
                 final count = item['count'] as int;
                 final total = item['total'] as num;
@@ -328,13 +335,11 @@ class _CategoriesViewState extends State<CategoriesView> {
                           style: TextStyle(
                               color: colors.placeholderColor, fontSize: 11),
                         ),
-                        if (spots.length > 1) ...[
-                          const SizedBox(height: 8),
-                          Expanded(
-                            child: _buildLineChart(
-                                spots, labels, accentColor, colors),
-                          ),
-                        ],
+                        const SizedBox(height: 8),
+                        Expanded(
+                          child: _buildLineChart(
+                              spots, labels, accentColor, colors),
+                        ),
                       ],
                     ),
                   ),
@@ -489,9 +494,14 @@ class _CategoriesViewState extends State<CategoriesView> {
     );
   }
 
+  static bool _isTransfer(String name) {
+    final lower = name.trim().toLowerCase();
+    return lower.startsWith('transfer to ') || lower.startsWith('transfer from ');
+  }
+
   Future<void> _showMergeDialog(PeadraColors colors) async {
     final descriptions = await _db.getAllDescriptions();
-    final names = descriptions.map((d) => d.name).toList();
+    final names = descriptions.map((d) => d.name).where((n) => !_isTransfer(n)).toList();
 
     if (names.length < 2) {
       if (mounted) {
@@ -589,7 +599,7 @@ class _CategoriesViewState extends State<CategoriesView> {
 
   Future<void> _showRenameDialog(PeadraColors colors) async {
     final descriptions = await _db.getAllDescriptions();
-    final names = descriptions.map((d) => d.name).toList();
+    final names = descriptions.map((d) => d.name).where((n) => !_isTransfer(n)).toList();
 
     if (names.isEmpty) {
       if (mounted) {

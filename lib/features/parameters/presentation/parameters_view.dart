@@ -320,36 +320,58 @@ class _ParametersViewState extends State<ParametersView> {
 
   Widget _buildMonthModeTile(SettingsProvider settings, PeadraColors colors) {
     final isStrict = settings.monthMode == 'strict';
+    final isPhone = ResponsiveLayout.isPhone(context);
+
+    final modeButtons = Container(
+      decoration: BoxDecoration(
+        color: colors.bg,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildMonthModeButton(
+            label: Translator.t('param_calendar_month'),
+            icon: Icons.calendar_month,
+            isSelected: isStrict,
+            colors: colors,
+            onTap: () => settings.setMonthMode('strict', _db),
+          ),
+          _buildMonthModeButton(
+            label: Translator.t('param_rolling_30'),
+            icon: Icons.update,
+            isSelected: !isStrict,
+            colors: colors,
+            onTap: () => settings.setMonthMode('rolling', _db),
+          ),
+        ],
+      ),
+    );
+
+    if (isPhone) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(Translator.t('param_month_mode'),
+                style: TextStyle(color: colors.text)),
+            const SizedBox(height: 4),
+            Text(Translator.t('param_month_mode_desc'),
+                style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+            const SizedBox(height: 12),
+            modeButtons,
+          ],
+        ),
+      );
+    }
+
     return ListTile(
       title: Text(Translator.t('param_month_mode'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_month_mode_desc'),
           style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
-      trailing: Container(
-        decoration: BoxDecoration(
-          color: colors.bg,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildMonthModeButton(
-              label: Translator.t('param_calendar_month'),
-              icon: Icons.calendar_month,
-              isSelected: isStrict,
-              colors: colors,
-              onTap: () => settings.setMonthMode('strict', _db),
-            ),
-            _buildMonthModeButton(
-              label: Translator.t('param_rolling_30'),
-              icon: Icons.update,
-              isSelected: !isStrict,
-              colors: colors,
-              onTap: () => settings.setMonthMode('rolling', _db),
-            ),
-          ],
-        ),
-      ),
+      trailing: modeButtons,
     );
   }
 

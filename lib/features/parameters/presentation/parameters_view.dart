@@ -9,7 +9,7 @@ import '../../../core/providers/theme_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/language_provider.dart';
 import '../../../core/database/database_manager.dart';
-import '../../../core/theme/paedra_colors.dart';
+import '../../../core/theme/peadra_colors.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/currency_service.dart';
 import '../../../core/services/export_service.dart';
@@ -20,7 +20,9 @@ import '../../auth/presentation/login_view.dart';
 import '../../../core/responsive/responsive_layout.dart';
 
 class ParametersView extends StatefulWidget {
-  const ParametersView({super.key});
+  final bool showBackButton;
+
+  const ParametersView({super.key, this.showBackButton = true});
 
   @override
   State<ParametersView> createState() => _ParametersViewState();
@@ -79,6 +81,7 @@ class _ParametersViewState extends State<ParametersView> {
             style: TextStyle(color: colors.text)),
         backgroundColor: colors.surface,
         iconTheme: IconThemeData(color: colors.text),
+        automaticallyImplyLeading: widget.showBackButton,
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),

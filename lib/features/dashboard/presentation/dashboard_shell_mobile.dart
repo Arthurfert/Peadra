@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/i18n/translator.dart';
-import '../../../core/theme/paedra_colors.dart';
+import '../../../core/theme/peadra_colors.dart';
 import '../../../core/services/update_service.dart';
 
 class DashboardShellMobile extends StatelessWidget {
@@ -33,7 +32,7 @@ class DashboardShellMobile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: colors.surface,
+      backgroundColor: colors.bg,
       body: Column(
         children: [
           if (updateBanner != null) updateBanner!,
@@ -45,52 +44,50 @@ class DashboardShellMobile extends StatelessWidget {
   }
 
   Widget _buildContent() {
-    return Container(
-      margin: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.bg,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: views[selectedIndex.clamp(0, views.length - 1)],
-    );
+    return views[selectedIndex.clamp(0, views.length - 1)];
   }
 
   Widget _buildBottomNav() {
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
-        border: Border(top: BorderSide(color: colors.borderColor)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
+      clipBehavior: Clip.antiAlias,
       child: BottomNavigationBar(
-        currentIndex: selectedIndex.clamp(0, 3),
+        currentIndex: selectedIndex.clamp(0, 4),
         onTap: onNavTap,
         type: BottomNavigationBarType.fixed,
         backgroundColor: colors.surface,
         selectedItemColor: colors.accent,
         unselectedItemColor: colors.placeholderColor,
-        selectedFontSize: 12,
-        unselectedFontSize: 12,
-        items: [
+        selectedFontSize: 0,
+        unselectedFontSize: 0,
+        items: const [
           BottomNavigationBarItem(
-            icon: const Icon(Icons.dashboard_outlined),
-            activeIcon: const Icon(Icons.dashboard),
-            label: Translator.t('nav_dashboard'),
+            icon: Icon(Icons.dashboard_outlined),
+            activeIcon: Icon(Icons.dashboard),
+            label: '',
           ),
           BottomNavigationBarItem(
-            icon: const Icon(Icons.receipt_long_outlined),
-            activeIcon: const Icon(Icons.receipt_long),
-            label: Translator.t('nav_transactions'),
+            icon: Icon(Icons.receipt_long_outlined),
+            activeIcon: Icon(Icons.receipt_long),
+            label: '',
           ),
           BottomNavigationBarItem(
-            icon: const Icon(Icons.account_balance_wallet_outlined),
-            activeIcon: const Icon(Icons.account_balance_wallet),
-            label: Translator.t('nav_accounts'),
+            icon: Icon(Icons.account_balance_wallet_outlined),
+            activeIcon: Icon(Icons.account_balance_wallet),
+            label: '',
           ),
           BottomNavigationBarItem(
-            icon: const Icon(Icons.bubble_chart_outlined),
-            activeIcon: const Icon(Icons.bubble_chart),
-            label: Translator.t('nav_categories'),
+            icon: Icon(Icons.bubble_chart_outlined),
+            activeIcon: Icon(Icons.bubble_chart),
+            label: '',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings_outlined),
+            activeIcon: Icon(Icons.settings),
+            label: '',
           ),
         ],
       ),

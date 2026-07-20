@@ -6,8 +6,9 @@ import '../../../core/providers/theme_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/database/database_manager.dart';
 import '../../../core/models/account.dart';
-import '../../../core/theme/paedra_colors.dart';
+import '../../../core/theme/peadra_colors.dart';
 import '../../../core/services/currency_service.dart';
+import '../../../core/responsive/responsive_layout.dart';
 
 class AccountsView extends StatefulWidget {
   const AccountsView({super.key});
@@ -79,13 +80,19 @@ class _AccountsViewState extends State<AccountsView> {
                         ),
                       )
                     : GridView.builder(
-                        gridDelegate:
-                            const SliverGridDelegateWithMaxCrossAxisExtent(
-                          maxCrossAxisExtent: 300,
-                          childAspectRatio: 1.6,
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                        ),
+                        gridDelegate: ResponsiveLayout.isPhone(context)
+                            ? const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 1,
+                                childAspectRatio: 2.4,
+                                mainAxisSpacing: 12,
+                                crossAxisSpacing: 12,
+                              )
+                            : const SliverGridDelegateWithMaxCrossAxisExtent(
+                                maxCrossAxisExtent: 300,
+                                childAspectRatio: 1.6,
+                                mainAxisSpacing: 12,
+                                crossAxisSpacing: 12,
+                              ),
                         itemCount: _accounts.length,
                         itemBuilder: (context, index) =>
                             _buildAccountCard(_accounts[index], colors, currency),

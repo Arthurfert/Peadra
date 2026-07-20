@@ -7,7 +7,7 @@ import '../../../core/providers/theme_provider.dart';
 import '../../../core/providers/language_provider.dart';
 import '../../../core/database/database_manager.dart';
 import '../../../core/services/auth_service.dart';
-import '../../../core/theme/paedra_colors.dart';
+import '../../../core/theme/peadra_colors.dart';
 import '../../dashboard/presentation/dashboard_shell.dart';
 
 class LoginView extends StatefulWidget {
@@ -39,6 +39,10 @@ class _LoginViewState extends State<LoginView> {
   Future<void> _loadUsers() async {
     final users = await _authService.getAllUsernames();
     final lastUser = await _db.getAppSetting('last_username');
+    final savedLang = await _db.getAppSetting('last_language');
+    if (savedLang != null) {
+      context.read<LanguageProvider>().setLanguage(savedLang);
+    }
     if (mounted) {
       setState(() {
         _existingUsers = users;
@@ -165,6 +169,7 @@ class _LoginViewState extends State<LoginView> {
     await langProvider.loadFromSettings(_db);
 
     await _db.setAppSetting('last_username', username);
+    await _db.setAppSetting('last_language', langProvider.language);
 
     _db.fetchExchangeRates();
 

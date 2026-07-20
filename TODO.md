@@ -15,13 +15,11 @@ Peadra aims to become a local version of existing apps like *[Finary](https://fi
 
 ## Currently in development
 
-- Fixed a bug where a negative account would prevent the assets distribution pie chart to render.
-- Notifications enhanced : modern look instead of the snackbar
-- Native window maximization at startup
+- Mobile version UI (same UI but optimized for mobile UX)
 
 ## Future Improvements & ideas
 
-- **Mobile version UI**
+- Desktop and Mobile peer-to-peer sync
 - Budget view, with budget insights in dashboard/categories view
 - Compute trends + Tool to simulate/calculate economic specifics and effects on existing assets
 - Onboarding & tutorial

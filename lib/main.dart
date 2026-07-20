@@ -9,7 +9,7 @@ import 'core/providers/theme_provider.dart';
 import 'core/providers/language_provider.dart';
 import 'core/providers/settings_provider.dart';
 import 'core/database/database_manager.dart';
-import 'core/theme/paedra_colors.dart';
+import 'core/theme/peadra_colors.dart';
 import 'features/auth/presentation/login_view.dart';
 import 'core/utils/constants.dart';
 

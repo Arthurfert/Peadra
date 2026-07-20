@@ -6,7 +6,7 @@ import '../../../core/providers/theme_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/database/database_manager.dart';
-import '../../../core/theme/paedra_colors.dart';
+import '../../../core/theme/peadra_colors.dart';
 import '../../../core/services/currency_service.dart';
 import 'charts/category_pie_chart.dart';
 import 'dashboard_view_desktop.dart';
@@ -292,20 +292,16 @@ class _DashboardViewState extends State<DashboardView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              Translator.t('dash_cash_flow'),
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: colors.text,
-              ),
-            ),
-            _buildTimeFilterButtons(colors),
-          ],
+        Text(
+          Translator.t('dash_cash_flow'),
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: colors.text,
+          ),
         ),
+        const SizedBox(height: 12),
+        _buildTimeFilterButtons(colors),
       ],
     );
   }
@@ -324,6 +320,7 @@ class _DashboardViewState extends State<DashboardView> {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: options.map((option) {
           final isSelected = _selectedMonths == option['value'];
           return GestureDetector(

@@ -46,14 +46,14 @@ Track your assets, manage transactions across multiple accounts and currencies, 
 - **Responsive Design:** Adaptive layout that works beautifully on phones, tablets, and desktops.
 - **Theming:** Four built-in themes - Light, Dark, Autumn, and Summer.
 
-**Supported platforms:** Android, iOS, Linux, Windows, macOS. (UI is fully ready for desktop only but mobile is coming)  
+**Supported platforms:** Linux, Windows, *Android*. (The Apple ecosystem is theoretically supported, but has'nt been tested).
 **Supported languages:** English, French.
 
 > ...and many more features [to come](TODO.md) !
 
 ## Install
 
-To install the app, please download your designated installer in the `Release` section.
+To install the app, please download your designated installer in the `Release` section (Linux and Windows).
 
 > [!NOTE]
 > For **Windows users**, you will need to download and install the `peadra.cer` file (certificates for windows to trust Peadra).

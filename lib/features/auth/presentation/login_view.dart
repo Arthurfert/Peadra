@@ -186,51 +186,64 @@ class _LoginViewState extends State<LoginView> {
 
     return Scaffold(
       backgroundColor: colors.bg,
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 400),
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              color: colors.surface,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: colors.borderColor),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  Translator.t('login_title'),
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: colors.text,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 400),
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: colors.borderColor),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    Translator.t('login_title'),
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: colors.text,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  Translator.t('login_subtitle'),
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: colors.placeholderColor,
+                  const SizedBox(height: 8),
+                  Text(
+                    Translator.t('login_subtitle'),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: colors.placeholderColor,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 32),
+                  const SizedBox(height: 32),
 
-                if (_isLoginMode) ...[
-                  if (_existingUsers.isNotEmpty)
-                    DropdownButtonFormField<String>(
-                      key: ValueKey(_selectedUser),
-                      initialValue: _selectedUser,
-                      hint: Text(
-                        Translator.t('login_user'),
-                        style: TextStyle(color: colors.placeholderColor),
+                  if (_isLoginMode) ...[
+                    if (_existingUsers.isNotEmpty)
+                      DropdownButtonFormField<String>(
+                        key: ValueKey(_selectedUser),
+                        initialValue: _selectedUser,
+                        hint: Text(
+                          Translator.t('login_user'),
+                          style: TextStyle(color: colors.placeholderColor),
+                        ),
+                        items: _existingUsers
+                            .map((u) => DropdownMenuItem(value: u, child: Text(u)))
+                            .toList(),
+                        onChanged: (v) => setState(() => _selectedUser = v),
+                        decoration: InputDecoration(
+                          labelText: Translator.t('login_username'),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          filled: true,
+                          fillColor: colors.bg,
+                        ),
                       ),
-                      items: _existingUsers
-                          .map((u) => DropdownMenuItem(value: u, child: Text(u)))
-                          .toList(),
-                      onChanged: (v) => setState(() => _selectedUser = v),
+                  ] else ...[
+                    TextField(
+                      controller: _usernameController,
                       decoration: InputDecoration(
                         labelText: Translator.t('login_username'),
                         border: OutlineInputBorder(
@@ -240,43 +253,15 @@ class _LoginViewState extends State<LoginView> {
                         fillColor: colors.bg,
                       ),
                     ),
-                ] else ...[
-                  TextField(
-                    controller: _usernameController,
-                    decoration: InputDecoration(
-                      labelText: Translator.t('login_username'),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      filled: true,
-                      fillColor: colors.bg,
-                    ),
-                  ),
-                ],
+                  ],
 
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _passwordController,
-                  obscureText: true,
-                  onSubmitted: (_) => _submit(),
-                  decoration: InputDecoration(
-                    labelText: Translator.t('login_password'),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    filled: true,
-                    fillColor: colors.bg,
-                  ),
-                ),
-
-                if (!_isLoginMode) ...[
                   const SizedBox(height: 12),
                   TextField(
-                    controller: _confirmController,
+                    controller: _passwordController,
                     obscureText: true,
                     onSubmitted: (_) => _submit(),
                     decoration: InputDecoration(
-                      labelText: Translator.t('login_confirm_password'),
+                      labelText: Translator.t('login_password'),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -284,74 +269,91 @@ class _LoginViewState extends State<LoginView> {
                       fillColor: colors.bg,
                     ),
                   ),
-                ],
 
-                if (_error != null) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    _error!,
-                    style: TextStyle(color: colors.error, fontSize: 13),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _submit,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: colors.accent,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                  if (!_isLoginMode) ...[
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _confirmController,
+                      obscureText: true,
+                      onSubmitted: (_) => _submit(),
+                      decoration: InputDecoration(
+                        labelText: Translator.t('login_confirm_password'),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        filled: true,
+                        fillColor: colors.bg,
                       ),
                     ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
+                  ],
+
+                  if (_error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      _error!,
+                      style: TextStyle(color: colors.error, fontSize: 13),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _submit,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: colors.accent,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Text(
+                              _isLoginMode
+                                  ? Translator.t('login_signin')
+                                  : Translator.t('login_signup'),
+                              style: const TextStyle(fontSize: 16),
                             ),
-                          )
-                        : Text(
-                            _isLoginMode
-                                ? Translator.t('login_signin')
-                                : Translator.t('login_signup'),
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                  ),
-                ),
-
-                if (_isLoginMode && _existingUsers.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Center(
-                    child: TextButton(
-                      onPressed: _toggleMode,
-                      child: Text(
-                        Translator.t('login_create_account'),
-                        style: TextStyle(color: colors.accent),
-                      ),
                     ),
                   ),
-                ],
 
-                if (!_isLoginMode && _existingUsers.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Center(
-                    child: TextButton(
-                      onPressed: _toggleMode,
-                      child: Text(
-                        Translator.t('login_connect_account'),
-                        style: TextStyle(color: colors.accent),
+                  if (_isLoginMode && _existingUsers.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Center(
+                      child: TextButton(
+                        onPressed: _toggleMode,
+                        child: Text(
+                          Translator.t('login_create_account'),
+                          style: TextStyle(color: colors.accent),
+                        ),
                       ),
                     ),
-                  ),
+                  ],
+
+                  if (!_isLoginMode && _existingUsers.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Center(
+                      child: TextButton(
+                        onPressed: _toggleMode,
+                        child: Text(
+                          Translator.t('login_connect_account'),
+                          style: TextStyle(color: colors.accent),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),

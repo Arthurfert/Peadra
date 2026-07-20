@@ -442,7 +442,7 @@ class Translator {
       'dash_trends': 'Tendances',
       'dash_title': 'Tableau de bord',
       'dash_welcome': 'Bienvenue ',
-      'dash_overview': ', voici un aper\u00e7u de votre situation financi\u00e8re.',
+      'dash_overview': ', voici un aper\u00e7u de vos finances.',
       'dash_inflows_outflows': 'D\u00e9bit / Cr\u00e9dit',
       'dash_inflows': 'D\u00e9bits',
       'dash_outflows': 'Cr\u00e9dits',

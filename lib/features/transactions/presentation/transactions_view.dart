@@ -504,7 +504,7 @@ class _TransactionsViewState extends State<TransactionsView> {
                     Text(
                       Translator.t('trans_title'),
                       style: TextStyle(
-                        fontSize: 24,
+                        fontSize: 28,
                         fontWeight: FontWeight.bold,
                         color: colors.text,
                       ),

@@ -74,9 +74,11 @@ class _ParametersViewState extends State<ParametersView> {
     final lang = context.watch<LanguageProvider>();
     final auth = context.watch<AuthProvider>();
 
+    final isPhone = ResponsiveLayout.isPhone(context);
+
     return Scaffold(
       backgroundColor: colors.bg,
-      appBar: AppBar(
+      appBar: isPhone ? null : AppBar(
         title: Text(Translator.t('param_title'),
             style: TextStyle(color: colors.text)),
         backgroundColor: colors.surface,
@@ -86,6 +88,19 @@ class _ParametersViewState extends State<ParametersView> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
         children: [
+          if (isPhone) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 8, 4, 16),
+              child: Text(
+                Translator.t('param_title'),
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: colors.text,
+                ),
+              ),
+            ),
+          ],
           _buildSection(Translator.t('param_general'), colors, [
             _buildLanguageTile(lang, colors),
             _buildCurrencyTile(settings, colors),

@@ -33,11 +33,13 @@ class DashboardShellMobile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: colors.bg,
-      body: Column(
-        children: [
-          if (updateBanner != null) updateBanner!,
-          Expanded(child: _buildContent()),
-        ],
+      body: SafeArea(
+        child: Column(
+          children: [
+            if (updateBanner != null) updateBanner!,
+            Expanded(child: _buildContent()),
+          ],
+        ),
       ),
       bottomNavigationBar: _buildBottomNav(),
     );

@@ -75,7 +75,7 @@ class _CategoriesViewState extends State<CategoriesView> {
             Text(
               Translator.t('nav_categories'),
               style: TextStyle(
-                fontSize: 24,
+                fontSize: 28,
                 fontWeight: FontWeight.bold,
                 color: colors.text,
               ),
@@ -106,7 +106,7 @@ class _CategoriesViewState extends State<CategoriesView> {
                 Text(
                   Translator.t('nav_categories'),
                   style: TextStyle(
-                    fontSize: 24,
+                    fontSize: 28,
                     fontWeight: FontWeight.bold,
                     color: colors.text,
                   ),

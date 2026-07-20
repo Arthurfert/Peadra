@@ -183,10 +183,7 @@ class _TransactionModalState extends State<TransactionModal> {
         .where((r) => (r['description'] as String)
             .toLowerCase()
             .contains(value.toLowerCase()))
-        .map((r) {
-          final s = r['description'] as String;
-          return s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
-        })
+        .map((r) => r['description'] as String)
         .toList();
     setState(() {
       _suggestions = filtered;

@@ -324,16 +324,16 @@ class DatabaseManager {
 
   Future<int> getOrCreateDescription(String name) async {
     final db = await database;
-    final existing = await db.query(
-      'descriptions',
-      where: 'user_id = ? AND name = ?',
-      whereArgs: [_userId, name],
+    final normalized = name.trim();
+    final existing = await db.rawQuery(
+      'SELECT id FROM descriptions WHERE user_id = ? AND LOWER(name) = LOWER(?)',
+      [_userId, normalized],
     );
     if (existing.isNotEmpty) return existing.first['id'] as int;
 
     return await db.insert('descriptions', {
       'user_id': _userId,
-      'name': name,
+      'name': normalized,
     });
   }
 
@@ -896,7 +896,7 @@ class DatabaseManager {
     final endDate = now.toIso8601String().substring(0, 10);
 
     final rows = await db.rawQuery('''
-      SELECT LOWER(COALESCE(d.name, 'Uncategorized')) as desc,
+      SELECT COALESCE(d.name, 'Uncategorized') as desc,
              SUM(t.amount) as total,
              COUNT(t.id) as count
       FROM transactions t

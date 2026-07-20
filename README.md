@@ -29,24 +29,24 @@ Track your assets, manage transactions across multiple accounts and currencies, 
 ## Features
 
 **Portfolio & Asset Management**
-- **Comprehensive Overview:** Track your current balance, asset distribution, and financial evolution over time.
-- **Interactive Charts:** Bar charts, pie charts, and line charts for visual insights into spending patterns and trends.
-- **Category Insights:** Organize transactions into categories with the ability to dynamically rename, merge, and restructure them.
-- **Subscription Tracking:** Monitor recurring transactions and active subscriptions at a glance.
+- Track your current balance, asset distribution, and financial evolution over time.
+- Bar charts, pie charts, and line charts for visual insights into spending patterns and trends.
+- Organize transactions into categories with the ability to dynamically rename, merge, and restructure them.
+- Monitor recurring transactions and active subscriptions at a glance.
 
 **Account & Transaction Management**
-- **Full Operations & Multi-Currency:** Easily add, modify, or delete transactions (expense, income, transfer), in any of 36 supported currencies with automatic exchange rate conversion.
-- **Multi-Account Support:** Manage multiple distinct accounts with independent tracking and color coding.
-- **Multi-User Authentication:** Secure access control for different users on the same device, with SHA-256 password hashing.
-- **Smart Autocomplete:** Transaction descriptions are auto-suggested from your history as you type.
+- Easily add, modify, or delete transactions (expense, income, transfer), in any of 36 supported currencies with automatic exchange rate conversion.
+- Manage multiple distinct accounts with independent tracking and color coding.
+- Secure access control for different users on the same device, with SHA-256 password hashing.
+- Transaction descriptions are auto-suggested from your history as you type.
 
 **Data Control & System**
-- **Local & Secure:** Powered by a local SQLite database. Your financial data never leaves your machine.
-- **Flexible Data Portability:** Seamlessly import data via CSV files with automatic column detection and dialect parsing, and export your history in both JSON and CSV formats.
-- **Responsive Design:** Adaptive layout that works beautifully on phones, tablets, and desktops.
-- **Theming:** Four built-in themes - Light, Dark, Autumn, and Summer.
+- Powered by a local SQLite database. Your financial data never leaves your machine.
+- Seamlessly import data via CSV files with automatic column detection and dialect parsing, and export your history in both JSON and CSV formats.
+- Adaptive layout that works beautifully on phones, tablets, and desktops.
+- Four built-in themes - Light, Dark, Autumn, and Summer.
 
-**Supported platforms:** Linux, Windows, *Android*. (The Apple ecosystem is theoretically supported, but has'nt been tested).
+**Supported platforms:** Linux, Windows, *Android*. (The Apple ecosystem is theoretically supported, but has'nt been tested).  
 **Supported languages:** English, French.
 
 > ...and many more features [to come](TODO.md) !

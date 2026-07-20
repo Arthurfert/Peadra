@@ -331,27 +331,13 @@ class DashboardViewDesktop extends StatelessWidget {
       );
     }
 
-    final firstValue = assetsHistory.first['value'] as double;
-    int startIndex = 0;
-    for (int i = 1; i < assetsHistory.length; i++) {
-      if ((assetsHistory[i]['value'] as double) != firstValue) {
-        startIndex = i > 0 ? i - 1 : 0;
-        break;
-      }
-      if (i == assetsHistory.length - 1) {
-        startIndex = 0;
-      }
-    }
-
-    final trimmedHistory = assetsHistory.sublist(startIndex);
-
     final spots = <FlSpot>[];
     final labels = <String>[];
 
-    for (int i = 0; i < trimmedHistory.length; i++) {
+    for (int i = 0; i < assetsHistory.length; i++) {
       spots.add(FlSpot(
-          i.toDouble(), trimmedHistory[i]['value'] as double));
-      labels.add(trimmedHistory[i]['label'] as String);
+          i.toDouble(), assetsHistory[i]['value'] as double));
+      labels.add(assetsHistory[i]['label'] as String);
     }
 
     double minY = spots.first.y;

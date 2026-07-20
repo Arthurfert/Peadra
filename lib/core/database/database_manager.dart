@@ -1007,9 +1007,27 @@ class DatabaseManager {
   Future<List<Map<String, dynamic>>> getAssetsHistory({int months = 6, String targetCurrency = 'EUR'}) async {
     final db = await database;
     final now = DateTime.now();
+
+    final earliestResult = await db.rawQuery(
+      'SELECT MIN(date) as earliest FROM transactions WHERE user_id = ?',
+      [_userId],
+    );
+    final earliestDate = earliestResult.first['earliest'] as String?;
+
+    int effectiveMonths = months;
+    if (earliestDate != null) {
+      final earliest = DateTime.parse(earliestDate);
+      final earliestMonth = DateTime(earliest.year, earliest.month, 1);
+      final requestedStart = DateTime(now.year, now.month - months + 1, 1);
+      if (earliestMonth.isAfter(requestedStart)) {
+        final diff = (now.year - earliestMonth.year) * 12 + (now.month - earliestMonth.month) + 1;
+        effectiveMonths = diff.clamp(1, months);
+      }
+    }
+
     final results = <Map<String, dynamic>>[];
 
-    for (int i = months; i >= 1; i--) {
+    for (int i = effectiveMonths; i >= 1; i--) {
       final month = DateTime(now.year, now.month - i + 1, 1);
       final nextMonth = DateTime(month.year, month.month + 1, 1);
       final endDate = nextMonth.toIso8601String().substring(0, 10);

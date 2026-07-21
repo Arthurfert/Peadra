@@ -491,7 +491,7 @@ class _TransactionsViewState extends State<TransactionsView> {
     final currency = context.watch<SettingsProvider>().currency;
 
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

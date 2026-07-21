@@ -501,74 +501,118 @@ class _ParametersViewState extends State<ParametersView> {
 
   Widget _buildUsernameTile(AuthProvider auth, PeadraColors colors) {
     final controller = TextEditingController(text: auth.username);
+    final isPhone = ResponsiveLayout.isPhone(context);
+
+    final usernameField = SizedBox(
+      width: isPhone ? double.infinity : 180,
+      child: TextField(
+        controller: controller,
+        style: TextStyle(color: colors.text),
+        maxLength: 50,
+        decoration: InputDecoration(
+          isDense: true,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: colors.borderColor),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: colors.borderColor),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: colors.accent),
+          ),
+          filled: true,
+          fillColor: colors.bg,
+        ),
+        onSubmitted: (value) async {
+          if (value.trim().isEmpty || value.trim() == auth.username) return;
+          try {
+            final success =
+                await _authService.updateUsername(auth.userId!, value.trim());
+            if (success && mounted) {
+              auth.setUsername(value.trim());
+              PeadraNotification.show(context, message: Translator.t('param_username_saved'));
+            }
+          } catch (e) {
+            if (mounted) {
+              PeadraNotification.show(context, message: e.toString(), type: NotificationType.error);
+            }
+          }
+        },
+      ),
+    );
+
+    if (isPhone) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(Translator.t('param_username'),
+                style: TextStyle(color: colors.text)),
+            const SizedBox(height: 4),
+            Text(Translator.t('param_username_desc'),
+                style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+            const SizedBox(height: 12),
+            usernameField,
+          ],
+        ),
+      );
+    }
+
     return ListTile(
       title: Text(Translator.t('param_username'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_username_desc'),
           style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
-      trailing: SizedBox(
-        width: 180,
-        child: TextField(
-          controller: controller,
-          style: TextStyle(color: colors.text),
-          maxLength: 50,
-          decoration: InputDecoration(
-            isDense: true,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: colors.borderColor),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: colors.borderColor),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: colors.accent),
-            ),
-            filled: true,
-            fillColor: colors.bg,
-          ),
-          onSubmitted: (value) async {
-            if (value.trim().isEmpty || value.trim() == auth.username) return;
-            try {
-              final success =
-                  await _authService.updateUsername(auth.userId!, value.trim());
-              if (success && mounted) {
-                auth.setUsername(value.trim());
-                PeadraNotification.show(context, message: Translator.t('param_username_saved'));
-              }
-            } catch (e) {
-              if (mounted) {
-                PeadraNotification.show(context, message: e.toString(), type: NotificationType.error);
-              }
-            }
-          },
-        ),
-      ),
+      trailing: usernameField,
     );
   }
 
   Widget _buildPasswordTile(PeadraColors colors) {
+    final isPhone = ResponsiveLayout.isPhone(context);
+
+    final changeButton = ElevatedButton.icon(
+      icon: const Icon(Icons.lock, color: Colors.white, size: 16),
+      label: Text(Translator.t('param_change_password'),
+          style: const TextStyle(color: Colors.white, fontSize: 12)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: colors.accent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+      onPressed: () => _showChangePasswordDialog(colors),
+    );
+
+    if (isPhone) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(Translator.t('param_password'),
+                style: TextStyle(color: colors.text)),
+            const SizedBox(height: 4),
+            Text(Translator.t('param_password_desc'),
+                style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+            const SizedBox(height: 12),
+            changeButton,
+          ],
+        ),
+      );
+    }
+
     return ListTile(
       title: Text(Translator.t('param_password'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_password_desc'),
           style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
-      trailing: ElevatedButton.icon(
-        icon: const Icon(Icons.lock, color: Colors.white, size: 16),
-        label: Text(Translator.t('param_change_password'),
-            style: const TextStyle(color: Colors.white, fontSize: 12)),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: colors.accent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-        onPressed: () => _showChangePasswordDialog(colors),
-      ),
+      trailing: changeButton,
     );
   }
 
@@ -727,23 +771,45 @@ class _ParametersViewState extends State<ParametersView> {
   }
 
   Widget _buildDeleteAccountTile(PeadraColors colors) {
+    final isPhone = ResponsiveLayout.isPhone(context);
+
+    final deleteButton = ElevatedButton.icon(
+      icon: const Icon(Icons.delete, color: Colors.white, size: 16),
+      label: Text(Translator.t('param_delete_account'),
+          style: const TextStyle(color: Colors.white, fontSize: 12)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: colors.deleteColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+      onPressed: () => _showDeleteAccountDialog(colors),
+    );
+
+    if (isPhone) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(Translator.t('param_delete_account'),
+                style: TextStyle(color: colors.error)),
+            const SizedBox(height: 4),
+            Text(Translator.t('param_delete_account_desc'),
+                style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+            const SizedBox(height: 12),
+            deleteButton,
+          ],
+        ),
+      );
+    }
+
     return ListTile(
       title: Text(Translator.t('param_delete_account'),
           style: TextStyle(color: colors.error)),
       subtitle: Text(Translator.t('param_delete_account_desc'),
           style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
-      trailing: ElevatedButton.icon(
-        icon: const Icon(Icons.delete, color: Colors.white, size: 16),
-        label: Text(Translator.t('param_delete_account'),
-            style: const TextStyle(color: Colors.white, fontSize: 12)),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: colors.deleteColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-        onPressed: () => _showDeleteAccountDialog(colors),
-      ),
+      trailing: deleteButton,
     );
   }
 

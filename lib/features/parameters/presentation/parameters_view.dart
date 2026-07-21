@@ -890,14 +890,7 @@ class _ParametersViewState extends State<ParametersView> {
       ),
       subtitle: isDownloading
           ? LinearProgressIndicator(value: _downloadProgress, backgroundColor: colors.bg, color: colors.accent)
-          : (_availableUpdate!.releaseNotes.isNotEmpty
-              ? Text(
-                  _availableUpdate!.releaseNotes,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: colors.placeholderColor, fontSize: 12),
-                )
-              : null),
+          : null,
       trailing: isDownloading
           ? SizedBox(
               width: 20,

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:open_file/open_file.dart';
 
 import '../../../core/i18n/translator.dart';
 import '../../../core/providers/auth_provider.dart';
@@ -483,10 +484,12 @@ class _ParametersViewState extends State<ParametersView> {
           ),
         ),
         onPressed: () async {
-          final dbPath = _db.database.then((db) => db.path);
-          final path = await dbPath;
+          final db = await _db.database;
+          final path = db.path;
           final dir = File(path).parent.path;
-          if (Platform.isLinux) {
+          if (Platform.isAndroid || Platform.isIOS) {
+            await OpenFile.open(dir);
+          } else if (Platform.isLinux) {
             await Process.run('xdg-open', [dir]);
           } else if (Platform.isMacOS) {
             await Process.run('open', [dir]);

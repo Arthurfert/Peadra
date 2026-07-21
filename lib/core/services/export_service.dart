@@ -3,6 +3,9 @@ import 'dart:convert';
 
 import 'package:csv/csv.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
+import 'package:open_file/open_file.dart';
 
 import '../database/database_manager.dart';
 
@@ -71,7 +74,8 @@ class ExportService {
   }
 
   /// Save export to file and return the path.
-  /// Opens a file picker dialog for the user to choose the save location.
+  /// On desktop: opens a file picker dialog for the user to choose save location.
+  /// On mobile: saves to app directory and opens it for sharing.
   Future<String?> saveToFile({
     required String content,
     required String format,
@@ -79,6 +83,14 @@ class ExportService {
   }) async {
     final timestamp = DateTime.now().toIso8601String().substring(0, 19).replaceAll(':', '-');
     final name = fileName ?? 'peadra_export_$timestamp.$format';
+
+    if (Platform.isAndroid || Platform.isIOS) {
+      final dir = await getApplicationDocumentsDirectory();
+      final filePath = p.join(dir.path, name);
+      await File(filePath).writeAsString(content);
+      await OpenFile.open(filePath);
+      return filePath;
+    }
 
     final result = await FilePicker.platform.saveFile(
       dialogTitle: 'Export $format',

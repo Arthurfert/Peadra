@@ -21,11 +21,13 @@ This document presents future changes and wanted improvements.
 
 - Fixed titles inconsistency in mobile UI
 - No characters limit in all texts input
+- Fixed `Locate database` and `Export CSV` buttons not working on android.
 
 ## Future Improvements
 
 **New features :**
 - Peer to peer sync between mobile and desktop
+- Re-introduce logs and their export
 - Compatibility with password managers and biometry
 - Budget view, linked to categories
 - Tools view (composed interests, simulations...)
@@ -36,6 +38,7 @@ This document presents future changes and wanted improvements.
 - More translations
 - Upgrade existing translation, including a french date picker
 - The ability to set a starting amount for your account (to avoid polluting transactions)
+- Upgrade the `import data` feature
 - More parameters : 
 	- Navigation text or not for mobile
 	- Data points in line charts or not

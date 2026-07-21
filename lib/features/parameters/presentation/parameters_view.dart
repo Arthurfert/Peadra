@@ -36,6 +36,7 @@ class _ParametersViewState extends State<ParametersView> {
   String _currentVersion = '';
   UpdateInfo? _availableUpdate;
   _UpdateStatus _updateStatus = _UpdateStatus.idle;
+  double _downloadProgress = 0;
 
   @override
   void initState() {
@@ -63,6 +64,30 @@ class _ParametersViewState extends State<ParametersView> {
       });
     } catch (e) {
       if (mounted) setState(() => _updateStatus = _UpdateStatus.error);
+    }
+  }
+
+  Future<void> _downloadAndInstall() async {
+    setState(() {
+      _updateStatus = _UpdateStatus.downloading;
+      _downloadProgress = 0;
+    });
+    try {
+      await _updateService.downloadAndInstall(
+        url: _availableUpdate!.downloadUrl,
+        onProgress: (progress) {
+          if (mounted) setState(() => _downloadProgress = progress);
+        },
+      );
+      if (mounted) {
+        PeadraNotification.show(context, message: Translator.t('param_update_status_installing'));
+        setState(() => _updateStatus = _UpdateStatus.available);
+      }
+    } catch (e) {
+      if (mounted) {
+        PeadraNotification.show(context, message: Translator.t('param_update_status_error', params: {'error': e.toString()}), type: NotificationType.error);
+        setState(() => _updateStatus = _UpdateStatus.available);
+      }
     }
   }
 
@@ -135,7 +160,7 @@ class _ParametersViewState extends State<ParametersView> {
           _buildSection(Translator.t('param_updates'), colors, [
             _buildVersionTile(colors),
             _buildCheckUpdateTile(colors),
-            if (_updateStatus == _UpdateStatus.available && _availableUpdate != null)
+            if ((_updateStatus == _UpdateStatus.available || _updateStatus == _UpdateStatus.downloading) && _availableUpdate != null)
               _buildUpdateAvailableTile(colors),
           ], icon: Icons.system_update),
           const SizedBox(height: 8),
@@ -852,47 +877,63 @@ class _ParametersViewState extends State<ParametersView> {
   }
 
   Widget _buildUpdateAvailableTile(PeadraColors colors) {
+    final isMobile = Platform.isAndroid || Platform.isIOS;
+    final isDownloading = _updateStatus == _UpdateStatus.downloading;
+
     return ListTile(
-      leading: Icon(Icons.download, color: colors.success),
+      leading: Icon(isDownloading ? Icons.downloading : Icons.download, color: colors.success),
       title: Text(
-        Translator.t('param_update_status_available',
-            params: {'version': _availableUpdate!.version}),
+        isDownloading
+            ? Translator.t('param_update_status_downloading', params: {'percent': (_downloadProgress * 100).toInt().toString()})
+            : Translator.t('param_update_status_available', params: {'version': _availableUpdate!.version}),
         style: TextStyle(color: colors.success, fontWeight: FontWeight.w600),
       ),
-      subtitle: _availableUpdate!.releaseNotes.isNotEmpty
-          ? Text(
-              _availableUpdate!.releaseNotes,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: colors.placeholderColor, fontSize: 12),
-            )
-          : null,
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextButton(
-            onPressed: () => _showChangelogDialog(colors),
-            child: Text(
-              Translator.t('param_see_whats_new'),
-              style: TextStyle(color: colors.success, fontSize: 12),
-            ),
-          ),
-          const SizedBox(width: 4),
-          ElevatedButton.icon(
-            icon: const Icon(Icons.open_in_new, color: Colors.white, size: 16),
-            label: Text(Translator.t('param_install_update'),
-                style: const TextStyle(color: Colors.white, fontSize: 12)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: colors.success,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+      subtitle: isDownloading
+          ? LinearProgressIndicator(value: _downloadProgress, backgroundColor: colors.bg, color: colors.accent)
+          : (_availableUpdate!.releaseNotes.isNotEmpty
+              ? Text(
+                  _availableUpdate!.releaseNotes,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: colors.placeholderColor, fontSize: 12),
+                )
+              : null),
+      trailing: isDownloading
+          ? SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: colors.accent,
               ),
+            )
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextButton(
+                  onPressed: () => _showChangelogDialog(colors),
+                  child: Text(
+                    Translator.t('param_see_whats_new'),
+                    style: TextStyle(color: colors.success, fontSize: 12),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                ElevatedButton.icon(
+                  icon: Icon(isMobile ? Icons.download : Icons.open_in_new, color: Colors.white, size: 16),
+                  label: Text(Translator.t('param_install_update'),
+                      style: const TextStyle(color: Colors.white, fontSize: 12)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colors.success,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  onPressed: isMobile
+                      ? _downloadAndInstall
+                      : () => _updateService.openDownloadUrl(_availableUpdate!.downloadUrl),
+                ),
+              ],
             ),
-            onPressed: () =>
-                _updateService.openDownloadUrl(_availableUpdate!.downloadUrl),
-          ),
-        ],
-      ),
     );
   }
 
@@ -961,6 +1002,8 @@ class _ParametersViewState extends State<ParametersView> {
       case _UpdateStatus.checking:
         return Translator.t('param_update_status_checking');
       case _UpdateStatus.available:
+        return '';
+      case _UpdateStatus.downloading:
         return '';
       case _UpdateStatus.upToDate:
         return Translator.t('param_update_status_up_to_date');
@@ -1058,4 +1101,4 @@ class _ParametersViewState extends State<ParametersView> {
   }
 }
 
-enum _UpdateStatus { idle, checking, available, upToDate, error }
+enum _UpdateStatus { idle, checking, available, upToDate, downloading, error }

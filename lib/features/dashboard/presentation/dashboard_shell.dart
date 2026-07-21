@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/i18n/translator.dart';
+import '../../../shared/widgets/peadra_notification.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/theme_provider.dart';
@@ -32,6 +35,7 @@ class _DashboardShellState extends State<DashboardShell> {
   UpdateInfo? _availableUpdate;
   late final List<Widget> _views;
   bool _updateBannerDismissed = false;
+  bool _bannerDownloading = false;
 
   @override
   void initState() {
@@ -50,6 +54,25 @@ class _DashboardShellState extends State<DashboardShell> {
     final update = await UpdateService().checkForUpdate();
     if (mounted && update != null) {
       setState(() => _availableUpdate = update);
+    }
+  }
+
+  Future<void> _downloadAndInstallBanner() async {
+    setState(() => _bannerDownloading = true);
+    try {
+      await UpdateService().downloadAndInstall(
+        url: _availableUpdate!.downloadUrl,
+        onProgress: (_) {},
+      );
+      if (mounted) {
+        PeadraNotification.show(context, message: Translator.t('param_update_status_installing'));
+      }
+    } catch (e) {
+      if (mounted) {
+        PeadraNotification.show(context, message: Translator.t('param_update_status_error', params: {'error': e.toString()}), type: NotificationType.error);
+      }
+    } finally {
+      if (mounted) setState(() => _bannerDownloading = false);
     }
   }
 
@@ -135,10 +158,20 @@ class _DashboardShellState extends State<DashboardShell> {
                 ),
               ),
               TextButton(
-                onPressed: () => UpdateService()
-                    .openDownloadUrl(_availableUpdate!.downloadUrl),
+                onPressed: _bannerDownloading
+                    ? null
+                    : () {
+                        final isMobile = Platform.isAndroid || Platform.isIOS;
+                        if (isMobile) {
+                          _downloadAndInstallBanner();
+                        } else {
+                          UpdateService().openDownloadUrl(_availableUpdate!.downloadUrl);
+                        }
+                      },
                 child: Text(
-                  Translator.t('param_install_update'),
+                  _bannerDownloading
+                      ? Translator.t('param_update_status_downloading', params: {'percent': ''})
+                      : Translator.t('param_install_update'),
                   style: TextStyle(
                     color: colors.success,
                     fontWeight: FontWeight.w600,

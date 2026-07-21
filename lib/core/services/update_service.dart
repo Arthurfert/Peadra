@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:path/path.dart' as p;
+import 'package:open_file/open_file.dart';
 
 import '../database/database_manager.dart';
 
@@ -23,16 +25,17 @@ class UpdateInfo {
   factory UpdateInfo.fromJson(Map<String, dynamic> json) {
     final assets = json['assets'] as List<dynamic>? ?? [];
     String downloadUrl = json['html_url'] ?? '';
-    String? linuxDebUrl;
-    String? linuxRpmUrl;
-    String? linuxAppImageUrl;
     for (final asset in assets) {
       final name = asset['name'] ?? '';
       final url = asset['browser_download_url'] ?? '';
+      if (Platform.isAndroid && name.endsWith('.apk')) {
+        downloadUrl = url;
+        break;
+      }
       if (Platform.isLinux) {
-        if (name.contains('.deb')) linuxDebUrl = url;
-        if (name.contains('.rpm')) linuxRpmUrl = url;
-        if (name.contains('.AppImage')) linuxAppImageUrl = url;
+        if (name.contains('.deb')) { downloadUrl = url; break; }
+        if (name.contains('.rpm')) { downloadUrl = url; break; }
+        if (name.contains('.AppImage')) { downloadUrl = url; break; }
       } else if (Platform.isWindows && name.contains('.msi')) {
         downloadUrl = url;
         break;
@@ -40,9 +43,6 @@ class UpdateInfo {
         downloadUrl = url;
         break;
       }
-    }
-    if (Platform.isLinux) {
-      downloadUrl = linuxDebUrl ?? linuxRpmUrl ?? linuxAppImageUrl ?? downloadUrl;
     }
 
     return UpdateInfo(
@@ -111,11 +111,47 @@ class UpdateService {
     return false;
   }
 
-  /// Open download URL in browser.
+  /// Open download URL in browser (desktop).
   Future<void> openDownloadUrl(String url) async {
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
     }
+  }
+
+  /// Download APK and install it (Android).
+  Future<String> downloadAndInstall({
+    required String url,
+    required void Function(double progress) onProgress,
+  }) async {
+    final dir = Directory('/storage/emulated/0/Download');
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+
+    final fileName = 'Peadra-${DateTime.now().millisecondsSinceEpoch}.apk';
+    final filePath = p.join(dir.path, fileName);
+
+    final response = await http.Client().send(
+      http.Request('GET', Uri.parse(url)),
+    );
+
+    final totalBytes = response.contentLength ?? 0;
+    var receivedBytes = 0;
+    final sink = File(filePath).openWrite();
+
+    await for (final chunk in response.stream) {
+      sink.add(chunk);
+      receivedBytes += chunk.length;
+      if (totalBytes > 0) {
+        onProgress(receivedBytes / totalBytes);
+      }
+    }
+
+    await sink.flush();
+    await sink.close();
+
+    await OpenFile.open(filePath);
+    return filePath;
   }
 }

@@ -17,12 +17,7 @@ This document presents future changes and wanted improvements.
 
 ### Fixed
 
-- Fixed titles inconsistency in mobile UI
-- Introduced characters limit in all texts input
-- Hided `Locate database` and fixed `Export CSV` buttons not working on mobile
-- Compatibility with password managers for login
-- Release notes available in-app
-- Enhanced readability for some parameters on mobile
+- Automatic update checker and download for android
 
 ## Future Improvements
 

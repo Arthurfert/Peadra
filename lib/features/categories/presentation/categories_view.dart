@@ -67,7 +67,7 @@ class _CategoriesViewState extends State<CategoriesView> {
     final isPhone = ResponsiveLayout.isPhone(context);
 
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

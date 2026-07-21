@@ -45,7 +45,7 @@ class _AccountsViewState extends State<AccountsView> {
     final currency = context.watch<SettingsProvider>().currency;
 
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

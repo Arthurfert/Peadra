@@ -86,11 +86,11 @@ class _ParametersViewState extends State<ParametersView> {
         automaticallyImplyLeading: widget.showBackButton,
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+        padding: const EdgeInsets.all(24),
         children: [
           if (isPhone) ...[
             Padding(
-              padding: const EdgeInsets.fromLTRB(4, 8, 4, 16),
+              padding: const EdgeInsets.only(bottom: 16),
               child: Text(
                 Translator.t('param_title'),
                 style: TextStyle(

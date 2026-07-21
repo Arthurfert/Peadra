@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:open_file/open_file.dart';
 
 import '../../../core/i18n/translator.dart';
 import '../../../core/providers/auth_provider.dart';
@@ -119,7 +118,8 @@ class _ParametersViewState extends State<ParametersView> {
           const SizedBox(height: 8),
           _buildSection(Translator.t('param_database'), colors, [
             _buildMaxBackupsTile(settings, colors),
-            _buildLocateDatabaseTile(colors),
+            if (!Platform.isAndroid && !Platform.isIOS)
+              _buildLocateDatabaseTile(colors),
           ], icon: Icons.storage),
           const SizedBox(height: 8),
           _buildSection(Translator.t('param_security'), colors, [
@@ -487,9 +487,7 @@ class _ParametersViewState extends State<ParametersView> {
           final db = await _db.database;
           final path = db.path;
           final dir = File(path).parent.path;
-          if (Platform.isAndroid || Platform.isIOS) {
-            await OpenFile.open(dir);
-          } else if (Platform.isLinux) {
+          if (Platform.isLinux) {
             await Process.run('xdg-open', [dir]);
           } else if (Platform.isMacOS) {
             await Process.run('open', [dir]);
@@ -713,8 +711,11 @@ class _ParametersViewState extends State<ParametersView> {
           final path =
               await exportService.saveToFile(content: content, format: 'csv');
           if (mounted && path != null) {
-            PeadraNotification.show(context, message: Translator.t('msg_export_success')
-                .replaceAll('{file_path}', path));
+            final isMobile = Platform.isAndroid || Platform.isIOS;
+            final message = isMobile
+                ? Translator.t('msg_export_success_mobile')
+                : Translator.t('msg_export_success').replaceAll('{file_path}', path);
+            PeadraNotification.show(context, message: message);
           }
         } catch (e) {
           if (mounted) {

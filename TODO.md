@@ -4,8 +4,6 @@ This document presents future changes and wanted improvements.
 
 *All Todo's may not be implemented in the end.*
 
-## Vision
-
 **The application is not intended to become cloud-based, and will stay local.**
 
 > [!NOTE]
@@ -23,6 +21,7 @@ This document presents future changes and wanted improvements.
 - No characters limit in all texts input
 - Fixed `Locate database` and `Export CSV` buttons not working on android.
 - Compatibility with password managers
+- Release notes available in-app
 
 ## Future Improvements
 

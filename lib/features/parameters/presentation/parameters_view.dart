@@ -800,18 +800,89 @@ class _ParametersViewState extends State<ParametersView> {
               style: TextStyle(color: colors.placeholderColor, fontSize: 12),
             )
           : null,
-      trailing: ElevatedButton.icon(
-        icon: const Icon(Icons.open_in_new, color: Colors.white, size: 16),
-        label: Text(Translator.t('param_install_update'),
-            style: const TextStyle(color: Colors.white, fontSize: 12)),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: colors.success,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextButton(
+            onPressed: () => _showChangelogDialog(colors),
+            child: Text(
+              Translator.t('param_see_whats_new'),
+              style: TextStyle(color: colors.success, fontSize: 12),
+            ),
+          ),
+          const SizedBox(width: 4),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.open_in_new, color: Colors.white, size: 16),
+            label: Text(Translator.t('param_install_update'),
+                style: const TextStyle(color: Colors.white, fontSize: 12)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: colors.success,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            onPressed: () =>
+                _updateService.openDownloadUrl(_availableUpdate!.downloadUrl),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showChangelogDialog(PeadraColors colors) {
+    final notes = _availableUpdate!.releaseNotes;
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: colors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 500, maxHeight: 500),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 8, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${_availableUpdate!.version} - ${Translator.t('param_changelog_title')}',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: colors.text,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.close, color: colors.placeholderColor, size: 20),
+                      onPressed: () => Navigator.of(ctx).pop(),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(),
+              Flexible(
+                child: notes.isNotEmpty
+                    ? SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                        child: SelectableText(
+                          notes,
+                          style: TextStyle(color: colors.text, fontSize: 14, height: 1.5),
+                        ),
+                      )
+                    : Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Text(
+                          Translator.t('param_changelog_empty'),
+                          style: TextStyle(color: colors.placeholderColor),
+                        ),
+                      ),
+              ),
+            ],
           ),
         ),
-        onPressed: () =>
-            _updateService.openDownloadUrl(_availableUpdate!.downloadUrl),
       ),
     );
   }

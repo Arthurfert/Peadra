@@ -125,6 +125,16 @@ class _DashboardShellState extends State<DashboardShell> {
                 ),
               ),
               TextButton(
+                onPressed: () => _showChangelogDialog(colors),
+                child: Text(
+                  Translator.t('param_see_whats_new'),
+                  style: TextStyle(
+                    color: colors.success,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              TextButton(
                 onPressed: () => UpdateService()
                     .openDownloadUrl(_availableUpdate!.downloadUrl),
                 child: Text(
@@ -140,6 +150,64 @@ class _DashboardShellState extends State<DashboardShell> {
                     Icon(Icons.close, color: colors.placeholderColor, size: 18),
                 onPressed: () =>
                     setState(() => _updateBannerDismissed = true),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showChangelogDialog(PeadraColors colors) {
+    final notes = _availableUpdate!.releaseNotes;
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: colors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 500, maxHeight: 500),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 8, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${_availableUpdate!.version} - ${Translator.t('param_changelog_title')}',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: colors.text,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.close, color: colors.placeholderColor, size: 20),
+                      onPressed: () => Navigator.of(ctx).pop(),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(),
+              Flexible(
+                child: notes.isNotEmpty
+                    ? SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                        child: SelectableText(
+                          notes,
+                          style: TextStyle(color: colors.text, fontSize: 14, height: 1.5),
+                        ),
+                      )
+                    : Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Text(
+                          Translator.t('param_changelog_empty'),
+                          style: TextStyle(color: colors.placeholderColor),
+                        ),
+                      ),
               ),
             ],
           ),

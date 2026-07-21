@@ -367,6 +367,7 @@ class Translator {
       'import_separator_tab': 'Tab',
       'import_separator_pipe': 'Pipe (|)',
       'msg_export_success': 'Export succeeded: {file_path}',
+      'msg_export_success_mobile': 'CSV exported to Downloads',
       'msg_export_error': 'Error during export',
       'msg_password_required': 'Password is required.',
       'msg_user_select_required': 'Please select a user.',
@@ -769,6 +770,7 @@ class Translator {
       'msg_transaction_deleted':
           'Transaction supprim\u00e9e avec succ\u00e8s',
       'msg_export_success': 'Export r\u00e9ussi : {file_path}',
+      'msg_export_success_mobile': 'CSV export\u00e9 dans T\u00e9l\u00e9chargements',
       'msg_export_error': "Erreur lors de l'export",
       'msg_password_required': 'Le mot de passe est requis.',
       'msg_user_select_required': 'Veuillez s\u00e9lectionner un utilisateur.',

@@ -4,22 +4,47 @@ This document presents future changes and wanted improvements.
 
 *All Todo's may not be implemented in the end.*
 
-## Vision
-
 **The application is not intended to become cloud-based, and will stay local.**
-
-Peadra aims to become a local version of existing apps like *[Finary](https://finary.com)*, with you keeping all control over your data.
 
 > [!NOTE]
 > Due to banking related laws, an API access to your bank requires approbation by an organization. It is thus not currently possible.
 
 ## Currently in development
 
+### New
 
 
-## Future Improvements & ideas
 
-- Desktop and Mobile peer-to-peer sync
-- Budget view, with budget insights in dashboard/categories view
-- Compute trends + Tool to simulate/calculate economic specifics and effects on existing assets
-- Onboarding & tutorial
+### Fixed
+
+- Fixed titles inconsistency in mobile UI
+- Introduced characters limit in all texts input
+- Hided `Locate database` and fixed `Export CSV` buttons not working on mobile
+- Compatibility with password managers for login
+- Release notes available in-app
+- Enhanced readability for some parameters on mobile
+
+## Future Improvements
+
+**New features :**
+- Peer to peer sync between mobile and desktop
+- Re-introduce logs and their export
+- Biometry
+- Budget view, linked to categories
+- Tools view (composed interests, simulations...)
+- Compute trends/forecast
+
+**UX :**
+- Onboarding ?
+- More translations
+- Upgrade existing translation, including a french date picker
+- The ability to set a starting amount for your account (to avoid polluting transactions)
+- Upgrade the `import data` feature
+- More parameters : 
+	- Navigation text or not for mobile
+	- Data points in line charts or not
+	- Amount separator (coma or point (FR vs US))
+
+**UI :**
+- Add themes and enhance them
+- Personalize the pie charts color palette

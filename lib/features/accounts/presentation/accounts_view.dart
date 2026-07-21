@@ -45,7 +45,7 @@ class _AccountsViewState extends State<AccountsView> {
     final currency = context.watch<SettingsProvider>().currency;
 
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -226,6 +226,7 @@ class _AccountsViewState extends State<AccountsView> {
               children: [
                 TextField(
                   controller: nameCtrl,
+                  maxLength: 100,
                   decoration: InputDecoration(
                     labelText: Translator.t('acc_name'),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
@@ -311,6 +312,7 @@ class _AccountsViewState extends State<AccountsView> {
               children: [
                 TextField(
                   controller: nameCtrl,
+                  maxLength: 100,
                   decoration: InputDecoration(
                     labelText: Translator.t('acc_name'),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),

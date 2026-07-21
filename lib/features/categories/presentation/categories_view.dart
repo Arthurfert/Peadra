@@ -67,7 +67,7 @@ class _CategoriesViewState extends State<CategoriesView> {
     final isPhone = ResponsiveLayout.isPhone(context);
 
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -653,6 +653,7 @@ class _CategoriesViewState extends State<CategoriesView> {
                 const SizedBox(height: 4),
                 TextField(
                   controller: newNameCtrl,
+                  maxLength: 100,
                   decoration: InputDecoration(
                     hintText: Translator.t('cat_new_name'),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),

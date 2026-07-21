@@ -491,7 +491,7 @@ class _TransactionsViewState extends State<TransactionsView> {
     final currency = context.watch<SettingsProvider>().currency;
 
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -531,6 +531,7 @@ class _TransactionsViewState extends State<TransactionsView> {
               _searchQuery = v;
               _loadTransactions();
             },
+            maxLength: 100,
             decoration: InputDecoration(
               hintText: Translator.t('trans_search_placeholder'),
               prefixIcon: Icon(Icons.search, color: colors.placeholderColor),

@@ -86,11 +86,11 @@ class _ParametersViewState extends State<ParametersView> {
         automaticallyImplyLeading: widget.showBackButton,
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+        padding: const EdgeInsets.all(24),
         children: [
           if (isPhone) ...[
             Padding(
-              padding: const EdgeInsets.fromLTRB(4, 8, 4, 16),
+              padding: const EdgeInsets.only(bottom: 16),
               child: Text(
                 Translator.t('param_title'),
                 style: TextStyle(
@@ -118,7 +118,8 @@ class _ParametersViewState extends State<ParametersView> {
           const SizedBox(height: 8),
           _buildSection(Translator.t('param_database'), colors, [
             _buildMaxBackupsTile(settings, colors),
-            _buildLocateDatabaseTile(colors),
+            if (!Platform.isAndroid && !Platform.isIOS)
+              _buildLocateDatabaseTile(colors),
           ], icon: Icons.storage),
           const SizedBox(height: 8),
           _buildSection(Translator.t('param_security'), colors, [
@@ -483,8 +484,8 @@ class _ParametersViewState extends State<ParametersView> {
           ),
         ),
         onPressed: () async {
-          final dbPath = _db.database.then((db) => db.path);
-          final path = await dbPath;
+          final db = await _db.database;
+          final path = db.path;
           final dir = File(path).parent.path;
           if (Platform.isLinux) {
             await Process.run('xdg-open', [dir]);
@@ -500,73 +501,118 @@ class _ParametersViewState extends State<ParametersView> {
 
   Widget _buildUsernameTile(AuthProvider auth, PeadraColors colors) {
     final controller = TextEditingController(text: auth.username);
+    final isPhone = ResponsiveLayout.isPhone(context);
+
+    final usernameField = SizedBox(
+      width: isPhone ? double.infinity : 180,
+      child: TextField(
+        controller: controller,
+        style: TextStyle(color: colors.text),
+        maxLength: 50,
+        decoration: InputDecoration(
+          isDense: true,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: colors.borderColor),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: colors.borderColor),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: colors.accent),
+          ),
+          filled: true,
+          fillColor: colors.bg,
+        ),
+        onSubmitted: (value) async {
+          if (value.trim().isEmpty || value.trim() == auth.username) return;
+          try {
+            final success =
+                await _authService.updateUsername(auth.userId!, value.trim());
+            if (success && mounted) {
+              auth.setUsername(value.trim());
+              PeadraNotification.show(context, message: Translator.t('param_username_saved'));
+            }
+          } catch (e) {
+            if (mounted) {
+              PeadraNotification.show(context, message: e.toString(), type: NotificationType.error);
+            }
+          }
+        },
+      ),
+    );
+
+    if (isPhone) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(Translator.t('param_username'),
+                style: TextStyle(color: colors.text)),
+            const SizedBox(height: 4),
+            Text(Translator.t('param_username_desc'),
+                style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+            const SizedBox(height: 12),
+            usernameField,
+          ],
+        ),
+      );
+    }
+
     return ListTile(
       title: Text(Translator.t('param_username'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_username_desc'),
           style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
-      trailing: SizedBox(
-        width: 180,
-        child: TextField(
-          controller: controller,
-          style: TextStyle(color: colors.text),
-          decoration: InputDecoration(
-            isDense: true,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: colors.borderColor),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: colors.borderColor),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: colors.accent),
-            ),
-            filled: true,
-            fillColor: colors.bg,
-          ),
-          onSubmitted: (value) async {
-            if (value.trim().isEmpty || value.trim() == auth.username) return;
-            try {
-              final success =
-                  await _authService.updateUsername(auth.userId!, value.trim());
-              if (success && mounted) {
-                auth.setUsername(value.trim());
-                PeadraNotification.show(context, message: Translator.t('param_username_saved'));
-              }
-            } catch (e) {
-              if (mounted) {
-                PeadraNotification.show(context, message: e.toString(), type: NotificationType.error);
-              }
-            }
-          },
-        ),
-      ),
+      trailing: usernameField,
     );
   }
 
   Widget _buildPasswordTile(PeadraColors colors) {
+    final isPhone = ResponsiveLayout.isPhone(context);
+
+    final changeButton = ElevatedButton.icon(
+      icon: const Icon(Icons.lock, color: Colors.white, size: 16),
+      label: Text(Translator.t('param_change_password'),
+          style: const TextStyle(color: Colors.white, fontSize: 12)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: colors.accent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+      onPressed: () => _showChangePasswordDialog(colors),
+    );
+
+    if (isPhone) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(Translator.t('param_password'),
+                style: TextStyle(color: colors.text)),
+            const SizedBox(height: 4),
+            Text(Translator.t('param_password_desc'),
+                style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+            const SizedBox(height: 12),
+            changeButton,
+          ],
+        ),
+      );
+    }
+
     return ListTile(
       title: Text(Translator.t('param_password'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_password_desc'),
           style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
-      trailing: ElevatedButton.icon(
-        icon: const Icon(Icons.lock, color: Colors.white, size: 16),
-        label: Text(Translator.t('param_change_password'),
-            style: const TextStyle(color: Colors.white, fontSize: 12)),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: colors.accent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-        onPressed: () => _showChangePasswordDialog(colors),
-      ),
+      trailing: changeButton,
     );
   }
 
@@ -588,6 +634,7 @@ class _ParametersViewState extends State<ParametersView> {
               TextField(
                 controller: oldPasswordController,
                 obscureText: true,
+                maxLength: 128,
                 style: TextStyle(color: colors.text),
                 decoration: InputDecoration(
                   labelText: Translator.t('param_old_password'),
@@ -603,6 +650,7 @@ class _ParametersViewState extends State<ParametersView> {
               TextField(
                 controller: newPasswordController,
                 obscureText: true,
+                maxLength: 128,
                 style: TextStyle(color: colors.text),
                 decoration: InputDecoration(
                   labelText: Translator.t('param_new_password'),
@@ -618,6 +666,7 @@ class _ParametersViewState extends State<ParametersView> {
               TextField(
                 controller: confirmPasswordController,
                 obscureText: true,
+                maxLength: 128,
                 style: TextStyle(color: colors.text),
                 decoration: InputDecoration(
                   labelText: Translator.t('param_password_confirm'),
@@ -706,8 +755,11 @@ class _ParametersViewState extends State<ParametersView> {
           final path =
               await exportService.saveToFile(content: content, format: 'csv');
           if (mounted && path != null) {
-            PeadraNotification.show(context, message: Translator.t('msg_export_success')
-                .replaceAll('{file_path}', path));
+            final isMobile = Platform.isAndroid || Platform.isIOS;
+            final message = isMobile
+                ? Translator.t('msg_export_success_mobile')
+                : Translator.t('msg_export_success').replaceAll('{file_path}', path);
+            PeadraNotification.show(context, message: message);
           }
         } catch (e) {
           if (mounted) {
@@ -719,23 +771,45 @@ class _ParametersViewState extends State<ParametersView> {
   }
 
   Widget _buildDeleteAccountTile(PeadraColors colors) {
+    final isPhone = ResponsiveLayout.isPhone(context);
+
+    final deleteButton = ElevatedButton.icon(
+      icon: const Icon(Icons.delete, color: Colors.white, size: 16),
+      label: Text(Translator.t('param_delete_account'),
+          style: const TextStyle(color: Colors.white, fontSize: 12)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: colors.deleteColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+      onPressed: () => _showDeleteAccountDialog(colors),
+    );
+
+    if (isPhone) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(Translator.t('param_delete_account'),
+                style: TextStyle(color: colors.error)),
+            const SizedBox(height: 4),
+            Text(Translator.t('param_delete_account_desc'),
+                style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+            const SizedBox(height: 12),
+            deleteButton,
+          ],
+        ),
+      );
+    }
+
     return ListTile(
       title: Text(Translator.t('param_delete_account'),
           style: TextStyle(color: colors.error)),
       subtitle: Text(Translator.t('param_delete_account_desc'),
           style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
-      trailing: ElevatedButton.icon(
-        icon: const Icon(Icons.delete, color: Colors.white, size: 16),
-        label: Text(Translator.t('param_delete_account'),
-            style: const TextStyle(color: Colors.white, fontSize: 12)),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: colors.deleteColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-        onPressed: () => _showDeleteAccountDialog(colors),
-      ),
+      trailing: deleteButton,
     );
   }
 
@@ -793,18 +867,89 @@ class _ParametersViewState extends State<ParametersView> {
               style: TextStyle(color: colors.placeholderColor, fontSize: 12),
             )
           : null,
-      trailing: ElevatedButton.icon(
-        icon: const Icon(Icons.open_in_new, color: Colors.white, size: 16),
-        label: Text(Translator.t('param_install_update'),
-            style: const TextStyle(color: Colors.white, fontSize: 12)),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: colors.success,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextButton(
+            onPressed: () => _showChangelogDialog(colors),
+            child: Text(
+              Translator.t('param_see_whats_new'),
+              style: TextStyle(color: colors.success, fontSize: 12),
+            ),
+          ),
+          const SizedBox(width: 4),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.open_in_new, color: Colors.white, size: 16),
+            label: Text(Translator.t('param_install_update'),
+                style: const TextStyle(color: Colors.white, fontSize: 12)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: colors.success,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            onPressed: () =>
+                _updateService.openDownloadUrl(_availableUpdate!.downloadUrl),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showChangelogDialog(PeadraColors colors) {
+    final notes = _availableUpdate!.releaseNotes;
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: colors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 500, maxHeight: 500),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 8, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${_availableUpdate!.version} - ${Translator.t('param_changelog_title')}',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: colors.text,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.close, color: colors.placeholderColor, size: 20),
+                      onPressed: () => Navigator.of(ctx).pop(),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(),
+              Flexible(
+                child: notes.isNotEmpty
+                    ? SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                        child: SelectableText(
+                          notes,
+                          style: TextStyle(color: colors.text, fontSize: 14, height: 1.5),
+                        ),
+                      )
+                    : Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Text(
+                          Translator.t('param_changelog_empty'),
+                          style: TextStyle(color: colors.placeholderColor),
+                        ),
+                      ),
+              ),
+            ],
           ),
         ),
-        onPressed: () =>
-            _updateService.openDownloadUrl(_availableUpdate!.downloadUrl),
       ),
     );
   }
@@ -853,6 +998,7 @@ class _ParametersViewState extends State<ParametersView> {
               TextField(
                 controller: passwordController,
                 obscureText: true,
+                maxLength: 128,
                 style: TextStyle(color: colors.text),
                 decoration: InputDecoration(
                   labelText: Translator.t('param_password'),

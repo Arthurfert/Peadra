@@ -1,7 +1,7 @@
 name: peadra
 description: Peadra - Financial Asset Tracker
 publish_to: 'none'
-version: 2.1.1
+version: 2.1.2
 
 environment:
   sdk: ^3.5.0
@@ -21,6 +21,7 @@ dependencies:
   fl_chart: ^0.68.0
   file_picker: ^10.3.10
   url_launcher: ^6.2.0
+  open_file: ^3.5.0
 
   package_info_plus: ^8.3.1
 
@@ -46,7 +47,7 @@ msix_config:
   display_name: Peadra
   publisher_display_name: Peadra
   identity_name: com.peadra.app
-  msix_version: 2.1.1.0
+  msix_version: 2.1.2.0
   logo_path: windows/runner/resources/app_icon.ico
   capabilities: internetClient
   publisher: CN=Peadra

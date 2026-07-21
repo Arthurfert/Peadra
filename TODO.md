@@ -13,16 +13,16 @@ This document presents future changes and wanted improvements.
 
 ## Currently in development
 
-:/
+### New
 
-## Future Improvements
 
-### Issues
 
-**Warning :**
+### Fixed
+
+- Fixed titles inconsistency in mobile UI
 - No characters limit in all texts input
 
-### Improvements
+## Future Improvements
 
 **New features :**
 - Peer to peer sync between mobile and desktop

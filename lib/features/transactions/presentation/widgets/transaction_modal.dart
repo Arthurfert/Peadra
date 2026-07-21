@@ -443,6 +443,7 @@ class _TransactionModalState extends State<TransactionModal> {
     return TextField(
       controller: _descController,
       onChanged: _onDescriptionChanged,
+      maxLength: 500,
       decoration: InputDecoration(
         labelText: Translator.t('trans_description'),
         hintText: hint,
@@ -484,6 +485,7 @@ class _TransactionModalState extends State<TransactionModal> {
     return TextField(
       controller: _amountController,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      maxLength: 20,
       decoration: InputDecoration(
         labelText:
             '${Translator.t('trans_amount')} (${CurrencyService.getSymbol(_selectedCurrency)})',
@@ -607,6 +609,7 @@ class _TransactionModalState extends State<TransactionModal> {
     return TextField(
       controller: _notesController,
       maxLines: 3,
+      maxLength: 1000,
       decoration: InputDecoration(
         labelText: Translator.t('trans_notes'),
         hintText: Translator.t('hint_notes'),

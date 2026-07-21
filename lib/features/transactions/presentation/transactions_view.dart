@@ -531,6 +531,7 @@ class _TransactionsViewState extends State<TransactionsView> {
               _searchQuery = v;
               _loadTransactions();
             },
+            maxLength: 100,
             decoration: InputDecoration(
               hintText: Translator.t('trans_search_placeholder'),
               prefixIcon: Icon(Icons.search, color: colors.placeholderColor),

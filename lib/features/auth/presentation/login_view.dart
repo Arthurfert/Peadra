@@ -244,6 +244,7 @@ class _LoginViewState extends State<LoginView> {
                   ] else ...[
                     TextField(
                       controller: _usernameController,
+                      maxLength: 50,
                       decoration: InputDecoration(
                         labelText: Translator.t('login_username'),
                         border: OutlineInputBorder(
@@ -259,6 +260,7 @@ class _LoginViewState extends State<LoginView> {
                   TextField(
                     controller: _passwordController,
                     obscureText: true,
+                    maxLength: 128,
                     onSubmitted: (_) => _submit(),
                     decoration: InputDecoration(
                       labelText: Translator.t('login_password'),
@@ -275,6 +277,7 @@ class _LoginViewState extends State<LoginView> {
                     TextField(
                       controller: _confirmController,
                       obscureText: true,
+                      maxLength: 128,
                       onSubmitted: (_) => _submit(),
                       decoration: InputDecoration(
                         labelText: Translator.t('login_confirm_password'),

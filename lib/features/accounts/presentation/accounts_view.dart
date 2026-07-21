@@ -226,6 +226,7 @@ class _AccountsViewState extends State<AccountsView> {
               children: [
                 TextField(
                   controller: nameCtrl,
+                  maxLength: 100,
                   decoration: InputDecoration(
                     labelText: Translator.t('acc_name'),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
@@ -311,6 +312,7 @@ class _AccountsViewState extends State<AccountsView> {
               children: [
                 TextField(
                   controller: nameCtrl,
+                  maxLength: 100,
                   decoration: InputDecoration(
                     labelText: Translator.t('acc_name'),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),

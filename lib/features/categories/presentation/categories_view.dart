@@ -653,6 +653,7 @@ class _CategoriesViewState extends State<CategoriesView> {
                 const SizedBox(height: 4),
                 TextField(
                   controller: newNameCtrl,
+                  maxLength: 100,
                   decoration: InputDecoration(
                     hintText: Translator.t('cat_new_name'),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),

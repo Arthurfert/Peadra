@@ -510,6 +510,7 @@ class _ParametersViewState extends State<ParametersView> {
         child: TextField(
           controller: controller,
           style: TextStyle(color: colors.text),
+          maxLength: 50,
           decoration: InputDecoration(
             isDense: true,
             contentPadding:
@@ -588,6 +589,7 @@ class _ParametersViewState extends State<ParametersView> {
               TextField(
                 controller: oldPasswordController,
                 obscureText: true,
+                maxLength: 128,
                 style: TextStyle(color: colors.text),
                 decoration: InputDecoration(
                   labelText: Translator.t('param_old_password'),
@@ -603,6 +605,7 @@ class _ParametersViewState extends State<ParametersView> {
               TextField(
                 controller: newPasswordController,
                 obscureText: true,
+                maxLength: 128,
                 style: TextStyle(color: colors.text),
                 decoration: InputDecoration(
                   labelText: Translator.t('param_new_password'),
@@ -618,6 +621,7 @@ class _ParametersViewState extends State<ParametersView> {
               TextField(
                 controller: confirmPasswordController,
                 obscureText: true,
+                maxLength: 128,
                 style: TextStyle(color: colors.text),
                 decoration: InputDecoration(
                   labelText: Translator.t('param_password_confirm'),
@@ -853,6 +857,7 @@ class _ParametersViewState extends State<ParametersView> {
               TextField(
                 controller: passwordController,
                 obscureText: true,
+                maxLength: 128,
                 style: TextStyle(color: colors.text),
                 decoration: InputDecoration(
                   labelText: Translator.t('param_password'),

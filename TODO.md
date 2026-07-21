@@ -22,13 +22,14 @@ This document presents future changes and wanted improvements.
 - Fixed titles inconsistency in mobile UI
 - No characters limit in all texts input
 - Fixed `Locate database` and `Export CSV` buttons not working on android.
+- Compatibility with password managers
 
 ## Future Improvements
 
 **New features :**
 - Peer to peer sync between mobile and desktop
 - Re-introduce logs and their export
-- Compatibility with password managers and biometry
+- Biometry
 - Budget view, linked to categories
 - Tools view (composed interests, simulations...)
 - Compute trends/forecast

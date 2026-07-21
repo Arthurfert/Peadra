@@ -198,11 +198,12 @@ class _LoginViewState extends State<LoginView> {
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: colors.borderColor),
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    Translator.t('login_title'),
+              child: AutofillGroup(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                Text(
+                  Translator.t('login_title'),
                     style: TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
@@ -245,6 +246,7 @@ class _LoginViewState extends State<LoginView> {
                     TextField(
                       controller: _usernameController,
                       maxLength: 50,
+                      autofillHints: const [AutofillHints.username],
                       decoration: InputDecoration(
                         labelText: Translator.t('login_username'),
                         border: OutlineInputBorder(
@@ -261,6 +263,7 @@ class _LoginViewState extends State<LoginView> {
                     controller: _passwordController,
                     obscureText: true,
                     maxLength: 128,
+                    autofillHints: const [AutofillHints.password],
                     onSubmitted: (_) => _submit(),
                     decoration: InputDecoration(
                       labelText: Translator.t('login_password'),
@@ -278,6 +281,7 @@ class _LoginViewState extends State<LoginView> {
                       controller: _confirmController,
                       obscureText: true,
                       maxLength: 128,
+                      autofillHints: const [AutofillHints.newPassword],
                       onSubmitted: (_) => _submit(),
                       decoration: InputDecoration(
                         labelText: Translator.t('login_confirm_password'),
@@ -356,6 +360,7 @@ class _LoginViewState extends State<LoginView> {
                     ),
                   ],
                 ],
+                ),
               ),
             ),
           ),

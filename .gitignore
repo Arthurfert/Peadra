@@ -71,5 +71,9 @@ Thumbs.db
 *.iss
 installer/
 
+# Android release keystore
+android/app/peadra-release.keystore
+android/key.properties
+
 # Certificates
 *.pfx

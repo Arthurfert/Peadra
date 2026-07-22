@@ -136,6 +136,10 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Decode signing keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/app/peadra-release.keystore
+
       - name: Install dependencies
         run: flutter pub get
 
@@ -144,6 +148,11 @@ jobs:
 
       - name: Build APK
         run: flutter build apk --release
+        env:
+          ANDROID_SIGNING_STOREFILE: "peadra-release.keystore"
+          ANDROID_SIGNING_STOREPASSWORD: "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}"
+          ANDROID_SIGNING_KEYALIAS: "${{ secrets.ANDROID_KEY_ALIAS }}"
+          ANDROID_SIGNING_KEYPASSWORD: "${{ secrets.ANDROID_KEY_PASSWORD }}"
 
       - name: Rename APK with version
         run: |

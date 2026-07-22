@@ -73,7 +73,7 @@ installer/
 
 # Android release keystore
 android/app/peadra-release.keystore
-android/key.properties
+android/app/key.properties
 
 # Certificates
 *.pfx

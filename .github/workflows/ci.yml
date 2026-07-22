@@ -149,7 +149,7 @@ jobs:
       - name: Build APK
         run: flutter build apk --release
         env:
-          ANDROID_SIGNING_STOREFILE: "app/peadra-release.keystore"
+          ANDROID_SIGNING_STOREFILE: "peadra-release.keystore"
           ANDROID_SIGNING_STOREPASSWORD: "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}"
           ANDROID_SIGNING_KEYALIAS: "${{ secrets.ANDROID_KEY_ALIAS }}"
           ANDROID_SIGNING_KEYPASSWORD: "${{ secrets.ANDROID_KEY_PASSWORD }}"

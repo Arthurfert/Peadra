@@ -4,6 +4,17 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Attempt to load signing config from key.properties (local) or environment variables (CI)
+fun loadSigningProperty(name: String): String? {
+    val keyFile = rootProject.file("key.properties")
+    if (keyFile.exists()) {
+        val props = java.util.Properties()
+        props.load(keyFile.inputStream())
+        if (props.containsKey(name)) return props.getProperty(name)
+    }
+    return System.getenv("ANDROID_SIGNING_${name.uppercase().replace(".", "_")}")
+}
+
 android {
     namespace = "com.peadra.peadra"
     compileSdk = 36
@@ -12,6 +23,15 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    signingConfigs {
+        create("release") {
+            storeFile = loadSigningProperty("storeFile")?.let { file(it) }
+            storePassword = loadSigningProperty("storePassword")
+            keyAlias = loadSigningProperty("keyAlias")
+            keyPassword = loadSigningProperty("keyPassword")
+        }
     }
 
     defaultConfig {
@@ -27,9 +47,11 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            if (loadSigningProperty("storePassword") != null) {
+                signingConfig = signingConfigs.getByName("release")
+            } else {
+                signingConfig = signingConfigs.getByName("debug")
+            }
         }
     }
 }

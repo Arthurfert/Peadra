@@ -4,11 +4,13 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+import java.util.Properties
+
 // Attempt to load signing config from key.properties (local) or environment variables (CI)
 fun loadSigningProperty(name: String): String? {
-    val keyFile = rootProject.file("key.properties")
+    val keyFile = rootProject.file("app/key.properties")
     if (keyFile.exists()) {
-        val props = java.util.Properties()
+        val props = Properties()
         props.load(keyFile.inputStream())
         if (props.containsKey(name)) return props.getProperty(name)
     }

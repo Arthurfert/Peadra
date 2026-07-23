@@ -16,9 +16,8 @@ import 'features/auth/presentation/login_view.dart';
 import 'core/utils/constants.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
   runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
     if (Platform.isLinux || Platform.isWindows || Platform.isMacOS) {
       try {
         sqfliteFfiInit();

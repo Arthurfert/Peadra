@@ -14,6 +14,7 @@ This document presents future changes and wanted improvements.
 ### New
 
 - Re-introduced logs and their export. Logs are focused on user's actions rather than user's data.
+- Ability to set a starting amount for your account (to avoid polluting transactions).
 
 ### Fixed
 
@@ -32,7 +33,6 @@ This document presents future changes and wanted improvements.
 - Onboarding ?
 - More translations
 - Upgrade existing translation, including a french date picker
-- The ability to set a starting amount for your account (to avoid polluting transactions)
 - Upgrade the `import data` feature
 - More parameters : 
 	- Navigation text or not for mobile

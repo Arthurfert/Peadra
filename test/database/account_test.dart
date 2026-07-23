@@ -26,6 +26,7 @@ Future<Database> _openTestDb() async {
             type TEXT NOT NULL DEFAULT 'savings' CHECK(type IN ('checking', 'savings')),
             color TEXT DEFAULT '#1976D2',
             currency TEXT DEFAULT 'EUR',
+            starting_amount REAL DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(user_id, name),
             FOREIGN KEY (user_id) REFERENCES users(id)

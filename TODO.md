@@ -18,7 +18,7 @@ This document presents future changes and wanted improvements.
 
 ### Fixed
 
-
+- Fix the hidden `Total Patrimony` stat in dashboard on mobile
 
 ## Future Improvements
 
@@ -34,6 +34,7 @@ This document presents future changes and wanted improvements.
 - More translations
 - Upgrade existing translation, including a french date picker
 - Upgrade the `import data` feature
+- Ability to set regular transactions (weekly, monthly, annualy...)
 - More parameters : 
 	- Navigation text or not for mobile
 	- Data points in line charts or not

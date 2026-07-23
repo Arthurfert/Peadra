@@ -146,7 +146,9 @@ class DatabaseManager {
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
-      await db.execute('ALTER TABLE accounts ADD COLUMN starting_amount REAL DEFAULT 0');
+      try {
+        await db.execute('ALTER TABLE accounts ADD COLUMN starting_amount REAL DEFAULT 0');
+      } catch (_) {}
     }
   }
 

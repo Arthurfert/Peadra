@@ -23,6 +23,7 @@ class _DashboardViewState extends State<DashboardView> {
   final _db = DatabaseManager.instance;
   double _balance = 0;
   double _savings = 0;
+  double _totalAssets = 0;
   double _previousBalance = 0;
   double _previousIncome = 0;
   double _previousExpenses = 0;
@@ -62,6 +63,7 @@ class _DashboardViewState extends State<DashboardView> {
     final results = await Future.wait([
       _db.getBalance(targetCurrency: currency),
       _db.getSavingsTotal(targetCurrency: currency),
+      _db.getTotalPatrimony(targetCurrency: currency),
       isRolling
           ? _db.getRollingSummary()
           : _db.getMonthlySummary(targetCurrency: currency),
@@ -88,13 +90,14 @@ class _DashboardViewState extends State<DashboardView> {
       setState(() {
         _balance = results[0] as double;
         _savings = results[1] as double;
-        _monthlySummary = results[2] as Map<String, double>;
-        _accountsDistribution = results[3] as List<Map<String, dynamic>>;
-        _cashFlowData = results[4] as List<Map<String, dynamic>>;
-        _assetsHistory = results[5] as List<Map<String, dynamic>>;
-        _monthlyExpenses = results[6] as Map<String, double>;
-        _monthlyIncomes = results[7] as Map<String, double>;
-        final prevSummary = results[8] as Map<String, double>;
+        _totalAssets = results[2] as double;
+        _monthlySummary = results[3] as Map<String, double>;
+        _accountsDistribution = results[4] as List<Map<String, dynamic>>;
+        _cashFlowData = results[5] as List<Map<String, dynamic>>;
+        _assetsHistory = results[6] as List<Map<String, dynamic>>;
+        _monthlyExpenses = results[7] as Map<String, double>;
+        _monthlyIncomes = results[8] as Map<String, double>;
+        final prevSummary = results[9] as Map<String, double>;
         _previousBalance = prevSummary['balance'] ?? 0;
         _previousIncome = prevSummary['income'] ?? 0;
         _previousExpenses = prevSummary['expenses'] ?? 0;
@@ -447,6 +450,62 @@ class _DashboardViewState extends State<DashboardView> {
     );
 
     final statCards = _buildStatCards(colors, currency);
+
+    final totalAsset = Card(
+      color: colors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: colors.surface,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: colors.chartAsset.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(Icons.account_balance_rounded,
+                  color: colors.chartAsset, size: 28),
+            ),
+            const SizedBox(width: 20),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    Translator.t('dash_total_assets'),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      CurrencyService.formatAmount(_totalAssets, currency),
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w700,
+                        color: colors.text,
+                        height: 1.1,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
     final cashFlowSection = _buildCashFlowSection(colors);
     final expensePie = _buildPieChartCard(
         colors,
@@ -480,6 +539,7 @@ class _DashboardViewState extends State<DashboardView> {
         } else {
           return DashboardViewMobile(
             header: header,
+            totalAsset: totalAsset,
             statCards: statCards,
             cashFlowSection: cashFlowSection,
             expensePie: expensePie,

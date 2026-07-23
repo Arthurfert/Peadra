@@ -1,6 +1,7 @@
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
 import '../database/database_manager.dart';
+import 'log_service.dart';
 
 class AuthService {
   final DatabaseManager _db;
@@ -37,6 +38,7 @@ class AuthService {
       'INSERT INTO users (username, password_hash) VALUES (?, ?)',
       [username, passwordHash],
     );
+    LogService().log('User registered: $username (id $id)');
     return id;
   }
 
@@ -49,8 +51,10 @@ class AuthService {
     if (results.isEmpty) return null;
     final row = results.first;
     if (verifyPassword(password, row['password_hash'] as String)) {
+      LogService().log('User authenticated: $username');
       return row['id'] as int;
     }
+    LogService().warn('Failed login attempt for: $username');
     return null;
   }
 
@@ -90,6 +94,7 @@ class AuthService {
       'UPDATE users SET password_hash = ? WHERE id = ?',
       [newHash, userId],
     );
+    LogService().log('Password changed for user $userId');
     return count > 0;
   }
 

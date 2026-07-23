@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../../core/i18n/translator.dart';
 import '../../../shared/widgets/peadra_notification.dart';
+import '../../../core/services/log_service.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/theme_provider.dart';
@@ -64,6 +65,7 @@ class _DashboardShellState extends State<DashboardShell> {
         url: _availableUpdate!.downloadUrl,
         onProgress: (_) {},
       );
+      LogService().log('Update downloaded and installed: ${_availableUpdate!.version}');
       if (mounted) {
         PeadraNotification.show(context, message: Translator.t('param_update_status_installing'));
       }

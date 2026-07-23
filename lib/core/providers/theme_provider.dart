@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../database/database_manager.dart';
+import '../services/log_service.dart';
 
 class ThemeProvider extends ChangeNotifier {
   String _themeName = 'dark';
@@ -13,6 +14,7 @@ class ThemeProvider extends ChangeNotifier {
   ThemeMode get themeMode => isDark ? ThemeMode.dark : ThemeMode.light;
 
   void setTheme(String name) {
+    LogService().log('Theme changed to $name');
     _themeName = name;
     notifyListeners();
   }

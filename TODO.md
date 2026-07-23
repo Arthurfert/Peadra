@@ -13,17 +13,16 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-
+- Re-introduced logs and their export. Logs are focused on user's actions rather than user's data.
 
 ### Fixed
 
-- Automatic update checker and download for android
+
 
 ## Future Improvements
 
 **New features :**
 - Peer to peer sync between mobile and desktop
-- Re-introduce logs and their export
 - Biometry
 - Budget view, linked to categories
 - Tools view (composed interests, simulations...)

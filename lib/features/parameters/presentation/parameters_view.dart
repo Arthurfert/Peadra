@@ -13,8 +13,9 @@ import '../../../core/theme/peadra_colors.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/currency_service.dart';
 import '../../../core/services/export_service.dart';
-import '../../../shared/widgets/peadra_notification.dart';
 import '../../../core/services/update_service.dart';
+import '../../../shared/widgets/peadra_notification.dart';
+import '../../../core/services/log_service.dart';
 import '../../import_data/presentation/import_data_view.dart';
 import '../../auth/presentation/login_view.dart';
 import '../../../core/responsive/responsive_layout.dart';
@@ -79,6 +80,7 @@ class _ParametersViewState extends State<ParametersView> {
           if (mounted) setState(() => _downloadProgress = progress);
         },
       );
+      LogService().log('Update downloaded and installed: ${_availableUpdate!.version}');
       if (mounted) {
         PeadraNotification.show(context, message: Translator.t('param_update_status_installing'));
         setState(() => _updateStatus = _UpdateStatus.available);
@@ -155,6 +157,7 @@ class _ParametersViewState extends State<ParametersView> {
           _buildSection(Translator.t('param_import'), colors, [
             _buildImportTile(colors),
             _buildExportCsvTile(colors),
+            _buildExportLogsTile(colors),
           ], icon: Icons.import_export),
           const SizedBox(height: 8),
           _buildSection(Translator.t('param_updates'), colors, [
@@ -780,11 +783,46 @@ class _ParametersViewState extends State<ParametersView> {
           final path =
               await exportService.saveToFile(content: content, format: 'csv');
           if (mounted && path != null) {
+            LogService().log('CSV exported to: $path');
             final isMobile = Platform.isAndroid || Platform.isIOS;
             final message = isMobile
                 ? Translator.t('msg_export_success_mobile')
                 : Translator.t('msg_export_success').replaceAll('{file_path}', path);
             PeadraNotification.show(context, message: message);
+          }
+        } catch (e) {
+          if (mounted) {
+            PeadraNotification.show(context, message: Translator.t('msg_export_error'), type: NotificationType.error);
+          }
+        }
+      },
+    );
+  }
+
+  Widget _buildExportLogsTile(PeadraColors colors) {
+    return ListTile(
+      title: Text(Translator.t('param_export_logs'),
+          style: TextStyle(color: colors.text)),
+      subtitle: Text(Translator.t('param_export_logs_desc'),
+          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+      onTap: () async {
+        try {
+          final isMobile = Platform.isAndroid || Platform.isIOS;
+          final content = LogService().buildContent();
+
+          if (isMobile) {
+            final path = await LogService().export();
+            LogService().log('Session logs exported to: $path');
+            if (mounted) {
+              PeadraNotification.show(context, message: Translator.t('msg_export_success_mobile').replaceAll('CSV', 'logs'));
+            }
+          } else {
+            final exportService = ExportService();
+            final path = await exportService.saveToFile(content: content, format: 'txt', fileName: 'peadra_log.txt');
+            if (mounted && path != null) {
+              LogService().log('Session logs exported to: $path');
+              PeadraNotification.show(context, message: Translator.t('msg_export_success').replaceAll('{file_path}', path));
+            }
           }
         } catch (e) {
           if (mounted) {

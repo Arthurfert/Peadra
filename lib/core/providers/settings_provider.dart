@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../database/database_manager.dart';
+import '../services/log_service.dart';
 import '../utils/constants.dart';
 
 class SettingsProvider extends ChangeNotifier {
@@ -36,30 +37,35 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setDisplayLimit(int limit, DatabaseManager db) async {
     _displayLimit = limit;
     await db.setSetting('transactions_display_limit', limit.toString());
+    LogService().log('Display limit set to $limit');
     notifyListeners();
   }
 
   Future<void> setMaxPieCategories(int max, DatabaseManager db) async {
     _maxPieCategories = max;
     await db.setSetting('max_categories_pie', max.toString());
+    LogService().log('Max pie categories set to $max');
     notifyListeners();
   }
 
   Future<void> setMonthMode(String mode, DatabaseManager db) async {
     _monthMode = mode;
     await db.setSetting('month_mode', mode);
+    LogService().log('Month mode set to $mode');
     notifyListeners();
   }
 
   Future<void> setCurrency(String currency, DatabaseManager db) async {
     _currency = currency;
     await db.setSetting('currency', currency);
+    LogService().log('Currency set to $currency');
     notifyListeners();
   }
 
   Future<void> setMaxBackups(int max, DatabaseManager db) async {
     _maxBackups = max;
     await db.setSetting('max_backups', max.toString());
+    LogService().log('Backups limit set to $max');
     notifyListeners();
   }
 }

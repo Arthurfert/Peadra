@@ -209,6 +209,7 @@ class _AccountsViewState extends State<AccountsView> {
 
   void _showAddAccountDialog(PeadraColors colors) {
     final nameCtrl = TextEditingController();
+    final startingAmountCtrl = TextEditingController(text: '0');
     String type = 'savings';
     String color = '#1976D2';
     String currency = context.read<SettingsProvider>().currency;
@@ -261,6 +262,15 @@ class _AccountsViewState extends State<AccountsView> {
                   onChanged: (v) => setDialogState(() => currency = v ?? 'EUR'),
                 ),
                 const SizedBox(height: 12),
+                TextField(
+                  controller: startingAmountCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                  decoration: InputDecoration(
+                    labelText: Translator.t('acc_starting_amount'),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(Translator.t('acc_color'),
@@ -279,7 +289,8 @@ class _AccountsViewState extends State<AccountsView> {
             ElevatedButton(
               onPressed: () async {
                 if (nameCtrl.text.trim().isEmpty) return;
-                await _db.addAccount(nameCtrl.text.trim(), color, type, currency);
+                final startingAmount = double.tryParse(startingAmountCtrl.text) ?? 0.0;
+                await _db.addAccount(nameCtrl.text.trim(), color, type, currency, startingAmount: startingAmount);
                 Navigator.pop(ctx);
                 _loadAccounts();
               },
@@ -295,6 +306,7 @@ class _AccountsViewState extends State<AccountsView> {
 
   void _showEditAccountDialog(AccountWithBalance acct, PeadraColors colors) {
     final nameCtrl = TextEditingController(text: acct.name);
+    final startingAmountCtrl = TextEditingController(text: acct.startingAmount.toString());
     String type = acct.type;
     String color = acct.color;
     String currency = acct.currency.isNotEmpty ? acct.currency : context.read<SettingsProvider>().currency;
@@ -347,6 +359,15 @@ class _AccountsViewState extends State<AccountsView> {
                   onChanged: (v) => setDialogState(() => currency = v ?? 'EUR'),
                 ),
                 const SizedBox(height: 12),
+                TextField(
+                  controller: startingAmountCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                  decoration: InputDecoration(
+                    labelText: Translator.t('acc_starting_amount'),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(Translator.t('acc_color'),
@@ -365,12 +386,14 @@ class _AccountsViewState extends State<AccountsView> {
             ElevatedButton(
               onPressed: () async {
                 if (nameCtrl.text.trim().isEmpty) return;
+                final startingAmount = double.tryParse(startingAmountCtrl.text) ?? 0.0;
                 await _db.updateAccount(
                   acct.id!,
                   nameCtrl.text.trim(),
                   color,
                   type: type,
                   currency: currency,
+                  startingAmount: startingAmount,
                   updateNameInTransactions: true,
                 );
                 Navigator.pop(ctx);

@@ -38,6 +38,7 @@ Future<void> _onCreate(Database db, int version) async {
       type TEXT NOT NULL DEFAULT 'savings' CHECK(type IN ('checking', 'savings')),
       color TEXT DEFAULT '#1976D2',
       currency TEXT DEFAULT 'EUR',
+      starting_amount REAL DEFAULT 0,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(user_id, name),
       FOREIGN KEY (user_id) REFERENCES users(id)
@@ -131,11 +132,11 @@ String _hashPassword(String password) {
 }
 
 /// Seed test accounts for a user.
-Future<List<int>> seedTestAccounts(Database db, int userId) async {
+Future<List<int>> seedTestAccounts(Database db, int userId, {List<double>? startingAmounts}) async {
   final accounts = [
-    {'user_id': userId, 'name': 'Checking Account', 'type': 'checking', 'color': '#4CAF50', 'currency': 'EUR'},
-    {'user_id': userId, 'name': 'Savings Account A', 'type': 'savings', 'color': '#2196F3', 'currency': 'EUR'},
-    {'user_id': userId, 'name': 'Savings Account B', 'type': 'savings', 'color': '#009688', 'currency': 'EUR'},
+    {'user_id': userId, 'name': 'Checking Account', 'type': 'checking', 'color': '#4CAF50', 'currency': 'EUR', 'starting_amount': startingAmounts?[0] ?? 0.0},
+    {'user_id': userId, 'name': 'Savings Account A', 'type': 'savings', 'color': '#2196F3', 'currency': 'EUR', 'starting_amount': startingAmounts?[1] ?? 0.0},
+    {'user_id': userId, 'name': 'Savings Account B', 'type': 'savings', 'color': '#009688', 'currency': 'EUR', 'starting_amount': startingAmounts?[2] ?? 0.0},
   ];
   final ids = <int>[];
   for (final acct in accounts) {

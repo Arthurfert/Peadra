@@ -6,6 +6,7 @@ import '../../../core/theme/peadra_colors.dart';
 
 class DashboardViewMobile extends StatelessWidget {
   final Widget header;
+  final Widget totalAsset;
   final Widget statCards;
   final Widget cashFlowSection;
   final Widget expensePie;
@@ -18,6 +19,7 @@ class DashboardViewMobile extends StatelessWidget {
   const DashboardViewMobile({
     super.key,
     required this.header,
+    required this.totalAsset,
     required this.statCards,
     required this.cashFlowSection,
     required this.expensePie,
@@ -37,6 +39,8 @@ class DashboardViewMobile extends StatelessWidget {
         children: [
           header,
           const SizedBox(height: 24),
+          totalAsset,
+          const SizedBox(height: 16),
           statCards,
           const SizedBox(height: 24),
           cashFlowSection,

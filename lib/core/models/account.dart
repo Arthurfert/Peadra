@@ -5,6 +5,7 @@ class Account {
   final String type;
   final String color;
   final String currency;
+  final double startingAmount;
   final String? createdAt;
 
   Account({
@@ -14,6 +15,7 @@ class Account {
     this.type = 'savings',
     this.color = '#1976D2',
     this.currency = 'EUR',
+    this.startingAmount = 0.0,
     this.createdAt,
   });
 
@@ -27,6 +29,7 @@ class Account {
     String? type,
     String? color,
     String? currency,
+    double? startingAmount,
     String? createdAt,
   }) =>
       Account(
@@ -36,6 +39,7 @@ class Account {
         type: type ?? this.type,
         color: color ?? this.color,
         currency: currency ?? this.currency,
+        startingAmount: startingAmount ?? this.startingAmount,
         createdAt: createdAt ?? this.createdAt,
       );
 
@@ -46,6 +50,7 @@ class Account {
         'type': type,
         'color': color,
         'currency': currency,
+        'starting_amount': startingAmount,
         if (createdAt != null) 'created_at': createdAt,
       };
 
@@ -56,6 +61,7 @@ class Account {
         type: map['type'] as String? ?? 'savings',
         color: map['color'] as String? ?? '#1976D2',
         currency: map['currency'] as String? ?? 'EUR',
+        startingAmount: (map['starting_amount'] as num?)?.toDouble() ?? 0.0,
         createdAt: map['created_at'] as String?,
       );
 }
@@ -70,6 +76,7 @@ class AccountWithBalance extends Account {
     required super.type,
     required super.color,
     required super.currency,
+    super.startingAmount,
     super.createdAt,
     this.balance = 0.0,
   });
@@ -82,6 +89,7 @@ class AccountWithBalance extends Account {
         type: map['type'] as String? ?? 'savings',
         color: map['color'] as String? ?? '#1976D2',
         currency: map['currency'] as String? ?? 'EUR',
+        startingAmount: (map['starting_amount'] as num?)?.toDouble() ?? 0.0,
         createdAt: map['created_at'] as String?,
         balance: (map['balance'] as num?)?.toDouble() ?? 0.0,
       );

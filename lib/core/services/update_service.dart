@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 import 'package:open_file/open_file.dart';
 
 import '../database/database_manager.dart';
+import 'log_service.dart';
 
 class UpdateInfo {
   final String version;
@@ -79,10 +80,13 @@ class UpdateService {
       if (update.version.isEmpty || current.isEmpty) return null;
 
       if (_isNewerVersion(update.version, current)) {
+        LogService().log('Update available: ${update.version} (current: $current)');
         return update;
       }
+      LogService().log('App is up to date: $current');
       return null;
     } catch (e) {
+      LogService().warn('Update check failed: $e');
       return null;
     }
   }

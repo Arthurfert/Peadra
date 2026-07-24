@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -7,6 +9,7 @@ import '../../../core/providers/theme_provider.dart';
 import '../../../core/providers/language_provider.dart';
 import '../../../core/database/database_manager.dart';
 import '../../../core/services/auth_service.dart';
+import '../../../core/services/encryption_service.dart';
 import '../../../core/theme/peadra_colors.dart';
 import '../../dashboard/presentation/dashboard_shell.dart';
 
@@ -118,7 +121,7 @@ class _LoginViewState extends State<LoginView> {
       return;
     }
 
-    _onLoginSuccess(userId, username);
+    _onLoginSuccess(userId, username, password);
   }
 
   void _register() async {
@@ -150,7 +153,7 @@ class _LoginViewState extends State<LoginView> {
 
     try {
       final userId = await _authService.registerUser(username, password);
-      _onLoginSuccess(userId, username);
+      _onLoginSuccess(userId, username, password);
     } catch (e) {
       setState(() {
         _error = e.toString();
@@ -159,10 +162,12 @@ class _LoginViewState extends State<LoginView> {
     }
   }
 
-  void _onLoginSuccess(int userId, String username) async {
+  void _onLoginSuccess(int userId, String username, String password) async {
     final authProvider = context.read<AuthProvider>();
     final themeProvider = context.read<ThemeProvider>();
     final langProvider = context.read<LanguageProvider>();
+
+    await _setupEncryption(password);
 
     authProvider.login(userId, username, _db);
     await themeProvider.loadFromSettings(_db);
@@ -176,6 +181,20 @@ class _LoginViewState extends State<LoginView> {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const DashboardShell()),
     );
+  }
+
+  Future<void> _setupEncryption(String password) async {
+    final saltStr = await _db.getSetting('encryption_salt');
+    Uint8List salt;
+    if (saltStr == null) {
+      salt = EncryptionService.generateSalt();
+      await _db.setSetting('encryption_salt', String.fromCharCodes(salt));
+    } else {
+      salt = Uint8List.fromList(saltStr.codeUnits);
+    }
+    final key = await EncryptionService.deriveKey(password, salt);
+    await _db.setEncryptionKey(key);
+    await _db.migrateToEncryption();
   }
 
   @override

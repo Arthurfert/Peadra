@@ -1,6 +1,10 @@
-import 'package:crypto/crypto.dart';
 import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:crypto/crypto.dart';
+
 import '../database/database_manager.dart';
+import 'encryption_service.dart';
 import 'log_service.dart';
 
 class AuthService {
@@ -89,6 +93,14 @@ class AuthService {
     if (!verifyPassword(oldPassword, rows.first['password_hash'] as String)) {
       throw ArgumentError('Old password is incorrect.');
     }
+
+    final saltStr = await _db.getSetting('encryption_salt');
+    if (saltStr != null && _db.isEncrypted) {
+      final salt = Uint8List.fromList(saltStr.codeUnits);
+      final newKey = await EncryptionService.deriveKey(newPassword, salt);
+      await _db.reEncryptData(newKey);
+    }
+
     final newHash = hashPassword(newPassword);
     final count = await db.rawUpdate(
       'UPDATE users SET password_hash = ? WHERE id = ?',

@@ -40,7 +40,11 @@ class DatabaseManager {
       final home = Platform.environment['HOME'] ??
           Platform.environment['USERPROFILE'] ??
           Directory.current.path;
-      final peadraDir = Directory(join(home, '.Peadra'));
+      final oldDir = Directory(join(home, '.Peadra'));
+      final peadraDir = Directory(join(home, '.peadra'));
+      if (oldDir.existsSync() && !peadraDir.existsSync()) {
+        await oldDir.rename(peadraDir.path);
+      }
       if (!peadraDir.existsSync()) {
         await peadraDir.create(recursive: true);
       }

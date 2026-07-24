@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -56,11 +57,26 @@ class PeadraApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
+    final languageProvider = context.watch<LanguageProvider>();
     final colors = PeadraTheme.getColors(themeProvider.themeName);
+
+    final locale = languageProvider.language == 'fr'
+        ? const Locale('fr', 'FR')
+        : const Locale('en', 'US');
 
     return MaterialApp(
       title: 'Peadra',
       debugShowCheckedModeBanner: false,
+      locale: locale,
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('en', 'US'),
+        Locale('fr', 'FR'),
+      ],
       themeMode: themeProvider.themeMode,
       theme: ThemeData(
         useMaterial3: true,

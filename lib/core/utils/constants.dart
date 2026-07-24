@@ -1,7 +1,7 @@
 const String appName = 'Peadra';
 const String appVersion = '2.0.0';
 
-const int dbVersion = 2;
+const int dbVersion = 3;
 const String dbName = 'peadra.db';
 
 const int defaultDisplayLimit = 30;

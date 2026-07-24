@@ -41,7 +41,7 @@ Track your assets, manage transactions across multiple accounts and currencies, 
 - Transaction descriptions are auto-suggested from your history as you type.
 
 **Data Control & System**
-- Powered by a local SQLite database. Your financial data never leaves your machine.
+- Powered by a local SQLite database with **AES-256-GCM encryption**. Sensitive fields (amounts, names, notes) are encrypted at rest using a key derived from your password via PBKDF2 (100k iterations). Your financial data never leaves your machine.
 - Seamlessly import data via CSV files with automatic column detection and dialect parsing, and export your history in both JSON and CSV formats.
 - Adaptive layout that works beautifully on phones, tablets, and desktops.
 - Four built-in themes - Light, Dark, Autumn, and Summer.
@@ -65,6 +65,7 @@ For developper's setup instructions, see [INSTALLATION.md](./INSTALLATION.md).
 - **UI Framework:** [Flutter](https://flutter.dev/) - Google's cross-platform UI toolkit for natively compiled apps
 - **Language:** [Dart](https://dart.dev/) (version 3.5+)
 - **Database:** [sqflite](https://pub.dev/packages/sqflite) - SQLite for Flutter
+- **Encryption:** [cryptography](https://pub.dev/packages/cryptography) - AES-256-GCM + PBKDF2 for at-rest database encryption
 
 ## Project Structure
 

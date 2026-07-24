@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:cryptography/cryptography.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
@@ -13,6 +14,7 @@ import '../models/transaction.dart';
 import '../utils/constants.dart';
 import '../services/currency_service.dart';
 import '../services/auth_service.dart';
+import '../services/encryption_service.dart';
 import '../i18n/translator.dart';
 
 class DatabaseManager {
@@ -20,15 +22,53 @@ class DatabaseManager {
   int? _userId;
   final Map<String, String?> _settingCache = {};
   final Map<String, String?> _appSettingCache = {};
+  SecretKey? _encryptionKey;
 
   DatabaseManager._();
   static final DatabaseManager instance = DatabaseManager._();
 
   int? get userId => _userId;
+  bool get isEncrypted => _encryptionKey != null;
 
   Future<Database> get database async {
     _database ??= await _initDatabase();
     return _database!;
+  }
+
+  // ==================== ENCRYPTION ====================
+
+  Future<void> setEncryptionKey(SecretKey key) async {
+    _encryptionKey = key;
+  }
+
+  void clearEncryptionKey() {
+    _encryptionKey = null;
+  }
+
+  Future<String?> _encrypt(String? plaintext) async {
+    if (plaintext == null || plaintext.isEmpty || _encryptionKey == null) return plaintext;
+    try {
+      return await EncryptionService.encrypt(plaintext, _encryptionKey!);
+    } catch (_) {
+      return plaintext;
+    }
+  }
+
+  Future<String?> _decrypt(String? ciphertext) async {
+    if (ciphertext == null || ciphertext.isEmpty || _encryptionKey == null) return ciphertext;
+    try {
+      return await EncryptionService.decrypt(ciphertext, _encryptionKey!);
+    } catch (_) {
+      return ciphertext;
+    }
+  }
+
+  Future<double> _decryptAmount(String? encrypted) async {
+    if (encrypted == null || encrypted.isEmpty || _encryptionKey == null) {
+      return double.tryParse(encrypted ?? '') ?? 0.0;
+    }
+    final decrypted = await _decrypt(encrypted);
+    return double.tryParse(decrypted ?? '') ?? 0.0;
   }
 
   Future<Database> _initDatabase() async {
@@ -154,6 +194,123 @@ class DatabaseManager {
         await db.execute('ALTER TABLE accounts ADD COLUMN starting_amount REAL DEFAULT 0');
       } catch (_) {}
     }
+    if (oldVersion < 3) {
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS encryption_meta (
+            key TEXT PRIMARY KEY,
+            value TEXT
+          )
+        ''');
+      } catch (_) {}
+    }
+  }
+
+  /// Encrypt all existing unencrypted data. Called after login when encryption is first enabled.
+  Future<void> migrateToEncryption() async {
+    if (_encryptionKey == null) return;
+    final db = await database;
+
+    final meta = await db.rawQuery('SELECT value FROM encryption_meta WHERE key = ?', ['version']);
+    if (meta.isNotEmpty && meta.first['value'] == '1') return;
+
+    await _encryptAccounts(db);
+    await _encryptDescriptions(db);
+    await _encryptTransactions(db);
+
+    await db.rawInsert(
+      'INSERT OR REPLACE INTO encryption_meta (key, value) VALUES (?, ?)',
+      ['version', '1'],
+    );
+  }
+
+  Future<void> reEncryptData(SecretKey newKey) async {
+    if (_encryptionKey == null) return;
+    final db = await database;
+    final oldKey = _encryptionKey!;
+    _encryptionKey = newKey;
+
+    final acctRows = await db.rawQuery('SELECT id, name, starting_amount FROM accounts WHERE user_id = ?', [_userId]);
+    for (final row in acctRows) {
+      final name = row['name'] as String?;
+      final amount = row['starting_amount'] as String?;
+      if (name != null && name.isNotEmpty) {
+        final decrypted = await EncryptionService.decrypt(name, oldKey);
+        final reEncrypted = await _encrypt(decrypted);
+        await db.rawUpdate('UPDATE accounts SET name = ? WHERE id = ?', [reEncrypted, row['id']]);
+      }
+      if (amount != null && amount.isNotEmpty) {
+        final decrypted = await EncryptionService.decrypt(amount, oldKey);
+        final reEncrypted = await _encrypt(decrypted);
+        await db.rawUpdate('UPDATE accounts SET starting_amount = ? WHERE id = ?', [reEncrypted, row['id']]);
+      }
+    }
+
+    final descRows = await db.rawQuery('SELECT id, name FROM descriptions WHERE user_id = ?', [_userId]);
+    for (final row in descRows) {
+      final name = row['name'] as String?;
+      if (name != null && name.isNotEmpty) {
+        final decrypted = await EncryptionService.decrypt(name, oldKey);
+        final reEncrypted = await _encrypt(decrypted);
+        await db.rawUpdate('UPDATE descriptions SET name = ? WHERE id = ?', [reEncrypted, row['id']]);
+      }
+    }
+
+    final txnRows = await db.rawQuery('SELECT id, amount, notes FROM transactions WHERE user_id = ?', [_userId]);
+    for (final row in txnRows) {
+      final amount = row['amount'] as String?;
+      final notes = row['notes'] as String?;
+      if (amount != null && amount.isNotEmpty) {
+        final decrypted = await EncryptionService.decrypt(amount, oldKey);
+        final reEncrypted = await _encrypt(decrypted);
+        await db.rawUpdate('UPDATE transactions SET amount = ? WHERE id = ?', [reEncrypted, row['id']]);
+      }
+      if (notes != null && notes.isNotEmpty) {
+        final decrypted = await EncryptionService.decrypt(notes, oldKey);
+        final reEncrypted = await _encrypt(decrypted);
+        await db.rawUpdate('UPDATE transactions SET notes = ? WHERE id = ?', [reEncrypted, row['id']]);
+      }
+    }
+  }
+
+  Future<void> _encryptAccounts(Database db) async {
+    final rows = await db.rawQuery('SELECT id, name, starting_amount FROM accounts WHERE user_id = ?', [_userId]);
+    for (final row in rows) {
+      final name = row['name'] as String?;
+      final amount = row['starting_amount'] as num?;
+      final encryptedName = await _encrypt(name);
+      final encryptedAmount = amount != null ? await _encrypt(amount.toString()) : null;
+      await db.rawUpdate(
+        'UPDATE accounts SET name = ?, starting_amount = ? WHERE id = ?',
+        [encryptedName, encryptedAmount, row['id']],
+      );
+    }
+  }
+
+  Future<void> _encryptDescriptions(Database db) async {
+    final rows = await db.rawQuery('SELECT id, name FROM descriptions WHERE user_id = ?', [_userId]);
+    for (final row in rows) {
+      final name = row['name'] as String?;
+      final encryptedName = await _encrypt(name);
+      await db.rawUpdate(
+        'UPDATE descriptions SET name = ? WHERE id = ?',
+        [encryptedName, row['id']],
+      );
+    }
+  }
+
+  Future<void> _encryptTransactions(Database db) async {
+    final rows = await db.rawQuery('SELECT id, amount, notes FROM transactions WHERE user_id = ?', [_userId]);
+    for (final row in rows) {
+      final amount = row['amount'] as num?;
+      final notes = row['notes'] as String?;
+      final encryptedAmount = amount != null ? await _encrypt(amount.toString()) : null;
+      final encryptedNotes = await _encrypt(notes);
+      await db.rawUpdate(
+        'UPDATE transactions SET amount = ?, notes = ? WHERE id = ?',
+        [encryptedAmount, encryptedNotes, row['id']],
+      );
+    }
   }
 
   // ==================== USER ====================
@@ -199,43 +356,82 @@ class DatabaseManager {
       'accounts',
       where: 'user_id = ?',
       whereArgs: [_userId],
-      orderBy: 'name',
     );
-    return rows.map((r) => Account.fromMap(r)).toList();
+    final accounts = <Account>[];
+    for (final r in rows) {
+      accounts.add(Account(
+        id: r['id'] as int?,
+        userId: r['user_id'] as int,
+        name: await _decrypt(r['name'] as String?) ?? '',
+        type: r['type'] as String? ?? 'savings',
+        color: r['color'] as String? ?? '#1976D2',
+        currency: r['currency'] as String? ?? 'EUR',
+        startingAmount: await _decryptAmount(r['starting_amount'] as String?),
+        createdAt: r['created_at'] as String?,
+      ));
+    }
+    accounts.sort((a, b) => a.name.compareTo(b.name));
+    return accounts;
   }
 
   Future<List<AccountWithBalance>> getAccountsWithBalances() async {
     final db = await database;
-    final rows = await db.rawQuery('''
-      SELECT a.*,
-             a.starting_amount + COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                WHEN t.transaction_type = 'expense' THEN -t.amount
-                                ELSE 0 END), 0) AS balance
-      FROM accounts a
-      LEFT JOIN transactions t ON t.account_id = a.id AND t.user_id = ?
-      WHERE a.user_id = ?
-      GROUP BY a.id
-      ORDER BY a.name
-    ''', [_userId, _userId]);
+    final acctRows = await db.rawQuery(
+      'SELECT * FROM accounts WHERE user_id = ? ORDER BY name',
+      [_userId],
+    );
 
-    return rows.map((r) {
-      if (r['currency'] == null || (r['currency'] as String).isEmpty) {
-        r['currency'] = defaultCurrency;
+    final results = <AccountWithBalance>[];
+    for (final acctRow in acctRows) {
+      final startingAmount = await _decryptAmount(acctRow['starting_amount'] as String?);
+
+      final txnRows = await db.rawQuery('''
+        SELECT transaction_type, amount FROM transactions
+        WHERE account_id = ? AND user_id = ?
+      ''', [acctRow['id'], _userId]);
+
+      double balance = startingAmount;
+      for (final txn in txnRows) {
+        final amount = await _decryptAmount(txn['amount'] as String?);
+        final type = txn['transaction_type'] as String;
+        if (type == 'income') {
+          balance += amount;
+        } else if (type == 'expense') {
+          balance -= amount;
+        }
       }
-      return AccountWithBalance.fromMap(r);
-    }).toList();
+
+      if (acctRow['currency'] == null || (acctRow['currency'] as String).isEmpty) {
+        acctRow['currency'] = defaultCurrency;
+      }
+
+      results.add(AccountWithBalance(
+        id: acctRow['id'] as int?,
+        userId: acctRow['user_id'] as int,
+        name: await _decrypt(acctRow['name'] as String?) ?? '',
+        type: acctRow['type'] as String? ?? 'savings',
+        color: acctRow['color'] as String? ?? '#1976D2',
+        currency: acctRow['currency'] as String? ?? 'EUR',
+        startingAmount: startingAmount,
+        createdAt: acctRow['created_at'] as String?,
+        balance: balance,
+      ));
+    }
+    return results;
   }
 
   Future<int?> addAccount(String name, String color, String type, String currency, {double startingAmount = 0.0}) async {
     final db = await database;
     try {
+      final encryptedName = await _encrypt(name);
+      final encryptedAmount = await _encrypt(startingAmount.toString());
       return await db.insert('accounts', {
         'user_id': _userId,
-        'name': name,
+        'name': encryptedName,
         'color': color,
         'type': type,
         'currency': currency,
-        'starting_amount': startingAmount,
+        'starting_amount': encryptedAmount,
       });
     } catch (_) {
       return -1;
@@ -252,17 +448,21 @@ class DatabaseManager {
     );
     if (existing.isEmpty) return false;
 
-    final oldName = existing.first['name'] as String;
+    final oldNameEncrypted = existing.first['name'] as String;
+    final oldName = await _decrypt(oldNameEncrypted) ?? '';
     final oldCurrency = (existing.first['currency'] as String?) ?? defaultCurrency;
     final effectiveCurrency = currency ?? oldCurrency;
 
+    final encryptedName = await _encrypt(name);
     final updates = <String, dynamic>{
-      'name': name,
+      'name': encryptedName,
       'color': color,
       'currency': effectiveCurrency,
     };
     if (type != null) updates['type'] = type;
-    if (startingAmount != null) updates['starting_amount'] = startingAmount;
+    if (startingAmount != null) {
+      updates['starting_amount'] = await _encrypt(startingAmount.toString());
+    }
 
     final count = await db.update(
       'accounts',
@@ -272,25 +472,70 @@ class DatabaseManager {
     );
 
     if (count > 0 && updateNameInTransactions && oldName != name) {
-      await db.rawUpdate(
-        "UPDATE transactions SET notes = REPLACE(notes, ?, ?) WHERE notes LIKE ? AND user_id = ?",
-        ['Transfer to $oldName', 'Transfer to $name', 'Transfer to %', _userId],
-      );
-      await db.rawUpdate(
-        "UPDATE transactions SET notes = REPLACE(notes, ?, ?) WHERE notes LIKE ? AND user_id = ?",
-        ['Transfer from $oldName', 'Transfer from $name', 'Transfer from %', _userId],
-      );
-      await db.rawUpdate(
-        "UPDATE descriptions SET name = REPLACE(name, ?, ?) WHERE name LIKE ? AND user_id = ?",
-        ['Transfer to $oldName', 'Transfer to $name', 'Transfer to %', _userId],
-      );
-      await db.rawUpdate(
-        "UPDATE descriptions SET name = REPLACE(name, ?, ?) WHERE name LIKE ? AND user_id = ?",
-        ['Transfer from $oldName', 'Transfer from $name', 'Transfer from %', _userId],
-      );
+      await _updateTransferNames(db, oldName, name);
     }
 
     return count > 0;
+  }
+
+  Future<void> _updateTransferNames(Database db, String oldName, String newName) async {
+    final txnRows = await db.rawQuery(
+      'SELECT id, notes FROM transactions WHERE user_id = ? AND notes IS NOT NULL',
+      [_userId],
+    );
+    for (final row in txnRows) {
+      final notes = row['notes'] as String?;
+      if (notes == null || notes.isEmpty) continue;
+      final decrypted = await _decrypt(notes);
+      if (decrypted == null) continue;
+      final oldTransferTo = 'Transfer to $oldName';
+      final newTransferTo = 'Transfer to $newName';
+      final oldTransferFrom = 'Transfer from $oldName';
+      final newTransferFrom = 'Transfer from $oldName';
+      String updated = decrypted;
+      if (updated.contains(oldTransferTo)) {
+        updated = updated.replaceAll(oldTransferTo, newTransferTo);
+      }
+      if (updated.contains(oldTransferFrom)) {
+        updated = updated.replaceAll(oldTransferFrom, newTransferFrom);
+      }
+      if (updated != decrypted) {
+        final reEncrypted = await _encrypt(updated);
+        await db.rawUpdate(
+          'UPDATE transactions SET notes = ? WHERE id = ?',
+          [reEncrypted, row['id']],
+        );
+      }
+    }
+
+    final descRows = await db.rawQuery(
+      'SELECT id, name FROM descriptions WHERE user_id = ?',
+      [_userId],
+    );
+    for (final row in descRows) {
+      final name = row['name'] as String?;
+      if (name == null || name.isEmpty) continue;
+      final decrypted = await _decrypt(name);
+      if (decrypted == null) continue;
+      final oldTransferTo = 'Transfer to $oldName';
+      final newTransferTo = 'Transfer to $newName';
+      final oldTransferFrom = 'Transfer from $oldName';
+      final newTransferFrom = 'Transfer from $newName';
+      String updated = decrypted;
+      if (updated.contains(oldTransferTo)) {
+        updated = updated.replaceAll(oldTransferTo, newTransferTo);
+      }
+      if (updated.contains(oldTransferFrom)) {
+        updated = updated.replaceAll(oldTransferFrom, newTransferFrom);
+      }
+      if (updated != decrypted) {
+        final reEncrypted = await _encrypt(updated);
+        await db.rawUpdate(
+          'UPDATE descriptions SET name = ? WHERE id = ?',
+          [reEncrypted, row['id']],
+        );
+      }
+    }
   }
 
   Future<bool> deleteAccount(int accountId, {bool deleteTransactions = false}) async {
@@ -333,23 +578,39 @@ class DatabaseManager {
       'descriptions',
       where: 'user_id = ?',
       whereArgs: [_userId],
-      orderBy: 'name',
     );
-    return rows.map((r) => Description.fromMap(r)).toList();
+    final descriptions = <Description>[];
+    for (final r in rows) {
+      descriptions.add(Description(
+        id: r['id'] as int?,
+        userId: r['user_id'] as int,
+        name: await _decrypt(r['name'] as String?) ?? '',
+        createdAt: r['created_at'] as String?,
+      ));
+    }
+    descriptions.sort((a, b) => a.name.compareTo(b.name));
+    return descriptions;
   }
 
   Future<int> getOrCreateDescription(String name) async {
     final db = await database;
     final normalized = name.trim();
-    final existing = await db.rawQuery(
-      'SELECT id FROM descriptions WHERE user_id = ? AND LOWER(name) = LOWER(?)',
-      [_userId, normalized],
-    );
-    if (existing.isNotEmpty) return existing.first['id'] as int;
 
+    final allDescs = await db.rawQuery(
+      'SELECT id, name FROM descriptions WHERE user_id = ?',
+      [_userId],
+    );
+    for (final row in allDescs) {
+      final decrypted = await _decrypt(row['name'] as String?);
+      if (decrypted != null && decrypted.toLowerCase() == normalized.toLowerCase()) {
+        return row['id'] as int;
+      }
+    }
+
+    final encryptedName = await _encrypt(normalized);
     return await db.insert('descriptions', {
       'user_id': _userId,
-      'name': normalized,
+      'name': encryptedName,
     });
   }
 
@@ -370,9 +631,10 @@ class DatabaseManager {
   Future<bool> renameDescription(int descriptionId, String newName) async {
     if (newName.trim().isEmpty) return false;
     final db = await database;
+    final encryptedName = await _encrypt(newName.trim());
     final count = await db.rawUpdate(
       'UPDATE descriptions SET name = ? WHERE id = ? AND user_id = ?',
-      [newName.trim(), descriptionId, _userId],
+      [encryptedName, descriptionId, _userId],
     );
     return count > 0;
   }
@@ -419,15 +681,18 @@ class DatabaseManager {
       if (acctCurrency != null) effectiveCurrency = acctCurrency;
     }
 
+    final encryptedAmount = await _encrypt(amount.toString());
+    final encryptedNotes = await _encrypt(notes);
+
     return await db.insert('transactions', {
       'user_id': _userId,
       'account_id': accountId,
       'description_id': descId,
       'date': date,
-      'amount': amount,
+      'amount': encryptedAmount,
       'transaction_type': transactionType,
       'currency': effectiveCurrency,
-      'notes': notes,
+      'notes': encryptedNotes,
     });
   }
 
@@ -443,10 +708,10 @@ class DatabaseManager {
     final db = await database;
     final updates = <String, dynamic>{};
     if (date != null) updates['date'] = date;
-    if (amount != null) updates['amount'] = amount;
+    if (amount != null) updates['amount'] = await _encrypt(amount.toString());
     if (transactionType != null) updates['transaction_type'] = transactionType;
     if (accountId != null) updates['account_id'] = accountId;
-    if (notes != null) updates['notes'] = notes;
+    if (notes != null) updates['notes'] = await _encrypt(notes);
     if (currency != null) updates['currency'] = currency;
     if (description != null) {
       updates['description_id'] = await getOrCreateDescription(description);
@@ -480,38 +745,62 @@ class DatabaseManager {
     Set<int>? accountIds,
   }) async {
     final db = await database;
-    final where = <String>['t.user_id = ?'];
-    final args = <dynamic>[_userId];
-
-    if (searchQuery.isNotEmpty) {
-      where.add('(LOWER(d.name) LIKE ? OR LOWER(a.name) LIKE ?)');
-      final sq = '%${searchQuery.toLowerCase()}%';
-      args.addAll([sq, sq]);
-    }
-
-    if (accountIds != null && accountIds.isNotEmpty) {
-      final placeholders = accountIds.map((_) => '?').join(',');
-      where.add('t.account_id IN ($placeholders)');
-      args.addAll(accountIds);
-    }
-
     var query = '''
       SELECT t.*, a.name as account_name, a.color as account_color,
              a.currency as account_currency, d.name as description_name
       FROM transactions t
       LEFT JOIN accounts a ON t.account_id = a.id
       LEFT JOIN descriptions d ON t.description_id = d.id
-      WHERE ${where.join(' AND ')}
+      WHERE t.user_id = ?
       ORDER BY t.date DESC, t.id DESC
     ''';
 
-    if (limit != null) {
-      query += ' LIMIT ? OFFSET ?';
-      args.addAll([limit, offset]);
+    final rows = await db.rawQuery(query, [_userId]);
+
+    final results = <TransactionWithDetails>[];
+    for (final r in rows) {
+      final amount = await _decryptAmount(r['amount'] as String?);
+      final notes = await _decrypt(r['notes'] as String?);
+      final accountName = await _decrypt(r['account_name'] as String?);
+      final descriptionName = await _decrypt(r['description_name'] as String?);
+
+      if (accountIds != null && accountIds.isNotEmpty) {
+        final acctId = r['account_id'] as int?;
+        if (acctId == null || !accountIds.contains(acctId)) continue;
+      }
+
+      if (searchQuery.isNotEmpty) {
+        final sq = searchQuery.toLowerCase();
+        final descMatch = descriptionName?.toLowerCase().contains(sq) ?? false;
+        final acctMatch = accountName?.toLowerCase().contains(sq) ?? false;
+        if (!descMatch && !acctMatch) continue;
+      }
+
+      results.add(TransactionWithDetails(
+        id: r['id'] as int?,
+        userId: r['user_id'] as int,
+        accountId: r['account_id'] as int?,
+        descriptionId: r['description_id'] as int?,
+        date: r['date'] as String,
+        amount: amount,
+        transactionType: r['transaction_type'] as String,
+        currency: r['currency'] as String? ?? 'EUR',
+        notes: notes,
+        createdAt: r['created_at'] as String?,
+        updatedAt: r['updated_at'] as String?,
+        accountName: accountName,
+        accountColor: r['account_color'] as String?,
+        accountCurrency: r['account_currency'] as String?,
+        descriptionName: descriptionName,
+      ));
+
+      if (limit != null && results.length >= limit + offset) break;
     }
 
-    final rows = await db.rawQuery(query, args);
-    return rows.map((r) => TransactionWithDetails.fromMap(r)).toList();
+    if (limit != null) {
+      return results.skip(offset).take(limit).toList();
+    }
+    return results;
   }
 
   Future<List<TransactionWithDetails>> getTransactionsByPeriod(
@@ -526,7 +815,28 @@ class DatabaseManager {
       WHERE t.date BETWEEN ? AND ? AND t.user_id = ?
       ORDER BY t.date DESC
     ''', [startDate, endDate, _userId]);
-    return rows.map((r) => TransactionWithDetails.fromMap(r)).toList();
+
+    final results = <TransactionWithDetails>[];
+    for (final r in rows) {
+      results.add(TransactionWithDetails(
+        id: r['id'] as int?,
+        userId: r['user_id'] as int,
+        accountId: r['account_id'] as int?,
+        descriptionId: r['description_id'] as int?,
+        date: r['date'] as String,
+        amount: await _decryptAmount(r['amount'] as String?),
+        transactionType: r['transaction_type'] as String,
+        currency: r['currency'] as String? ?? 'EUR',
+        notes: await _decrypt(r['notes'] as String?),
+        createdAt: r['created_at'] as String?,
+        updatedAt: r['updated_at'] as String?,
+        accountName: await _decrypt(r['account_name'] as String?),
+        accountColor: r['account_color'] as String?,
+        accountCurrency: r['account_currency'] as String?,
+        descriptionName: await _decrypt(r['description_name'] as String?),
+      ));
+    }
+    return results;
   }
 
   Future<String?> getEarliestTransactionDate() async {
@@ -542,15 +852,14 @@ class DatabaseManager {
 
   Future<double> getTotalPatrimony({String targetCurrency = 'EUR'}) async {
     final db = await database;
-    final acctRows = await db.rawQuery('''
-      SELECT COALESCE(a.starting_amount, 0) as starting_amount,
-             COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-      FROM accounts a WHERE a.user_id = ?
-    ''', [_userId]);
+    final acctRows = await db.rawQuery(
+      'SELECT starting_amount, currency FROM accounts WHERE user_id = ?',
+      [_userId],
+    );
 
     double total = 0.0;
     for (final row in acctRows) {
-      final amount = (row['starting_amount'] as num?)?.toDouble() ?? 0.0;
+      final amount = await _decryptAmount(row['starting_amount'] as String?);
       final acctCurrency = (row['currency'] as String?) ?? 'EUR';
       if (amount == 0) continue;
       if (acctCurrency == targetCurrency) {
@@ -561,25 +870,23 @@ class DatabaseManager {
       }
     }
 
-    final result = await db.rawQuery('''
-      SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                               WHEN t.transaction_type = 'expense' THEN -t.amount
-                               ELSE 0 END), 0) as total,
-             COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-      FROM transactions t
-      LEFT JOIN accounts a ON t.account_id = a.id
-      WHERE t.user_id = ?
-      GROUP BY a.currency
-    ''', [_userId]);
+    final txnRows = await db.rawQuery(
+      'SELECT t.amount, t.transaction_type, COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
+      'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id WHERE t.user_id = ?',
+      [_userId],
+    );
 
-    for (final row in result) {
-      final amount = (row['total'] as num?)?.toDouble() ?? 0.0;
+    for (final row in txnRows) {
+      final amount = await _decryptAmount(row['amount'] as String?);
+      final type = row['transaction_type'] as String;
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
+      final signedAmount = type == 'income' ? amount : (type == 'expense' ? -amount : 0.0);
+      if (signedAmount == 0) continue;
       if (txnCurrency == targetCurrency) {
-        total += amount;
+        total += signedAmount;
       } else {
         final rate = await getExchangeRate(txnCurrency, targetCurrency);
-        total += amount * (rate ?? 1.0);
+        total += signedAmount * (rate ?? 1.0);
       }
     }
     return total;
@@ -588,16 +895,14 @@ class DatabaseManager {
   Future<double> getBalance({String targetCurrency = 'EUR'}) async {
     final db = await database;
 
-    final acctRows = await db.rawQuery('''
-      SELECT COALESCE(a.starting_amount, 0) as starting_amount,
-             COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-      FROM accounts a
-      WHERE a.type = 'checking' AND a.user_id = ?
-    ''', [_userId]);
+    final acctRows = await db.rawQuery(
+      'SELECT starting_amount, currency FROM accounts WHERE type = ? AND user_id = ?',
+      ['checking', _userId],
+    );
 
     double total = 0.0;
     for (final row in acctRows) {
-      final amount = (row['starting_amount'] as num?)?.toDouble() ?? 0.0;
+      final amount = await _decryptAmount(row['starting_amount'] as String?);
       final acctCurrency = (row['currency'] as String?) ?? 'EUR';
       if (amount == 0) continue;
       if (acctCurrency == targetCurrency) {
@@ -608,25 +913,28 @@ class DatabaseManager {
       }
     }
 
-    final rows = await db.rawQuery('''
-      SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                               WHEN t.transaction_type = 'expense' THEN -t.amount
-                               ELSE 0 END), 0) as total,
-             COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-      FROM transactions t
-      LEFT JOIN accounts a ON t.account_id = a.id
-      WHERE (a.type = 'checking' OR t.account_id IS NULL) AND t.user_id = ?
-      GROUP BY a.currency
-    ''', [_userId]);
+    final txnRows = await db.rawQuery(
+      'SELECT t.amount, t.transaction_type, t.account_id, '
+      'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency, a.type as account_type '
+      'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id WHERE t.user_id = ?',
+      [_userId],
+    );
 
-    for (final row in rows) {
-      final amount = (row['total'] as num?)?.toDouble() ?? 0.0;
+    for (final row in txnRows) {
+      final accountType = row['account_type'] as String?;
+      final hasAccount = row['account_id'] != null;
+      if (accountType != 'checking' && hasAccount) continue;
+
+      final amount = await _decryptAmount(row['amount'] as String?);
+      final type = row['transaction_type'] as String;
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
+      final signedAmount = type == 'income' ? amount : (type == 'expense' ? -amount : 0.0);
+      if (signedAmount == 0) continue;
       if (txnCurrency == targetCurrency) {
-        total += amount;
+        total += signedAmount;
       } else {
         final rate = await getExchangeRate(txnCurrency, targetCurrency);
-        total += amount * (rate ?? 1.0);
+        total += signedAmount * (rate ?? 1.0);
       }
     }
     return total;
@@ -635,16 +943,14 @@ class DatabaseManager {
   Future<double> getSavingsTotal({String targetCurrency = 'EUR'}) async {
     final db = await database;
 
-    final acctRows = await db.rawQuery('''
-      SELECT COALESCE(a.starting_amount, 0) as starting_amount,
-             COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-      FROM accounts a
-      WHERE a.type = 'savings' AND a.user_id = ?
-    ''', [_userId]);
+    final acctRows = await db.rawQuery(
+      'SELECT starting_amount, currency FROM accounts WHERE type = ? AND user_id = ?',
+      ['savings', _userId],
+    );
 
     double total = 0.0;
     for (final row in acctRows) {
-      final amount = (row['starting_amount'] as num?)?.toDouble() ?? 0.0;
+      final amount = await _decryptAmount(row['starting_amount'] as String?);
       final acctCurrency = (row['currency'] as String?) ?? 'EUR';
       if (amount == 0) continue;
       if (acctCurrency == targetCurrency) {
@@ -655,25 +961,25 @@ class DatabaseManager {
       }
     }
 
-    final rows = await db.rawQuery('''
-      SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                               WHEN t.transaction_type = 'expense' THEN -t.amount
-                               ELSE 0 END), 0) as total,
-             COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-      FROM transactions t
-      LEFT JOIN accounts a ON t.account_id = a.id
-      WHERE a.type = 'savings' AND t.user_id = ?
-      GROUP BY a.currency
-    ''', [_userId]);
+    final txnRows = await db.rawQuery(
+      'SELECT t.amount, t.transaction_type, '
+      'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
+      'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
+      'WHERE a.type = ? AND t.user_id = ?',
+      ['savings', _userId],
+    );
 
-    for (final row in rows) {
-      final amount = (row['total'] as num?)?.toDouble() ?? 0.0;
+    for (final row in txnRows) {
+      final amount = await _decryptAmount(row['amount'] as String?);
+      final type = row['transaction_type'] as String;
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
+      final signedAmount = type == 'income' ? amount : (type == 'expense' ? -amount : 0.0);
+      if (signedAmount == 0) continue;
       if (txnCurrency == targetCurrency) {
-        total += amount;
+        total += signedAmount;
       } else {
         final rate = await getExchangeRate(txnCurrency, targetCurrency);
-        total += amount * (rate ?? 1.0);
+        total += signedAmount * (rate ?? 1.0);
       }
     }
     return total;
@@ -682,15 +988,14 @@ class DatabaseManager {
   Future<double> getHistoryPatrimony(String dateLimit, {String targetCurrency = 'EUR'}) async {
     final db = await database;
 
-    final acctRows = await db.rawQuery('''
-      SELECT COALESCE(a.starting_amount, 0) as starting_amount,
-             COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-      FROM accounts a WHERE a.user_id = ?
-    ''', [_userId]);
+    final acctRows = await db.rawQuery(
+      'SELECT starting_amount, currency FROM accounts WHERE user_id = ?',
+      [_userId],
+    );
 
     double total = 0.0;
     for (final row in acctRows) {
-      final amount = (row['starting_amount'] as num?)?.toDouble() ?? 0.0;
+      final amount = await _decryptAmount(row['starting_amount'] as String?);
       final acctCurrency = (row['currency'] as String?) ?? 'EUR';
       if (amount == 0) continue;
       if (acctCurrency == targetCurrency) {
@@ -701,25 +1006,25 @@ class DatabaseManager {
       }
     }
 
-    final rows = await db.rawQuery('''
-      SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                               WHEN t.transaction_type = 'expense' THEN -t.amount
-                               ELSE 0 END), 0) as total,
-             COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-      FROM transactions t
-      LEFT JOIN accounts a ON t.account_id = a.id
-      WHERE t.date < ? AND t.user_id = ?
-      GROUP BY a.currency
-    ''', [dateLimit, _userId]);
+    final txnRows = await db.rawQuery(
+      'SELECT t.amount, t.transaction_type, '
+      'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
+      'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
+      'WHERE t.date < ? AND t.user_id = ?',
+      [dateLimit, _userId],
+    );
 
-    for (final row in rows) {
-      final amount = (row['total'] as num?)?.toDouble() ?? 0.0;
+    for (final row in txnRows) {
+      final amount = await _decryptAmount(row['amount'] as String?);
+      final type = row['transaction_type'] as String;
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
+      final signedAmount = type == 'income' ? amount : (type == 'expense' ? -amount : 0.0);
+      if (signedAmount == 0) continue;
       if (txnCurrency == targetCurrency) {
-        total += amount;
+        total += signedAmount;
       } else {
         final rate = await getExchangeRate(txnCurrency, targetCurrency);
-        total += amount * (rate ?? 1.0);
+        total += signedAmount * (rate ?? 1.0);
       }
     }
     return total;
@@ -728,16 +1033,14 @@ class DatabaseManager {
   Future<double> getHistoryBalance(String dateLimit, {String targetCurrency = 'EUR'}) async {
     final db = await database;
 
-    final acctRows = await db.rawQuery('''
-      SELECT COALESCE(a.starting_amount, 0) as starting_amount,
-             COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-      FROM accounts a
-      WHERE a.type = 'checking' AND a.user_id = ?
-    ''', [_userId]);
+    final acctRows = await db.rawQuery(
+      'SELECT starting_amount, currency FROM accounts WHERE type = ? AND user_id = ?',
+      ['checking', _userId],
+    );
 
     double total = 0.0;
     for (final row in acctRows) {
-      final amount = (row['starting_amount'] as num?)?.toDouble() ?? 0.0;
+      final amount = await _decryptAmount(row['starting_amount'] as String?);
       final acctCurrency = (row['currency'] as String?) ?? 'EUR';
       if (amount == 0) continue;
       if (acctCurrency == targetCurrency) {
@@ -748,25 +1051,29 @@ class DatabaseManager {
       }
     }
 
-    final rows = await db.rawQuery('''
-      SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                               WHEN t.transaction_type = 'expense' THEN -t.amount
-                               ELSE 0 END), 0) as total,
-             COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-      FROM transactions t
-      LEFT JOIN accounts a ON t.account_id = a.id
-      WHERE t.date < ? AND (a.type = 'checking' OR t.account_id IS NULL) AND t.user_id = ?
-      GROUP BY a.currency
-    ''', [dateLimit, _userId]);
+    final txnRows = await db.rawQuery(
+      'SELECT t.amount, t.transaction_type, t.account_id, '
+      'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency, a.type as account_type '
+      'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
+      'WHERE t.date < ? AND t.user_id = ?',
+      [dateLimit, _userId],
+    );
 
-    for (final row in rows) {
-      final amount = (row['total'] as num?)?.toDouble() ?? 0.0;
+    for (final row in txnRows) {
+      final accountType = row['account_type'] as String?;
+      final hasAccount = row['account_id'] != null;
+      if (accountType != 'checking' && hasAccount) continue;
+
+      final amount = await _decryptAmount(row['amount'] as String?);
+      final type = row['transaction_type'] as String;
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
+      final signedAmount = type == 'income' ? amount : (type == 'expense' ? -amount : 0.0);
+      if (signedAmount == 0) continue;
       if (txnCurrency == targetCurrency) {
-        total += amount;
+        total += signedAmount;
       } else {
         final rate = await getExchangeRate(txnCurrency, targetCurrency);
-        total += amount * (rate ?? 1.0);
+        total += signedAmount * (rate ?? 1.0);
       }
     }
     return total;
@@ -775,16 +1082,14 @@ class DatabaseManager {
   Future<double> getHistorySavings(String dateLimit, {String targetCurrency = 'EUR'}) async {
     final db = await database;
 
-    final acctRows = await db.rawQuery('''
-      SELECT COALESCE(a.starting_amount, 0) as starting_amount,
-             COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-      FROM accounts a
-      WHERE a.type = 'savings' AND a.user_id = ?
-    ''', [_userId]);
+    final acctRows = await db.rawQuery(
+      'SELECT starting_amount, currency FROM accounts WHERE type = ? AND user_id = ?',
+      ['savings', _userId],
+    );
 
     double total = 0.0;
     for (final row in acctRows) {
-      final amount = (row['starting_amount'] as num?)?.toDouble() ?? 0.0;
+      final amount = await _decryptAmount(row['starting_amount'] as String?);
       final acctCurrency = (row['currency'] as String?) ?? 'EUR';
       if (amount == 0) continue;
       if (acctCurrency == targetCurrency) {
@@ -795,25 +1100,25 @@ class DatabaseManager {
       }
     }
 
-    final rows = await db.rawQuery('''
-      SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                               WHEN t.transaction_type = 'expense' THEN -t.amount
-                               ELSE 0 END), 0) as total,
-             COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-      FROM transactions t
-      LEFT JOIN accounts a ON t.account_id = a.id
-      WHERE t.date < ? AND a.type = 'savings' AND t.user_id = ?
-      GROUP BY a.currency
-    ''', [dateLimit, _userId]);
+    final txnRows = await db.rawQuery(
+      'SELECT t.amount, t.transaction_type, '
+      'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
+      'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
+      'WHERE t.date < ? AND a.type = ? AND t.user_id = ?',
+      [dateLimit, 'savings', _userId],
+    );
 
-    for (final row in rows) {
-      final amount = (row['total'] as num?)?.toDouble() ?? 0.0;
+    for (final row in txnRows) {
+      final amount = await _decryptAmount(row['amount'] as String?);
+      final type = row['transaction_type'] as String;
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
+      final signedAmount = type == 'income' ? amount : (type == 'expense' ? -amount : 0.0);
+      if (signedAmount == 0) continue;
       if (txnCurrency == targetCurrency) {
-        total += amount;
+        total += signedAmount;
       } else {
         final rate = await getExchangeRate(txnCurrency, targetCurrency);
-        total += amount * (rate ?? 1.0);
+        total += signedAmount * (rate ?? 1.0);
       }
     }
     return total;
@@ -829,32 +1134,37 @@ class DatabaseManager {
     final endDate = '$endYear-${endMonth.toString().padLeft(2, '0')}-01';
 
     final db = await database;
-    final rows = await db.rawQuery('''
-      SELECT
-        COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount ELSE 0 END), 0) as income,
-        COALESCE(SUM(CASE WHEN t.transaction_type = 'expense' THEN t.amount ELSE 0 END), 0) as expenses,
-        COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-      FROM transactions t
-      LEFT JOIN accounts a ON t.account_id = a.id
-      WHERE (t.date >= ? AND t.date < ?) AND (a.type = 'checking' OR t.account_id IS NULL) AND t.user_id = ?
-      GROUP BY a.currency
-    ''', [startDate, endDate, _userId]);
+    final txnRows = await db.rawQuery(
+      'SELECT t.amount, t.transaction_type, '
+      'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency, a.type as account_type '
+      'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
+      'WHERE t.date >= ? AND t.date < ? AND t.user_id = ?',
+      [startDate, endDate, _userId],
+    );
 
     double income = 0.0;
     double expenses = 0.0;
-    for (final row in rows) {
-      final txnIncome = (row['income'] as num?)?.toDouble() ?? 0.0;
-      final txnExpenses = (row['expenses'] as num?)?.toDouble() ?? 0.0;
+    for (final row in txnRows) {
+      final accountType = row['account_type'] as String?;
+      final hasAccount = row['account_id'] != null;
+      if (accountType != 'checking' && hasAccount) continue;
+
+      final amount = await _decryptAmount(row['amount'] as String?);
+      final type = row['transaction_type'] as String;
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
 
+      double convertedAmount;
       if (txnCurrency == targetCurrency) {
-        income += txnIncome;
-        expenses += txnExpenses;
+        convertedAmount = amount;
       } else {
         final rate = await getExchangeRate(txnCurrency, targetCurrency);
-        final factor = rate ?? 1.0;
-        income += txnIncome * factor;
-        expenses += txnExpenses * factor;
+        convertedAmount = amount * (rate ?? 1.0);
+      }
+
+      if (type == 'income') {
+        income += convertedAmount;
+      } else if (type == 'expense') {
+        expenses += convertedAmount;
       }
     }
     return {'income': income, 'expenses': expenses, 'balance': income - expenses};
@@ -866,32 +1176,37 @@ class DatabaseManager {
     final startDate = now.subtract(Duration(days: days)).toIso8601String().substring(0, 10);
 
     final db = await database;
-    final rows = await db.rawQuery('''
-      SELECT
-        COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount ELSE 0 END), 0) as income,
-        COALESCE(SUM(CASE WHEN t.transaction_type = 'expense' THEN t.amount ELSE 0 END), 0) as expenses,
-        COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-      FROM transactions t
-      LEFT JOIN accounts a ON t.account_id = a.id
-      WHERE (t.date >= ? AND t.date <= ?) AND (a.type = 'checking' OR t.account_id IS NULL) AND t.user_id = ?
-      GROUP BY a.currency
-    ''', [startDate, endDate, _userId]);
+    final txnRows = await db.rawQuery(
+      'SELECT t.amount, t.transaction_type, '
+      'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency, a.type as account_type '
+      'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
+      'WHERE t.date >= ? AND t.date <= ? AND t.user_id = ?',
+      [startDate, endDate, _userId],
+    );
 
     double income = 0.0;
     double expenses = 0.0;
-    for (final row in rows) {
-      final txnIncome = (row['income'] as num?)?.toDouble() ?? 0.0;
-      final txnExpenses = (row['expenses'] as num?)?.toDouble() ?? 0.0;
+    for (final row in txnRows) {
+      final accountType = row['account_type'] as String?;
+      final hasAccount = row['account_id'] != null;
+      if (accountType != 'checking' && hasAccount) continue;
+
+      final amount = await _decryptAmount(row['amount'] as String?);
+      final type = row['transaction_type'] as String;
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
 
+      double convertedAmount;
       if (txnCurrency == targetCurrency) {
-        income += txnIncome;
-        expenses += txnExpenses;
+        convertedAmount = amount;
       } else {
         final rate = await getExchangeRate(txnCurrency, targetCurrency);
-        final factor = rate ?? 1.0;
-        income += txnIncome * factor;
-        expenses += txnExpenses * factor;
+        convertedAmount = amount * (rate ?? 1.0);
+      }
+
+      if (type == 'income') {
+        income += convertedAmount;
+      } else if (type == 'expense') {
+        expenses += convertedAmount;
       }
     }
     return {'income': income, 'expenses': expenses, 'balance': income - expenses};
@@ -899,36 +1214,46 @@ class DatabaseManager {
 
   Future<List<Map<String, dynamic>>> getAccountsDistribution({String targetCurrency = 'EUR'}) async {
     final db = await database;
-    final rows = await db.rawQuery('''
-      SELECT a.name, a.color, a.currency as account_currency,
-             a.starting_amount + COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                               WHEN t.transaction_type = 'expense' THEN -t.amount
-                               ELSE 0 END), 0) AS balance
-      FROM accounts a
-      LEFT JOIN transactions t ON t.account_id = a.id AND t.user_id = ?
-      WHERE a.user_id = ?
-      GROUP BY a.id
-      ORDER BY a.name
-    ''', [_userId, _userId]);
+    final acctRows = await db.rawQuery(
+      'SELECT * FROM accounts WHERE user_id = ? ORDER BY name',
+      [_userId],
+    );
 
     final results = <Map<String, dynamic>>[];
-    for (final row in rows) {
-      final rawBalance = (row['balance'] as num?)?.toDouble() ?? 0.0;
-      final acctCurrency = (row['account_currency'] as String?) ?? 'EUR';
+    for (final acctRow in acctRows) {
+      final startingAmount = await _decryptAmount(acctRow['starting_amount'] as String?);
+
+      final txnRows = await db.rawQuery(
+        'SELECT transaction_type, amount FROM transactions WHERE account_id = ? AND user_id = ?',
+        [acctRow['id'], _userId],
+      );
+
+      double balance = startingAmount;
+      for (final txn in txnRows) {
+        final amount = await _decryptAmount(txn['amount'] as String?);
+        final type = txn['transaction_type'] as String;
+        if (type == 'income') {
+          balance += amount;
+        } else if (type == 'expense') {
+          balance -= amount;
+        }
+      }
+
+      final acctCurrency = (acctRow['currency'] as String?) ?? 'EUR';
 
       double convertedBalance;
       if (acctCurrency == targetCurrency) {
-        convertedBalance = rawBalance;
+        convertedBalance = balance;
       } else {
         final rate = await getExchangeRate(acctCurrency, targetCurrency);
-        convertedBalance = rawBalance * (rate ?? 1.0);
+        convertedBalance = balance * (rate ?? 1.0);
       }
 
       results.add({
-        'name': row['name'],
-        'color': row['color'],
+        'name': await _decrypt(acctRow['name'] as String?),
+        'color': acctRow['color'],
         'value': convertedBalance,
-        'nativeValue': rawBalance,
+        'nativeValue': balance,
         'currency': acctCurrency,
       });
     }
@@ -945,40 +1270,38 @@ class DatabaseManager {
     final endDate = now.toIso8601String().substring(0, 10);
 
     final rows = await db.rawQuery('''
-      SELECT LOWER(COALESCE(d.name, 'Uncategorized')) as description,
-             strftime('%Y-%m', t.date) as month,
-             t.transaction_type as type,
-             SUM(t.amount) as amount
+      SELECT t.amount, t.transaction_type, t.date,
+             d.name as description_name
       FROM transactions t
       LEFT JOIN descriptions d ON t.description_id = d.id
       WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-      GROUP BY description, month, t.transaction_type
-      ORDER BY month, amount DESC
     ''', [transactionType, startDate, endDate, _userId]);
+
+    final byDesc = <String, double>{};
+    for (final row in rows) {
+      final desc = await _decrypt(row['description_name'] as String?) ?? 'Uncategorized';
+      if (_isTransferDescription(desc)) continue;
+      final amount = await _decryptAmount(row['amount'] as String?);
+      final month = (row['date'] as String).substring(0, 7);
+      byDesc[desc] = (byDesc[desc] ?? 0) + amount;
+    }
+
+    final sorted = byDesc.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final topDescs = sorted.take(limit > 0 ? limit : sorted.length).map((e) => e.key).toSet();
 
     final results = <Map<String, dynamic>>[];
     for (final row in rows) {
-      final desc = (row['description'] as String?) ?? 'Uncategorized';
+      final desc = await _decrypt(row['description_name'] as String?) ?? 'Uncategorized';
       if (_isTransferDescription(desc)) continue;
+      if (!topDescs.contains(desc)) continue;
+      final amount = await _decryptAmount(row['amount'] as String?);
+      final month = (row['date'] as String).substring(0, 7);
       results.add({
         'description': desc,
-        'month': row['month'],
-        'type': row['type'],
-        'amount': (row['amount'] as num).toDouble(),
+        'month': month,
+        'type': row['transaction_type'],
+        'amount': amount,
       });
-    }
-
-    // If limit is set, group and take top N
-    if (limit > 0) {
-      final byDesc = <String, double>{};
-      for (final r in results) {
-        final d = r['description'] as String;
-        byDesc[d] = (byDesc[d] ?? 0) + (r['amount'] as double);
-      }
-      final sorted = byDesc.entries.toList()
-        ..sort((a, b) => b.value.compareTo(a.value));
-      final topDescs = sorted.take(limit).map((e) => e.key).toSet();
-      return results.where((r) => topDescs.contains(r['description'])).toList();
     }
 
     return results;
@@ -988,23 +1311,19 @@ class DatabaseManager {
       String startDate, String endDate) async {
     final db = await database;
     final rows = await db.rawQuery('''
-      SELECT LOWER(COALESCE(d.name, 'Uncategorized')) as desc,
-             strftime('%Y-%m', t.date) as month,
-             t.transaction_type,
-             SUM(t.amount) as total
+      SELECT t.amount, t.transaction_type, t.date,
+             d.name as description_name
       FROM transactions t
       LEFT JOIN descriptions d ON t.description_id = d.id
       WHERE t.date >= ? AND t.date <= ? AND t.user_id = ?
-      GROUP BY desc, month, t.transaction_type
-      ORDER BY desc, month
     ''', [startDate, endDate, _userId]);
 
     final result = <String, Map<String, Map<String, double>>>{};
     for (final row in rows) {
-      final desc = (row['desc'] as String?) ?? 'uncategorized';
-      final month = row['month'] as String;
+      final desc = await _decrypt(row['description_name'] as String?) ?? 'uncategorized';
+      final month = (row['date'] as String).substring(0, 7);
       final type = row['transaction_type'] as String;
-      final total = (row['total'] as num).toDouble();
+      final total = await _decryptAmount(row['amount'] as String?);
 
       if (_isTransferDescription(desc)) continue;
 
@@ -1033,22 +1352,32 @@ class DatabaseManager {
     final endDate = now.toIso8601String().substring(0, 10);
 
     final rows = await db.rawQuery('''
-      SELECT COALESCE(d.name, 'Uncategorized') as desc,
-             SUM(t.amount) as total,
-             COUNT(t.id) as count
+      SELECT t.amount, d.name as description_name
       FROM transactions t
       LEFT JOIN descriptions d ON t.description_id = d.id
       WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-      GROUP BY desc
-      HAVING count >= ?
-      ORDER BY total DESC
-    ''', [transactionType, startDate, endDate, _userId, minCount]);
+    ''', [transactionType, startDate, endDate, _userId]);
+
+    final byDesc = <String, Map<String, dynamic>>{};
+    for (final row in rows) {
+      final desc = await _decrypt(row['description_name'] as String?) ?? 'Uncategorized';
+      if (_isTransferDescription(desc)) continue;
+      final amount = await _decryptAmount(row['amount'] as String?);
+
+      if (!byDesc.containsKey(desc)) {
+        byDesc[desc] = {'total': 0.0, 'count': 0};
+      }
+      byDesc[desc]!['total'] = (byDesc[desc]!['total'] as double) + amount;
+      byDesc[desc]!['count'] = (byDesc[desc]!['count'] as int) + 1;
+    }
+
+    final sorted = byDesc.entries.toList()
+      ..sort((a, b) => (b.value['total'] as double).compareTo(a.value['total'] as double));
 
     final results = <Map<String, dynamic>>[];
-    for (final row in rows) {
-      final desc = (row['desc'] as String?) ?? 'Uncategorized';
-      if (!_isTransferDescription(desc)) {
-        results.add({'description': desc, 'total': row['total'], 'count': row['count']});
+    for (final entry in sorted) {
+      if ((entry.value['count'] as int) >= minCount) {
+        results.add({'description': entry.key, 'total': entry.value['total'], 'count': entry.value['count']});
         if (limit > 0 && results.length >= limit) break;
       }
     }
@@ -1064,23 +1393,38 @@ class DatabaseManager {
   Future<List<Map<String, dynamic>>> getMonthlyChartData({int? year}) async {
     final db = await database;
     final y = year ?? DateTime.now().year;
-    final rows = await db.rawQuery('''
-      SELECT strftime('%m', t.date) as month,
-             COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount ELSE 0 END), 0) as income,
-             COALESCE(SUM(CASE WHEN t.transaction_type = 'expense' THEN t.amount ELSE 0 END), 0) as expenses
-      FROM transactions t
-      LEFT JOIN accounts a ON t.account_id = a.id
-      WHERE strftime('%Y', t.date) = ? AND (a.type = 'checking' OR t.account_id IS NULL) AND t.user_id = ?
-      GROUP BY month
-      ORDER BY month
-    ''', [y.toString(), _userId]);
+    final rows = await db.rawQuery(
+      'SELECT t.amount, t.transaction_type, t.date, '
+      'a.type as account_type '
+      'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
+      'WHERE strftime("%Y", t.date) = ? AND t.user_id = ?',
+      [y.toString(), _userId],
+    );
+
+    final monthMap = <int, Map<String, double>>{};
+    for (final row in rows) {
+      final accountType = row['account_type'] as String?;
+      final hasAccount = row['account_id'] != null;
+      if (accountType != 'checking' && hasAccount) continue;
+
+      final month = int.parse((row['date'] as String).substring(5, 7));
+      final amount = await _decryptAmount(row['amount'] as String?);
+      final type = row['transaction_type'] as String;
+
+      monthMap.putIfAbsent(month, () => {'income': 0.0, 'expenses': 0.0});
+      if (type == 'income') {
+        monthMap[month]!['income'] = monthMap[month]!['income']! + amount;
+      } else if (type == 'expense') {
+        monthMap[month]!['expenses'] = monthMap[month]!['expenses']! + amount;
+      }
+    }
 
     final result = <Map<String, dynamic>>[];
-    for (final row in rows) {
+    for (final entry in monthMap.entries) {
       result.add({
-        'month': int.parse(row['month'] as String),
-        'income': (row['income'] as num).toDouble(),
-        'expenses': (row['expenses'] as num).toDouble(),
+        'month': entry.key,
+        'income': entry.value['income']!,
+        'expenses': entry.value['expenses']!,
       });
     }
     return result;
@@ -1095,25 +1439,25 @@ class DatabaseManager {
         .toIso8601String()
         .substring(0, 10);
 
-    final rows = await db.rawQuery('''
-      SELECT strftime('%Y-%m', t.date) as month,
-             t.transaction_type as type,
-             SUM(t.amount) as amount,
-             COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-      FROM transactions t
-      LEFT JOIN accounts a ON t.account_id = a.id
-      LEFT JOIN descriptions d ON t.description_id = d.id
-      WHERE t.date >= ? AND t.user_id = ?
-        AND (d.name IS NULL OR LOWER(d.name) NOT LIKE 'transfer to %' AND LOWER(d.name) NOT LIKE 'transfer from %')
-      GROUP BY month, t.transaction_type, a.currency
-      ORDER BY month
-    ''', [startDate, _userId]);
+    final rows = await db.rawQuery(
+      'SELECT t.amount, t.transaction_type, t.date, '
+      'd.name as description_name, '
+      'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
+      'FROM transactions t '
+      'LEFT JOIN accounts a ON t.account_id = a.id '
+      'LEFT JOIN descriptions d ON t.description_id = d.id '
+      'WHERE t.date >= ? AND t.user_id = ?',
+      [startDate, _userId],
+    );
 
     final monthMap = <String, Map<String, double>>{};
     for (final r in rows) {
-      final monthKey = r['month'] as String;
-      final type = r['type'] as String;
-      final amount = (r['amount'] as num).toDouble();
+      final desc = await _decrypt(r['description_name'] as String?);
+      if (desc != null && _isTransferDescription(desc)) continue;
+
+      final monthKey = (r['date'] as String).substring(0, 7);
+      final type = r['transaction_type'] as String;
+      final amount = await _decryptAmount(r['amount'] as String?);
       final txnCurrency = (r['currency'] as String?) ?? 'EUR';
 
       double convertedAmount;
@@ -1162,15 +1506,14 @@ class DatabaseManager {
       }
     }
 
-    final acctRows = await db.rawQuery('''
-      SELECT COALESCE(a.starting_amount, 0) as starting_amount,
-             COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-      FROM accounts a WHERE a.user_id = ?
-    ''', [_userId]);
+    final acctRows = await db.rawQuery(
+      'SELECT starting_amount, currency FROM accounts WHERE user_id = ?',
+      [_userId],
+    );
 
     double startingTotal = 0.0;
     for (final row in acctRows) {
-      final amount = (row['starting_amount'] as num?)?.toDouble() ?? 0.0;
+      final amount = await _decryptAmount(row['starting_amount'] as String?);
       final acctCurrency = (row['currency'] as String?) ?? 'EUR';
       if (amount == 0) continue;
       if (acctCurrency == targetCurrency) {
@@ -1188,27 +1531,26 @@ class DatabaseManager {
       final nextMonth = DateTime(month.year, month.month + 1, 1);
       final endDate = nextMonth.toIso8601String().substring(0, 10);
 
-      final rows = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) as total,
-               COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE t.date < ? AND t.user_id = ?
-        GROUP BY a.currency
-      ''', [endDate, _userId]);
+      final txnRows = await db.rawQuery(
+        'SELECT t.amount, t.transaction_type, '
+        'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
+        'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
+        'WHERE t.date < ? AND t.user_id = ?',
+        [endDate, _userId],
+      );
 
       double totalValue = startingTotal;
-      for (final row in rows) {
-        final amount = (row['total'] as num?)?.toDouble() ?? 0.0;
+      for (final row in txnRows) {
+        final amount = await _decryptAmount(row['amount'] as String?);
+        final type = row['transaction_type'] as String;
         final txnCurrency = (row['currency'] as String?) ?? 'EUR';
+        final signedAmount = type == 'income' ? amount : (type == 'expense' ? -amount : 0.0);
 
         if (txnCurrency == targetCurrency) {
-          totalValue += amount;
+          totalValue += signedAmount;
         } else {
           final rate = await getExchangeRate(txnCurrency, targetCurrency);
-          totalValue += amount * (rate ?? 1.0);
+          totalValue += signedAmount * (rate ?? 1.0);
         }
       }
 
@@ -1240,22 +1582,18 @@ class DatabaseManager {
         .substring(0, 10);
     final endDate = now.toIso8601String().substring(0, 10);
 
-    final rows = await db.rawQuery('''
-      SELECT LOWER(COALESCE(d.name, 'Uncategorized')) as category,
-             SUM(t.amount) as amount,
-             COALESCE(NULLIF(t.currency, ''), 'EUR') as currency
-      FROM transactions t
-      LEFT JOIN descriptions d ON t.description_id = d.id
-      WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-      GROUP BY category, t.currency
-      ORDER BY amount DESC
-    ''', [transactionType, startDate, endDate, _userId]);
+    final rows = await db.rawQuery(
+      'SELECT t.amount, t.currency, d.name as description_name '
+      'FROM transactions t LEFT JOIN descriptions d ON t.description_id = d.id '
+      'WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?',
+      [transactionType, startDate, endDate, _userId],
+    );
 
     final result = <String, double>{};
     for (final row in rows) {
-      final category = row['category'] as String;
+      final category = await _decrypt(row['description_name'] as String?) ?? 'Uncategorized';
       if (_isTransferDescription(category)) continue;
-      final rawAmount = (row['amount'] as num).toDouble();
+      final rawAmount = await _decryptAmount(row['amount'] as String?);
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
 
       double convertedAmount;
@@ -1281,22 +1619,18 @@ class DatabaseManager {
     final endDate = now.toIso8601String().substring(0, 10);
     final startDate = now.subtract(Duration(days: days)).toIso8601String().substring(0, 10);
 
-    final rows = await db.rawQuery('''
-      SELECT LOWER(COALESCE(d.name, 'Uncategorized')) as category,
-             SUM(t.amount) as amount,
-             COALESCE(NULLIF(t.currency, ''), 'EUR') as currency
-      FROM transactions t
-      LEFT JOIN descriptions d ON t.description_id = d.id
-      WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-      GROUP BY category, t.currency
-      ORDER BY amount DESC
-    ''', [transactionType, startDate, endDate, _userId]);
+    final rows = await db.rawQuery(
+      'SELECT t.amount, t.currency, d.name as description_name '
+      'FROM transactions t LEFT JOIN descriptions d ON t.description_id = d.id '
+      'WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?',
+      [transactionType, startDate, endDate, _userId],
+    );
 
     final result = <String, double>{};
     for (final row in rows) {
-      final category = row['category'] as String;
+      final category = await _decrypt(row['description_name'] as String?) ?? 'Uncategorized';
       if (_isTransferDescription(category)) continue;
-      final rawAmount = (row['amount'] as num).toDouble();
+      final rawAmount = await _decryptAmount(row['amount'] as String?);
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
 
       double convertedAmount;
@@ -1320,15 +1654,23 @@ class DatabaseManager {
     final endMonth = DateTime(now.year, now.month, 1);
     final endDate = endMonth.toIso8601String().substring(0, 10);
 
-    final result = await db.rawQuery('''
-      SELECT COALESCE(SUM(CASE WHEN transaction_type = 'income' THEN amount
-                               WHEN transaction_type = 'expense' THEN -amount
-                               ELSE 0 END), 0) as total
-      FROM transactions
-      WHERE date >= ? AND date < ? AND user_id = ?
-    ''', [startDate, endDate, _userId]);
+    final rows = await db.rawQuery(
+      'SELECT amount, transaction_type FROM transactions '
+      'WHERE date >= ? AND date < ? AND user_id = ?',
+      [startDate, endDate, _userId],
+    );
 
-    return (result.first['total'] as num?)?.toDouble() ?? 0.0;
+    double total = 0.0;
+    for (final row in rows) {
+      final amount = await _decryptAmount(row['amount'] as String?);
+      final type = row['transaction_type'] as String;
+      if (type == 'income') {
+        total += amount;
+      } else if (type == 'expense') {
+        total -= amount;
+      }
+    }
+    return total;
   }
 
   // ==================== SETTINGS ====================

@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -5,8 +8,10 @@ import '../../../core/i18n/translator.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../../core/providers/language_provider.dart';
+import '../../../core/providers/settings_provider.dart';
 import '../../../core/database/database_manager.dart';
 import '../../../core/services/auth_service.dart';
+import '../../../core/services/encryption_service.dart';
 import '../../../core/theme/peadra_colors.dart';
 import '../../dashboard/presentation/dashboard_shell.dart';
 
@@ -70,7 +75,7 @@ class _LoginViewState extends State<LoginView> {
     });
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     setState(() {
       _isLoading = true;
       _error = null;
@@ -78,19 +83,21 @@ class _LoginViewState extends State<LoginView> {
 
     try {
       if (_isLoginMode) {
-        _login();
+        await _login();
       } else {
-        _register();
+        await _register();
       }
     } catch (e) {
-      setState(() {
-        _error = e.toString();
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
+      }
     }
   }
 
-  void _login() async {
+  Future<void> _login() async {
     final username = _selectedUser ?? _usernameController.text.trim();
     final password = _passwordController.text;
 
@@ -118,10 +125,10 @@ class _LoginViewState extends State<LoginView> {
       return;
     }
 
-    _onLoginSuccess(userId, username);
+    await _onLoginSuccess(userId, username, password);
   }
 
-  void _register() async {
+  Future<void> _register() async {
     final username = _usernameController.text.trim();
     final password = _passwordController.text;
     final confirm = _confirmController.text;
@@ -148,34 +155,47 @@ class _LoginViewState extends State<LoginView> {
       return;
     }
 
-    try {
-      final userId = await _authService.registerUser(username, password);
-      _onLoginSuccess(userId, username);
-    } catch (e) {
-      setState(() {
-        _error = e.toString();
-        _isLoading = false;
-      });
-    }
+    final userId = await _authService.registerUser(username, password);
+    await _onLoginSuccess(userId, username, password);
   }
 
-  void _onLoginSuccess(int userId, String username) async {
+  Future<void> _onLoginSuccess(int userId, String username, String password) async {
     final authProvider = context.read<AuthProvider>();
     final themeProvider = context.read<ThemeProvider>();
     final langProvider = context.read<LanguageProvider>();
+    final settingsProvider = context.read<SettingsProvider>();
 
     authProvider.login(userId, username, _db);
+    await _setupEncryption(password);
+
     await themeProvider.loadFromSettings(_db);
     await langProvider.loadFromSettings(_db);
+    await settingsProvider.loadFromSettings(_db);
 
     await _db.setAppSetting('last_username', username);
     await _db.setAppSetting('last_language', langProvider.language);
 
     _db.fetchExchangeRates();
 
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const DashboardShell()),
-    );
+    if (mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const DashboardShell()),
+      );
+    }
+  }
+
+  Future<void> _setupEncryption(String password) async {
+    final saltStr = await _db.getSetting('encryption_salt');
+    Uint8List salt;
+    if (saltStr == null) {
+      salt = EncryptionService.generateSalt();
+      await _db.setSetting('encryption_salt', base64Encode(salt));
+    } else {
+      salt = base64Decode(saltStr);
+    }
+    final key = await EncryptionService.deriveKey(password, salt);
+    await _db.setEncryptionKey(key);
+    await _db.migrateToEncryption();
   }
 
   @override

@@ -64,15 +64,17 @@ class _DashboardShellState extends State<DashboardShell> {
   }
 
   Future<void> _loadTotalPatrimony() async {
-    final db = DatabaseManager.instance;
-    if (db.userId == null) return;
-    final currency = context.read<SettingsProvider>().currency;
-    final total = await db.getTotalPatrimony(targetCurrency: currency);
-    if (mounted) {
-      setState(() {
-        _totalPatrimony = total;
-      });
-    }
+    try {
+      final db = DatabaseManager.instance;
+      if (db.userId == null) return;
+      final currency = context.read<SettingsProvider>().currency;
+      final total = await db.getTotalPatrimony(targetCurrency: currency);
+      if (mounted) {
+        setState(() {
+          _totalPatrimony = total;
+        });
+      }
+    } catch (_) {}
   }
 
   void _onNavTap(int index) {

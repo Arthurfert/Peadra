@@ -56,70 +56,91 @@ class _DashboardViewState extends State<DashboardView> {
   }
 
   Future<void> _loadData() async {
-    final currency = context.read<SettingsProvider>().currency;
-    final monthMode = context.read<SettingsProvider>().monthMode;
-    final isRolling = monthMode == 'rolling';
+    try {
+      final currency = context.read<SettingsProvider>().currency;
+      final monthMode = context.read<SettingsProvider>().monthMode;
+      final isRolling = monthMode == 'rolling';
 
-    final results = await Future.wait([
-      _db.getBalance(targetCurrency: currency),
-      _db.getSavingsTotal(targetCurrency: currency),
-      _db.getTotalPatrimony(targetCurrency: currency),
-      isRolling
-          ? _db.getRollingSummary()
-          : _db.getMonthlySummary(targetCurrency: currency),
-      _db.getAccountsDistribution(targetCurrency: currency),
-      _db.getCashFlowData(months: _selectedMonths, targetCurrency: currency),
-      _db.getAssetsHistory(months: _selectedMonths, targetCurrency: currency),
-      isRolling
-          ? _db.getRollingMonthDistribution(
-              transactionType: 'expense', targetCurrency: currency)
-          : _db.getCurrentMonthDistribution(
-              transactionType: 'expense', targetCurrency: currency),
-      isRolling
-          ? _db.getRollingMonthDistribution(
-              transactionType: 'income', targetCurrency: currency)
-          : _db.getCurrentMonthDistribution(
-              transactionType: 'income', targetCurrency: currency),
-      _db.getMonthlySummary(
-          year: DateTime.now().year,
-          month: DateTime.now().month - 1,
-          targetCurrency: currency),
-    ]);
+      final now = DateTime.now();
+      final results = await Future.wait([
+        _safeQuery(() => _db.getBalance(targetCurrency: currency)),
+        _safeQuery(() => _db.getSavingsTotal(targetCurrency: currency)),
+        _safeQuery(() => _db.getTotalPatrimony(targetCurrency: currency)),
+        _safeQuery(() => isRolling
+            ? _db.getRollingSummary()
+            : _db.getMonthlySummary(targetCurrency: currency)),
+        _safeQuery(() => _db.getAccountsDistribution(targetCurrency: currency)),
+        _safeQuery(() => _db.getCashFlowData(months: _selectedMonths, targetCurrency: currency)),
+        _safeQuery(() => _db.getAssetsHistory(months: _selectedMonths, targetCurrency: currency)),
+        _safeQuery(() => isRolling
+            ? _db.getRollingMonthDistribution(
+                transactionType: 'expense', targetCurrency: currency)
+            : _db.getCurrentMonthDistribution(
+                transactionType: 'expense', targetCurrency: currency)),
+        _safeQuery(() => isRolling
+            ? _db.getRollingMonthDistribution(
+                transactionType: 'income', targetCurrency: currency)
+            : _db.getCurrentMonthDistribution(
+                transactionType: 'income', targetCurrency: currency)),
+        _safeQuery(() => _db.getMonthlySummary(
+            year: now.year,
+            month: now.month - 1,
+            targetCurrency: currency)),
+      ]);
 
-    if (mounted) {
-      setState(() {
-        _balance = results[0] as double;
-        _savings = results[1] as double;
-        _totalAssets = results[2] as double;
-        _monthlySummary = results[3] as Map<String, double>;
-        _accountsDistribution = results[4] as List<Map<String, dynamic>>;
-        _cashFlowData = results[5] as List<Map<String, dynamic>>;
-        _assetsHistory = results[6] as List<Map<String, dynamic>>;
-        _monthlyExpenses = results[7] as Map<String, double>;
-        _monthlyIncomes = results[8] as Map<String, double>;
-        final prevSummary = results[9] as Map<String, double>;
-        _previousBalance = prevSummary['balance'] ?? 0;
-        _previousIncome = prevSummary['income'] ?? 0;
-        _previousExpenses = prevSummary['expenses'] ?? 0;
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _balance = (results[0] as double?) ?? 0;
+          _savings = (results[1] as double?) ?? 0;
+          _totalAssets = (results[2] as double?) ?? 0;
+          _monthlySummary = (results[3] as Map<String, double>?) ?? {};
+          _accountsDistribution = (results[4] as List<Map<String, dynamic>>?) ?? [];
+          _cashFlowData = (results[5] as List<Map<String, dynamic>>?) ?? [];
+          _assetsHistory = (results[6] as List<Map<String, dynamic>>?) ?? [];
+          _monthlyExpenses = (results[7] as Map<String, double>?) ?? {};
+          _monthlyIncomes = (results[8] as Map<String, double>?) ?? {};
+          final prevSummary = (results[9] as Map<String, double>?) ?? {};
+          _previousBalance = prevSummary['balance'] ?? 0;
+          _previousIncome = prevSummary['income'] ?? 0;
+          _previousExpenses = prevSummary['expenses'] ?? 0;
+          _loading = false;
+        });
+      }
+    } catch (e, stack) {
+      debugPrint('[DashboardView] _loadData error: $e\n$stack');
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  Future<dynamic> _safeQuery<T>(Future<T> Function() query) async {
+    try {
+      return await query();
+    } catch (e, stack) {
+      debugPrint('[DashboardView] query failed: $e\n$stack');
+      return null;
     }
   }
 
   Future<void> _loadChartData() async {
-    final currency = context.read<SettingsProvider>().currency;
+    try {
+      final currency = context.read<SettingsProvider>().currency;
 
-    final results = await Future.wait([
-      _db.getCashFlowData(months: _selectedMonths, targetCurrency: currency),
-      _db.getAssetsHistory(months: _selectedMonths, targetCurrency: currency),
-    ]);
+      final results = await Future.wait([
+        _db.getCashFlowData(months: _selectedMonths, targetCurrency: currency),
+        _db.getAssetsHistory(months: _selectedMonths, targetCurrency: currency),
+      ]);
 
-    if (mounted) {
-      setState(() {
-        _cashFlowData = results[0];
-        _assetsHistory = results[1];
-      });
-    }
+      if (mounted) {
+        setState(() {
+          _cashFlowData = results[0];
+          _assetsHistory = results[1];
+        });
+      }
+    } catch (_) {}
   }
 
   Widget _buildStatCards(PeadraColors colors, String currency) {

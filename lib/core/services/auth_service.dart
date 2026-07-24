@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 
@@ -96,7 +95,7 @@ class AuthService {
 
     final saltStr = await _db.getSetting('encryption_salt');
     if (saltStr != null && _db.isEncrypted) {
-      final salt = Uint8List.fromList(saltStr.codeUnits);
+      final salt = base64Decode(saltStr);
       final newKey = await EncryptionService.deriveKey(newPassword, salt);
       await _db.reEncryptData(newKey);
     }

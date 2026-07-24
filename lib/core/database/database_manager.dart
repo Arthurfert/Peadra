@@ -871,7 +871,7 @@ class DatabaseManager {
     }
 
     final txnRows = await db.rawQuery(
-      'SELECT t.amount, t.transaction_type, COALESCE(NULLIF(a.currency, ""), "EUR") as currency '
+      'SELECT t.amount, t.transaction_type, COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
       'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id WHERE t.user_id = ?',
       [_userId],
     );
@@ -915,7 +915,7 @@ class DatabaseManager {
 
     final txnRows = await db.rawQuery(
       'SELECT t.amount, t.transaction_type, t.account_id, '
-      'COALESCE(NULLIF(a.currency, ""), "EUR") as currency, a.type as account_type '
+      'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency, a.type as account_type '
       'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id WHERE t.user_id = ?',
       [_userId],
     );
@@ -963,7 +963,7 @@ class DatabaseManager {
 
     final txnRows = await db.rawQuery(
       'SELECT t.amount, t.transaction_type, '
-      'COALESCE(NULLIF(a.currency, ""), "EUR") as currency '
+      'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
       'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
       'WHERE a.type = ? AND t.user_id = ?',
       ['savings', _userId],
@@ -1008,7 +1008,7 @@ class DatabaseManager {
 
     final txnRows = await db.rawQuery(
       'SELECT t.amount, t.transaction_type, '
-      'COALESCE(NULLIF(a.currency, ""), "EUR") as currency '
+      'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
       'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
       'WHERE t.date < ? AND t.user_id = ?',
       [dateLimit, _userId],
@@ -1053,7 +1053,7 @@ class DatabaseManager {
 
     final txnRows = await db.rawQuery(
       'SELECT t.amount, t.transaction_type, t.account_id, '
-      'COALESCE(NULLIF(a.currency, ""), "EUR") as currency, a.type as account_type '
+      'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency, a.type as account_type '
       'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
       'WHERE t.date < ? AND t.user_id = ?',
       [dateLimit, _userId],
@@ -1102,7 +1102,7 @@ class DatabaseManager {
 
     final txnRows = await db.rawQuery(
       'SELECT t.amount, t.transaction_type, '
-      'COALESCE(NULLIF(a.currency, ""), "EUR") as currency '
+      'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
       'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
       'WHERE t.date < ? AND a.type = ? AND t.user_id = ?',
       [dateLimit, 'savings', _userId],
@@ -1136,7 +1136,7 @@ class DatabaseManager {
     final db = await database;
     final txnRows = await db.rawQuery(
       'SELECT t.amount, t.transaction_type, '
-      'COALESCE(NULLIF(a.currency, ""), "EUR") as currency, a.type as account_type '
+      'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency, a.type as account_type '
       'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
       'WHERE t.date >= ? AND t.date < ? AND t.user_id = ?',
       [startDate, endDate, _userId],
@@ -1178,7 +1178,7 @@ class DatabaseManager {
     final db = await database;
     final txnRows = await db.rawQuery(
       'SELECT t.amount, t.transaction_type, '
-      'COALESCE(NULLIF(a.currency, ""), "EUR") as currency, a.type as account_type '
+      'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency, a.type as account_type '
       'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
       'WHERE t.date >= ? AND t.date <= ? AND t.user_id = ?',
       [startDate, endDate, _userId],
@@ -1442,7 +1442,7 @@ class DatabaseManager {
     final rows = await db.rawQuery(
       'SELECT t.amount, t.transaction_type, t.date, '
       'd.name as description_name, '
-      'COALESCE(NULLIF(a.currency, ""), "EUR") as currency '
+      'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
       'FROM transactions t '
       'LEFT JOIN accounts a ON t.account_id = a.id '
       'LEFT JOIN descriptions d ON t.description_id = d.id '
@@ -1533,7 +1533,7 @@ class DatabaseManager {
 
       final txnRows = await db.rawQuery(
         'SELECT t.amount, t.transaction_type, '
-        'COALESCE(NULLIF(a.currency, ""), "EUR") as currency '
+        'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
         'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
         'WHERE t.date < ? AND t.user_id = ?',
         [endDate, _userId],

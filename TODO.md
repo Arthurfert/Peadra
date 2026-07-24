@@ -13,12 +13,11 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-- Re-introduced logs and their export. Logs are focused on user's actions rather than user's data.
-- Ability to set a starting amount for your account (to avoid polluting transactions).
+
 
 ### Fixed
 
-- Fix the hidden `Total Patrimony` stat in dashboard on mobile
+- Fixed the update manager on mobile not detecting new version + update style on mobile
 
 ## Future Improvements
 

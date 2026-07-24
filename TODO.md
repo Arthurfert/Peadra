@@ -19,7 +19,7 @@ This document presents future changes and wanted improvements.
 
 - Fixed the update manager on mobile not detecting new version + update style on mobile
 - Fixed date picker localisation, to be translated to the user's language
-- minor fixes
+- Fixed category view charts not appearing
 
 ## Future Improvements
 

@@ -4,8 +4,6 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:path/path.dart' as p;
-import 'package:open_file/open_file.dart';
 
 import '../database/database_manager.dart';
 import 'log_service.dart';
@@ -29,7 +27,7 @@ class UpdateInfo {
     for (final asset in assets) {
       final name = asset['name'] ?? '';
       final url = asset['browser_download_url'] ?? '';
-      if (Platform.isAndroid && name.endsWith('.apk')) {
+      if (name.endsWith('.apk')) {
         downloadUrl = url;
         break;
       }
@@ -71,19 +69,28 @@ class UpdateService {
           'https://api.github.com/repos/Arthurfert/Peadra/releases/latest');
       final response = await http.get(url).timeout(const Duration(seconds: 10));
 
+      LogService().log('Update check: HTTP ${response.statusCode}');
       if (response.statusCode != 200) return null;
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final assets = data['assets'] as List<dynamic>? ?? [];
+      LogService().log('Update check: ${assets.length} asset(s), tag=${data['tag_name']}');
+      for (final a in assets) {
+        LogService().log('  Asset: ${a['name']}');
+      }
+
       final update = UpdateInfo.fromJson(data);
+      LogService().log('Update check: parsed version="${update.version}", downloadUrl=${update.downloadUrl}');
 
       final current = await getCurrentVersion();
+      LogService().log('Update check: current="$current"');
       if (update.version.isEmpty || current.isEmpty) return null;
 
-      if (_isNewerVersion(update.version, current)) {
-        LogService().log('Update available: ${update.version} (current: $current)');
+      final isNewer = _isNewerVersion(update.version, current);
+      LogService().log('Update check: isNewer=$isNewer');
+      if (isNewer) {
         return update;
       }
-      LogService().log('App is up to date: $current');
       return null;
     } catch (e) {
       LogService().warn('Update check failed: $e');
@@ -115,47 +122,9 @@ class UpdateService {
     return false;
   }
 
-  /// Open download URL in browser (desktop).
+  /// Open download URL in browser.
   Future<void> openDownloadUrl(String url) async {
     final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    }
-  }
-
-  /// Download APK and install it (Android).
-  Future<String> downloadAndInstall({
-    required String url,
-    required void Function(double progress) onProgress,
-  }) async {
-    final dir = Directory('/storage/emulated/0/Download');
-    if (!await dir.exists()) {
-      await dir.create(recursive: true);
-    }
-
-    final fileName = 'Peadra-${DateTime.now().millisecondsSinceEpoch}.apk';
-    final filePath = p.join(dir.path, fileName);
-
-    final response = await http.Client().send(
-      http.Request('GET', Uri.parse(url)),
-    );
-
-    final totalBytes = response.contentLength ?? 0;
-    var receivedBytes = 0;
-    final sink = File(filePath).openWrite();
-
-    await for (final chunk in response.stream) {
-      sink.add(chunk);
-      receivedBytes += chunk.length;
-      if (totalBytes > 0) {
-        onProgress(receivedBytes / totalBytes);
-      }
-    }
-
-    await sink.flush();
-    await sink.close();
-
-    await OpenFile.open(filePath);
-    return filePath;
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 }

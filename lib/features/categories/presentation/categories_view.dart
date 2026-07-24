@@ -194,7 +194,7 @@ class _CategoriesViewState extends State<CategoriesView> {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                  color: isSelected ? colors.text : colors.textSecondary,
+                  color: isSelected ? Colors.white : colors.textSecondary,
                 ),
               ),
             ),
@@ -359,8 +359,7 @@ class _CategoriesViewState extends State<CategoriesView> {
 
   ({List<FlSpot> spots, List<String> labels}) _buildSpotsForDescription(
       String description) {
-    final descKey = description.toLowerCase();
-    final descData = _monthlyData[descKey];
+    final descData = _monthlyData[description];
     if (descData == null || descData.isEmpty) {
       return (spots: <FlSpot>[], labels: <String>[]);
     }

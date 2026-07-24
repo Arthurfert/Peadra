@@ -1,11 +1,7 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/i18n/translator.dart';
-import '../../../shared/widgets/peadra_notification.dart';
-import '../../../core/services/log_service.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/theme_provider.dart';
@@ -36,7 +32,6 @@ class _DashboardShellState extends State<DashboardShell> {
   UpdateInfo? _availableUpdate;
   late final List<Widget> _views;
   bool _updateBannerDismissed = false;
-  bool _bannerDownloading = false;
 
   @override
   void initState() {
@@ -58,26 +53,6 @@ class _DashboardShellState extends State<DashboardShell> {
     }
   }
 
-  Future<void> _downloadAndInstallBanner() async {
-    setState(() => _bannerDownloading = true);
-    try {
-      await UpdateService().downloadAndInstall(
-        url: _availableUpdate!.downloadUrl,
-        onProgress: (_) {},
-      );
-      LogService().log('Update downloaded and installed: ${_availableUpdate!.version}');
-      if (mounted) {
-        PeadraNotification.show(context, message: Translator.t('param_update_status_installing'));
-      }
-    } catch (e) {
-      if (mounted) {
-        PeadraNotification.show(context, message: Translator.t('param_update_status_error', params: {'error': e.toString()}), type: NotificationType.error);
-      }
-    } finally {
-      if (mounted) setState(() => _bannerDownloading = false);
-    }
-  }
-
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -89,15 +64,17 @@ class _DashboardShellState extends State<DashboardShell> {
   }
 
   Future<void> _loadTotalPatrimony() async {
-    final db = DatabaseManager.instance;
-    if (db.userId == null) return;
-    final currency = context.read<SettingsProvider>().currency;
-    final total = await db.getTotalPatrimony(targetCurrency: currency);
-    if (mounted) {
-      setState(() {
-        _totalPatrimony = total;
-      });
-    }
+    try {
+      final db = DatabaseManager.instance;
+      if (db.userId == null) return;
+      final currency = context.read<SettingsProvider>().currency;
+      final total = await db.getTotalPatrimony(targetCurrency: currency);
+      if (mounted) {
+        setState(() {
+          _totalPatrimony = total;
+        });
+      }
+    } catch (_) {}
   }
 
   void _onNavTap(int index) {
@@ -128,6 +105,7 @@ class _DashboardShellState extends State<DashboardShell> {
   }
 
   Widget _buildUpdateBanner(PeadraColors colors) {
+    final isPhone = ResponsiveLayout.isPhone(context);
     return Material(
       color: colors.success.withValues(alpha: 0.1),
       child: SafeArea(
@@ -149,37 +127,28 @@ class _DashboardShellState extends State<DashboardShell> {
                   ),
                 ),
               ),
-              TextButton(
-                onPressed: () => _showChangelogDialog(colors),
-                child: Text(
-                  Translator.t('param_see_whats_new'),
-                  style: TextStyle(
-                    color: colors.success,
-                    fontWeight: FontWeight.w500,
+              if (!isPhone) ...[
+                TextButton(
+                  onPressed: () => _showChangelogDialog(colors),
+                  child: Text(
+                    Translator.t('param_see_whats_new'),
+                    style: TextStyle(
+                      color: colors.success,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
-              ),
-              TextButton(
-                onPressed: _bannerDownloading
-                    ? null
-                    : () {
-                        final isMobile = Platform.isAndroid || Platform.isIOS;
-                        if (isMobile) {
-                          _downloadAndInstallBanner();
-                        } else {
-                          UpdateService().openDownloadUrl(_availableUpdate!.downloadUrl);
-                        }
-                      },
-                child: Text(
-                  _bannerDownloading
-                      ? Translator.t('param_update_status_downloading', params: {'percent': ''})
-                      : Translator.t('param_install_update'),
-                  style: TextStyle(
-                    color: colors.success,
-                    fontWeight: FontWeight.w600,
+                TextButton(
+                  onPressed: () => UpdateService().openDownloadUrl(_availableUpdate!.downloadUrl),
+                  child: Text(
+                    Translator.t('param_install_update'),
+                    style: TextStyle(
+                      color: colors.success,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
-              ),
+              ],
               IconButton(
                 icon:
                     Icon(Icons.close, color: colors.placeholderColor, size: 18),

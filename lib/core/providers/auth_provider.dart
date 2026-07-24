@@ -31,6 +31,7 @@ class AuthProvider extends ChangeNotifier {
     _userId = null;
     _username = '';
     _isAuthenticated = false;
+    db.clearEncryptionKey();
     notifyListeners();
   }
 }

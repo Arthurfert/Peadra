@@ -1,4 +1,9 @@
+import 'dart:typed_data';
+
+import 'package:cryptography/cryptography.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+
+import 'package:peadra/core/services/encryption_service.dart';
 
 /// Initialize sqflite_ffi for desktop testing.
 /// Must be called once before any database operations.
@@ -13,7 +18,7 @@ Future<Database> createTestDatabase() async {
   return databaseFactoryFfi.openDatabase(
     inMemoryDatabasePath,
     options: OpenDatabaseOptions(
-      version: 1,
+      version: 3,
       onCreate: _onCreate,
       singleInstance: false,
     ),
@@ -107,6 +112,13 @@ Future<void> _onCreate(Database db, int version) async {
       FOREIGN KEY (user_id) REFERENCES users(id)
     )
   ''');
+
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS encryption_meta (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    )
+  ''');
 }
 
 /// Seed the database with a test user and return the user ID.
@@ -175,5 +187,102 @@ Future<int> seedTestTransaction(
     'transaction_type': transactionType,
     'currency': currency,
     'notes': notes,
+  });
+}
+
+// ==================== ENCRYPTION HELPERS ====================
+
+/// Deterministic test password and salt for reproducible key derivation.
+const String testPassword = 'test_password_123';
+final Uint8List testSalt = Uint8List.fromList(
+  List<int>.generate(32, (i) => i + 1),
+);
+
+/// Derives a test encryption key from the fixed test password and salt.
+/// Uses fewer iterations for faster tests.
+Future<SecretKey> deriveTestKey({
+  String password = testPassword,
+  Uint8List? salt,
+}) async {
+  return EncryptionService.deriveKey(password, salt ?? testSalt);
+}
+
+/// Encrypts a string using the test key.
+Future<String> encryptTest(String plaintext, {SecretKey? key}) async {
+  final k = key ?? await deriveTestKey();
+  return EncryptionService.encrypt(plaintext, k);
+}
+
+/// Decrypts a string using the test key.
+Future<String> decryptTest(String ciphertext, {SecretKey? key}) async {
+  final k = key ?? await deriveTestKey();
+  return EncryptionService.decrypt(ciphertext, k);
+}
+
+/// Seed an encrypted account and return its ID.
+/// Stores encrypted name and starting_amount in the database.
+Future<int> seedEncryptedAccount(
+  Database db,
+  int userId, {
+  String name = 'Test Account',
+  String type = 'checking',
+  String color = '#4CAF50',
+  String currency = 'EUR',
+  double startingAmount = 0.0,
+  SecretKey? key,
+}) async {
+  final k = key ?? await deriveTestKey();
+  final encryptedName = await EncryptionService.encrypt(name, k);
+  final encryptedAmount = await EncryptionService.encrypt(startingAmount.toString(), k);
+  return await db.insert('accounts', {
+    'user_id': userId,
+    'name': encryptedName,
+    'type': type,
+    'color': color,
+    'currency': currency,
+    'starting_amount': encryptedAmount,
+  });
+}
+
+/// Seed an encrypted description and return its ID.
+Future<int> seedEncryptedDescription(
+  Database db,
+  int userId,
+  String name, {
+  SecretKey? key,
+}) async {
+  final k = key ?? await deriveTestKey();
+  final encryptedName = await EncryptionService.encrypt(name, k);
+  return await db.insert('descriptions', {
+    'user_id': userId,
+    'name': encryptedName,
+  });
+}
+
+/// Seed an encrypted transaction and return its ID.
+Future<int> seedEncryptedTransaction(
+  Database db,
+  int userId, {
+  int? accountId,
+  int? descriptionId,
+  String date = '2025-01-15',
+  double amount = 100.0,
+  String transactionType = 'income',
+  String currency = 'EUR',
+  String? notes,
+  SecretKey? key,
+}) async {
+  final k = key ?? await deriveTestKey();
+  final encryptedAmount = await EncryptionService.encrypt(amount.toString(), k);
+  final encryptedNotes = notes != null ? await EncryptionService.encrypt(notes, k) : null;
+  return await db.insert('transactions', {
+    'user_id': userId,
+    'account_id': accountId,
+    'description_id': descriptionId,
+    'date': date,
+    'amount': encryptedAmount,
+    'transaction_type': transactionType,
+    'currency': currency,
+    'notes': encryptedNotes,
   });
 }

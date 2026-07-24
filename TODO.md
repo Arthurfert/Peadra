@@ -13,12 +13,13 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-- Re-introduced logs and their export. Logs are focused on user's actions rather than user's data.
-- Ability to set a starting amount for your account (to avoid polluting transactions).
+- Sensitive data AES encryption
 
 ### Fixed
 
-- Fix the hidden `Total Patrimony` stat in dashboard on mobile
+- Fixed the update manager on mobile not detecting new version + update style on mobile
+- Fixed date picker localisation, to be translated to the user's language
+- Fixed category view charts not appearing
 
 ## Future Improvements
 
@@ -32,7 +33,7 @@ This document presents future changes and wanted improvements.
 **UX :**
 - Onboarding ?
 - More translations
-- Upgrade existing translation, including a french date picker
+- Upgrade existing translation
 - Upgrade the `import data` feature
 - Ability to set regular transactions (weekly, monthly, annualy...)
 - More parameters : 

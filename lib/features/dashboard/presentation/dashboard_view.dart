@@ -347,7 +347,7 @@ class _DashboardViewState extends State<DashboardView> {
                   fontWeight:
                       isSelected ? FontWeight.w600 : FontWeight.w500,
                   color:
-                      isSelected ? colors.text : colors.textSecondary,
+                      isSelected ? Colors.white : colors.textSecondary,
                 ),
               ),
             ),

@@ -194,7 +194,7 @@ class _CategoriesViewState extends State<CategoriesView> {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                  color: isSelected ? colors.text : colors.textSecondary,
+                  color: isSelected ? Colors.white : colors.textSecondary,
                 ),
               ),
             ),

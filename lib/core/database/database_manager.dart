@@ -186,6 +186,13 @@ class DatabaseManager {
         FOREIGN KEY (user_id) REFERENCES users(id)
       )
     ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS encryption_meta (
+        key TEXT PRIMARY KEY,
+        value TEXT
+      )
+    ''');
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {

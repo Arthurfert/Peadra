@@ -22,8 +22,8 @@
 
 Peadra ("*wealth*" in Breton) is a secure, privacy-focused cross-platform application designed to streamline personal finance and asset management.
 
-Built with **Flutter & Dart**, it runs natively on **Linux and Windows** - *Android, iOS and MacOS support will arrive*.  
-Your financial data stays 100% local.  
+Built with **Flutter & Dart**, it runs natively on **Linux, Windows and Android**.  
+Your financial data stays **100% local**.  
 Track your assets, manage transactions across multiple accounts and currencies, and keep full control of your finances.
 
 ## Features
@@ -41,12 +41,12 @@ Track your assets, manage transactions across multiple accounts and currencies, 
 - Transaction descriptions are auto-suggested from your history as you type.
 
 **Data Control & System**
-- Powered by a local SQLite database with **AES-256-GCM encryption**. Sensitive fields (amounts, names, notes) are encrypted at rest using a key derived from your password via PBKDF2 (100k iterations). Your financial data never leaves your machine.
-- Seamlessly import data via CSV files with automatic column detection and dialect parsing, and export your history in both JSON and CSV formats.
+- Powered by a local SQLite database with AES-256-GCM encryption. Sensitive fields (amounts, names, notes) are encrypted at rest using a key derived from your password (via PBKDF2, 100k iterations). Your financial data never leaves your machine.
+- Import data via CSV files with automatic column detection and dialect parsing, and export your history in CSV format.
 - Adaptive layout that works beautifully on phones, tablets, and desktops.
 - Four built-in themes - Light, Dark, Autumn, and Summer.
 
-**Supported platforms:** Linux, Windows, Android. (The Apple ecosystem is theoretically supported, but has'nt been tested).  
+**Supported platforms:** Linux, Windows, Android. (The Apple ecosystem is theoretically supported, but has not been tested).  
 **Supported languages:** English, French.
 
 > ...and many more features [to come](TODO.md) !
@@ -59,6 +59,8 @@ To install the app, please download your designated installer in the `Release` s
 > For **Windows users**, you will need to download and install the `peadra.cer` file (certificates for windows to trust Peadra).
 
 For developper's setup instructions, see [INSTALLATION.md](./INSTALLATION.md).
+
+*Due to Apple paywall and severe gatekeeping on apps on both Mac & IOS, Peadra is not available on those machines -unless you build it yourself.*
 
 ## Technologies
 
@@ -115,13 +117,6 @@ Peadra/
 ├── macos/                             # macOS platform files
 └── assets/                            # Images, icons
 ```
-
-**Adaptive pattern:** Screens with fundamentally different layouts use a
-`LayoutBuilder` entrypoint that delegates to separate desktop/mobile files.
-These share all business logic and state from the parent widget, keeping
-platform-specific UI isolated without code duplication. Smaller responsive
-tweaks (grid columns, padding) stay inline. The dashboard above illustrates
-this pattern — other features follow the same approach where needed.
 
 ## License
 

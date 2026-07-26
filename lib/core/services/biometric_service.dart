@@ -14,9 +14,7 @@ class BiometricService {
   Future<bool> isAvailable() async {
     if (Platform.isLinux) return false;
     try {
-      final canCheck = await _auth.canCheckBiometrics;
-      final isDeviceSupported = await _auth.isDeviceSupported();
-      return canCheck && isDeviceSupported;
+      return await _auth.isDeviceSupported();
     } on PlatformException {
       return false;
     }

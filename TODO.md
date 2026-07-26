@@ -18,12 +18,14 @@ This document presents future changes and wanted improvements.
 ### Fixed
 
 - Fixed the total assets widget not refreshing
+- Fixed the total savings stat card percentage not working
 
 ## Future Improvements
 
 **New features :**
 - Peer to peer sync between mobile and desktop
-- Biometry
+- Ability to set a *tag* to a transaction to sort them (like groceries, trip, taxes...)
+- Biometry login
 - Budget view, linked to categories
 - Tools view (composed interests, simulations...)
 - Compute trends/forecast

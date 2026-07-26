@@ -947,7 +947,7 @@ class DatabaseManager {
     return total;
   }
 
-  Future<double> getSavingsTotal({String targetCurrency = 'EUR'}) async {
+  Future<double> getSavingsTotal({String targetCurrency = 'EUR', String? before}) async {
     final db = await database;
 
     final acctRows = await db.rawQuery(
@@ -972,8 +972,9 @@ class DatabaseManager {
       'SELECT t.amount, t.transaction_type, '
       'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
       'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
-      'WHERE a.type = ? AND t.user_id = ?',
-      ['savings', _userId],
+      'WHERE a.type = ? AND t.user_id = ?'
+      '${before != null ? ' AND t.date < ?' : ''}',
+      before != null ? ['savings', _userId, before] : ['savings', _userId],
     );
 
     for (final row in txnRows) {

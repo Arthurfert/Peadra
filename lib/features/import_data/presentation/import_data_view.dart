@@ -433,6 +433,11 @@ class _ImportDataViewState extends State<ImportDataView> {
             Translator.t('import_mapping_hint'),
             style: TextStyle(fontSize: 11, color: colors.textSecondary),
           ),
+          const SizedBox(height: 4),
+          Text(
+            Translator.t('import_type_hint'),
+            style: TextStyle(fontSize: 11, color: colors.textSecondary),
+          ),
           const SizedBox(height: 8),
           Container(
             decoration: BoxDecoration(
@@ -603,6 +608,8 @@ class _ImportDataViewState extends State<ImportDataView> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 16, vertical: 4),
                           child: Text(e,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                   fontSize: 11, color: colors.textSecondary)),
                         ))

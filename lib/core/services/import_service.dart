@@ -545,7 +545,14 @@ class ImportService {
         }
       } catch (e) {
         skipped++;
-        errors.add('Row $rowNum: $e');
+        final msg = e.toString();
+        if (msg.contains('CHECK constraint failed') && msg.contains('transaction_type')) {
+          final match = RegExp(r"parameters:.*?,\s*([a-zA-Z]+)\)").firstMatch(msg);
+          final badType = match?.group(1) ?? '?';
+          errors.add('Row $rowNum: invalid type "$badType" (must be income, expense, or transfer)');
+        } else {
+          errors.add('Row $rowNum: ${e.runtimeType}');
+        }
       }
     }
 

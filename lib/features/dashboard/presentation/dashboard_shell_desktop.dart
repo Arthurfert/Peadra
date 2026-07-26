@@ -181,7 +181,7 @@ class DashboardShellDesktop extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Total Assets',
+                  Translator.t('dash_total_assets'),
                   style: TextStyle(
                     fontSize: 14,
                     color: colors.textSecondary,

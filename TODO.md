@@ -13,13 +13,11 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-- Sensitive data AES encryption
+
 
 ### Fixed
 
-- Fixed the update manager on mobile not detecting new version + update style on mobile
-- Fixed date picker localisation, to be translated to the user's language
-- Fixed category view charts not appearing
+- Fixed the total assets widget not refreshing
 
 ## Future Improvements
 

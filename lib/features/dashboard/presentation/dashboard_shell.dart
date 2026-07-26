@@ -28,21 +28,22 @@ class DashboardShell extends StatefulWidget {
 class _DashboardShellState extends State<DashboardShell> {
   int _selectedIndex = 0;
   double _totalPatrimony = 0;
+  int _dashboardRefreshSignal = 0;
   String _lastCurrency = '';
   UpdateInfo? _availableUpdate;
-  late final List<Widget> _views;
   bool _updateBannerDismissed = false;
+
+  List<Widget> get _views => [
+        DashboardView(refreshSignal: _dashboardRefreshSignal),
+        TransactionsView(onDataChanged: _loadTotalPatrimony),
+        const AccountsView(),
+        const CategoriesView(),
+        const ParametersView(showBackButton: false),
+      ];
 
   @override
   void initState() {
     super.initState();
-    _views = [
-      const DashboardView(),
-      TransactionsView(onDataChanged: _loadTotalPatrimony),
-      const AccountsView(),
-      const CategoriesView(),
-      const ParametersView(showBackButton: false),
-    ];
     _checkForUpdate();
   }
 
@@ -72,6 +73,7 @@ class _DashboardShellState extends State<DashboardShell> {
       if (mounted) {
         setState(() {
           _totalPatrimony = total;
+          _dashboardRefreshSignal++;
         });
       }
     } catch (_) {}

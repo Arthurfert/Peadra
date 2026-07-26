@@ -13,7 +13,9 @@ import 'dashboard_view_desktop.dart';
 import 'dashboard_view_mobile.dart';
 
 class DashboardView extends StatefulWidget {
-  const DashboardView({super.key});
+  final int refreshSignal;
+
+  const DashboardView({super.key, this.refreshSignal = 0});
 
   @override
   State<DashboardView> createState() => _DashboardViewState();
@@ -41,6 +43,14 @@ class _DashboardViewState extends State<DashboardView> {
   @override
   void initState() {
     super.initState();
+  }
+
+  @override
+  void didUpdateWidget(DashboardView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.refreshSignal != oldWidget.refreshSignal) {
+      _loadData();
+    }
   }
 
   @override

@@ -33,9 +33,9 @@ set(CMAKE_CXX_FLAGS_PROFILE "${CMAKE_CXX_FLAGS_RELEASE}")
 add_definitions(-DUNICODE -D_UNICODE)
 
 # Suppress MSVC STL1011 error for deprecated <experimental/coroutine>
-# (used by local_auth_windows plugin). CMAKE_CXX_FLAGS propagates to all
-# targets including those in add_subdirectory.
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNING")
+# (used by local_auth_windows plugin). add_compile_definitions propagates
+# to all targets in this directory and its subdirectories.
+add_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
 
 # Compilation settings that should be applied to most targets.
 #

@@ -13,7 +13,7 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-
+- Biometrics login
 
 ### Fixed
 
@@ -26,7 +26,6 @@ This document presents future changes and wanted improvements.
 **New features :**
 - Peer to peer sync between mobile and desktop
 - Ability to set a *tag* to a transaction to sort them (like groceries, trip, taxes...)
-- Biometry login
 - Budget view, linked to categories
 - Tools view (composed interests, simulations...)
 - Compute trends/forecast

@@ -11,6 +11,7 @@ import '../../../core/providers/language_provider.dart';
 import '../../../core/database/database_manager.dart';
 import '../../../core/theme/peadra_colors.dart';
 import '../../../core/services/auth_service.dart';
+import '../../../core/services/biometric_service.dart';
 import '../../../core/services/currency_service.dart';
 import '../../../core/services/export_service.dart';
 import '../../../core/services/update_service.dart';
@@ -32,16 +33,24 @@ class ParametersView extends StatefulWidget {
 class _ParametersViewState extends State<ParametersView> {
   final _db = DatabaseManager.instance;
   final _authService = AuthService(DatabaseManager.instance);
+  final _biometricService = BiometricService();
   final _updateService = UpdateService();
 
   String _currentVersion = '';
   UpdateInfo? _availableUpdate;
   _UpdateStatus _updateStatus = _UpdateStatus.idle;
+  bool _biometricAvailable = false;
 
   @override
   void initState() {
     super.initState();
     _loadVersion();
+    _checkBiometricAvailability();
+  }
+
+  Future<void> _checkBiometricAvailability() async {
+    final available = await _biometricService.isAvailable();
+    if (mounted) setState(() => _biometricAvailable = available);
   }
 
   Future<void> _loadVersion() async {
@@ -126,6 +135,7 @@ class _ParametersViewState extends State<ParametersView> {
           _buildSection(Translator.t('param_security'), colors, [
             _buildUsernameTile(auth, colors),
             _buildPasswordTile(colors),
+            if (_biometricAvailable) _buildBiometricTile(settings, colors),
           ], icon: Icons.shield),
           const SizedBox(height: 8),
           _buildSection(Translator.t('param_import'), colors, [
@@ -706,11 +716,14 @@ class _ParametersViewState extends State<ParametersView> {
 
               try {
                 final auth = context.read<AuthProvider>();
+                final settings = context.read<SettingsProvider>();
                 final success = await _authService.updatePassword(
                     auth.userId!, oldPass, newPass);
                 if (success && mounted) {
+                  await _biometricService.clearCredentials();
+                  await settings.setBiometricEnabled(false, _db);
                   Navigator.of(ctx).pop();
-                  PeadraNotification.show(context, message: Translator.t('param_password_saved'));
+                  PeadraNotification.show(context, message: Translator.t('param_biometric_re_enable'), type: NotificationType.warning);
                 }
               } catch (e) {
                 if (mounted) {
@@ -726,6 +739,70 @@ class _ParametersViewState extends State<ParametersView> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildBiometricTile(SettingsProvider settings, PeadraColors colors) {
+    final isPhone = ResponsiveLayout.isPhone(context);
+
+    final toggle = Switch(
+      value: settings.biometricEnabled,
+      onChanged: (value) async {
+        if (value) {
+          final authenticated = await _biometricService.authenticate(
+            reason: Translator.t('param_biometric_desc'),
+          );
+          if (!authenticated) {
+            if (mounted) {
+              PeadraNotification.show(context,
+                  message: Translator.t('param_biometric_failed'),
+                  type: NotificationType.error);
+            }
+            return;
+          }
+          final auth = context.read<AuthProvider>();
+          await _biometricService.saveCredentials(auth.userId!, auth.username);
+          await settings.setBiometricEnabled(true, _db);
+          if (mounted) {
+            PeadraNotification.show(context,
+                message: Translator.t('param_biometric_enabled'));
+          }
+        } else {
+          await _biometricService.clearCredentials();
+          await settings.setBiometricEnabled(false, _db);
+          if (mounted) {
+            PeadraNotification.show(context,
+                message: Translator.t('param_biometric_disabled'));
+          }
+        }
+      },
+      activeThumbColor: colors.accent,
+    );
+
+    if (isPhone) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(Translator.t('param_biometric'),
+                style: TextStyle(color: colors.text)),
+            const SizedBox(height: 4),
+            Text(Translator.t('param_biometric_desc'),
+                style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+            const SizedBox(height: 12),
+            toggle,
+          ],
+        ),
+      );
+    }
+
+    return ListTile(
+      title: Text(Translator.t('param_biometric'),
+          style: TextStyle(color: colors.text)),
+      subtitle: Text(Translator.t('param_biometric_desc'),
+          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+      trailing: toggle,
     );
   }
 

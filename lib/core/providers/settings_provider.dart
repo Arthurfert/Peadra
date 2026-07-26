@@ -9,12 +9,14 @@ class SettingsProvider extends ChangeNotifier {
   String _monthMode = defaultMonthMode;
   String _currency = defaultCurrency;
   int _maxBackups = defaultMaxBackups;
+  bool _biometricEnabled = defaultBiometricEnabled;
 
   int get displayLimit => _displayLimit;
   int get maxPieCategories => _maxPieCategories;
   String get monthMode => _monthMode;
   String get currency => _currency;
   int get maxBackups => _maxBackups;
+  bool get biometricEnabled => _biometricEnabled;
 
   Future<void> loadFromSettings(DatabaseManager db) async {
     _displayLimit = int.tryParse(
@@ -31,6 +33,7 @@ class SettingsProvider extends ChangeNotifier {
           await db.getSetting('max_backups', defaultValue: defaultMaxBackups.toString()) ?? defaultMaxBackups.toString(),
         ) ??
         defaultMaxBackups;
+    _biometricEnabled = (await db.getSetting('biometric_enabled', defaultValue: defaultBiometricEnabled.toString())) == 'true';
     notifyListeners();
   }
 
@@ -66,6 +69,13 @@ class SettingsProvider extends ChangeNotifier {
     _maxBackups = max;
     await db.setSetting('max_backups', max.toString());
     LogService().log('Backups limit set to $max');
+    notifyListeners();
+  }
+
+  Future<void> setBiometricEnabled(bool enabled, DatabaseManager db) async {
+    _biometricEnabled = enabled;
+    await db.setSetting('biometric_enabled', enabled.toString());
+    LogService().log('Biometric login set to $enabled');
     notifyListeners();
   }
 }

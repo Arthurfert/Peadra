@@ -91,7 +91,7 @@ class ImportService {
   ];
 
   static final _dateKeywords = ['date', 'day', 'time', 'posted', 'transaction date'];
-  static final _amountKeywords = ['amount', 'sum', 'total', 'value', 'montant', 'total'];
+  static final _amountKeywords = ['amount', 'sum', 'total', 'value', 'montant', 'total', 'valeur'];
   static final _creditKeywords = ['credit', 'credit amount', 'crédit'];
   static final _debitKeywords = ['debit', 'debit amount', 'débit'];
   static final _descKeywords = ['description', 'memo', 'note', 'details', 'libellé', 'désignation'];
@@ -192,14 +192,14 @@ class ImportService {
   /// Auto-map CSV columns to internal fields based on header keywords.
   List<ImportMapping> _autoMapColumns(List<String> headers) {
     final mappings = <ImportMapping>[];
-    final used = <int>{};
+    final usedMappings = <ColumnMapping>{};
 
     for (int i = 0; i < headers.length; i++) {
       final h = headers[i].toLowerCase();
       ColumnMapping mapping = ColumnMapping.unused;
 
       // Date
-      if (mapping == ColumnMapping.unused) {
+      if (mapping == ColumnMapping.unused && !usedMappings.contains(ColumnMapping.date)) {
         for (final kw in _dateKeywords) {
           if (h.contains(kw)) {
             mapping = ColumnMapping.date;
@@ -209,7 +209,7 @@ class ImportService {
       }
 
       // Description
-      if (mapping == ColumnMapping.unused) {
+      if (mapping == ColumnMapping.unused && !usedMappings.contains(ColumnMapping.description)) {
         for (final kw in _descKeywords) {
           if (h.contains(kw)) {
             mapping = ColumnMapping.description;
@@ -219,7 +219,7 @@ class ImportService {
       }
 
       // Credit
-      if (mapping == ColumnMapping.unused) {
+      if (mapping == ColumnMapping.unused && !usedMappings.contains(ColumnMapping.credit)) {
         for (final kw in _creditKeywords) {
           if (h.contains(kw)) {
             mapping = ColumnMapping.credit;
@@ -229,7 +229,7 @@ class ImportService {
       }
 
       // Debit
-      if (mapping == ColumnMapping.unused) {
+      if (mapping == ColumnMapping.unused && !usedMappings.contains(ColumnMapping.debit)) {
         for (final kw in _debitKeywords) {
           if (h.contains(kw)) {
             mapping = ColumnMapping.debit;
@@ -239,7 +239,7 @@ class ImportService {
       }
 
       // Amount
-      if (mapping == ColumnMapping.unused) {
+      if (mapping == ColumnMapping.unused && !usedMappings.contains(ColumnMapping.amount)) {
         for (final kw in _amountKeywords) {
           if (h.contains(kw)) {
             mapping = ColumnMapping.amount;
@@ -249,7 +249,7 @@ class ImportService {
       }
 
       // Type
-      if (mapping == ColumnMapping.unused) {
+      if (mapping == ColumnMapping.unused && !usedMappings.contains(ColumnMapping.type)) {
         for (final kw in _typeKeywords) {
           if (h.contains(kw)) {
             mapping = ColumnMapping.type;
@@ -258,30 +258,10 @@ class ImportService {
         }
       }
 
-      // Unused fields
-      if (mapping == ColumnMapping.unused) {
-        for (final kw in _unusedKeywords) {
-          if (h.contains(kw)) {
-            mapping = ColumnMapping.unused;
-            break;
-          }
-        }
-      }
-
       if (mapping != ColumnMapping.unused) {
-        used.add(i);
+        usedMappings.add(mapping);
       }
       mappings.add(ImportMapping(i, mapping));
-    }
-
-    // First unmapped column defaults to date, second to description, third to amount
-    int fallbackIndex = 0;
-    final fallbackOrder = [ColumnMapping.date, ColumnMapping.description, ColumnMapping.amount];
-    for (int i = 0; i < mappings.length; i++) {
-      if (!used.contains(i)) {
-        mappings[i] = ImportMapping(i, fallbackOrder[fallbackIndex % fallbackOrder.length]);
-        fallbackIndex++;
-      }
     }
 
     return mappings;

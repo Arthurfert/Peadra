@@ -19,6 +19,7 @@ This document presents future changes and wanted improvements.
 
 - Fixed the total assets widget not refreshing
 - Fixed the total savings stat card percentage not working
+- Enhanced import data module errors and UX
 
 ## Future Improvements
 
@@ -34,7 +35,6 @@ This document presents future changes and wanted improvements.
 - Onboarding ?
 - More translations
 - Upgrade existing translation
-- Upgrade the `import data` feature
 - Ability to set regular transactions (weekly, monthly, annualy...)
 - More parameters : 
 	- Navigation text or not for mobile

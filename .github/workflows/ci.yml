@@ -90,6 +90,8 @@ jobs:
         run: flutter pub get
 
       - name: Build msix package
+        env:
+          CL: /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNING
         run: |
           (Get-Content pubspec.yaml) -replace 'YOUR_PASSWORD', '${{ secrets.MSIX_CERTIFICATE_PASSWORD }}' | Set-Content pubspec.yaml
           $version = (Select-String -Path pubspec.yaml -Pattern '^version: (.+)$').Matches[0].Groups[1].Value.Trim()

@@ -7,7 +7,7 @@ This document presents future changes and wanted improvements.
 **The application is not intended to become cloud-based, and will stay local.**
 
 > [!NOTE]
-> Due to banking related laws, an API access to your bank requires approbation by an organization. It is thus not currently possible.
+> An API access to your bank either need a approval from an organization, or isn't free (services like Plaid). It is thus not possible.
 
 ## Currently in development
 

@@ -11,6 +11,7 @@ import '../../../core/providers/language_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/database/database_manager.dart';
 import '../../../core/services/auth_service.dart';
+import '../../../core/services/biometric_service.dart';
 import '../../../core/services/encryption_service.dart';
 import '../../../core/theme/peadra_colors.dart';
 import '../../dashboard/presentation/dashboard_shell.dart';
@@ -25,6 +26,7 @@ class LoginView extends StatefulWidget {
 class _LoginViewState extends State<LoginView> {
   final _db = DatabaseManager.instance;
   final _authService = AuthService(DatabaseManager.instance);
+  final _biometricService = BiometricService();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
@@ -34,6 +36,8 @@ class _LoginViewState extends State<LoginView> {
   String? _error;
   List<String> _existingUsers = [];
   String? _selectedUser;
+  bool _biometricAvailable = false;
+  bool _biometricEnabled = false;
 
   @override
   void initState() {
@@ -48,9 +52,13 @@ class _LoginViewState extends State<LoginView> {
     if (savedLang != null) {
       context.read<LanguageProvider>().setLanguage(savedLang);
     }
+    final biometricAvailable = await _biometricService.isAvailable();
+    final hasCredentials = await _biometricService.hasStoredCredentials();
     if (mounted) {
       setState(() {
         _existingUsers = users;
+        _biometricAvailable = biometricAvailable;
+        _biometricEnabled = biometricAvailable && hasCredentials;
         if (users.isEmpty) {
           _isLoginMode = false;
         } else if (lastUser != null && users.contains(lastUser)) {
@@ -182,6 +190,42 @@ class _LoginViewState extends State<LoginView> {
         MaterialPageRoute(builder: (_) => const DashboardShell()),
       );
     }
+  }
+
+  void _biometricLogin() async {
+    final authenticated = await _biometricService.authenticate(
+      reason: Translator.t('param_biometric_desc'),
+    );
+    if (!authenticated) {
+      if (mounted) {
+        setState(() => _error = Translator.t('param_biometric_failed'));
+      }
+      return;
+    }
+
+    final credentials = await _biometricService.loadCredentials();
+    if (credentials == null) {
+      if (mounted) {
+        setState(() => _error = Translator.t('param_biometric_re_enable'));
+      }
+      return;
+    }
+
+    final userId = int.tryParse(credentials['userId'] ?? '');
+    final username = credentials['username'];
+    if (userId == null || username == null) {
+      if (mounted) {
+        setState(() => _error = Translator.t('param_biometric_re_enable'));
+      }
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    _onLoginSuccess(userId, username, '');
   }
 
   Future<void> _setupEncryption(String password) async {
@@ -353,6 +397,27 @@ class _LoginViewState extends State<LoginView> {
                             ),
                     ),
                   ),
+
+                  if (_isLoginMode && _biometricAvailable && _biometricEnabled) ...[
+                    const SizedBox(height: 16),
+                    Center(
+                      child: OutlinedButton.icon(
+                        onPressed: _isLoading ? null : _biometricLogin,
+                        icon: Icon(Icons.fingerprint, color: colors.accent),
+                        label: Text(
+                          Translator.t('param_biometric'),
+                          style: TextStyle(color: colors.accent),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: colors.accent),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        ),
+                      ),
+                    ),
+                  ],
 
                   if (_isLoginMode && _existingUsers.isNotEmpty) ...[
                     const SizedBox(height: 12),

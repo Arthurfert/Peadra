@@ -11,5 +11,6 @@ const String defaultCurrency = 'EUR';
 const String defaultTheme = 'dark';
 const String defaultLanguage = 'en';
 const int defaultMaxBackups = 5;
+const bool defaultBiometricEnabled = false;
 
 const int globalSettingsUserId = 0;

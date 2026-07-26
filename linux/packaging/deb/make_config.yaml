@@ -25,3 +25,6 @@ categories:
   - Office
 
 startup_notify: true
+
+depends:
+  - libsecret-1-0

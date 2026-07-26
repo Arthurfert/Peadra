@@ -433,6 +433,11 @@ class _ImportDataViewState extends State<ImportDataView> {
             Translator.t('import_mapping_hint'),
             style: TextStyle(fontSize: 11, color: colors.textSecondary),
           ),
+          const SizedBox(height: 4),
+          Text(
+            Translator.t('import_type_hint'),
+            style: TextStyle(fontSize: 11, color: colors.textSecondary),
+          ),
           const SizedBox(height: 8),
           Container(
             decoration: BoxDecoration(
@@ -525,6 +530,11 @@ class _ImportDataViewState extends State<ImportDataView> {
             orElse: () => ImportMapping(columnIndex, ColumnMapping.unused))
         .mapping ?? ColumnMapping.unused;
 
+    final usedMappings = _userMappings
+        ?.where((m) => m.columnIndex != columnIndex && m.mapping != ColumnMapping.unused)
+        .map((m) => m.mapping)
+        .toSet() ?? {};
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: Row(
@@ -549,12 +559,18 @@ class _ImportDataViewState extends State<ImportDataView> {
                 isCollapsed: true,
               ),
               items: [
-                DropdownMenuItem(value: ColumnMapping.date, child: Text(Translator.t('import_date'))),
-                DropdownMenuItem(value: ColumnMapping.description, child: Text(Translator.t('import_description'))),
-                DropdownMenuItem(value: ColumnMapping.amount, child: Text(Translator.t('import_amount'))),
-                DropdownMenuItem(value: ColumnMapping.credit, child: Text(Translator.t('import_credit'))),
-                DropdownMenuItem(value: ColumnMapping.debit, child: Text(Translator.t('import_debit'))),
-                DropdownMenuItem(value: ColumnMapping.type, child: Text(Translator.t('import_type'))),
+                if (!usedMappings.contains(ColumnMapping.date))
+                  DropdownMenuItem(value: ColumnMapping.date, child: Text(Translator.t('import_date'))),
+                if (!usedMappings.contains(ColumnMapping.description))
+                  DropdownMenuItem(value: ColumnMapping.description, child: Text(Translator.t('import_description'))),
+                if (!usedMappings.contains(ColumnMapping.amount))
+                  DropdownMenuItem(value: ColumnMapping.amount, child: Text(Translator.t('import_amount'))),
+                if (!usedMappings.contains(ColumnMapping.credit))
+                  DropdownMenuItem(value: ColumnMapping.credit, child: Text(Translator.t('import_credit'))),
+                if (!usedMappings.contains(ColumnMapping.debit))
+                  DropdownMenuItem(value: ColumnMapping.debit, child: Text(Translator.t('import_debit'))),
+                if (!usedMappings.contains(ColumnMapping.type))
+                  DropdownMenuItem(value: ColumnMapping.type, child: Text(Translator.t('import_type'))),
                 DropdownMenuItem(value: ColumnMapping.unused, child: Text(Translator.t('import_unused'))),
               ],
               onChanged: (v) {
@@ -603,6 +619,8 @@ class _ImportDataViewState extends State<ImportDataView> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 16, vertical: 4),
                           child: Text(e,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                   fontSize: 11, color: colors.textSecondary)),
                         ))

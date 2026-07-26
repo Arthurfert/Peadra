@@ -13,7 +13,9 @@ import 'dashboard_view_desktop.dart';
 import 'dashboard_view_mobile.dart';
 
 class DashboardView extends StatefulWidget {
-  const DashboardView({super.key});
+  final int refreshSignal;
+
+  const DashboardView({super.key, this.refreshSignal = 0});
 
   @override
   State<DashboardView> createState() => _DashboardViewState();
@@ -27,6 +29,7 @@ class _DashboardViewState extends State<DashboardView> {
   double _previousBalance = 0;
   double _previousIncome = 0;
   double _previousExpenses = 0;
+  double _previousSavings = 0;
   Map<String, double> _monthlySummary = {};
   List<Map<String, dynamic>> _accountsDistribution = [];
   List<Map<String, dynamic>> _cashFlowData = [];
@@ -41,6 +44,14 @@ class _DashboardViewState extends State<DashboardView> {
   @override
   void initState() {
     super.initState();
+  }
+
+  @override
+  void didUpdateWidget(DashboardView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.refreshSignal != oldWidget.refreshSignal) {
+      _loadData();
+    }
   }
 
   @override
@@ -62,6 +73,7 @@ class _DashboardViewState extends State<DashboardView> {
       final isRolling = monthMode == 'rolling';
 
       final now = DateTime.now();
+      final thisMonthStart = DateTime(now.year, now.month, 1).toIso8601String().substring(0, 10);
       final results = await Future.wait([
         _safeQuery(() => _db.getBalance(targetCurrency: currency)),
         _safeQuery(() => _db.getSavingsTotal(targetCurrency: currency)),
@@ -86,6 +98,8 @@ class _DashboardViewState extends State<DashboardView> {
             year: now.year,
             month: now.month - 1,
             targetCurrency: currency)),
+        _safeQuery(() => _db.getSavingsTotal(
+            targetCurrency: currency, before: thisMonthStart)),
       ]);
 
       if (mounted) {
@@ -103,6 +117,7 @@ class _DashboardViewState extends State<DashboardView> {
           _previousBalance = prevSummary['balance'] ?? 0;
           _previousIncome = prevSummary['income'] ?? 0;
           _previousExpenses = prevSummary['expenses'] ?? 0;
+          _previousSavings = (results[10] as double?) ?? 0;
           _loading = false;
         });
       }
@@ -156,6 +171,9 @@ class _DashboardViewState extends State<DashboardView> {
     final expensesChange = _previousExpenses > 0
         ? ((currentExpenses - _previousExpenses) / _previousExpenses * 100)
         : 0.0;
+    final savingsChange = _previousSavings > 0
+        ? ((_savings - _previousSavings) / _previousSavings * 100)
+        : 0.0;
 
     final cards = [
       _buildStatCard(
@@ -188,7 +206,7 @@ class _DashboardViewState extends State<DashboardView> {
       _buildStatCard(
         title: Translator.t('dash_savings_outside'),
         value: CurrencyService.formatAmount(_savings, currency),
-        change: 0,
+        change: savingsChange,
         icon: Icons.savings,
         iconColor: colors.savingsIcon,
         bgColor: colors.savingsBg,

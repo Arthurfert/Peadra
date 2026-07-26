@@ -7,25 +7,25 @@ This document presents future changes and wanted improvements.
 **The application is not intended to become cloud-based, and will stay local.**
 
 > [!NOTE]
-> Due to banking related laws, an API access to your bank requires approbation by an organization. It is thus not currently possible.
+> An API access to your bank either need a approval from an organization, or isn't free (services like Plaid). It is thus not possible.
 
 ## Currently in development
 
 ### New
 
-- Sensitive data AES encryption
+- Biometrics login
 
 ### Fixed
 
-- Fixed the update manager on mobile not detecting new version + update style on mobile
-- Fixed date picker localisation, to be translated to the user's language
-- Fixed category view charts not appearing
+- Fixed the total assets widget not refreshing
+- Fixed the total savings stat card percentage not working
+- Enhanced import data module errors and UX
 
 ## Future Improvements
 
 **New features :**
 - Peer to peer sync between mobile and desktop
-- Biometry
+- Ability to set a *tag* to a transaction to sort them (like groceries, trip, taxes...)
 - Budget view, linked to categories
 - Tools view (composed interests, simulations...)
 - Compute trends/forecast
@@ -34,7 +34,6 @@ This document presents future changes and wanted improvements.
 - Onboarding ?
 - More translations
 - Upgrade existing translation
-- Upgrade the `import data` feature
 - Ability to set regular transactions (weekly, monthly, annualy...)
 - More parameters : 
 	- Navigation text or not for mobile

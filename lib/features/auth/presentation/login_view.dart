@@ -14,6 +14,7 @@ import '../../../core/database/database_manager.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/biometric_service.dart';
 import '../../../core/services/encryption_service.dart';
+import '../../../core/services/log_service.dart';
 import '../../../core/theme/peadra_colors.dart';
 import '../../dashboard/presentation/dashboard_shell.dart';
 
@@ -194,18 +195,22 @@ class _LoginViewState extends State<LoginView> {
   }
 
   void _biometricLogin() async {
+    LogService().log('Biometric login: starting');
     final authenticated = await _biometricService.authenticate(
       reason: Translator.t('param_biometric_desc'),
     );
     if (!authenticated) {
+      LogService().log('Biometric login: authentication failed');
       if (mounted) {
         setState(() => _error = Translator.t('param_biometric_failed'));
       }
       return;
     }
 
+    LogService().log('Biometric login: auth succeeded, loading credentials');
     final credentials = await _biometricService.loadCredentials();
     if (credentials == null) {
+      LogService().log('Biometric login: no stored credentials');
       if (mounted) {
         setState(() => _error = Translator.t('param_biometric_re_enable'));
       }
@@ -215,6 +220,7 @@ class _LoginViewState extends State<LoginView> {
     final userId = int.tryParse(credentials['userId'] ?? '');
     final username = credentials['username'];
     if (userId == null || username == null) {
+      LogService().log('Biometric login: invalid credentials (userId=$userId, username=$username)');
       if (mounted) {
         setState(() => _error = Translator.t('param_biometric_re_enable'));
       }
@@ -225,6 +231,9 @@ class _LoginViewState extends State<LoginView> {
     if (keyBase64 != null) {
       final keyBytes = base64Decode(keyBase64);
       _db.setEncryptionKey(SecretKey(keyBytes));
+      LogService().log('Biometric login: encryption key restored');
+    } else {
+      LogService().log('Biometric login: no encryption key in storage');
     }
 
     setState(() {

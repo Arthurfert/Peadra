@@ -6,6 +6,8 @@ import 'package:local_auth/local_auth.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:cryptography/cryptography.dart';
 
+import 'log_service.dart';
+
 class BiometricService {
   final LocalAuthentication _auth = LocalAuthentication();
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
@@ -25,14 +27,16 @@ class BiometricService {
 
   Future<bool> authenticate({String? reason}) async {
     try {
-      return await _auth.authenticate(
+      final result = await _auth.authenticate(
         localizedReason: reason ?? 'Authenticate to continue',
-        options: const AuthenticationOptions(
-          stickyAuth: true,
-          biometricOnly: true,
-        ),
       );
-    } on PlatformException {
+      LogService().log('Biometric authenticate result: $result');
+      return result;
+    } on PlatformException catch (e) {
+      LogService().log('Biometric PlatformException: ${e.code} ${e.message}');
+      return false;
+    } catch (e) {
+      LogService().log('Biometric unexpected error: $e');
       return false;
     }
   }

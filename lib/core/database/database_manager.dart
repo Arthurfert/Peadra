@@ -37,6 +37,8 @@ class DatabaseManager {
 
   // ==================== ENCRYPTION ====================
 
+  SecretKey? get encryptionKey => _encryptionKey;
+
   Future<void> setEncryptionKey(SecretKey key) async {
     _encryptionKey = key;
   }

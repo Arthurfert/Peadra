@@ -761,7 +761,7 @@ class _ParametersViewState extends State<ParametersView> {
             return;
           }
           final auth = context.read<AuthProvider>();
-          await _biometricService.saveCredentials(auth.userId!, auth.username);
+          await _biometricService.saveCredentials(auth.userId!, auth.username, encryptionKey: _db.encryptionKey);
           await settings.setBiometricEnabled(true, _db);
           if (mounted) {
             PeadraNotification.show(context,

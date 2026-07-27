@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cryptography/cryptography.dart';
 
 import '../../../core/i18n/translator.dart';
 import '../../../core/providers/auth_provider.dart';
@@ -220,6 +221,12 @@ class _LoginViewState extends State<LoginView> {
       return;
     }
 
+    final keyBase64 = credentials['encryptionKey'] as String?;
+    if (keyBase64 != null) {
+      final keyBytes = base64Decode(keyBase64);
+      _db.setEncryptionKey(SecretKey(keyBytes));
+    }
+
     setState(() {
       _isLoading = true;
       _error = null;
@@ -229,6 +236,7 @@ class _LoginViewState extends State<LoginView> {
   }
 
   Future<void> _setupEncryption(String password) async {
+    if (_db.isEncrypted) return;
     final saltStr = await _db.getSetting('encryption_salt');
     Uint8List salt;
     if (saltStr == null) {

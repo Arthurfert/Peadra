@@ -24,7 +24,7 @@ This document presents future changes and wanted improvements.
 
 **New features :**
 - Peer to peer sync between mobile and desktop
-- Budget view, linked to categories
+- Budget view, linked to tags
 - Tools view (composed interests, simulations...)
 - Compute trends/forecast
 

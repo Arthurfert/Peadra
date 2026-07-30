@@ -228,8 +228,8 @@ class _TransactionsViewState extends State<TransactionsView> {
         transactionType: data['transaction_type'],
         notes: data['notes'],
         currency: data['currency'],
-        tagId: tagId,
-        clearTag: tagId == null && !isTransfer,
+        tagId: isTransfer ? null : tagId,
+        clearTag: isTransfer || tagId == null,
       );
       if (mounted) {
         PeadraNotification.show(context, message: Translator.t('msg_transaction_modified'));
@@ -742,7 +742,7 @@ class _TransactionsViewState extends State<TransactionsView> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            if (txn.tagName != null) ...[
+            if (isPhone && txn.tagName != null) ...[
               const SizedBox(width: 6),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
@@ -765,17 +765,43 @@ class _TransactionsViewState extends State<TransactionsView> {
             ],
           ],
         ),
-        trailing: Text(
-          '$sign${CurrencyService.formatAmount(txn.amount, displayCurrency)}',
-          style: TextStyle(
-            color: isIncome
-                ? colors.success
-                : isTransfer
-                    ? colors.transferColor
-                    : colors.error,
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-          ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!isPhone && txn.tagName != null) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Color(int.parse(
+                          (txn.tagColor ?? '#1976D2').replaceFirst('#', '0xFF')))
+                      .withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  txn.tagName!,
+                  style: TextStyle(
+                    color: Color(int.parse(
+                        (txn.tagColor ?? '#1976D2').replaceFirst('#', '0xFF'))),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+            Text(
+              '$sign${CurrencyService.formatAmount(txn.amount, displayCurrency)}',
+              style: TextStyle(
+                color: isIncome
+                    ? colors.success
+                    : isTransfer
+                        ? colors.transferColor
+                        : colors.error,
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
+            ),
+          ],
         ),
         onTap: isPhone
             ? () => _showTransactionModal(editTxn: txn)

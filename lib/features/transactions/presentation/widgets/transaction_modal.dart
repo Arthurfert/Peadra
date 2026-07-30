@@ -69,7 +69,8 @@ class _TransactionModalState extends State<TransactionModal> {
       _notesController.text = tx.notes ?? '';
       _selectedAccountId = tx.accountId;
       _selectedCurrency = tx.currency.isNotEmpty ? tx.currency : 'EUR';
-      _selectedTagId = tx.tagId;
+      // Tags are not allowed on transfers
+      _selectedTagId = _transactionType == 'transfer' ? null : tx.tagId;
     }
 
     if (widget.accounts.isNotEmpty) {

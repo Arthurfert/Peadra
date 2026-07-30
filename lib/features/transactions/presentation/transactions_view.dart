@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/i18n/translator.dart';
@@ -7,6 +8,7 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../core/database/database_manager.dart';
 import '../../../core/models/transaction.dart';
 import '../../../core/models/account.dart';
+import '../../../core/models/tag.dart';
 import '../../../core/theme/peadra_colors.dart';
 import 'widgets/transaction_modal.dart';
 import '../../../shared/widgets/peadra_notification.dart';
@@ -41,10 +43,13 @@ class TransactionsView extends StatefulWidget {
 
 class _TransactionsViewState extends State<TransactionsView> {
   final _db = DatabaseManager.instance;
+  final _tagScrollController = ScrollController();
   List<_DisplayItem> _displayItems = [];
   List<Account> _accounts = [];
+  List<Tag> _tags = [];
   bool _loading = true;
   String _searchQuery = '';
+  final Set<int> _selectedTagIds = {};
   final int _displayLimit = 30;
   bool _hasMore = true;
   int _lastRawFetchCount = 0;
@@ -53,6 +58,12 @@ class _TransactionsViewState extends State<TransactionsView> {
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _tagScrollController.dispose();
+    super.dispose();
   }
 
   List<_DisplayItem> _mergeTransfers(List<TransactionWithDetails> txns) {
@@ -120,16 +131,25 @@ class _TransactionsViewState extends State<TransactionsView> {
   }
 
   Future<void> _loadData() async {
-    final txns = await _db.getTransactions(
-      limit: _displayLimit,
-      searchQuery: _searchQuery,
-    );
-    final accounts = await _db.getAllAccounts();
+    final results = await Future.wait([
+      _db.getTransactions(
+        limit: _displayLimit,
+        searchQuery: _searchQuery,
+        tagIds: _selectedTagIds.isEmpty ? null : _selectedTagIds,
+      ),
+      _db.getAllAccounts(),
+      _db.getAllTags(),
+    ]);
+
+    final txns = results[0] as List<TransactionWithDetails>;
+    final accounts = results[1] as List<Account>;
+    final tags = results[2] as List<Tag>;
 
     if (mounted) {
       setState(() {
         _displayItems = _mergeTransfers(txns);
         _accounts = accounts;
+        _tags = tags;
         _lastRawFetchCount = txns.length;
         _hasMore = txns.length == _displayLimit;
         _loading = false;
@@ -144,6 +164,7 @@ class _TransactionsViewState extends State<TransactionsView> {
       limit: limit,
       offset: offset,
       searchQuery: _searchQuery,
+      tagIds: _selectedTagIds.isEmpty ? null : _selectedTagIds,
     );
 
     if (mounted) {
@@ -419,6 +440,14 @@ class _TransactionsViewState extends State<TransactionsView> {
                   valueColor: colors.success,
                 ),
               ],
+              if (txn.tagName != null)
+                _previewRow(
+                  Translator.t('trans_tag'),
+                  txn.tagName!,
+                  colors,
+                  valueColor: Color(int.parse(
+                      (txn.tagColor ?? '#1976D2').replaceFirst('#', '0xFF'))),
+                ),
               if (txn.notes != null && txn.notes!.isNotEmpty)
                 _previewRow(Translator.t('trans_notes'), txn.notes!, colors),
             ],
@@ -546,6 +575,68 @@ class _TransactionsViewState extends State<TransactionsView> {
               fillColor: colors.surface,
             ),
           ),
+          if (_tags.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 40,
+              child: Listener(
+                onPointerSignal: (event) {
+                  if (event is PointerScrollEvent &&
+                      _tagScrollController.hasClients) {
+                    _tagScrollController.jumpTo(
+                      (_tagScrollController.offset + event.scrollDelta.dy)
+                          .clamp(
+                        0.0,
+                        _tagScrollController.position.maxScrollExtent,
+                      ),
+                    );
+                  }
+                },
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  controller: _tagScrollController,
+                  itemCount: _tags.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 6),
+                itemBuilder: (context, index) {
+                  final tag = _tags[index];
+                  final isSelected = _selectedTagIds.contains(tag.id);
+                  final tagColor = Color(int.parse(tag.color.replaceFirst('#', '0xFF')));
+                  return FilterChip(
+                    label: Text(tag.name),
+                    labelStyle: TextStyle(
+                      color: isSelected ? Colors.white : tagColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    selected: isSelected,
+                    selectedColor: tagColor,
+                    backgroundColor: tagColor.withValues(alpha: 0.1),
+                    checkmarkColor: Colors.white,
+                    side: BorderSide(
+                      color: isSelected ? tagColor : tagColor.withValues(alpha: 0.3),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                    onSelected: (selected) {
+                      setState(() {
+                        if (selected) {
+                          _selectedTagIds.add(tag.id!);
+                        } else {
+                          _selectedTagIds.remove(tag.id);
+                        }
+                      });
+                      _loadTransactions();
+                    },
+                  );
+                },
+              ),
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           Expanded(
             child: _loading

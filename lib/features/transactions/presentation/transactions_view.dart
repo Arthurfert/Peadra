@@ -195,6 +195,7 @@ class _TransactionsViewState extends State<TransactionsView> {
   Future<void> _handleSave(Map<String, dynamic> data,
       {TransactionWithDetails? editTxn}) async {
     final isTransfer = data['transaction_type'] == 'transfer';
+    final tagId = data['tag_id'] as int?;
 
     if (editTxn != null) {
       // Update existing
@@ -206,6 +207,8 @@ class _TransactionsViewState extends State<TransactionsView> {
         transactionType: data['transaction_type'],
         notes: data['notes'],
         currency: data['currency'],
+        tagId: tagId,
+        clearTag: tagId == null && !isTransfer,
       );
       if (mounted) {
         PeadraNotification.show(context, message: Translator.t('msg_transaction_modified'));
@@ -260,6 +263,7 @@ class _TransactionsViewState extends State<TransactionsView> {
       // Create regular transaction
       await _db.addTransaction(
         accountId: data['category_id'] as int,
+        tagId: tagId,
         date: data['date'],
         amount: data['amount'],
         description: data['description'],
@@ -634,12 +638,41 @@ class _TransactionsViewState extends State<TransactionsView> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        subtitle: Text(
-          '${txn.date}${txn.accountName != null ? " · ${txn.accountName}" : ""}',
-          style: TextStyle(
-            color: colors.placeholderColor,
-            fontSize: 12,
-          ),
+        subtitle: Row(
+          children: [
+            Expanded(
+              child: Text(
+                '${txn.date}${txn.accountName != null ? " · ${txn.accountName}" : ""}',
+                style: TextStyle(
+                  color: colors.placeholderColor,
+                  fontSize: 12,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (txn.tagName != null) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: BoxDecoration(
+                  color: Color(int.parse(
+                          (txn.tagColor ?? '#1976D2').replaceFirst('#', '0xFF')))
+                      .withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  txn.tagName!,
+                  style: TextStyle(
+                    color: Color(int.parse(
+                        (txn.tagColor ?? '#1976D2').replaceFirst('#', '0xFF'))),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
         trailing: Text(
           '$sign${CurrencyService.formatAmount(txn.amount, displayCurrency)}',

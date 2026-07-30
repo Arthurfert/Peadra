@@ -5,6 +5,7 @@ import '../../../../core/i18n/translator.dart';
 import '../../../../core/providers/theme_provider.dart';
 import '../../../../core/database/database_manager.dart';
 import '../../../../core/models/account.dart';
+import '../../../../core/models/tag.dart';
 import '../../../../core/models/transaction.dart';
 import '../../../../core/theme/peadra_colors.dart';
 import '../../../../core/services/currency_service.dart';
@@ -52,6 +53,8 @@ class _TransactionModalState extends State<TransactionModal> {
   bool _showSuggestions = false;
   double? _exchangeRate;
   double? _convertedAmount;
+  List<Tag> _tags = [];
+  int? _selectedTagId;
 
   @override
   void initState() {
@@ -66,6 +69,7 @@ class _TransactionModalState extends State<TransactionModal> {
       _notesController.text = tx.notes ?? '';
       _selectedAccountId = tx.accountId;
       _selectedCurrency = tx.currency.isNotEmpty ? tx.currency : 'EUR';
+      _selectedTagId = tx.tagId;
     }
 
     if (widget.accounts.isNotEmpty) {
@@ -80,8 +84,18 @@ class _TransactionModalState extends State<TransactionModal> {
     _amountController.addListener(_onAmountChanged);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadTags();
       _updateExchangeRate();
     });
+  }
+
+  Future<void> _loadTags() async {
+    final tags = await _db.getAllTags();
+    if (mounted) {
+      setState(() {
+        _tags = tags;
+      });
+    }
   }
 
   @override
@@ -237,6 +251,7 @@ class _TransactionModalState extends State<TransactionModal> {
           ? _notesController.text.trim()
           : null,
       'currency': _selectedCurrency,
+      'tag_id': _selectedTagId,
     };
 
     if (_transactionType == 'transfer') {
@@ -324,6 +339,12 @@ class _TransactionModalState extends State<TransactionModal> {
             _buildAccountDropdown(colors),
           ],
           const SizedBox(height: 12),
+
+          // Tag selection (not for transfers)
+          if (_transactionType != 'transfer') ...[
+            _buildTagSelector(colors),
+            const SizedBox(height: 12),
+          ],
 
           // Notes
           _buildNotesField(colors),
@@ -602,6 +623,142 @@ class _TransactionModalState extends State<TransactionModal> {
           ),
         ],
       ],
+    );
+  }
+
+  Widget _buildTagSelector(PeadraColors colors) {
+    return DropdownButtonFormField<int>(
+      initialValue: _selectedTagId,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: Translator.t('trans_tag'),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        filled: true,
+        fillColor: colors.bg,
+        suffixIcon: IconButton(
+          icon: Icon(Icons.add_circle_outline, color: colors.accent, size: 20),
+          tooltip: Translator.t('tag_create'),
+          onPressed: () => _showCreateTagDialog(colors),
+        ),
+      ),
+      items: [
+        DropdownMenuItem<int>(
+          value: null,
+          child: Text(Translator.t('tag_none'),
+              style: TextStyle(color: colors.placeholderColor)),
+        ),
+        ..._tags.map((t) => DropdownMenuItem<int>(
+              value: t.id,
+              child: Row(
+                children: [
+                  Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: Color(int.parse(t.color.replaceFirst('#', '0xFF'))),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(t.name),
+                ],
+              ),
+            )),
+      ],
+      onChanged: (v) {
+        setState(() => _selectedTagId = v);
+      },
+    );
+  }
+
+  void _showCreateTagDialog(PeadraColors colors) {
+    final nameController = TextEditingController();
+    String selectedColor = '#1976D2';
+
+    final tagColors = [
+      '#1976D2', '#388E3C', '#F57C00', '#D32F2F', '#7B1FA2',
+      '#00796B', '#C2185B', '#5D4037', '#455A64', '#FFB300',
+    ];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: colors.surface,
+          title: Text(Translator.t('tag_create'),
+              style: TextStyle(color: colors.text)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: nameController,
+                  maxLength: 50,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    labelText: Translator.t('tag_name'),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(Translator.t('tag_color'),
+                    style: TextStyle(
+                        color: colors.text, fontWeight: FontWeight.w500)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: tagColors.map((c) {
+                    final isSelected = selectedColor == c;
+                    return GestureDetector(
+                      onTap: () => setDialogState(() => selectedColor = c),
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: Color(int.parse(c.replaceFirst('#', '0xFF'))),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isSelected ? colors.text : Colors.transparent,
+                            width: 2,
+                          ),
+                        ),
+                        child: isSelected
+                            ? const Icon(Icons.check, color: Colors.white, size: 16)
+                            : null,
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(Translator.t('btn_cancel')),
+            ),
+            ElevatedButton(
+              onPressed: nameController.text.trim().isEmpty
+                  ? null
+                  : () async {
+                      final name = nameController.text.trim();
+                      final id = await _db.createTag(name: name, color: selectedColor);
+                      if (id != null && mounted) {
+                        await _loadTags();
+                        setState(() => _selectedTagId = id);
+                      }
+                      if (mounted) Navigator.pop(ctx);
+                    },
+              style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
+              child: Text(Translator.t('btn_save'),
+                  style: const TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

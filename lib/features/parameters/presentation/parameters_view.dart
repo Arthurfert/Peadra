@@ -122,6 +122,7 @@ class _ParametersViewState extends State<ParametersView> {
           ], icon: Icons.receipt_long),
           const SizedBox(height: 8),
           _buildSection(Translator.t('param_charts'), colors, [
+            _buildCategoriesViewTile(settings, colors),
             _buildMonthModeTile(settings, colors),
             _buildMaxPieCategoriesTile(settings, colors),
           ], icon: Icons.bar_chart),
@@ -341,6 +342,31 @@ class _ParametersViewState extends State<ParametersView> {
             .toList(),
         onChanged: (v) async {
           if (v != null) settings.setDisplayLimit(v, _db);
+        },
+      ),
+    );
+  }
+
+  Widget _buildCategoriesViewTile(SettingsProvider settings, PeadraColors colors) {
+    return ListTile(
+      title: Text(Translator.t('param_categories_view'),
+          style: TextStyle(color: colors.text)),
+      subtitle: Text(Translator.t('param_categories_view_desc'),
+          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+      trailing: DropdownButton<String>(
+        value: settings.categoriesView,
+        dropdownColor: colors.surface,
+        style: TextStyle(color: colors.text),
+        items: [
+          DropdownMenuItem(
+              value: 'descriptions',
+              child: Text(Translator.t('param_categories_descriptions'))),
+          DropdownMenuItem(
+              value: 'tags',
+              child: Text(Translator.t('param_categories_tags'))),
+        ],
+        onChanged: (v) async {
+          if (v != null) settings.setCategoriesView(v, _db);
         },
       ),
     );

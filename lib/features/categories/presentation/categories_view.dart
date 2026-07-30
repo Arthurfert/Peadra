@@ -4,6 +4,7 @@ import 'package:fl_chart/fl_chart.dart';
 
 import '../../../core/i18n/translator.dart';
 import '../../../core/providers/theme_provider.dart';
+import '../../../core/providers/settings_provider.dart';
 import '../../../core/database/database_manager.dart';
 import '../../../core/theme/peadra_colors.dart';
 import '../../../core/responsive/responsive_layout.dart';
@@ -36,25 +37,53 @@ class _CategoriesViewState extends State<CategoriesView> {
         now.subtract(Duration(days: _selectedMonths * 30)).toIso8601String().substring(0, 10);
     final endDate = now.toIso8601String().substring(0, 10);
 
+    final categoriesView = context.read<SettingsProvider>().categoriesView;
+    final isTagMode = categoriesView == 'tags';
+
     final results = await Future.wait([
-      _db.getTopDescriptions(
-          transactionType: 'expense',
-          numMonths: _selectedMonths,
-          limit: 5,
-          minCount: 2),
-      _db.getTopDescriptions(
-          transactionType: 'income',
-          numMonths: _selectedMonths,
-          limit: 5,
-          minCount: 2),
-      _db.getDescriptionMonthlyData(startDate, endDate),
+      isTagMode
+          ? _db.getTopTags(
+              transactionType: 'expense',
+              numMonths: _selectedMonths,
+              limit: 5,
+              minCount: 2)
+          : _db.getTopDescriptions(
+              transactionType: 'expense',
+              numMonths: _selectedMonths,
+              limit: 5,
+              minCount: 2),
+      isTagMode
+          ? _db.getTopTags(
+              transactionType: 'income',
+              numMonths: _selectedMonths,
+              limit: 5,
+              minCount: 2)
+          : _db.getTopDescriptions(
+              transactionType: 'income',
+              numMonths: _selectedMonths,
+              limit: 5,
+              minCount: 2),
+      isTagMode
+          ? _db.getTagMonthlyData(startDate, endDate)
+          : _db.getDescriptionMonthlyData(startDate, endDate),
     ]);
 
     if (mounted) {
       setState(() {
-        _topExpenses = results[0] as List<Map<String, dynamic>>;
-        _topIncomes = results[1] as List<Map<String, dynamic>>;
-        _monthlyData = results[2] as Map<String, Map<String, Map<String, double>>>;
+        if (isTagMode) {
+          _topExpenses = results[0] as List<Map<String, dynamic>>;
+          _topIncomes = results[1] as List<Map<String, dynamic>>;
+          _monthlyData = {};
+          // Convert tag monthly data to the same format
+          final tagMonthly = results[2] as Map<String, Map<String, Map<String, double>>>;
+          for (final entry in tagMonthly.entries) {
+            _monthlyData[entry.key] = entry.value;
+          }
+        } else {
+          _topExpenses = results[0] as List<Map<String, dynamic>>;
+          _topIncomes = results[1] as List<Map<String, dynamic>>;
+          _monthlyData = results[2] as Map<String, Map<String, Map<String, double>>>;
+        }
         _loading = false;
       });
     }
@@ -241,8 +270,8 @@ class _CategoriesViewState extends State<CategoriesView> {
   Widget _buildSection(String title, List<Map<String, dynamic>> items,
       Color accentColor, PeadraColors colors) {
     final itemsWithGraph = items.where((item) {
-      final desc = item['description'] as String;
-      final data = _buildSpotsForDescription(desc);
+      final name = (item['description'] ?? item['tag']) as String;
+      final data = _buildSpotsForDescription(name);
       return data.spots.length > 1;
     }).toList();
 
@@ -287,10 +316,10 @@ class _CategoriesViewState extends State<CategoriesView> {
               crossAxisSpacing: 12,
               childAspectRatio: 1.8,
               children: itemsWithGraph.map((item) {
-                final desc = item['description'] as String;
+                final name = (item['description'] ?? item['tag']) as String;
                 final count = item['count'] as int;
                 final total = item['total'] as num;
-                final data = _buildSpotsForDescription(desc);
+                final data = _buildSpotsForDescription(name);
                 final spots = data.spots;
                 final labels = data.labels;
                 final avg = count > 0 ? total / count : 0.0;
@@ -309,7 +338,7 @@ class _CategoriesViewState extends State<CategoriesView> {
                           children: [
                             Expanded(
                               child: Text(
-                                desc,
+                                name,
                                 style: TextStyle(
                                   color: colors.text,
                                   fontWeight: FontWeight.w600,

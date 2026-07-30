@@ -13,7 +13,8 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-- Ability to set a *tag* to a transaction to sort them (like groceries, trip, taxes...)
+- Ability to set a `tag` to a transaction to sort them (like groceries, trip, taxes...)
+- Enhance the `Create account` button UI
 
 ### Fixed
 

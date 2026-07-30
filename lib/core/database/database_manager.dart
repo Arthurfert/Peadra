@@ -9,6 +9,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../models/account.dart';
 import '../models/description.dart';
+import '../models/tag.dart';
 import '../models/transaction.dart';
 
 import '../utils/constants.dart';
@@ -195,6 +196,18 @@ class DatabaseManager {
         value TEXT
       )
     ''');
+
+    await db.execute('''
+      CREATE TABLE tags (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        color TEXT DEFAULT '#1976D2',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, name),
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )
+    ''');
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -211,6 +224,22 @@ class DatabaseManager {
             value TEXT
           )
         ''');
+      } catch (_) {}
+    }
+    if (oldVersion < 4) {
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS tags (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            color TEXT DEFAULT '#1976D2',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, name),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+          )
+        ''');
+        await db.execute('ALTER TABLE transactions ADD COLUMN tag_id INTEGER REFERENCES tags(id)');
       } catch (_) {}
     }
   }
@@ -658,6 +687,76 @@ class DatabaseManager {
     ''', [_userId, _userId]);
   }
 
+  // ==================== TAGS ====================
+
+  Future<int?> createTag({required String name, String color = '#1976D2'}) async {
+    if (_userId == null) return null;
+    final db = await database;
+    return await db.insert('tags', {
+      'user_id': _userId,
+      'name': name,
+      'color': color,
+    });
+  }
+
+  Future<List<Tag>> getAllTags() async {
+    if (_userId == null) return [];
+    final db = await database;
+    final rows = await db.query(
+      'tags',
+      where: 'user_id = ?',
+      whereArgs: [_userId],
+      orderBy: 'name ASC',
+    );
+    return rows.map((r) => Tag.fromMap(r)).toList();
+  }
+
+  Future<bool> updateTag(int tagId, {String? name, String? color}) async {
+    if (_userId == null) return false;
+    final db = await database;
+    final updates = <String, dynamic>{};
+    if (name != null) updates['name'] = name;
+    if (color != null) updates['color'] = color;
+    if (updates.isEmpty) return false;
+    final count = await db.update(
+      'tags',
+      updates,
+      where: 'id = ? AND user_id = ?',
+      whereArgs: [tagId, _userId],
+    );
+    return count > 0;
+  }
+
+  Future<bool> deleteTag(int tagId) async {
+    if (_userId == null) return false;
+    final db = await database;
+    // Unassign tag from transactions before deleting
+    await db.rawUpdate(
+      'UPDATE transactions SET tag_id = NULL WHERE tag_id = ? AND user_id = ?',
+      [tagId, _userId],
+    );
+    final count = await db.delete(
+      'tags',
+      where: 'id = ? AND user_id = ?',
+      whereArgs: [tagId, _userId],
+    );
+    return count > 0;
+  }
+
+  Future<int?> getOrCreateTag(String name, {String color = '#1976D2'}) async {
+    if (_userId == null) return null;
+    final db = await database;
+    final existing = await db.query(
+      'tags',
+      where: 'user_id = ? AND name = ?',
+      whereArgs: [_userId, name],
+    );
+    if (existing.isNotEmpty) {
+      return existing.first['id'] as int;
+    }
+    return await createTag(name: name, color: color);
+  }
+
   // ==================== TRANSACTIONS ====================
 
   Future<String?> getAccountCurrency(int accountId) async {
@@ -678,6 +777,7 @@ class DatabaseManager {
     required double amount,
     required String transactionType,
     int? accountId,
+    int? tagId,
     String? notes,
     String? currency,
   }) async {
@@ -697,6 +797,7 @@ class DatabaseManager {
       'user_id': _userId,
       'account_id': accountId,
       'description_id': descId,
+      'tag_id': tagId,
       'date': date,
       'amount': encryptedAmount,
       'transaction_type': transactionType,
@@ -711,6 +812,8 @@ class DatabaseManager {
     double? amount,
     String? transactionType,
     int? accountId,
+    int? tagId,
+    bool clearTag = false,
     String? notes,
     String? currency,
   }) async {
@@ -720,6 +823,8 @@ class DatabaseManager {
     if (amount != null) updates['amount'] = await _encrypt(amount.toString());
     if (transactionType != null) updates['transaction_type'] = transactionType;
     if (accountId != null) updates['account_id'] = accountId;
+    if (tagId != null) updates['tag_id'] = tagId;
+    if (clearTag) updates['tag_id'] = null;
     if (notes != null) updates['notes'] = await _encrypt(notes);
     if (currency != null) updates['currency'] = currency;
     if (description != null) {
@@ -752,14 +857,17 @@ class DatabaseManager {
     int offset = 0,
     String searchQuery = '',
     Set<int>? accountIds,
+    Set<int>? tagIds,
   }) async {
     final db = await database;
     var query = '''
       SELECT t.*, a.name as account_name, a.color as account_color,
-             a.currency as account_currency, d.name as description_name
+             a.currency as account_currency, d.name as description_name,
+             tg.name as tag_name, tg.color as tag_color
       FROM transactions t
       LEFT JOIN accounts a ON t.account_id = a.id
       LEFT JOIN descriptions d ON t.description_id = d.id
+      LEFT JOIN tags tg ON t.tag_id = tg.id
       WHERE t.user_id = ?
       ORDER BY t.date DESC, t.id DESC
     ''';
@@ -778,11 +886,18 @@ class DatabaseManager {
         if (acctId == null || !accountIds.contains(acctId)) continue;
       }
 
+      if (tagIds != null && tagIds.isNotEmpty) {
+        final txnTagId = r['tag_id'] as int?;
+        if (txnTagId == null || !tagIds.contains(txnTagId)) continue;
+      }
+
       if (searchQuery.isNotEmpty) {
         final sq = searchQuery.toLowerCase();
         final descMatch = descriptionName?.toLowerCase().contains(sq) ?? false;
         final acctMatch = accountName?.toLowerCase().contains(sq) ?? false;
-        if (!descMatch && !acctMatch) continue;
+        final tagName = r['tag_name'] as String?;
+        final tagMatch = tagName?.toLowerCase().contains(sq) ?? false;
+        if (!descMatch && !acctMatch && !tagMatch) continue;
       }
 
       results.add(TransactionWithDetails(
@@ -790,6 +905,7 @@ class DatabaseManager {
         userId: r['user_id'] as int,
         accountId: r['account_id'] as int?,
         descriptionId: r['description_id'] as int?,
+        tagId: r['tag_id'] as int?,
         date: r['date'] as String,
         amount: amount,
         transactionType: r['transaction_type'] as String,
@@ -801,6 +917,8 @@ class DatabaseManager {
         accountColor: r['account_color'] as String?,
         accountCurrency: r['account_currency'] as String?,
         descriptionName: descriptionName,
+        tagName: r['tag_name'] as String?,
+        tagColor: r['tag_color'] as String?,
       ));
 
       if (limit != null && results.length >= limit + offset) break;
@@ -817,10 +935,12 @@ class DatabaseManager {
     final db = await database;
     final rows = await db.rawQuery('''
       SELECT t.*, a.name as account_name, a.color as account_color,
-             a.currency as account_currency, d.name as description_name
+             a.currency as account_currency, d.name as description_name,
+             tg.name as tag_name, tg.color as tag_color
       FROM transactions t
       LEFT JOIN accounts a ON t.account_id = a.id
       LEFT JOIN descriptions d ON t.description_id = d.id
+      LEFT JOIN tags tg ON t.tag_id = tg.id
       WHERE t.date BETWEEN ? AND ? AND t.user_id = ?
       ORDER BY t.date DESC
     ''', [startDate, endDate, _userId]);
@@ -832,6 +952,7 @@ class DatabaseManager {
         userId: r['user_id'] as int,
         accountId: r['account_id'] as int?,
         descriptionId: r['description_id'] as int?,
+        tagId: r['tag_id'] as int?,
         date: r['date'] as String,
         amount: await _decryptAmount(r['amount'] as String?),
         transactionType: r['transaction_type'] as String,
@@ -843,6 +964,8 @@ class DatabaseManager {
         accountColor: r['account_color'] as String?,
         accountCurrency: r['account_currency'] as String?,
         descriptionName: await _decrypt(r['description_name'] as String?),
+        tagName: r['tag_name'] as String?,
+        tagColor: r['tag_color'] as String?,
       ));
     }
     return results;
@@ -1398,6 +1521,82 @@ class DatabaseManager {
     final desc = (description ?? '').trim().toLowerCase();
     const prefixes = ['transfer to ', 'transfer from '];
     return prefixes.any((p) => desc.startsWith(p));
+  }
+
+  Future<List<Map<String, dynamic>>> getTopTags({
+    String transactionType = 'expense',
+    int numMonths = 6,
+    int limit = 5,
+    int minCount = 1,
+  }) async {
+    final db = await database;
+    final now = DateTime.now();
+    final startDate = now.subtract(Duration(days: numMonths * 30)).toIso8601String().substring(0, 10);
+    final endDate = now.toIso8601String().substring(0, 10);
+
+    final rows = await db.rawQuery('''
+      SELECT t.amount, tg.name as tag_name
+      FROM transactions t
+      LEFT JOIN tags tg ON t.tag_id = tg.id
+      WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
+        AND t.tag_id IS NOT NULL
+    ''', [transactionType, startDate, endDate, _userId]);
+
+    final byTag = <String, Map<String, dynamic>>{};
+    for (final row in rows) {
+      final tag = row['tag_name'] as String? ?? 'Untagged';
+      final amount = await _decryptAmount(row['amount'] as String?);
+
+      if (!byTag.containsKey(tag)) {
+        byTag[tag] = {'total': 0.0, 'count': 0};
+      }
+      byTag[tag]!['total'] = (byTag[tag]!['total'] as double) + amount;
+      byTag[tag]!['count'] = (byTag[tag]!['count'] as int) + 1;
+    }
+
+    final sorted = byTag.entries.toList()
+      ..sort((a, b) => (b.value['total'] as double).compareTo(a.value['total'] as double));
+
+    final results = <Map<String, dynamic>>[];
+    for (final entry in sorted) {
+      if ((entry.value['count'] as int) >= minCount) {
+        results.add({'tag': entry.key, 'total': entry.value['total'], 'count': entry.value['count']});
+        if (limit > 0 && results.length >= limit) break;
+      }
+    }
+    return results;
+  }
+
+  Future<Map<String, Map<String, Map<String, double>>>> getTagMonthlyData(
+      String startDate, String endDate) async {
+    final db = await database;
+    final rows = await db.rawQuery('''
+      SELECT t.amount, t.transaction_type, t.date,
+             tg.name as tag_name
+      FROM transactions t
+      LEFT JOIN tags tg ON t.tag_id = tg.id
+      WHERE t.date >= ? AND t.date <= ? AND t.user_id = ?
+        AND t.tag_id IS NOT NULL
+    ''', [startDate, endDate, _userId]);
+
+    final result = <String, Map<String, Map<String, double>>>{};
+    for (final row in rows) {
+      final tag = row['tag_name'] as String? ?? 'Untagged';
+      final month = (row['date'] as String).substring(0, 7);
+      final type = row['transaction_type'] as String;
+      final total = await _decryptAmount(row['amount'] as String?);
+
+      result.putIfAbsent(tag, () => {});
+      result[tag]!.putIfAbsent(month, () => {'income': 0, 'expense': 0, 'total': 0});
+
+      if (type == 'income') {
+        result[tag]![month]!['income'] = result[tag]![month]!['income']! + total;
+      } else if (type == 'expense') {
+        result[tag]![month]!['expense'] = result[tag]![month]!['expense']! + total;
+      }
+      result[tag]![month]!['total'] = result[tag]![month]!['total']! + total;
+    }
+    return result;
   }
 
   Future<List<Map<String, dynamic>>> getMonthlyChartData({int? year}) async {

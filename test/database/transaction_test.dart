@@ -46,6 +46,7 @@ Future<Database> _openTestDb() async {
             user_id INTEGER NOT NULL,
             account_id INTEGER,
             description_id INTEGER,
+            tag_id INTEGER,
             date DATE NOT NULL,
             amount REAL NOT NULL,
             transaction_type TEXT NOT NULL CHECK(transaction_type IN ('income', 'expense', 'transfer')),
@@ -55,7 +56,8 @@ Future<Database> _openTestDb() async {
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id),
             FOREIGN KEY (account_id) REFERENCES accounts(id),
-            FOREIGN KEY (description_id) REFERENCES descriptions(id)
+            FOREIGN KEY (description_id) REFERENCES descriptions(id),
+            FOREIGN KEY (tag_id) REFERENCES tags(id)
           )
         ''');
         await db.execute('''
@@ -85,6 +87,17 @@ Future<Database> _openTestDb() async {
             key TEXT NOT NULL,
             value TEXT,
             UNIQUE(user_id, key),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+          )
+        ''');
+        await db.execute('''
+          CREATE TABLE tags (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            color TEXT DEFAULT '#1976D2',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, name),
             FOREIGN KEY (user_id) REFERENCES users(id)
           )
         ''');
@@ -1366,6 +1379,121 @@ void main() {
       final withEmpty = await getTransactions(accountIds: {});
       final without = await getTransactions();
       expect(withEmpty.length, without.length);
+    });
+  });
+
+  group('tag_id on transactions', () {
+    test('addTransaction with tag_id', () async {
+      final tagId = await seedTestTag(db, userId, 'Groceries');
+
+      final id = await db.insert('transactions', {
+        'user_id': userId,
+        'account_id': accountIds[0],
+        'date': '2025-06-01',
+        'amount': 25.0,
+        'transaction_type': 'expense',
+        'currency': 'EUR',
+        'tag_id': tagId,
+      });
+
+      final row = (await db.query('transactions', where: 'id = ?', whereArgs: [id])).first;
+      expect(row['tag_id'], tagId);
+    });
+
+    test('updateTransaction can set tag_id', () async {
+      final tagId = await seedTestTag(db, userId, 'Groceries');
+
+      final id = await db.insert('transactions', {
+        'user_id': userId,
+        'date': '2025-06-01',
+        'amount': 25.0,
+        'transaction_type': 'expense',
+      });
+
+      await db.update('transactions', {'tag_id': tagId},
+          where: 'id = ?', whereArgs: [id]);
+
+      final row = (await db.query('transactions', where: 'id = ?', whereArgs: [id])).first;
+      expect(row['tag_id'], tagId);
+    });
+
+    test('updateTransaction can clear tag_id', () async {
+      final tagId = await seedTestTag(db, userId, 'Groceries');
+
+      final id = await db.insert('transactions', {
+        'user_id': userId,
+        'date': '2025-06-01',
+        'amount': 25.0,
+        'transaction_type': 'expense',
+        'tag_id': tagId,
+      });
+
+      await db.update('transactions', {'tag_id': null},
+          where: 'id = ?', whereArgs: [id]);
+
+      final row = (await db.query('transactions', where: 'id = ?', whereArgs: [id])).first;
+      expect(row['tag_id'], isNull);
+    });
+
+    test('getTransactions with tag_ids filter', () async {
+      final tag1 = await seedTestTag(db, userId, 'Groceries');
+      final tag2 = await seedTestTag(db, userId, 'Trip');
+
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], tagId: tag1, amount: 10.0, transactionType: 'expense', date: '2025-06-01');
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], tagId: tag2, amount: 20.0, transactionType: 'expense', date: '2025-06-02');
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], amount: 30.0, transactionType: 'expense', date: '2025-06-03');
+
+      final rows = await db.rawQuery('''
+        SELECT t.*, tg.name as tag_name, tg.color as tag_color
+        FROM transactions t
+        LEFT JOIN tags tg ON t.tag_id = tg.id
+        WHERE t.user_id = ? AND t.tag_id IN (?, ?)
+        ORDER BY t.date DESC
+      ''', [userId, tag1, tag2]);
+
+      expect(rows.length, 2);
+    });
+
+    test('getTransactions JOIN includes tag_name and tag_color', () async {
+      final tagId = await seedTestTag(db, userId, 'Trip', color: '#D32F2F');
+
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], tagId: tagId, amount: 100.0, transactionType: 'expense', date: '2025-06-01');
+
+      final rows = await db.rawQuery('''
+        SELECT t.*, tg.name as tag_name, tg.color as tag_color
+        FROM transactions t
+        LEFT JOIN tags tg ON t.tag_id = tg.id
+        WHERE t.user_id = ?
+      ''', [userId]);
+
+      expect(rows.first['tag_name'], 'Trip');
+      expect(rows.first['tag_color'], '#D32F2F');
+    });
+
+    test('getTransactions search matches tag_name', () async {
+      final tagId = await seedTestTag(db, userId, 'Vacation');
+
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], tagId: tagId, amount: 500.0, transactionType: 'expense', date: '2025-06-01');
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], amount: 10.0, transactionType: 'expense', date: '2025-06-02');
+
+      final rows = await db.rawQuery('''
+        SELECT t.*, tg.name as tag_name
+        FROM transactions t
+        LEFT JOIN tags tg ON t.tag_id = tg.id
+        WHERE t.user_id = ?
+      ''', [userId]);
+
+      final matched = rows.where((r) {
+        final tag = r['tag_name'] as String?;
+        return tag?.toLowerCase().contains('vacat') ?? false;
+      }).toList();
+      expect(matched.length, 1);
     });
   });
 }

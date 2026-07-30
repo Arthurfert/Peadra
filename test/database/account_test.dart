@@ -48,6 +48,7 @@ Future<Database> _openTestDb() async {
             user_id INTEGER NOT NULL,
             account_id INTEGER,
             description_id INTEGER,
+            tag_id INTEGER,
             date DATE NOT NULL,
             amount REAL NOT NULL,
             transaction_type TEXT NOT NULL CHECK(transaction_type IN ('income', 'expense', 'transfer')),
@@ -57,7 +58,8 @@ Future<Database> _openTestDb() async {
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id),
             FOREIGN KEY (account_id) REFERENCES accounts(id),
-            FOREIGN KEY (description_id) REFERENCES descriptions(id)
+            FOREIGN KEY (description_id) REFERENCES descriptions(id),
+            FOREIGN KEY (tag_id) REFERENCES tags(id)
           )
         ''');
         await db.execute('''
@@ -87,6 +89,17 @@ Future<Database> _openTestDb() async {
             key TEXT NOT NULL,
             value TEXT,
             UNIQUE(user_id, key),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+          )
+        ''');
+        await db.execute('''
+          CREATE TABLE tags (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            color TEXT DEFAULT '#1976D2',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, name),
             FOREIGN KEY (user_id) REFERENCES users(id)
           )
         ''');

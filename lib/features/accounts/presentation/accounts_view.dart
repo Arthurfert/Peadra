@@ -61,10 +61,6 @@ class _AccountsViewState extends State<AccountsView> {
                   ),
                 ),
               ),
-              IconButton(
-                onPressed: () => _showAddAccountDialog(colors),
-                icon: Icon(Icons.add_circle_outline, color: colors.accent),
-              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -93,9 +89,13 @@ class _AccountsViewState extends State<AccountsView> {
                                 mainAxisSpacing: 12,
                                 crossAxisSpacing: 12,
                               ),
-                        itemCount: _accounts.length,
-                        itemBuilder: (context, index) =>
-                            _buildAccountCard(_accounts[index], colors, currency),
+                        itemCount: _accounts.length + 1,
+                        itemBuilder: (context, index) {
+                          if (index < _accounts.length) {
+                            return _buildAccountCard(_accounts[index], colors, currency);
+                          }
+                          return _buildCreateAccountCard(colors);
+                        },
                       ),
           ),
         ],
@@ -194,6 +194,46 @@ class _AccountsViewState extends State<AccountsView> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCreateAccountCard(PeadraColors colors) {
+    return Card(
+      color: colors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: colors.placeholderColor.withValues(alpha: 0.4),
+          width: 1.5,
+          style: BorderStyle.solid,
+        ),
+      ),
+      child: InkWell(
+        onTap: () => _showAddAccountDialog(colors),
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.add,
+                size: 32,
+                color: colors.placeholderColor,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                Translator.t('acc_create_account'),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: colors.placeholderColor,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

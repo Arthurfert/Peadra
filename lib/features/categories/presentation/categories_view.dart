@@ -4,7 +4,9 @@ import 'package:fl_chart/fl_chart.dart';
 
 import '../../../core/i18n/translator.dart';
 import '../../../core/providers/theme_provider.dart';
+import '../../../core/providers/settings_provider.dart';
 import '../../../core/database/database_manager.dart';
+import '../../../core/models/tag.dart';
 import '../../../core/theme/peadra_colors.dart';
 import '../../../core/responsive/responsive_layout.dart';
 import '../../../shared/widgets/peadra_notification.dart';
@@ -36,25 +38,53 @@ class _CategoriesViewState extends State<CategoriesView> {
         now.subtract(Duration(days: _selectedMonths * 30)).toIso8601String().substring(0, 10);
     final endDate = now.toIso8601String().substring(0, 10);
 
+    final categoriesView = context.read<SettingsProvider>().categoriesView;
+    final isTagMode = categoriesView == 'tags';
+
     final results = await Future.wait([
-      _db.getTopDescriptions(
-          transactionType: 'expense',
-          numMonths: _selectedMonths,
-          limit: 5,
-          minCount: 2),
-      _db.getTopDescriptions(
-          transactionType: 'income',
-          numMonths: _selectedMonths,
-          limit: 5,
-          minCount: 2),
-      _db.getDescriptionMonthlyData(startDate, endDate),
+      isTagMode
+          ? _db.getTopTags(
+              transactionType: 'expense',
+              numMonths: _selectedMonths,
+              limit: 5,
+              minCount: 2)
+          : _db.getTopDescriptions(
+              transactionType: 'expense',
+              numMonths: _selectedMonths,
+              limit: 5,
+              minCount: 2),
+      isTagMode
+          ? _db.getTopTags(
+              transactionType: 'income',
+              numMonths: _selectedMonths,
+              limit: 5,
+              minCount: 2)
+          : _db.getTopDescriptions(
+              transactionType: 'income',
+              numMonths: _selectedMonths,
+              limit: 5,
+              minCount: 2),
+      isTagMode
+          ? _db.getTagMonthlyData(startDate, endDate)
+          : _db.getDescriptionMonthlyData(startDate, endDate),
     ]);
 
     if (mounted) {
       setState(() {
-        _topExpenses = results[0] as List<Map<String, dynamic>>;
-        _topIncomes = results[1] as List<Map<String, dynamic>>;
-        _monthlyData = results[2] as Map<String, Map<String, Map<String, double>>>;
+        if (isTagMode) {
+          _topExpenses = results[0] as List<Map<String, dynamic>>;
+          _topIncomes = results[1] as List<Map<String, dynamic>>;
+          _monthlyData = {};
+          // Convert tag monthly data to the same format
+          final tagMonthly = results[2] as Map<String, Map<String, Map<String, double>>>;
+          for (final entry in tagMonthly.entries) {
+            _monthlyData[entry.key] = entry.value;
+          }
+        } else {
+          _topExpenses = results[0] as List<Map<String, dynamic>>;
+          _topIncomes = results[1] as List<Map<String, dynamic>>;
+          _monthlyData = results[2] as Map<String, Map<String, Map<String, double>>>;
+        }
         _loading = false;
       });
     }
@@ -98,6 +128,13 @@ class _CategoriesViewState extends State<CategoriesView> {
                 ),
               ],
             ),
+            const SizedBox(height: 8),
+            _buildToolButton(
+              icon: Icons.label,
+              label: Translator.t('tag_manage'),
+              colors: colors,
+              onPressed: () => _showManageTagsDialog(colors),
+            ),
             const SizedBox(height: 12),
             _buildTimeFilterButtons(colors),
           ] else ...[
@@ -112,6 +149,13 @@ class _CategoriesViewState extends State<CategoriesView> {
                   ),
                 ),
                 const Spacer(),
+                _buildToolButton(
+                  icon: Icons.label,
+                  label: Translator.t('tag_manage'),
+                  colors: colors,
+                  onPressed: () => _showManageTagsDialog(colors),
+                ),
+                const SizedBox(width: 8),
                 _buildToolButton(
                   icon: Icons.merge,
                   label: Translator.t('cat_merge_descriptions'),
@@ -241,8 +285,8 @@ class _CategoriesViewState extends State<CategoriesView> {
   Widget _buildSection(String title, List<Map<String, dynamic>> items,
       Color accentColor, PeadraColors colors) {
     final itemsWithGraph = items.where((item) {
-      final desc = item['description'] as String;
-      final data = _buildSpotsForDescription(desc);
+      final name = (item['description'] ?? item['tag']) as String;
+      final data = _buildSpotsForDescription(name);
       return data.spots.length > 1;
     }).toList();
 
@@ -287,10 +331,10 @@ class _CategoriesViewState extends State<CategoriesView> {
               crossAxisSpacing: 12,
               childAspectRatio: 1.8,
               children: itemsWithGraph.map((item) {
-                final desc = item['description'] as String;
+                final name = (item['description'] ?? item['tag']) as String;
                 final count = item['count'] as int;
                 final total = item['total'] as num;
-                final data = _buildSpotsForDescription(desc);
+                final data = _buildSpotsForDescription(name);
                 final spots = data.spots;
                 final labels = data.labels;
                 final avg = count > 0 ? total / count : 0.0;
@@ -309,7 +353,7 @@ class _CategoriesViewState extends State<CategoriesView> {
                           children: [
                             Expanded(
                               child: Text(
-                                desc,
+                                name,
                                 style: TextStyle(
                                   color: colors.text,
                                   fontWeight: FontWeight.w600,
@@ -694,5 +738,223 @@ class _CategoriesViewState extends State<CategoriesView> {
         if (success) _loadData();
       }
     }
+  }
+
+  Future<void> _showManageTagsDialog(PeadraColors colors) async {
+    if (!mounted) return;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => _ManageTagsDialog(db: _db, colors: colors),
+    );
+
+    _loadData();
+  }
+}
+
+class _ManageTagsDialog extends StatefulWidget {
+  final DatabaseManager db;
+  final PeadraColors colors;
+
+  const _ManageTagsDialog({required this.db, required this.colors});
+
+  @override
+  State<_ManageTagsDialog> createState() => _ManageTagsDialogState();
+}
+
+class _ManageTagsDialogState extends State<_ManageTagsDialog> {
+  List<Tag> _tags = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTags();
+  }
+
+  Future<void> _loadTags() async {
+    final tags = await widget.db.getAllTags();
+    if (mounted) setState(() => _tags = tags);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = widget.colors;
+
+    return AlertDialog(
+      backgroundColor: colors.surface,
+      title: Text(Translator.t('tag_manage'),
+          style: TextStyle(color: colors.text)),
+      content: SizedBox(
+        width: 400,
+        child: _tags.isEmpty
+            ? Text(Translator.t('tag_no_tags'),
+                style: TextStyle(color: colors.placeholderColor))
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final tag in _tags) ...[
+                    _buildTagTile(tag, colors),
+                    if (tag != _tags.last) const Divider(height: 1),
+                  ],
+                ],
+              ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(Translator.t('btn_close')),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTagTile(Tag tag, PeadraColors colors) {
+    final tagColor = Color(int.parse(tag.color.replaceFirst('#', '0xFF')));
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: CircleAvatar(
+        backgroundColor: tagColor,
+        radius: 14,
+      ),
+      title: Text(tag.name, style: TextStyle(color: colors.text)),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: Icon(Icons.edit, color: colors.placeholderColor, size: 20),
+            tooltip: Translator.t('btn_edit'),
+            onPressed: () async {
+              await _showEditTagDialog(tag, colors);
+              _loadTags();
+            },
+          ),
+          IconButton(
+            icon: Icon(Icons.delete, color: colors.error, size: 20),
+            tooltip: Translator.t('tag_delete'),
+            onPressed: () async {
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  backgroundColor: colors.surface,
+                  title: Text(Translator.t('tag_delete'),
+                      style: TextStyle(color: colors.text)),
+                  content: Text(
+                    Translator.t('tag_delete_confirm')
+                        .replaceAll('{name}', tag.name),
+                    style: TextStyle(color: colors.textSecondary),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: Text(Translator.t('btn_cancel')),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: Text(Translator.t('btn_delete'),
+                          style: TextStyle(color: colors.error)),
+                    ),
+                  ],
+                ),
+              );
+              if (confirmed == true) {
+                await widget.db.deleteTag(tag.id!);
+                if (mounted) {
+                  PeadraNotification.show(
+                      context, message: Translator.t('tag_delete_success'));
+                }
+                _loadTags();
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showEditTagDialog(Tag tag, PeadraColors colors) async {
+    final nameController = TextEditingController(text: tag.name);
+    String selectedColor = tag.color;
+
+    final tagColors = [
+      '#1976D2', '#388E3C', '#F57C00', '#D32F2F', '#7B1FA2',
+      '#00796B', '#C2185B', '#5D4037', '#455A64', '#FFB300',
+    ];
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: colors.surface,
+          title: Text(Translator.t('btn_edit'),
+              style: TextStyle(color: colors.text)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: nameController,
+                  maxLength: 50,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    labelText: Translator.t('tag_name'),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(Translator.t('tag_color'),
+                    style: TextStyle(
+                        color: colors.text, fontWeight: FontWeight.w500)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: tagColors.map((c) {
+                    final isSelected = selectedColor == c;
+                    return GestureDetector(
+                      onTap: () => setDialogState(() => selectedColor = c),
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: Color(int.parse(c.replaceFirst('#', '0xFF'))),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isSelected ? colors.text : Colors.transparent,
+                            width: 2,
+                          ),
+                        ),
+                        child: isSelected
+                            ? const Icon(Icons.check, color: Colors.white, size: 16)
+                            : null,
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(Translator.t('btn_cancel')),
+            ),
+            ElevatedButton(
+              onPressed: nameController.text.trim().isEmpty
+                  ? null
+                  : () async {
+                      final name = nameController.text.trim();
+                      await widget.db.updateTag(tag.id!, name: name, color: selectedColor);
+                      if (mounted) Navigator.pop(ctx);
+                    },
+              style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
+              child: Text(Translator.t('btn_save'),
+                  style: const TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

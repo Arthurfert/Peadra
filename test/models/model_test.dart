@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:peadra/core/models/account.dart';
+import 'package:peadra/core/models/tag.dart';
 import 'package:peadra/core/models/transaction.dart';
 import 'package:peadra/core/models/description.dart' as desc_model;
 import 'package:peadra/core/models/setting.dart';
@@ -189,6 +190,7 @@ void main() {
       expect(tx.userId, 1);
       expect(tx.accountId, isNull);
       expect(tx.descriptionId, isNull);
+      expect(tx.tagId, isNull);
       expect(tx.date, '2026-06-01');
       expect(tx.amount, 50.0);
       expect(tx.transactionType, 'expense');
@@ -204,6 +206,7 @@ void main() {
         userId: 1,
         accountId: 2,
         descriptionId: 3,
+        tagId: 5,
         date: '2026-06-01',
         amount: 100.0,
         transactionType: 'income',
@@ -215,6 +218,7 @@ void main() {
       expect(tx.id, 10);
       expect(tx.accountId, 2);
       expect(tx.descriptionId, 3);
+      expect(tx.tagId, 5);
       expect(tx.currency, 'USD');
       expect(tx.notes, 'Salary');
     });
@@ -257,6 +261,7 @@ void main() {
         userId: 1,
         accountId: 2,
         descriptionId: 3,
+        tagId: 4,
         date: '2026-06-15',
         amount: 42.99,
         transactionType: 'expense',
@@ -270,6 +275,7 @@ void main() {
       expect(restored.userId, original.userId);
       expect(restored.accountId, original.accountId);
       expect(restored.descriptionId, original.descriptionId);
+      expect(restored.tagId, original.tagId);
       expect(restored.date, original.date);
       expect(restored.amount, original.amount);
       expect(restored.transactionType, original.transactionType);
@@ -340,6 +346,24 @@ void main() {
       expect(copied.createdAt, '2026-01-01');
       expect(copied.updatedAt, '2026-06-01');
     });
+
+    test('copyWith tagId and clearTag', () {
+      final original = Transaction(
+        userId: 1,
+        date: 'd',
+        amount: 1,
+        transactionType: 'expense',
+        tagId: 5,
+      );
+      final copiedWithTag = original.copyWith(tagId: 10);
+      expect(copiedWithTag.tagId, 10);
+
+      final copiedClearTag = original.copyWith(clearTag: true);
+      expect(copiedClearTag.tagId, isNull);
+
+      final copiedNoChange = original.copyWith();
+      expect(copiedNoChange.tagId, 5);
+    });
   });
 
   group('TransactionWithDetails', () {
@@ -349,6 +373,7 @@ void main() {
         'user_id': 1,
         'account_id': 2,
         'description_id': 3,
+        'tag_id': 5,
         'date': '2026-06-01',
         'amount': 100.0,
         'transaction_type': 'expense',
@@ -360,17 +385,22 @@ void main() {
         'account_color': '#4CAF50',
         'account_currency': 'EUR',
         'description_name': 'Food',
+        'tag_name': 'Groceries',
+        'tag_color': '#F57C00',
       };
       final tx = TransactionWithDetails.fromMap(map);
 
       expect(tx.id, 1);
       expect(tx.accountId, 2);
       expect(tx.descriptionId, 3);
+      expect(tx.tagId, 5);
       expect(tx.amount, 100.0);
       expect(tx.accountName, 'Main Checking');
       expect(tx.accountColor, '#4CAF50');
       expect(tx.accountCurrency, 'EUR');
       expect(tx.descriptionName, 'Food');
+      expect(tx.tagName, 'Groceries');
+      expect(tx.tagColor, '#F57C00');
     });
 
     test('fromMap with null joined fields', () {
@@ -387,6 +417,8 @@ void main() {
       expect(tx.accountColor, isNull);
       expect(tx.accountCurrency, isNull);
       expect(tx.descriptionName, isNull);
+      expect(tx.tagName, isNull);
+      expect(tx.tagColor, isNull);
     });
 
     test('constructor with all fields', () {
@@ -395,6 +427,7 @@ void main() {
         userId: 1,
         accountId: 2,
         descriptionId: 3,
+        tagId: 5,
         date: '2026-06-01',
         amount: 75.0,
         transactionType: 'transfer',
@@ -404,9 +437,14 @@ void main() {
         accountColor: '#2196F3',
         accountCurrency: 'USD',
         descriptionName: 'Transfer',
+        tagName: 'Trip',
+        tagColor: '#D32F2F',
       );
       expect(tx.accountName, 'Savings');
       expect(tx.descriptionName, 'Transfer');
+      expect(tx.tagName, 'Trip');
+      expect(tx.tagColor, '#D32F2F');
+      expect(tx.tagId, 5);
       expect(tx.isTransfer, isTrue);
     });
   });
@@ -701,6 +739,70 @@ void main() {
       expect(user.username, 'u');
       expect(user.passwordHash, 'p');
       expect(user.createdAt, isNull);
+    });
+  });
+
+  group('Tag', () {
+    test('constructor defaults', () {
+      final tag = Tag(userId: 1, name: 'Groceries');
+      expect(tag.id, isNull);
+      expect(tag.userId, 1);
+      expect(tag.name, 'Groceries');
+      expect(tag.color, '#1976D2');
+      expect(tag.createdAt, isNull);
+    });
+
+    test('constructor with all fields', () {
+      final tag = Tag(
+        id: 5,
+        userId: 1,
+        name: 'Trip',
+        color: '#D32F2F',
+        createdAt: '2026-06-01',
+      );
+      expect(tag.id, 5);
+      expect(tag.name, 'Trip');
+      expect(tag.color, '#D32F2F');
+      expect(tag.createdAt, '2026-06-01');
+    });
+
+    test('fromMap/toMap roundtrip', () {
+      final original = Tag(
+        id: 3,
+        userId: 1,
+        name: 'Taxes',
+        color: '#F57C00',
+      );
+      final map = original.toMap();
+      final restored = Tag.fromMap(map);
+
+      expect(restored.id, original.id);
+      expect(restored.userId, original.userId);
+      expect(restored.name, original.name);
+      expect(restored.color, original.color);
+    });
+
+    test('toMap omits null id', () {
+      final tag = Tag(userId: 1, name: 'Test');
+      final map = tag.toMap();
+      expect(map.containsKey('id'), isFalse);
+    });
+
+    test('copyWith overrides specified fields', () {
+      final original = Tag(userId: 1, name: 'Old', color: '#FF0000');
+      final copied = original.copyWith(name: 'New', color: '#00FF00');
+      expect(copied.name, 'New');
+      expect(copied.color, '#00FF00');
+      expect(copied.userId, 1);
+    });
+
+    test('copyWith preserves all fields when none specified', () {
+      final original = Tag(id: 2, userId: 1, name: 'Tag', color: '#1976D2');
+      final copied = original.copyWith();
+      expect(copied.id, original.id);
+      expect(copied.userId, original.userId);
+      expect(copied.name, original.name);
+      expect(copied.color, original.color);
     });
   });
 }

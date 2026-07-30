@@ -10,6 +10,7 @@ class SettingsProvider extends ChangeNotifier {
   String _currency = defaultCurrency;
   int _maxBackups = defaultMaxBackups;
   bool _biometricEnabled = defaultBiometricEnabled;
+  String _categoriesView = defaultCategoriesView;
 
   int get displayLimit => _displayLimit;
   int get maxPieCategories => _maxPieCategories;
@@ -17,6 +18,7 @@ class SettingsProvider extends ChangeNotifier {
   String get currency => _currency;
   int get maxBackups => _maxBackups;
   bool get biometricEnabled => _biometricEnabled;
+  String get categoriesView => _categoriesView;
 
   Future<void> loadFromSettings(DatabaseManager db) async {
     _displayLimit = int.tryParse(
@@ -34,6 +36,7 @@ class SettingsProvider extends ChangeNotifier {
         ) ??
         defaultMaxBackups;
     _biometricEnabled = (await db.getSetting('biometric_enabled', defaultValue: defaultBiometricEnabled.toString())) == 'true';
+    _categoriesView = await db.getSetting('categories_view', defaultValue: defaultCategoriesView) ?? defaultCategoriesView;
     notifyListeners();
   }
 
@@ -76,6 +79,13 @@ class SettingsProvider extends ChangeNotifier {
     _biometricEnabled = enabled;
     await db.setSetting('biometric_enabled', enabled.toString());
     LogService().log('Biometric login set to $enabled');
+    notifyListeners();
+  }
+
+  Future<void> setCategoriesView(String view, DatabaseManager db) async {
+    _categoriesView = view;
+    await db.setSetting('categories_view', view);
+    LogService().log('Categories view set to $view');
     notifyListeners();
   }
 }

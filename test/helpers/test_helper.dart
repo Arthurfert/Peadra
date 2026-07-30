@@ -18,7 +18,7 @@ Future<Database> createTestDatabase() async {
   return databaseFactoryFfi.openDatabase(
     inMemoryDatabasePath,
     options: OpenDatabaseOptions(
-      version: 3,
+      version: 4,
       onCreate: _onCreate,
       singleInstance: false,
     ),
@@ -67,6 +67,7 @@ Future<void> _onCreate(Database db, int version) async {
       user_id INTEGER NOT NULL,
       account_id INTEGER,
       description_id INTEGER,
+      tag_id INTEGER,
       date DATE NOT NULL,
       amount REAL NOT NULL,
       transaction_type TEXT NOT NULL CHECK(transaction_type IN ('income', 'expense', 'transfer')),
@@ -76,7 +77,8 @@ Future<void> _onCreate(Database db, int version) async {
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id),
       FOREIGN KEY (account_id) REFERENCES accounts(id),
-      FOREIGN KEY (description_id) REFERENCES descriptions(id)
+      FOREIGN KEY (description_id) REFERENCES descriptions(id),
+      FOREIGN KEY (tag_id) REFERENCES tags(id)
     )
   ''');
 
@@ -117,6 +119,18 @@ Future<void> _onCreate(Database db, int version) async {
     CREATE TABLE IF NOT EXISTS encryption_meta (
       key TEXT PRIMARY KEY,
       value TEXT
+    )
+  ''');
+
+  await db.execute('''
+    CREATE TABLE tags (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      color TEXT DEFAULT '#1976D2',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, name),
+      FOREIGN KEY (user_id) REFERENCES users(id)
     )
   ''');
 }
@@ -166,12 +180,22 @@ Future<int> seedTestDescription(Database db, int userId, String name) async {
   });
 }
 
+/// Seed a test tag and return its ID.
+Future<int> seedTestTag(Database db, int userId, String name, {String color = '#1976D2'}) async {
+  return await db.insert('tags', {
+    'user_id': userId,
+    'name': name,
+    'color': color,
+  });
+}
+
 /// Seed a test transaction and return its ID.
 Future<int> seedTestTransaction(
   Database db,
   int userId, {
   int? accountId,
   int? descriptionId,
+  int? tagId,
   String date = '2025-01-15',
   double amount = 100.0,
   String transactionType = 'income',
@@ -182,6 +206,7 @@ Future<int> seedTestTransaction(
     'user_id': userId,
     'account_id': accountId,
     'description_id': descriptionId,
+    'tag_id': tagId,
     'date': date,
     'amount': amount,
     'transaction_type': transactionType,

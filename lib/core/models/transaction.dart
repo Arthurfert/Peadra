@@ -3,6 +3,7 @@ class Transaction {
   final int userId;
   final int? accountId;
   final int? descriptionId;
+  final int? tagId;
   final String date;
   final double amount;
   final String transactionType;
@@ -16,6 +17,7 @@ class Transaction {
     required this.userId,
     this.accountId,
     this.descriptionId,
+    this.tagId,
     required this.date,
     required this.amount,
     required this.transactionType,
@@ -34,6 +36,8 @@ class Transaction {
     int? userId,
     int? accountId,
     int? descriptionId,
+    int? tagId,
+    bool clearTag = false,
     String? date,
     double? amount,
     String? transactionType,
@@ -45,6 +49,7 @@ class Transaction {
         userId: userId ?? this.userId,
         accountId: accountId ?? this.accountId,
         descriptionId: descriptionId ?? this.descriptionId,
+        tagId: clearTag ? null : (tagId ?? this.tagId),
         date: date ?? this.date,
         amount: amount ?? this.amount,
         transactionType: transactionType ?? this.transactionType,
@@ -59,6 +64,7 @@ class Transaction {
         'user_id': userId,
         'account_id': accountId,
         'description_id': descriptionId,
+        'tag_id': tagId,
         'date': date,
         'amount': amount,
         'transaction_type': transactionType,
@@ -71,6 +77,7 @@ class Transaction {
         userId: map['user_id'] as int,
         accountId: map['account_id'] as int?,
         descriptionId: map['description_id'] as int?,
+        tagId: map['tag_id'] as int?,
         date: map['date'] as String,
         amount: (map['amount'] as num).toDouble(),
         transactionType: map['transaction_type'] as String,
@@ -86,12 +93,15 @@ class TransactionWithDetails extends Transaction {
   final String? accountColor;
   final String? accountCurrency;
   final String? descriptionName;
+  final String? tagName;
+  final String? tagColor;
 
   TransactionWithDetails({
     required super.id,
     required super.userId,
     super.accountId,
     super.descriptionId,
+    super.tagId,
     required super.date,
     required super.amount,
     required super.transactionType,
@@ -103,6 +113,8 @@ class TransactionWithDetails extends Transaction {
     this.accountColor,
     this.accountCurrency,
     this.descriptionName,
+    this.tagName,
+    this.tagColor,
   });
 
   factory TransactionWithDetails.fromMap(Map<String, dynamic> map) =>
@@ -111,6 +123,7 @@ class TransactionWithDetails extends Transaction {
         userId: map['user_id'] as int,
         accountId: map['account_id'] as int?,
         descriptionId: map['description_id'] as int?,
+        tagId: map['tag_id'] as int?,
         date: map['date'] as String,
         amount: (map['amount'] as num).toDouble(),
         transactionType: map['transaction_type'] as String,
@@ -122,5 +135,7 @@ class TransactionWithDetails extends Transaction {
         accountColor: map['account_color'] as String?,
         accountCurrency: map['account_currency'] as String?,
         descriptionName: map['description_name'] as String?,
+        tagName: map['tag_name'] as String?,
+        tagColor: map['tag_color'] as String?,
       );
 }

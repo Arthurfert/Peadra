@@ -1911,4 +1911,190 @@ void main() {
       expect(topRows[1]['desc'], 'food');
     });
   });
+
+  group('getTopTags SQL', () {
+    test('returns empty when no tagged transactions', () async {
+      final rows = await db.rawQuery('''
+        SELECT tg.name as tag, SUM(t.amount) as total, COUNT(*) as count
+        FROM transactions t
+        LEFT JOIN tags tg ON t.tag_id = tg.id
+        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
+          AND t.tag_id IS NOT NULL
+        GROUP BY tg.name
+        ORDER BY total DESC
+      ''', ['expense', '2025-01-01', '2025-12-31', userId]);
+      expect(rows, isEmpty);
+    });
+
+    test('returns tags ordered by total amount', () async {
+      final tag1 = await seedTestTag(db, userId, 'Groceries');
+      final tag2 = await seedTestTag(db, userId, 'Trip');
+      final descId = await seedTestDescription(db, userId, 'Food');
+
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: descId, tagId: tag1,
+          amount: 100.0, transactionType: 'expense', date: '2025-06-01');
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: descId, tagId: tag1,
+          amount: 50.0, transactionType: 'expense', date: '2025-06-15');
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: descId, tagId: tag2,
+          amount: 200.0, transactionType: 'expense', date: '2025-06-10');
+
+      final rows = await db.rawQuery('''
+        SELECT tg.name as tag, SUM(t.amount) as total, COUNT(*) as count
+        FROM transactions t
+        LEFT JOIN tags tg ON t.tag_id = tg.id
+        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
+          AND t.tag_id IS NOT NULL
+        GROUP BY tg.name
+        ORDER BY total DESC
+      ''', ['expense', '2025-01-01', '2025-12-31', userId]);
+
+      expect(rows.length, 2);
+      expect(rows[0]['tag'], 'Trip');
+      expect(rows[0]['total'], 200.0);
+      expect(rows[1]['tag'], 'Groceries');
+      expect(rows[1]['total'], 150.0);
+    });
+
+    test('respects minCount filter', () async {
+      final tagId = await seedTestTag(db, userId, 'Rare');
+      final descId = await seedTestDescription(db, userId, 'Food');
+
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: descId, tagId: tagId,
+          amount: 10.0, transactionType: 'expense', date: '2025-06-01');
+
+      final rows = await db.rawQuery('''
+        SELECT tg.name as tag, COUNT(*) as count
+        FROM transactions t
+        LEFT JOIN tags tg ON t.tag_id = tg.id
+        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
+          AND t.tag_id IS NOT NULL
+        GROUP BY tg.name
+        HAVING count >= ?
+      ''', ['expense', '2025-01-01', '2025-12-31', userId, 2]);
+
+      expect(rows, isEmpty);
+    });
+
+    test('excludes untagged transactions', () async {
+      final descId = await seedTestDescription(db, userId, 'Food');
+
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: descId,
+          amount: 100.0, transactionType: 'expense', date: '2025-06-01');
+
+      final rows = await db.rawQuery('''
+        SELECT tg.name as tag, SUM(t.amount) as total
+        FROM transactions t
+        LEFT JOIN tags tg ON t.tag_id = tg.id
+        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
+          AND t.tag_id IS NOT NULL
+        GROUP BY tg.name
+      ''', ['expense', '2025-01-01', '2025-12-31', userId]);
+
+      expect(rows, isEmpty);
+    });
+  });
+
+  group('getTagMonthlyData SQL', () {
+    test('returns empty when no tagged transactions', () async {
+      final rows = await db.rawQuery('''
+        SELECT t.amount, t.transaction_type, t.date, tg.name as tag_name
+        FROM transactions t
+        LEFT JOIN tags tg ON t.tag_id = tg.id
+        WHERE t.date >= ? AND t.date <= ? AND t.user_id = ?
+          AND t.tag_id IS NOT NULL
+      ''', ['2025-01-01', '2025-12-31', userId]);
+      expect(rows, isEmpty);
+    });
+
+    test('returns monthly breakdown per tag', () async {
+      final tagId = await seedTestTag(db, userId, 'Groceries');
+      final descId = await seedTestDescription(db, userId, 'Food');
+
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: descId, tagId: tagId,
+          amount: 100.0, transactionType: 'expense', date: '2025-06-01');
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: descId, tagId: tagId,
+          amount: 50.0, transactionType: 'income', date: '2025-06-15');
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: descId, tagId: tagId,
+          amount: 75.0, transactionType: 'expense', date: '2025-07-01');
+
+      final rows = await db.rawQuery('''
+        SELECT t.amount, t.transaction_type, t.date, tg.name as tag_name
+        FROM transactions t
+        LEFT JOIN tags tg ON t.tag_id = tg.id
+        WHERE t.date >= ? AND t.date <= ? AND t.user_id = ?
+          AND t.tag_id IS NOT NULL
+      ''', ['2025-01-01', '2025-12-31', userId]);
+
+      expect(rows.length, 3);
+
+      final byMonth = <String, List>{};
+      for (final r in rows) {
+        final month = (r['date'] as String).substring(0, 7);
+        byMonth.putIfAbsent(month, () => []).add(r);
+      }
+
+      expect(byMonth['2025-06']!.length, 2);
+      expect(byMonth['2025-07']!.length, 1);
+
+      final juneExpenses = byMonth['2025-06']!
+          .where((r) => r['transaction_type'] == 'expense')
+          .toList();
+      expect(juneExpenses.length, 1);
+      expect(juneExpenses.first['amount'], 100.0);
+    });
+
+    test('excludes untagged transactions', () async {
+      final descId = await seedTestDescription(db, userId, 'Food');
+
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: descId,
+          amount: 100.0, transactionType: 'expense', date: '2025-06-01');
+
+      final rows = await db.rawQuery('''
+        SELECT t.amount, tg.name as tag_name
+        FROM transactions t
+        LEFT JOIN tags tg ON t.tag_id = tg.id
+        WHERE t.date >= ? AND t.date <= ? AND t.user_id = ?
+          AND t.tag_id IS NOT NULL
+      ''', ['2025-01-01', '2025-12-31', userId]);
+
+      expect(rows, isEmpty);
+    });
+
+    test('separates data by tag name', () async {
+      final tag1 = await seedTestTag(db, userId, 'Groceries');
+      final tag2 = await seedTestTag(db, userId, 'Trip');
+      final descId = await seedTestDescription(db, userId, 'Food');
+
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: descId, tagId: tag1,
+          amount: 100.0, transactionType: 'expense', date: '2025-06-01');
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: descId, tagId: tag2,
+          amount: 200.0, transactionType: 'expense', date: '2025-06-01');
+
+      final rows = await db.rawQuery('''
+        SELECT tg.name as tag_name, SUM(t.amount) as total
+        FROM transactions t
+        LEFT JOIN tags tg ON t.tag_id = tg.id
+        WHERE t.date >= ? AND t.date <= ? AND t.user_id = ?
+          AND t.tag_id IS NOT NULL
+        GROUP BY tg.name
+      ''', ['2025-01-01', '2025-12-31', userId]);
+
+      expect(rows.length, 2);
+      final groceries = rows.firstWhere((r) => r['tag_name'] == 'Groceries');
+      final trip = rows.firstWhere((r) => r['tag_name'] == 'Trip');
+      expect(groceries['total'], 100.0);
+      expect(trip['total'], 200.0);
+    });
+  });
 }

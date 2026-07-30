@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/i18n/translator.dart';
@@ -7,6 +8,7 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../core/database/database_manager.dart';
 import '../../../core/models/transaction.dart';
 import '../../../core/models/account.dart';
+import '../../../core/models/tag.dart';
 import '../../../core/theme/peadra_colors.dart';
 import 'widgets/transaction_modal.dart';
 import '../../../shared/widgets/peadra_notification.dart';
@@ -41,10 +43,13 @@ class TransactionsView extends StatefulWidget {
 
 class _TransactionsViewState extends State<TransactionsView> {
   final _db = DatabaseManager.instance;
+  final _tagScrollController = ScrollController();
   List<_DisplayItem> _displayItems = [];
   List<Account> _accounts = [];
+  List<Tag> _tags = [];
   bool _loading = true;
   String _searchQuery = '';
+  final Set<int> _selectedTagIds = {};
   final int _displayLimit = 30;
   bool _hasMore = true;
   int _lastRawFetchCount = 0;
@@ -53,6 +58,12 @@ class _TransactionsViewState extends State<TransactionsView> {
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _tagScrollController.dispose();
+    super.dispose();
   }
 
   List<_DisplayItem> _mergeTransfers(List<TransactionWithDetails> txns) {
@@ -120,16 +131,25 @@ class _TransactionsViewState extends State<TransactionsView> {
   }
 
   Future<void> _loadData() async {
-    final txns = await _db.getTransactions(
-      limit: _displayLimit,
-      searchQuery: _searchQuery,
-    );
-    final accounts = await _db.getAllAccounts();
+    final results = await Future.wait([
+      _db.getTransactions(
+        limit: _displayLimit,
+        searchQuery: _searchQuery,
+        tagIds: _selectedTagIds.isEmpty ? null : _selectedTagIds,
+      ),
+      _db.getAllAccounts(),
+      _db.getAllTags(),
+    ]);
+
+    final txns = results[0] as List<TransactionWithDetails>;
+    final accounts = results[1] as List<Account>;
+    final tags = results[2] as List<Tag>;
 
     if (mounted) {
       setState(() {
         _displayItems = _mergeTransfers(txns);
         _accounts = accounts;
+        _tags = tags;
         _lastRawFetchCount = txns.length;
         _hasMore = txns.length == _displayLimit;
         _loading = false;
@@ -144,6 +164,7 @@ class _TransactionsViewState extends State<TransactionsView> {
       limit: limit,
       offset: offset,
       searchQuery: _searchQuery,
+      tagIds: _selectedTagIds.isEmpty ? null : _selectedTagIds,
     );
 
     if (mounted) {
@@ -195,6 +216,7 @@ class _TransactionsViewState extends State<TransactionsView> {
   Future<void> _handleSave(Map<String, dynamic> data,
       {TransactionWithDetails? editTxn}) async {
     final isTransfer = data['transaction_type'] == 'transfer';
+    final tagId = data['tag_id'] as int?;
 
     if (editTxn != null) {
       // Update existing
@@ -206,6 +228,8 @@ class _TransactionsViewState extends State<TransactionsView> {
         transactionType: data['transaction_type'],
         notes: data['notes'],
         currency: data['currency'],
+        tagId: isTransfer ? null : tagId,
+        clearTag: isTransfer || tagId == null,
       );
       if (mounted) {
         PeadraNotification.show(context, message: Translator.t('msg_transaction_modified'));
@@ -260,6 +284,7 @@ class _TransactionsViewState extends State<TransactionsView> {
       // Create regular transaction
       await _db.addTransaction(
         accountId: data['category_id'] as int,
+        tagId: tagId,
         date: data['date'],
         amount: data['amount'],
         description: data['description'],
@@ -415,6 +440,14 @@ class _TransactionsViewState extends State<TransactionsView> {
                   valueColor: colors.success,
                 ),
               ],
+              if (txn.tagName != null)
+                _previewRow(
+                  Translator.t('trans_tag'),
+                  txn.tagName!,
+                  colors,
+                  valueColor: Color(int.parse(
+                      (txn.tagColor ?? '#1976D2').replaceFirst('#', '0xFF'))),
+                ),
               if (txn.notes != null && txn.notes!.isNotEmpty)
                 _previewRow(Translator.t('trans_notes'), txn.notes!, colors),
             ],
@@ -542,6 +575,68 @@ class _TransactionsViewState extends State<TransactionsView> {
               fillColor: colors.surface,
             ),
           ),
+          if (_tags.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 40,
+              child: Listener(
+                onPointerSignal: (event) {
+                  if (event is PointerScrollEvent &&
+                      _tagScrollController.hasClients) {
+                    _tagScrollController.jumpTo(
+                      (_tagScrollController.offset + event.scrollDelta.dy)
+                          .clamp(
+                        0.0,
+                        _tagScrollController.position.maxScrollExtent,
+                      ),
+                    );
+                  }
+                },
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  controller: _tagScrollController,
+                  itemCount: _tags.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 6),
+                itemBuilder: (context, index) {
+                  final tag = _tags[index];
+                  final isSelected = _selectedTagIds.contains(tag.id);
+                  final tagColor = Color(int.parse(tag.color.replaceFirst('#', '0xFF')));
+                  return FilterChip(
+                    label: Text(tag.name),
+                    labelStyle: TextStyle(
+                      color: isSelected ? Colors.white : tagColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    selected: isSelected,
+                    selectedColor: tagColor,
+                    backgroundColor: tagColor.withValues(alpha: 0.1),
+                    checkmarkColor: Colors.white,
+                    side: BorderSide(
+                      color: isSelected ? tagColor : tagColor.withValues(alpha: 0.3),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                    onSelected: (selected) {
+                      setState(() {
+                        if (selected) {
+                          _selectedTagIds.add(tag.id!);
+                        } else {
+                          _selectedTagIds.remove(tag.id);
+                        }
+                      });
+                      _loadTransactions();
+                    },
+                  );
+                },
+              ),
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           Expanded(
             child: _loading
@@ -634,24 +729,79 @@ class _TransactionsViewState extends State<TransactionsView> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        subtitle: Text(
-          '${txn.date}${txn.accountName != null ? " · ${txn.accountName}" : ""}',
-          style: TextStyle(
-            color: colors.placeholderColor,
-            fontSize: 12,
-          ),
+        subtitle: Row(
+          children: [
+            Expanded(
+              child: Text(
+                '${txn.date}${txn.accountName != null ? " · ${txn.accountName}" : ""}',
+                style: TextStyle(
+                  color: colors.placeholderColor,
+                  fontSize: 12,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (isPhone && txn.tagName != null) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: BoxDecoration(
+                  color: Color(int.parse(
+                          (txn.tagColor ?? '#1976D2').replaceFirst('#', '0xFF')))
+                      .withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  txn.tagName!,
+                  style: TextStyle(
+                    color: Color(int.parse(
+                        (txn.tagColor ?? '#1976D2').replaceFirst('#', '0xFF'))),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
-        trailing: Text(
-          '$sign${CurrencyService.formatAmount(txn.amount, displayCurrency)}',
-          style: TextStyle(
-            color: isIncome
-                ? colors.success
-                : isTransfer
-                    ? colors.transferColor
-                    : colors.error,
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-          ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!isPhone && txn.tagName != null) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Color(int.parse(
+                          (txn.tagColor ?? '#1976D2').replaceFirst('#', '0xFF')))
+                      .withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  txn.tagName!,
+                  style: TextStyle(
+                    color: Color(int.parse(
+                        (txn.tagColor ?? '#1976D2').replaceFirst('#', '0xFF'))),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+            Text(
+              '$sign${CurrencyService.formatAmount(txn.amount, displayCurrency)}',
+              style: TextStyle(
+                color: isIncome
+                    ? colors.success
+                    : isTransfer
+                        ? colors.transferColor
+                        : colors.error,
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
+            ),
+          ],
         ),
         onTap: isPhone
             ? () => _showTransactionModal(editTxn: txn)

@@ -1269,8 +1269,10 @@ class DatabaseManager {
     final db = await database;
     final txnRows = await db.rawQuery(
       'SELECT t.amount, t.transaction_type, '
-      'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency, a.type as account_type '
+      'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency, a.type as account_type, '
+      'd.name as description_name '
       'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
+      'LEFT JOIN descriptions d ON t.description_id = d.id '
       'WHERE t.date >= ? AND t.date < ? AND t.user_id = ?',
       [startDate, endDate, _userId],
     );
@@ -1281,6 +1283,9 @@ class DatabaseManager {
       final accountType = row['account_type'] as String?;
       final hasAccount = row['account_id'] != null;
       if (accountType != 'checking' && hasAccount) continue;
+
+      final desc = await _decrypt(row['description_name'] as String?);
+      if (desc != null && _isTransferDescription(desc)) continue;
 
       final amount = await _decryptAmount(row['amount'] as String?);
       final type = row['transaction_type'] as String;
@@ -1311,8 +1316,10 @@ class DatabaseManager {
     final db = await database;
     final txnRows = await db.rawQuery(
       'SELECT t.amount, t.transaction_type, '
-      'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency, a.type as account_type '
+      'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency, a.type as account_type, '
+      'd.name as description_name '
       'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
+      'LEFT JOIN descriptions d ON t.description_id = d.id '
       'WHERE t.date >= ? AND t.date <= ? AND t.user_id = ?',
       [startDate, endDate, _userId],
     );
@@ -1323,6 +1330,9 @@ class DatabaseManager {
       final accountType = row['account_type'] as String?;
       final hasAccount = row['account_id'] != null;
       if (accountType != 'checking' && hasAccount) continue;
+
+      final desc = await _decrypt(row['description_name'] as String?);
+      if (desc != null && _isTransferDescription(desc)) continue;
 
       final amount = await _decryptAmount(row['amount'] as String?);
       final type = row['transaction_type'] as String;

@@ -20,6 +20,7 @@ This document presents future changes and wanted improvements.
 
 - Install update button overflowing on mobile
 - Fixed the update manager installing the .apk package on all platform
+- Transfers inflating income and expense stat cards, now excluded
 
 ## Future Improvements
 
@@ -35,7 +36,6 @@ This document presents future changes and wanted improvements.
 - Ability to set regular transactions (weekly, monthly, annualy...)
 - More parameters : 
 	- Navigation text or not for mobile
-	- Data points in line charts or not
 	- Amount separator (coma or point (FR vs US))
 
 **UI :**

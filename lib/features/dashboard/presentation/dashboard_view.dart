@@ -40,6 +40,7 @@ class _DashboardViewState extends State<DashboardView> {
   int _selectedMonths = 6;
   String _lastCurrency = '';
   String _lastMonthMode = '';
+  String _lastDashboardPieView = '';
 
   @override
   void initState() {
@@ -59,9 +60,13 @@ class _DashboardViewState extends State<DashboardView> {
     super.didChangeDependencies();
     final currency = context.watch<SettingsProvider>().currency;
     final monthMode = context.watch<SettingsProvider>().monthMode;
-    if (currency != _lastCurrency || monthMode != _lastMonthMode) {
+    final categoriesView = context.watch<SettingsProvider>().dashboardPieView;
+    if (currency != _lastCurrency ||
+        monthMode != _lastMonthMode ||
+        categoriesView != _lastDashboardPieView) {
       _lastCurrency = currency;
       _lastMonthMode = monthMode;
+      _lastDashboardPieView = categoriesView;
       _loadData();
     }
   }
@@ -71,6 +76,7 @@ class _DashboardViewState extends State<DashboardView> {
       final currency = context.read<SettingsProvider>().currency;
       final monthMode = context.read<SettingsProvider>().monthMode;
       final isRolling = monthMode == 'rolling';
+      final isTagMode = context.read<SettingsProvider>().dashboardPieView == 'tags';
 
       final now = DateTime.now();
       final thisMonthStart = DateTime(now.year, now.month, 1).toIso8601String().substring(0, 10);
@@ -85,15 +91,27 @@ class _DashboardViewState extends State<DashboardView> {
         _safeQuery(() => _db.getCashFlowData(months: _selectedMonths, targetCurrency: currency)),
         _safeQuery(() => _db.getAssetsHistory(months: _selectedMonths, targetCurrency: currency)),
         _safeQuery(() => isRolling
-            ? _db.getRollingMonthDistribution(
-                transactionType: 'expense', targetCurrency: currency)
-            : _db.getCurrentMonthDistribution(
-                transactionType: 'expense', targetCurrency: currency)),
+            ? (isTagMode
+                ? _db.getRollingMonthTagDistribution(
+                    transactionType: 'expense', targetCurrency: currency)
+                : _db.getRollingMonthDistribution(
+                    transactionType: 'expense', targetCurrency: currency))
+            : (isTagMode
+                ? _db.getCurrentMonthTagDistribution(
+                    transactionType: 'expense', targetCurrency: currency)
+                : _db.getCurrentMonthDistribution(
+                    transactionType: 'expense', targetCurrency: currency))),
         _safeQuery(() => isRolling
-            ? _db.getRollingMonthDistribution(
-                transactionType: 'income', targetCurrency: currency)
-            : _db.getCurrentMonthDistribution(
-                transactionType: 'income', targetCurrency: currency)),
+            ? (isTagMode
+                ? _db.getRollingMonthTagDistribution(
+                    transactionType: 'income', targetCurrency: currency)
+                : _db.getRollingMonthDistribution(
+                    transactionType: 'income', targetCurrency: currency))
+            : (isTagMode
+                ? _db.getCurrentMonthTagDistribution(
+                    transactionType: 'income', targetCurrency: currency)
+                : _db.getCurrentMonthDistribution(
+                    transactionType: 'income', targetCurrency: currency))),
         _safeQuery(() => _db.getMonthlySummary(
             year: now.year,
             month: now.month - 1,

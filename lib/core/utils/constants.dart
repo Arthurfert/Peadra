@@ -13,5 +13,6 @@ const String defaultLanguage = 'en';
 const int defaultMaxBackups = 5;
 const bool defaultBiometricEnabled = false;
 const String defaultCategoriesView = 'descriptions';
+const String defaultDashboardPieView = 'descriptions';
 
 const int globalSettingsUserId = 0;

@@ -11,6 +11,7 @@ class SettingsProvider extends ChangeNotifier {
   int _maxBackups = defaultMaxBackups;
   bool _biometricEnabled = defaultBiometricEnabled;
   String _categoriesView = defaultCategoriesView;
+  String _dashboardPieView = defaultDashboardPieView;
 
   int get displayLimit => _displayLimit;
   int get maxPieCategories => _maxPieCategories;
@@ -19,6 +20,7 @@ class SettingsProvider extends ChangeNotifier {
   int get maxBackups => _maxBackups;
   bool get biometricEnabled => _biometricEnabled;
   String get categoriesView => _categoriesView;
+  String get dashboardPieView => _dashboardPieView;
 
   Future<void> loadFromSettings(DatabaseManager db) async {
     _displayLimit = int.tryParse(
@@ -37,6 +39,7 @@ class SettingsProvider extends ChangeNotifier {
         defaultMaxBackups;
     _biometricEnabled = (await db.getSetting('biometric_enabled', defaultValue: defaultBiometricEnabled.toString())) == 'true';
     _categoriesView = await db.getSetting('categories_view', defaultValue: defaultCategoriesView) ?? defaultCategoriesView;
+    _dashboardPieView = await db.getSetting('dashboard_pie_view', defaultValue: defaultDashboardPieView) ?? defaultDashboardPieView;
     notifyListeners();
   }
 
@@ -86,6 +89,13 @@ class SettingsProvider extends ChangeNotifier {
     _categoriesView = view;
     await db.setSetting('categories_view', view);
     LogService().log('Categories view set to $view');
+    notifyListeners();
+  }
+
+  Future<void> setDashboardPieView(String view, DatabaseManager db) async {
+    _dashboardPieView = view;
+    await db.setSetting('dashboard_pie_view', view);
+    LogService().log('Dashboard pie view set to $view');
     notifyListeners();
   }
 }

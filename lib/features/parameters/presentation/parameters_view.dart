@@ -123,6 +123,7 @@ class _ParametersViewState extends State<ParametersView> {
           const SizedBox(height: 8),
           _buildSection(Translator.t('param_charts'), colors, [
             _buildCategoriesViewTile(settings, colors),
+            _buildDashboardPieViewTile(settings, colors),
             _buildMonthModeTile(settings, colors),
             _buildMaxPieCategoriesTile(settings, colors),
           ], icon: Icons.bar_chart),
@@ -367,6 +368,31 @@ class _ParametersViewState extends State<ParametersView> {
         ],
         onChanged: (v) async {
           if (v != null) settings.setCategoriesView(v, _db);
+        },
+      ),
+    );
+  }
+
+  Widget _buildDashboardPieViewTile(SettingsProvider settings, PeadraColors colors) {
+    return ListTile(
+      title: Text(Translator.t('param_dashboard_pie_view'),
+          style: TextStyle(color: colors.text)),
+      subtitle: Text(Translator.t('param_dashboard_pie_view_desc'),
+          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+      trailing: DropdownButton<String>(
+        value: settings.dashboardPieView,
+        dropdownColor: colors.surface,
+        style: TextStyle(color: colors.text),
+        items: [
+          DropdownMenuItem(
+              value: 'descriptions',
+              child: Text(Translator.t('param_categories_descriptions'))),
+          DropdownMenuItem(
+              value: 'tags',
+              child: Text(Translator.t('param_categories_tags'))),
+        ],
+        onChanged: (v) async {
+          if (v != null) settings.setDashboardPieView(v, _db);
         },
       ),
     );

@@ -1855,6 +1855,79 @@ class DatabaseManager {
     return result;
   }
 
+  Future<Map<String, double>> getCurrentMonthTagDistribution({
+    required String transactionType,
+    String targetCurrency = 'EUR',
+  }) async {
+    final db = await database;
+    final now = DateTime.now();
+    final startDate = DateTime(now.year, now.month, 1)
+        .toIso8601String()
+        .substring(0, 10);
+    final endDate = now.toIso8601String().substring(0, 10);
+
+    final rows = await db.rawQuery(
+      'SELECT t.amount, t.currency, tg.name as tag_name '
+      'FROM transactions t LEFT JOIN tags tg ON t.tag_id = tg.id '
+      'WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?',
+      [transactionType, startDate, endDate, _userId],
+    );
+
+    final result = <String, double>{};
+    for (final row in rows) {
+      final tag = row['tag_name'] as String? ?? 'Untagged';
+      final rawAmount = await _decryptAmount(row['amount'] as String?);
+      final txnCurrency = (row['currency'] as String?) ?? 'EUR';
+
+      double convertedAmount;
+      if (txnCurrency == targetCurrency) {
+        convertedAmount = rawAmount;
+      } else {
+        final rate = await getExchangeRate(txnCurrency, targetCurrency);
+        convertedAmount = rawAmount * (rate ?? 1.0);
+      }
+
+      result[tag] = (result[tag] ?? 0) + convertedAmount;
+    }
+    return result;
+  }
+
+  Future<Map<String, double>> getRollingMonthTagDistribution({
+    required String transactionType,
+    int days = 30,
+    String targetCurrency = 'EUR',
+  }) async {
+    final db = await database;
+    final now = DateTime.now();
+    final endDate = now.toIso8601String().substring(0, 10);
+    final startDate = now.subtract(Duration(days: days)).toIso8601String().substring(0, 10);
+
+    final rows = await db.rawQuery(
+      'SELECT t.amount, t.currency, tg.name as tag_name '
+      'FROM transactions t LEFT JOIN tags tg ON t.tag_id = tg.id '
+      'WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?',
+      [transactionType, startDate, endDate, _userId],
+    );
+
+    final result = <String, double>{};
+    for (final row in rows) {
+      final tag = row['tag_name'] as String? ?? 'Untagged';
+      final rawAmount = await _decryptAmount(row['amount'] as String?);
+      final txnCurrency = (row['currency'] as String?) ?? 'EUR';
+
+      double convertedAmount;
+      if (txnCurrency == targetCurrency) {
+        convertedAmount = rawAmount;
+      } else {
+        final rate = await getExchangeRate(txnCurrency, targetCurrency);
+        convertedAmount = rawAmount * (rate ?? 1.0);
+      }
+
+      result[tag] = (result[tag] ?? 0) + convertedAmount;
+    }
+    return result;
+  }
+
   Future<double> getPreviousMonthTotal() async {
     final db = await database;
     final now = DateTime.now();

@@ -13,7 +13,7 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-
+- New parameter : choose between descriptions-based or tags-based dashboard pie charts
 
 ### Fixed
 

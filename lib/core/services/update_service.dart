@@ -27,10 +27,6 @@ class UpdateInfo {
     for (final asset in assets) {
       final name = asset['name'] ?? '';
       final url = asset['browser_download_url'] ?? '';
-      if (name.endsWith('.apk')) {
-        downloadUrl = url;
-        break;
-      }
       if (Platform.isLinux) {
         if (name.contains('.deb')) { downloadUrl = url; break; }
         if (name.contains('.rpm')) { downloadUrl = url; break; }
@@ -39,6 +35,9 @@ class UpdateInfo {
         downloadUrl = url;
         break;
       } else if (Platform.isMacOS && name.contains('.dmg')) {
+        downloadUrl = url;
+        break;
+      } else if (Platform.isAndroid && name.endsWith('.apk')) {
         downloadUrl = url;
         break;
       }

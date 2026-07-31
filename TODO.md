@@ -13,12 +13,12 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-- Ability to set a `tag` to a transaction to sort them (like groceries, trip, taxes...)
-- Enhance the `Create account` button UI
+
 
 ### Fixed
 
-
+- Install update button overflowing on mobile
+- Fixed the update manager installing the .apk package on all platform
 
 ## Future Improvements
 

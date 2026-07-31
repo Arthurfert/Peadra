@@ -95,6 +95,7 @@ class _CategoriesViewState extends State<CategoriesView> {
     final themeName = context.watch<ThemeProvider>().themeName;
     final colors = PeadraTheme.getColors(themeName);
     final isPhone = ResponsiveLayout.isPhone(context);
+    final lineChartDots = context.watch<SettingsProvider>().lineChartDots;
 
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -186,13 +187,15 @@ class _CategoriesViewState extends State<CategoriesView> {
                             Translator.t('cat_top_expenses'),
                             _topExpenses,
                             colors.error,
-                            colors),
+                            colors,
+                            showDots: lineChartDots),
                         const SizedBox(height: 24),
                         _buildSection(
                             Translator.t('cat_top_incomes'),
                             _topIncomes,
                             colors.success,
-                            colors),
+                            colors,
+                            showDots: lineChartDots),
                       ],
                     ),
                   ),
@@ -283,7 +286,7 @@ class _CategoriesViewState extends State<CategoriesView> {
   }
 
   Widget _buildSection(String title, List<Map<String, dynamic>> items,
-      Color accentColor, PeadraColors colors) {
+      Color accentColor, PeadraColors colors, {required bool showDots}) {
     final itemsWithGraph = items.where((item) {
       final name = (item['description'] ?? item['tag']) as String;
       final data = _buildSpotsForDescription(name);
@@ -381,8 +384,8 @@ class _CategoriesViewState extends State<CategoriesView> {
                         ),
                         const SizedBox(height: 8),
                         Expanded(
-                          child: _buildLineChart(
-                              spots, labels, accentColor, colors),
+                          child: _buildLineChart(spots, labels, accentColor,
+                              colors, showDots: showDots),
                         ),
                       ],
                     ),
@@ -423,7 +426,7 @@ class _CategoriesViewState extends State<CategoriesView> {
   }
 
   Widget _buildLineChart(List<FlSpot> spots, List<String> labels,
-      Color accentColor, PeadraColors colors) {
+      Color accentColor, PeadraColors colors, {required bool showDots}) {
     double minY = spots.first.y;
     double maxY = spots.first.y;
     for (final s in spots) {
@@ -519,7 +522,7 @@ class _CategoriesViewState extends State<CategoriesView> {
             barWidth: 2,
             isStrokeCapRound: true,
             dotData: FlDotData(
-              show: spots.length <= 12,
+              show: showDots && spots.length <= 12,
               getDotPainter: (spot, pct, bar, idx) => FlDotCirclePainter(
                 radius: 2,
                 color: accentColor,

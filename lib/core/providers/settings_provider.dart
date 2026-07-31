@@ -12,6 +12,7 @@ class SettingsProvider extends ChangeNotifier {
   bool _biometricEnabled = defaultBiometricEnabled;
   String _categoriesView = defaultCategoriesView;
   String _dashboardPieView = defaultDashboardPieView;
+  bool _lineChartDots = defaultLineChartDots;
 
   int get displayLimit => _displayLimit;
   int get maxPieCategories => _maxPieCategories;
@@ -21,6 +22,7 @@ class SettingsProvider extends ChangeNotifier {
   bool get biometricEnabled => _biometricEnabled;
   String get categoriesView => _categoriesView;
   String get dashboardPieView => _dashboardPieView;
+  bool get lineChartDots => _lineChartDots;
 
   Future<void> loadFromSettings(DatabaseManager db) async {
     _displayLimit = int.tryParse(
@@ -40,6 +42,7 @@ class SettingsProvider extends ChangeNotifier {
     _biometricEnabled = (await db.getSetting('biometric_enabled', defaultValue: defaultBiometricEnabled.toString())) == 'true';
     _categoriesView = await db.getSetting('categories_view', defaultValue: defaultCategoriesView) ?? defaultCategoriesView;
     _dashboardPieView = await db.getSetting('dashboard_pie_view', defaultValue: defaultDashboardPieView) ?? defaultDashboardPieView;
+    _lineChartDots = (await db.getSetting('line_chart_dots', defaultValue: defaultLineChartDots.toString())) == 'true';
     notifyListeners();
   }
 
@@ -96,6 +99,13 @@ class SettingsProvider extends ChangeNotifier {
     _dashboardPieView = view;
     await db.setSetting('dashboard_pie_view', view);
     LogService().log('Dashboard pie view set to $view');
+    notifyListeners();
+  }
+
+  Future<void> setLineChartDots(bool show, DatabaseManager db) async {
+    _lineChartDots = show;
+    await db.setSetting('line_chart_dots', show.toString());
+    LogService().log('Line chart dots set to $show');
     notifyListeners();
   }
 }

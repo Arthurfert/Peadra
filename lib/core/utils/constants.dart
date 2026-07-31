@@ -14,5 +14,6 @@ const int defaultMaxBackups = 5;
 const bool defaultBiometricEnabled = false;
 const String defaultCategoriesView = 'descriptions';
 const String defaultDashboardPieView = 'descriptions';
+const bool defaultLineChartDots = true;
 
 const int globalSettingsUserId = 0;

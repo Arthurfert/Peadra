@@ -476,6 +476,7 @@ class _DashboardViewState extends State<DashboardView> {
     final currency = context.watch<SettingsProvider>().currency;
     final maxPieCategories =
         context.watch<SettingsProvider>().maxPieCategories;
+    final lineChartDots = context.watch<SettingsProvider>().lineChartDots;
     final username = context.watch<AuthProvider>().username;
 
     if (_loading) {
@@ -592,6 +593,7 @@ class _DashboardViewState extends State<DashboardView> {
             colors: colors,
             cashFlowData: _cashFlowData,
             assetsHistory: _assetsHistory,
+            showLineDots: lineChartDots,
           );
         } else {
           return DashboardViewMobile(
@@ -605,6 +607,7 @@ class _DashboardViewState extends State<DashboardView> {
             colors: colors,
             cashFlowData: _cashFlowData,
             assetsHistory: _assetsHistory,
+            showLineDots: lineChartDots,
           );
         }
       },

@@ -124,6 +124,7 @@ class _ParametersViewState extends State<ParametersView> {
           _buildSection(Translator.t('param_charts'), colors, [
             _buildCategoriesViewTile(settings, colors),
             _buildDashboardPieViewTile(settings, colors),
+            _buildLineChartDotsTile(settings, colors),
             _buildMonthModeTile(settings, colors),
             _buildMaxPieCategoriesTile(settings, colors),
           ], icon: Icons.bar_chart),
@@ -395,6 +396,42 @@ class _ParametersViewState extends State<ParametersView> {
           if (v != null) settings.setDashboardPieView(v, _db);
         },
       ),
+    );
+  }
+
+  Widget _buildLineChartDotsTile(SettingsProvider settings, PeadraColors colors) {
+    final isPhone = ResponsiveLayout.isPhone(context);
+
+    final toggle = Switch(
+      value: settings.lineChartDots,
+      onChanged: (value) => settings.setLineChartDots(value, _db),
+      activeThumbColor: colors.accent,
+    );
+
+    if (isPhone) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(Translator.t('param_line_chart_dots'),
+                style: TextStyle(color: colors.text)),
+            const SizedBox(height: 4),
+            Text(Translator.t('param_line_chart_dots_desc'),
+                style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+            const SizedBox(height: 12),
+            toggle,
+          ],
+        ),
+      );
+    }
+
+    return ListTile(
+      title: Text(Translator.t('param_line_chart_dots'),
+          style: TextStyle(color: colors.text)),
+      subtitle: Text(Translator.t('param_line_chart_dots_desc'),
+          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+      trailing: toggle,
     );
   }
 

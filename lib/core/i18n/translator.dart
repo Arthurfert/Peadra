@@ -310,6 +310,8 @@ class Translator {
       'param_month_mode_desc': 'Calendar month: Jan 1-31. Rolling: last 30 days from today.',
       'param_calendar_month': 'Calendar month',
       'param_rolling_30': 'Rolling 30 days',
+      'param_line_chart_dots': 'Line chart data points',
+      'param_line_chart_dots_desc': 'Show data points on line charts.',
       'param_database': 'Database',
       'param_max_backups': 'Number of backups',
       'param_max_backups_desc': 'Maximum number of backup files to keep.',
@@ -757,6 +759,9 @@ class Translator {
           'Mois calendaire : Jan 1-31. Roulant : 30 derniers jours \u00e0 partir d\'aujourd\'hui.',
       'param_calendar_month': 'Mois calendaire',
       'param_rolling_30': '30 derniers jours',
+      'param_line_chart_dots': 'Points sur les graphiques en ligne',
+      'param_line_chart_dots_desc':
+          'Afficher les points de donn\u00e9es sur les graphiques en ligne.',
       'param_database': 'Base de donn\u00e9es',
       'param_max_backups': 'Nombre de sauvegardes',
       'param_max_backups_desc': 'Nombre maximum de fichiers de sauvegarde \u00e0 conserver.',

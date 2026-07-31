@@ -14,6 +14,7 @@ This document presents future changes and wanted improvements.
 ### New
 
 - New parameter : choose between descriptions-based or tags-based dashboard pie charts
+- New parameter : choose between plain line graphs or with data points (as before)
 
 ### Fixed
 
@@ -31,7 +32,6 @@ This document presents future changes and wanted improvements.
 **UX :**
 - Onboarding ?
 - More translations
-- Upgrade existing translation
 - Ability to set regular transactions (weekly, monthly, annualy...)
 - More parameters : 
 	- Navigation text or not for mobile

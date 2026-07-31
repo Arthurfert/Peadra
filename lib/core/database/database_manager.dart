@@ -1269,8 +1269,10 @@ class DatabaseManager {
     final db = await database;
     final txnRows = await db.rawQuery(
       'SELECT t.amount, t.transaction_type, '
-      'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency, a.type as account_type '
+      'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency, a.type as account_type, '
+      'd.name as description_name '
       'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
+      'LEFT JOIN descriptions d ON t.description_id = d.id '
       'WHERE t.date >= ? AND t.date < ? AND t.user_id = ?',
       [startDate, endDate, _userId],
     );
@@ -1281,6 +1283,9 @@ class DatabaseManager {
       final accountType = row['account_type'] as String?;
       final hasAccount = row['account_id'] != null;
       if (accountType != 'checking' && hasAccount) continue;
+
+      final desc = await _decrypt(row['description_name'] as String?);
+      if (desc != null && _isTransferDescription(desc)) continue;
 
       final amount = await _decryptAmount(row['amount'] as String?);
       final type = row['transaction_type'] as String;
@@ -1311,8 +1316,10 @@ class DatabaseManager {
     final db = await database;
     final txnRows = await db.rawQuery(
       'SELECT t.amount, t.transaction_type, '
-      'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency, a.type as account_type '
+      'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency, a.type as account_type, '
+      'd.name as description_name '
       'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
+      'LEFT JOIN descriptions d ON t.description_id = d.id '
       'WHERE t.date >= ? AND t.date <= ? AND t.user_id = ?',
       [startDate, endDate, _userId],
     );
@@ -1323,6 +1330,9 @@ class DatabaseManager {
       final accountType = row['account_type'] as String?;
       final hasAccount = row['account_id'] != null;
       if (accountType != 'checking' && hasAccount) continue;
+
+      final desc = await _decrypt(row['description_name'] as String?);
+      if (desc != null && _isTransferDescription(desc)) continue;
 
       final amount = await _decryptAmount(row['amount'] as String?);
       final type = row['transaction_type'] as String;
@@ -1851,6 +1861,79 @@ class DatabaseManager {
       }
 
       result[category] = (result[category] ?? 0) + convertedAmount;
+    }
+    return result;
+  }
+
+  Future<Map<String, double>> getCurrentMonthTagDistribution({
+    required String transactionType,
+    String targetCurrency = 'EUR',
+  }) async {
+    final db = await database;
+    final now = DateTime.now();
+    final startDate = DateTime(now.year, now.month, 1)
+        .toIso8601String()
+        .substring(0, 10);
+    final endDate = now.toIso8601String().substring(0, 10);
+
+    final rows = await db.rawQuery(
+      'SELECT t.amount, t.currency, tg.name as tag_name '
+      'FROM transactions t LEFT JOIN tags tg ON t.tag_id = tg.id '
+      'WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?',
+      [transactionType, startDate, endDate, _userId],
+    );
+
+    final result = <String, double>{};
+    for (final row in rows) {
+      final tag = row['tag_name'] as String? ?? 'Untagged';
+      final rawAmount = await _decryptAmount(row['amount'] as String?);
+      final txnCurrency = (row['currency'] as String?) ?? 'EUR';
+
+      double convertedAmount;
+      if (txnCurrency == targetCurrency) {
+        convertedAmount = rawAmount;
+      } else {
+        final rate = await getExchangeRate(txnCurrency, targetCurrency);
+        convertedAmount = rawAmount * (rate ?? 1.0);
+      }
+
+      result[tag] = (result[tag] ?? 0) + convertedAmount;
+    }
+    return result;
+  }
+
+  Future<Map<String, double>> getRollingMonthTagDistribution({
+    required String transactionType,
+    int days = 30,
+    String targetCurrency = 'EUR',
+  }) async {
+    final db = await database;
+    final now = DateTime.now();
+    final endDate = now.toIso8601String().substring(0, 10);
+    final startDate = now.subtract(Duration(days: days)).toIso8601String().substring(0, 10);
+
+    final rows = await db.rawQuery(
+      'SELECT t.amount, t.currency, tg.name as tag_name '
+      'FROM transactions t LEFT JOIN tags tg ON t.tag_id = tg.id '
+      'WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?',
+      [transactionType, startDate, endDate, _userId],
+    );
+
+    final result = <String, double>{};
+    for (final row in rows) {
+      final tag = row['tag_name'] as String? ?? 'Untagged';
+      final rawAmount = await _decryptAmount(row['amount'] as String?);
+      final txnCurrency = (row['currency'] as String?) ?? 'EUR';
+
+      double convertedAmount;
+      if (txnCurrency == targetCurrency) {
+        convertedAmount = rawAmount;
+      } else {
+        final rate = await getExchangeRate(txnCurrency, targetCurrency);
+        convertedAmount = rawAmount * (rate ?? 1.0);
+      }
+
+      result[tag] = (result[tag] ?? 0) + convertedAmount;
     }
     return result;
   }

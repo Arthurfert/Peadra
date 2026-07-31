@@ -123,6 +123,8 @@ class _ParametersViewState extends State<ParametersView> {
           const SizedBox(height: 8),
           _buildSection(Translator.t('param_charts'), colors, [
             _buildCategoriesViewTile(settings, colors),
+            _buildDashboardPieViewTile(settings, colors),
+            _buildLineChartDotsTile(settings, colors),
             _buildMonthModeTile(settings, colors),
             _buildMaxPieCategoriesTile(settings, colors),
           ], icon: Icons.bar_chart),
@@ -369,6 +371,67 @@ class _ParametersViewState extends State<ParametersView> {
           if (v != null) settings.setCategoriesView(v, _db);
         },
       ),
+    );
+  }
+
+  Widget _buildDashboardPieViewTile(SettingsProvider settings, PeadraColors colors) {
+    return ListTile(
+      title: Text(Translator.t('param_dashboard_pie_view'),
+          style: TextStyle(color: colors.text)),
+      subtitle: Text(Translator.t('param_dashboard_pie_view_desc'),
+          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+      trailing: DropdownButton<String>(
+        value: settings.dashboardPieView,
+        dropdownColor: colors.surface,
+        style: TextStyle(color: colors.text),
+        items: [
+          DropdownMenuItem(
+              value: 'descriptions',
+              child: Text(Translator.t('param_categories_descriptions'))),
+          DropdownMenuItem(
+              value: 'tags',
+              child: Text(Translator.t('param_categories_tags'))),
+        ],
+        onChanged: (v) async {
+          if (v != null) settings.setDashboardPieView(v, _db);
+        },
+      ),
+    );
+  }
+
+  Widget _buildLineChartDotsTile(SettingsProvider settings, PeadraColors colors) {
+    final isPhone = ResponsiveLayout.isPhone(context);
+
+    final toggle = Switch(
+      value: settings.lineChartDots,
+      onChanged: (value) => settings.setLineChartDots(value, _db),
+      activeThumbColor: colors.accent,
+    );
+
+    if (isPhone) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(Translator.t('param_line_chart_dots'),
+                style: TextStyle(color: colors.text)),
+            const SizedBox(height: 4),
+            Text(Translator.t('param_line_chart_dots_desc'),
+                style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+            const SizedBox(height: 12),
+            toggle,
+          ],
+        ),
+      );
+    }
+
+    return ListTile(
+      title: Text(Translator.t('param_line_chart_dots'),
+          style: TextStyle(color: colors.text)),
+      subtitle: Text(Translator.t('param_line_chart_dots_desc'),
+          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+      trailing: toggle,
     );
   }
 

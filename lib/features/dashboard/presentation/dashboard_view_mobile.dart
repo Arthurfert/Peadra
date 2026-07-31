@@ -15,6 +15,7 @@ class DashboardViewMobile extends StatelessWidget {
   final PeadraColors colors;
   final List<Map<String, dynamic>> cashFlowData;
   final List<Map<String, dynamic>> assetsHistory;
+  final bool showLineDots;
 
   const DashboardViewMobile({
     super.key,
@@ -28,6 +29,7 @@ class DashboardViewMobile extends StatelessWidget {
     required this.colors,
     required this.cashFlowData,
     required this.assetsHistory,
+    this.showLineDots = true,
   });
 
   @override
@@ -437,7 +439,7 @@ class DashboardViewMobile extends StatelessWidget {
             barWidth: 2,
             isStrokeCapRound: true,
             dotData: FlDotData(
-              show: spots.length <= 12,
+              show: showLineDots && spots.length <= 12,
               getDotPainter: (spot, pct, bar, idx) =>
                   FlDotCirclePainter(
                 radius: 3,

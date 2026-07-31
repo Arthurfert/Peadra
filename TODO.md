@@ -13,12 +13,14 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-- Ability to set a `tag` to a transaction to sort them (like groceries, trip, taxes...)
-- Enhance the `Create account` button UI
+- New parameter : choose between descriptions-based or tags-based dashboard pie charts
+- New parameter : choose between plain line graphs or with data points (as before)
 
 ### Fixed
 
-
+- Install update button overflowing on mobile
+- Fixed the update manager installing the .apk package on all platform
+- Transfers inflating income and expense stat cards, now excluded
 
 ## Future Improvements
 
@@ -31,11 +33,9 @@ This document presents future changes and wanted improvements.
 **UX :**
 - Onboarding ?
 - More translations
-- Upgrade existing translation
 - Ability to set regular transactions (weekly, monthly, annualy...)
 - More parameters : 
 	- Navigation text or not for mobile
-	- Data points in line charts or not
 	- Amount separator (coma or point (FR vs US))
 
 **UI :**

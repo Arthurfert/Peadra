@@ -13,7 +13,7 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-
+- Ability to set recurring transactions (weekly, monthly, annualy...)
 
 ### Fixed
 
@@ -30,7 +30,6 @@ This document presents future changes and wanted improvements.
 **UX :**
 - Onboarding ?
 - More translations
-- Ability to set regular transactions (weekly, monthly, annualy...)
 - More parameters : 
 	- Navigation text or not for mobile
 	- Amount separator (coma or point (FR vs US))

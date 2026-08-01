@@ -11,8 +11,11 @@ import '../../../core/database/database_manager.dart';
 import '../../../core/models/transaction.dart';
 import '../../../core/models/account.dart';
 import '../../../core/models/tag.dart';
+import '../../../core/models/recurring_transaction.dart';
 import '../../../core/theme/peadra_colors.dart';
 import 'widgets/transaction_modal.dart';
+import 'widgets/recurring_modal.dart';
+import 'recurring_view.dart';
 import '../../../shared/widgets/peadra_notification.dart';
 import '../../../core/services/currency_service.dart';
 import '../../../core/responsive/responsive_layout.dart';
@@ -155,6 +158,7 @@ class _TransactionsViewState extends State<TransactionsView> {
   }
 
   Future<void> _loadData() async {
+    await _db.generateDueRecurring();
     final results = await Future.wait([
       _db.getAllAccounts(),
       _db.getAllTags(),
@@ -240,6 +244,7 @@ class _TransactionsViewState extends State<TransactionsView> {
         transactionType: data['transaction_type'],
         notes: data['notes'],
         currency: data['currency'],
+        accountId: data['category_id'],
         tagId: isTransfer ? null : tagId,
         clearTag: isTransfer || tagId == null,
       );
@@ -318,6 +323,52 @@ class _TransactionsViewState extends State<TransactionsView> {
     final themeName = context.read<ThemeProvider>().themeName;
     final colors = PeadraTheme.getColors(themeName);
 
+    if (txn.recurringId != null) {
+      final scope = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: colors.surface,
+          title: Text(Translator.t('rec_scope_title'),
+              style: TextStyle(color: colors.text)),
+          content: Text(Translator.t('rec_scope_message'),
+              style: TextStyle(color: colors.textSecondary)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, null),
+              child: Text(Translator.t('btn_cancel')),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'this'),
+              child: Text(Translator.t('rec_delete_this')),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'all'),
+              child: Text(Translator.t('rec_delete_all'),
+                  style: TextStyle(color: colors.error)),
+            ),
+          ],
+        ),
+      );
+      if (scope == null || !mounted) return;
+
+      if (scope == 'all') {
+        await _db.deleteRecurringTransaction(txn.recurringId!,
+            deleteOccurrences: true);
+      } else {
+        await _db.deleteTransaction(txn.id!);
+        await _db.markRecurringOccurrenceDeleted(txn.recurringId!, txn.date);
+      }
+      if (mounted) {
+        PeadraNotification.show(context,
+            message: scope == 'all'
+                ? Translator.t('msg_recurring_deleted')
+                : Translator.t('msg_recurring_occurrence_deleted'));
+      }
+      _loadTransactions();
+      widget.onDataChanged?.call();
+      return;
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -347,6 +398,140 @@ class _TransactionsViewState extends State<TransactionsView> {
       }
       _loadTransactions();
       widget.onDataChanged?.call();
+    }
+  }
+
+  Future<void> _editTransaction(TransactionWithDetails txn) async {
+    final recurringId = txn.recurringId;
+    if (recurringId == null) {
+      _showTransactionModal(editTxn: txn);
+      return;
+    }
+
+    final colors =
+        PeadraTheme.getColors(context.read<ThemeProvider>().themeName);
+    final scope = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: colors.surface,
+        title: Text(Translator.t('rec_scope_title'),
+            style: TextStyle(color: colors.text)),
+        content: Text(Translator.t('rec_scope_message'),
+            style: TextStyle(color: colors.textSecondary)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, null),
+            child: Text(Translator.t('btn_cancel')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'this'),
+            child: Text(Translator.t('rec_edit_this')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'all'),
+            child: Text(Translator.t('rec_edit_all')),
+          ),
+        ],
+      ),
+    );
+    if (scope == null || !mounted) return;
+
+    if (scope == 'this') {
+      _showTransactionModal(editTxn: txn);
+    } else {
+      final rec = await _db.getRecurringTransaction(recurringId);
+      if (rec != null) {
+        _showRecurringModal(editRecurring: rec);
+      }
+    }
+  }
+
+  Future<void> _showRecurringModal(
+      {RecurringTransactionWithDetails? editRecurring}) async {
+    final accounts = await _db.getAllAccounts();
+    if (!mounted) return;
+
+    final isPhone = ResponsiveLayout.isPhone(context);
+    final modal = RecurringModal(
+      accounts: accounts,
+      onSave: (data) => _handleRecurringSave(data, editRecurring: editRecurring),
+      editRecurring: editRecurring,
+      transactionType: editRecurring?.transactionType ?? 'expense',
+    );
+
+    if (isPhone) {
+      Navigator.of(context).push(
+        MaterialPageRoute(fullscreenDialog: true, builder: (_) => modal),
+      );
+    } else {
+      showDialog(context: context, builder: (_) => modal);
+    }
+  }
+
+  Future<void> _handleRecurringSave(Map<String, dynamic> data,
+      {RecurringTransactionWithDetails? editRecurring}) async {
+    if (editRecurring != null) {
+      await _db.updateRecurringTransaction(
+        editRecurring.id!,
+        description: data['description'],
+        amount: data['amount'],
+        transactionType: data['transaction_type'],
+        currency: data['currency'],
+        frequency: data['frequency'],
+        interval: data['interval'],
+        dayOfWeek: data['day_of_week'],
+        dayOfMonth: data['day_of_month'],
+        startDate: data['start_date'],
+        endDate: data['end_date'],
+        clearEndDate: data['end_date'] == null,
+        accountId: data['account_id'],
+        tagId: data['tag_id'],
+        clearTag: data['tag_id'] == null,
+        notes: data['notes'],
+      );
+      if (mounted) {
+        PeadraNotification.show(
+            context, message: Translator.t('msg_recurring_modified'));
+      }
+    } else {
+      await _db.addRecurringTransaction(
+        description: data['description'],
+        amount: data['amount'],
+        transactionType: data['transaction_type'],
+        currency: data['currency'],
+        frequency: data['frequency'],
+        interval: data['interval'],
+        dayOfWeek: data['day_of_week'],
+        dayOfMonth: data['day_of_month'],
+        startDate: data['start_date'],
+        endDate: data['end_date'],
+        accountId: data['account_id'],
+        tagId: data['tag_id'],
+        notes: data['notes'],
+      );
+      if (mounted) {
+        PeadraNotification.show(
+            context, message: Translator.t('msg_recurring_added'));
+      }
+    }
+
+    await _db.generateDueRecurring();
+    _loadTransactions();
+    widget.onDataChanged?.call();
+  }
+
+  String _recurringFrequencyLabel(String? frequency) {
+    switch (frequency) {
+      case 'daily':
+        return Translator.t('rec_freq_daily');
+      case 'weekly':
+        return Translator.t('rec_freq_weekly');
+      case 'monthly':
+        return Translator.t('rec_freq_monthly');
+      case 'yearly':
+        return Translator.t('rec_freq_yearly');
+      default:
+        return '';
     }
   }
 
@@ -486,7 +671,7 @@ class _TransactionsViewState extends State<TransactionsView> {
           FilledButton(
             onPressed: () {
               Navigator.pop(ctx);
-              _showTransactionModal(editTxn: txn);
+              _editTransaction(txn);
             },
             style: FilledButton.styleFrom(
               backgroundColor: colors.accent,
@@ -567,6 +752,16 @@ class _TransactionsViewState extends State<TransactionsView> {
                 onPressed: () => _showTransactionModal(),
                 backgroundColor: colors.accent,
                 child: const Icon(Icons.add, color: Colors.white),
+              ),
+              const SizedBox(width: 12),
+              IconButton(
+                icon: Icon(Icons.repeat, color: colors.accent),
+                tooltip: Translator.t('rec_title'),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const RecurringView()),
+                  );
+                },
               ),
             ],
           ),
@@ -738,14 +933,24 @@ class _TransactionsViewState extends State<TransactionsView> {
           ),
           child: Icon(icon, color: iconColor, size: 20),
         ),
-        title: Text(
-          txn.descriptionName ?? '-',
-          style: TextStyle(
-            color: colors.text,
-            fontWeight: FontWeight.w500,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+        title: Row(
+          children: [
+            if (txn.recurringId != null) ...[
+              Icon(Icons.repeat, color: colors.placeholderColor, size: 14),
+              const SizedBox(width: 4),
+            ],
+            Expanded(
+              child: Text(
+                txn.descriptionName ?? '-',
+                style: TextStyle(
+                  color: colors.text,
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
         subtitle: Row(
           children: [
@@ -760,6 +965,24 @@ class _TransactionsViewState extends State<TransactionsView> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+            if (txn.recurringId != null && !isPhone) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: BoxDecoration(
+                  color: colors.accent.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  _recurringFrequencyLabel(txn.recurringFrequency),
+                  style: TextStyle(
+                    color: colors.accent,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
             if (isPhone && txn.tagName != null) ...[
               const SizedBox(width: 6),
               Container(
@@ -816,7 +1039,7 @@ class _TransactionsViewState extends State<TransactionsView> {
           ],
         ),
         onTap: isPhone
-            ? () => _showTransactionModal(editTxn: txn)
+            ? () => _editTransaction(txn)
             : () => _showTransactionPreview(txn),
       ),
     );
@@ -916,7 +1139,7 @@ class _TransactionsViewState extends State<TransactionsView> {
           ),
         ),
         onTap: isPhone
-            ? () => _showTransactionModal(editTxn: txn)
+            ? () => _editTransaction(txn)
             : () => _showTransactionPreview(txn, pairedTxn: pairedTxn),
       ),
     );

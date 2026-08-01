@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -10,11 +11,13 @@ import '../models/account.dart';
 import '../models/description.dart';
 import '../models/tag.dart';
 import '../models/transaction.dart';
+import '../models/recurring_transaction.dart';
 
 import '../utils/constants.dart';
 import '../services/currency_service.dart';
 import '../services/auth_service.dart';
 import '../services/encryption_service.dart';
+import '../services/recurring_service.dart';
 import '../i18n/translator.dart';
 
 class DatabaseManager {
@@ -210,6 +213,45 @@ class DatabaseManager {
       )
     ''');
 
+    await db.execute('''
+      CREATE TABLE recurring_transactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        account_id INTEGER,
+        description_id INTEGER,
+        tag_id INTEGER,
+        amount REAL NOT NULL,
+        transaction_type TEXT NOT NULL CHECK(transaction_type IN ('income', 'expense')),
+        currency TEXT DEFAULT 'EUR',
+        notes TEXT,
+        frequency TEXT NOT NULL CHECK(frequency IN ('daily', 'weekly', 'monthly', 'yearly')),
+        interval INTEGER DEFAULT 1,
+        day_of_week INTEGER,
+        day_of_month INTEGER,
+        start_date DATE NOT NULL,
+        end_date DATE,
+        next_due_date DATE NOT NULL,
+        active INTEGER DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (account_id) REFERENCES accounts(id),
+        FOREIGN KEY (description_id) REFERENCES descriptions(id),
+        FOREIGN KEY (tag_id) REFERENCES tags(id)
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE recurring_exceptions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        recurring_id INTEGER NOT NULL,
+        date DATE NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(recurring_id, date),
+        FOREIGN KEY (recurring_id) REFERENCES recurring_transactions(id)
+      )
+    ''');
+
     await _createIndexes(db);
   }
 
@@ -225,6 +267,12 @@ class DatabaseManager {
     );
     await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_transactions_tag ON transactions(tag_id)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_recurring_user ON recurring_transactions(user_id)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_recurring_exception ON recurring_exceptions(recurring_id)',
     );
   }
 
@@ -265,6 +313,48 @@ class DatabaseManager {
         await _createIndexes(db);
       } catch (_) {}
     }
+    if (oldVersion < 6) {
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS recurring_transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            account_id INTEGER,
+            description_id INTEGER,
+            tag_id INTEGER,
+            amount REAL NOT NULL,
+            transaction_type TEXT NOT NULL CHECK(transaction_type IN ('income', 'expense')),
+            currency TEXT DEFAULT 'EUR',
+            notes TEXT,
+            frequency TEXT NOT NULL CHECK(frequency IN ('daily', 'weekly', 'monthly', 'yearly')),
+            interval INTEGER DEFAULT 1,
+            day_of_week INTEGER,
+            day_of_month INTEGER,
+            start_date DATE NOT NULL,
+            end_date DATE,
+            next_due_date DATE NOT NULL,
+            active INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            FOREIGN KEY (account_id) REFERENCES accounts(id),
+            FOREIGN KEY (description_id) REFERENCES descriptions(id),
+            FOREIGN KEY (tag_id) REFERENCES tags(id)
+          )
+        ''');
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS recurring_exceptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            recurring_id INTEGER NOT NULL,
+            date DATE NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(recurring_id, date),
+            FOREIGN KEY (recurring_id) REFERENCES recurring_transactions(id)
+          )
+        ''');
+        await db.execute('ALTER TABLE transactions ADD COLUMN recurring_id INTEGER REFERENCES recurring_transactions(id)');
+      } catch (_) {}
+    }
   }
 
   /// Encrypt all existing unencrypted data. Called after login when encryption is first enabled.
@@ -278,6 +368,7 @@ class DatabaseManager {
     await _encryptAccounts(db);
     await _encryptDescriptions(db);
     await _encryptTransactions(db);
+    await _encryptRecurring(db);
 
     await db.rawInsert(
       'INSERT OR REPLACE INTO encryption_meta (key, value) VALUES (?, ?)',
@@ -332,6 +423,22 @@ class DatabaseManager {
         await db.rawUpdate('UPDATE transactions SET notes = ? WHERE id = ?', [reEncrypted, row['id']]);
       }
     }
+
+    final recRows = await db.rawQuery('SELECT id, amount, notes FROM recurring_transactions WHERE user_id = ?', [_userId]);
+    for (final row in recRows) {
+      final amount = row['amount'] as String?;
+      final notes = row['notes'] as String?;
+      if (amount != null && amount.isNotEmpty) {
+        final decrypted = await EncryptionService.decrypt(amount, oldKey);
+        final reEncrypted = await _encrypt(decrypted);
+        await db.rawUpdate('UPDATE recurring_transactions SET amount = ? WHERE id = ?', [reEncrypted, row['id']]);
+      }
+      if (notes != null && notes.isNotEmpty) {
+        final decrypted = await EncryptionService.decrypt(notes, oldKey);
+        final reEncrypted = await _encrypt(decrypted);
+        await db.rawUpdate('UPDATE recurring_transactions SET notes = ? WHERE id = ?', [reEncrypted, row['id']]);
+      }
+    }
   }
 
   Future<void> _encryptAccounts(Database db) async {
@@ -374,6 +481,20 @@ class DatabaseManager {
     }
   }
 
+  Future<void> _encryptRecurring(Database db) async {
+    final rows = await db.rawQuery('SELECT id, amount, notes FROM recurring_transactions WHERE user_id = ?', [_userId]);
+    for (final row in rows) {
+      final amount = row['amount'] as num?;
+      final notes = row['notes'] as String?;
+      final encryptedAmount = amount != null ? await _encrypt(amount.toString()) : null;
+      final encryptedNotes = await _encrypt(notes);
+      await db.rawUpdate(
+        'UPDATE recurring_transactions SET amount = ?, notes = ? WHERE id = ?',
+        [encryptedAmount, encryptedNotes, row['id']],
+      );
+    }
+  }
+
   // ==================== USER ====================
 
   void setUserId(int userId) {
@@ -382,6 +503,7 @@ class DatabaseManager {
     _exchangeRateCache.clear();
     _insertDefaultAccounts();
     cleanupUnusedDescriptions();
+    unawaited(generateDueRecurring());
   }
 
   Future<void> _insertDefaultAccounts() async {
@@ -613,11 +735,24 @@ class DatabaseManager {
     if (existing.isEmpty) return false;
 
     if (deleteTransactions) {
+      final recIds = await db.query(
+        'recurring_transactions',
+        columns: ['id'],
+        where: 'account_id = ? AND user_id = ?',
+        whereArgs: [accountId, _userId],
+      );
       await db.delete('transactions',
           where: 'account_id = ? AND user_id = ?', whereArgs: [accountId, _userId]);
+      for (final rec in recIds) {
+        await _deleteRecurringWithChildren(db, rec['id'] as int);
+      }
     } else {
       await db.rawUpdate(
         'UPDATE transactions SET account_id = NULL WHERE account_id = ? AND user_id = ?',
+        [accountId, _userId],
+      );
+      await db.rawUpdate(
+        'UPDATE recurring_transactions SET account_id = NULL WHERE account_id = ? AND user_id = ?',
         [accountId, _userId],
       );
     }
@@ -686,6 +821,10 @@ class DatabaseManager {
       'UPDATE transactions SET description_id = ? WHERE description_id = ? AND user_id = ?',
       [targetId, sourceId, _userId],
     );
+    await db.rawUpdate(
+      'UPDATE recurring_transactions SET description_id = ? WHERE description_id = ? AND user_id = ?',
+      [targetId, sourceId, _userId],
+    );
     await db.delete('descriptions',
         where: 'id = ? AND user_id = ?', whereArgs: [sourceId, _userId]);
     _descriptionCache.clear();
@@ -711,7 +850,8 @@ class DatabaseManager {
       DELETE FROM descriptions
       WHERE user_id = ?
         AND id NOT IN (SELECT DISTINCT description_id FROM transactions WHERE user_id = ?)
-    ''', [_userId, _userId]);
+        AND id NOT IN (SELECT DISTINCT description_id FROM recurring_transactions WHERE user_id = ?)
+    ''', [_userId, _userId, _userId]);
     _descriptionCache.clear();
   }
 
@@ -877,11 +1017,13 @@ class DatabaseManager {
     var query = '''
       SELECT t.*, a.name as account_name, a.color as account_color,
              a.currency as account_currency, d.name as description_name,
-             tg.name as tag_name, tg.color as tag_color
+             tg.name as tag_name, tg.color as tag_color,
+             rt.frequency as recurring_frequency
       FROM transactions t
       LEFT JOIN accounts a ON t.account_id = a.id
       LEFT JOIN descriptions d ON t.description_id = d.id
       LEFT JOIN tags tg ON t.tag_id = tg.id
+      LEFT JOIN recurring_transactions rt ON t.recurring_id = rt.id
       WHERE t.user_id = ?
       ORDER BY t.date DESC, t.id DESC
     ''';
@@ -925,6 +1067,7 @@ class DatabaseManager {
         transactionType: r['transaction_type'] as String,
         currency: r['currency'] as String? ?? 'EUR',
         notes: notes,
+        recurringId: r['recurring_id'] as int?,
         createdAt: r['created_at'] as String?,
         updatedAt: r['updated_at'] as String?,
         accountName: accountName,
@@ -933,6 +1076,7 @@ class DatabaseManager {
         descriptionName: descriptionName,
         tagName: r['tag_name'] as String?,
         tagColor: r['tag_color'] as String?,
+        recurringFrequency: r['recurring_frequency'] as String?,
       ));
 
       if (limit != null && results.length >= limit + offset) break;
@@ -950,11 +1094,13 @@ class DatabaseManager {
     final rows = await db.rawQuery('''
       SELECT t.*, a.name as account_name, a.color as account_color,
              a.currency as account_currency, d.name as description_name,
-             tg.name as tag_name, tg.color as tag_color
+             tg.name as tag_name, tg.color as tag_color,
+             rt.frequency as recurring_frequency
       FROM transactions t
       LEFT JOIN accounts a ON t.account_id = a.id
       LEFT JOIN descriptions d ON t.description_id = d.id
       LEFT JOIN tags tg ON t.tag_id = tg.id
+      LEFT JOIN recurring_transactions rt ON t.recurring_id = rt.id
       WHERE t.date BETWEEN ? AND ? AND t.user_id = ?
       ORDER BY t.date DESC
     ''', [startDate, endDate, _userId]);
@@ -972,6 +1118,7 @@ class DatabaseManager {
         transactionType: r['transaction_type'] as String,
         currency: r['currency'] as String? ?? 'EUR',
         notes: await _decrypt(r['notes'] as String?),
+        recurringId: r['recurring_id'] as int?,
         createdAt: r['created_at'] as String?,
         updatedAt: r['updated_at'] as String?,
         accountName: await _decrypt(r['account_name'] as String?),
@@ -980,9 +1127,425 @@ class DatabaseManager {
         descriptionName: await _decrypt(r['description_name'] as String?),
         tagName: r['tag_name'] as String?,
         tagColor: r['tag_color'] as String?,
+        recurringFrequency: r['recurring_frequency'] as String?,
       ));
     }
     return results;
+  }
+
+  // ==================== RECURRING TRANSACTIONS ====================
+
+  Future<int?> addRecurringTransaction({
+    required String description,
+    required double amount,
+    required String transactionType,
+    required String frequency,
+    required String startDate,
+    int? accountId,
+    int? tagId,
+    String? notes,
+    String? currency,
+    int interval = 1,
+    int? dayOfWeek,
+    int? dayOfMonth,
+    String? endDate,
+  }) async {
+    final db = await database;
+    final descId = await getOrCreateDescription(description);
+
+    String effectiveCurrency = currency ?? defaultCurrency;
+    if (accountId != null) {
+      final acctCurrency = await getAccountCurrency(accountId);
+      if (acctCurrency != null) effectiveCurrency = acctCurrency;
+    }
+
+    final start = DateTime.parse(startDate);
+    final anchorDay = start.day;
+    final computedDow = dayOfWeek ?? RecurringService.isoWeekday(start);
+    final computedDom = dayOfMonth ?? anchorDay;
+
+    return await db.insert('recurring_transactions', {
+      'user_id': _userId,
+      'account_id': accountId,
+      'description_id': descId,
+      'tag_id': tagId,
+      'amount': await _encrypt(amount.toString()),
+      'transaction_type': transactionType,
+      'currency': effectiveCurrency,
+      'notes': await _encrypt(notes),
+      'frequency': frequency,
+      'interval': interval,
+      'day_of_week': frequency == 'weekly' ? computedDow : dayOfWeek,
+      'day_of_month': (frequency == 'monthly' || frequency == 'yearly') ? computedDom : dayOfMonth,
+      'start_date': startDate,
+      'end_date': endDate,
+      'next_due_date': startDate,
+      'active': 1,
+    });
+  }
+
+  Future<bool> updateRecurringTransaction(int recurringId, {
+    String? description,
+    double? amount,
+    String? transactionType,
+    String? frequency,
+    String? startDate,
+    String? endDate,
+    bool clearEndDate = false,
+    int? accountId,
+    int? tagId,
+    bool clearTag = false,
+    String? notes,
+    String? currency,
+    int? interval,
+    int? dayOfWeek,
+    int? dayOfMonth,
+    bool? active,
+  }) async {
+    final db = await database;
+    final existing = await db.query(
+      'recurring_transactions',
+      where: 'id = ? AND user_id = ?',
+      whereArgs: [recurringId, _userId],
+    );
+    if (existing.isEmpty) return false;
+    final row = existing.first;
+
+    final updates = <String, dynamic>{};
+    if (amount != null) updates['amount'] = await _encrypt(amount.toString());
+    if (transactionType != null) updates['transaction_type'] = transactionType;
+    if (notes != null) updates['notes'] = await _encrypt(notes);
+    if (currency != null) updates['currency'] = currency;
+    if (accountId != null) updates['account_id'] = accountId;
+    if (tagId != null) updates['tag_id'] = tagId;
+    if (clearTag) updates['tag_id'] = null;
+    if (endDate != null) updates['end_date'] = endDate;
+    if (clearEndDate) updates['end_date'] = null;
+    if (active != null) updates['active'] = active ? 1 : 0;
+    if (description != null) {
+      updates['description_id'] = await getOrCreateDescription(description);
+    }
+
+    final scheduleChanged = frequency != null ||
+        interval != null ||
+        dayOfWeek != null ||
+        dayOfMonth != null ||
+        startDate != null;
+
+    if (frequency != null) updates['frequency'] = frequency;
+    if (interval != null) updates['interval'] = interval;
+    if (dayOfWeek != null) updates['day_of_week'] = dayOfWeek;
+    if (dayOfMonth != null) updates['day_of_month'] = dayOfMonth;
+    if (startDate != null) updates['start_date'] = startDate;
+
+    if (scheduleChanged) {
+      final rec = _recurringFromRow(row);
+      final effective = RecurringTransaction(
+        userId: rec.userId,
+        accountId: rec.accountId,
+        descriptionId: rec.descriptionId,
+        tagId: rec.tagId,
+        amount: rec.amount,
+        transactionType: transactionType ?? rec.transactionType,
+        currency: rec.currency,
+        notes: rec.notes,
+        frequency: frequency ?? rec.frequency,
+        interval: interval ?? rec.interval,
+        dayOfWeek: dayOfWeek ?? rec.dayOfWeek,
+        dayOfMonth: dayOfMonth ?? rec.dayOfMonth,
+        startDate: startDate ?? rec.startDate,
+        endDate: clearEndDate ? null : (endDate ?? rec.endDate),
+        nextDueDate: rec.nextDueDate,
+        active: rec.active,
+      );
+      final nextDue = RecurringService.firstOccurrenceOnOrAfter(
+          effective, DateTime.now());
+      if (nextDue != null) {
+        updates['next_due_date'] = RecurringService.dateOnly(nextDue);
+        updates['active'] = 1;
+      }
+    }
+
+    if (updates.isEmpty) return false;
+    updates['updated_at'] = DateTime.now().toIso8601String();
+    final count = await db.update(
+      'recurring_transactions',
+      updates,
+      where: 'id = ? AND user_id = ?',
+      whereArgs: [recurringId, _userId],
+    );
+    return count > 0;
+  }
+
+  Future<bool> toggleRecurringActive(int recurringId, bool active) async {
+    final db = await database;
+    final count = await db.update(
+      'recurring_transactions',
+      {'active': active ? 1 : 0, 'updated_at': DateTime.now().toIso8601String()},
+      where: 'id = ? AND user_id = ?',
+      whereArgs: [recurringId, _userId],
+    );
+    return count > 0;
+  }
+
+  Future<bool> deleteRecurringTransaction(int recurringId,
+      {bool deleteOccurrences = true}) async {
+    final db = await database;
+    final count = await db.delete(
+      'recurring_transactions',
+      where: 'id = ? AND user_id = ?',
+      whereArgs: [recurringId, _userId],
+    );
+    if (count > 0) {
+      if (deleteOccurrences) {
+        await db.delete('transactions',
+            where: 'recurring_id = ? AND user_id = ?',
+            whereArgs: [recurringId, _userId]);
+      }
+      await db.delete('recurring_exceptions',
+          where: 'recurring_id = ?', whereArgs: [recurringId]);
+    }
+    return count > 0;
+  }
+
+  Future<void> _deleteRecurringWithChildren(Database db, int recurringId) async {
+    await db.delete('transactions',
+        where: 'recurring_id = ? AND user_id = ?', whereArgs: [recurringId, _userId]);
+    await db.delete('recurring_exceptions',
+        where: 'recurring_id = ?', whereArgs: [recurringId]);
+    await db.delete('recurring_transactions',
+        where: 'id = ? AND user_id = ?', whereArgs: [recurringId, _userId]);
+  }
+
+  Future<void> markRecurringOccurrenceDeleted(int recurringId, String date) async {
+    final db = await database;
+    await db.rawInsert(
+      'INSERT OR REPLACE INTO recurring_exceptions (recurring_id, date) VALUES (?, ?)',
+      [recurringId, date],
+    );
+  }
+
+  Future<void> clearRecurringOccurrenceDeleted(int recurringId, String date) async {
+    final db = await database;
+    await db.delete('recurring_exceptions',
+        where: 'recurring_id = ? AND date = ?', whereArgs: [recurringId, date]);
+  }
+
+  RecurringTransaction _recurringFromRow(Map<String, dynamic> row) {
+    return RecurringTransaction(
+      id: row['id'] as int?,
+      userId: row['user_id'] as int,
+      accountId: row['account_id'] as int?,
+      descriptionId: row['description_id'] as int?,
+      tagId: row['tag_id'] as int?,
+      amount: (row['amount'] is num) ? (row['amount'] as num).toDouble() : 0,
+      transactionType: row['transaction_type'] as String,
+      currency: row['currency'] as String? ?? 'EUR',
+      notes: row['notes'] is String ? (row['notes'] as String) : null,
+      frequency: row['frequency'] as String,
+      interval: row['interval'] as int? ?? 1,
+      dayOfWeek: row['day_of_week'] as int?,
+      dayOfMonth: row['day_of_month'] as int?,
+      startDate: row['start_date'] as String,
+      endDate: row['end_date'] as String?,
+      nextDueDate: row['next_due_date'] as String,
+      active: (row['active'] as int? ?? 1) == 1,
+      createdAt: row['created_at'] as String?,
+      updatedAt: row['updated_at'] as String?,
+    );
+  }
+
+  Future<RecurringTransactionWithDetails?> getRecurringTransaction(
+      int recurringId) async {
+    final db = await database;
+    final rows = await db.rawQuery('''
+      SELECT r.*, a.name as account_name, a.color as account_color,
+             a.currency as account_currency, d.name as description_name,
+             tg.name as tag_name, tg.color as tag_color,
+             (SELECT COUNT(*) FROM transactions t WHERE t.recurring_id = r.id) as generated_count
+      FROM recurring_transactions r
+      LEFT JOIN accounts a ON r.account_id = a.id
+      LEFT JOIN descriptions d ON r.description_id = d.id
+      LEFT JOIN tags tg ON r.tag_id = tg.id
+      WHERE r.id = ? AND r.user_id = ?
+    ''', [recurringId, _userId]);
+    if (rows.isEmpty) return null;
+    final r = rows.first;
+    return RecurringTransactionWithDetails(
+      id: r['id'] as int?,
+      userId: r['user_id'] as int,
+      accountId: r['account_id'] as int?,
+      descriptionId: r['description_id'] as int?,
+      tagId: r['tag_id'] as int?,
+      amount: await _decryptAmount(r['amount'] as String?),
+      transactionType: r['transaction_type'] as String,
+      currency: r['currency'] as String? ?? 'EUR',
+      notes: await _decrypt(r['notes'] as String?),
+      frequency: r['frequency'] as String,
+      interval: r['interval'] as int? ?? 1,
+      dayOfWeek: r['day_of_week'] as int?,
+      dayOfMonth: r['day_of_month'] as int?,
+      startDate: r['start_date'] as String,
+      endDate: r['end_date'] as String?,
+      nextDueDate: r['next_due_date'] as String,
+      active: (r['active'] as int? ?? 1) == 1,
+      createdAt: r['created_at'] as String?,
+      updatedAt: r['updated_at'] as String?,
+      accountName: await _decrypt(r['account_name'] as String?),
+      accountColor: r['account_color'] as String?,
+      accountCurrency: r['account_currency'] as String?,
+      descriptionName: await _decrypt(r['description_name'] as String?),
+      tagName: r['tag_name'] as String?,
+      tagColor: r['tag_color'] as String?,
+      generatedCount: r['generated_count'] as int? ?? 0,
+    );
+  }
+
+  Future<List<RecurringTransactionWithDetails>> getRecurringTransactions() async {
+    final db = await database;
+    final rows = await db.rawQuery('''
+      SELECT r.*, a.name as account_name, a.color as account_color,
+             a.currency as account_currency, d.name as description_name,
+             tg.name as tag_name, tg.color as tag_color,
+             (SELECT COUNT(*) FROM transactions t WHERE t.recurring_id = r.id) as generated_count
+      FROM recurring_transactions r
+      LEFT JOIN accounts a ON r.account_id = a.id
+      LEFT JOIN descriptions d ON r.description_id = d.id
+      LEFT JOIN tags tg ON r.tag_id = tg.id
+      WHERE r.user_id = ?
+      ORDER BY r.next_due_date ASC, r.id DESC
+    ''', [_userId]);
+
+    final results = <RecurringTransactionWithDetails>[];
+    for (final r in rows) {
+      results.add(RecurringTransactionWithDetails(
+        id: r['id'] as int?,
+        userId: r['user_id'] as int,
+        accountId: r['account_id'] as int?,
+        descriptionId: r['description_id'] as int?,
+        tagId: r['tag_id'] as int?,
+        amount: await _decryptAmount(r['amount'] as String?),
+        transactionType: r['transaction_type'] as String,
+        currency: r['currency'] as String? ?? 'EUR',
+        notes: await _decrypt(r['notes'] as String?),
+        frequency: r['frequency'] as String,
+        interval: r['interval'] as int? ?? 1,
+        dayOfWeek: r['day_of_week'] as int?,
+        dayOfMonth: r['day_of_month'] as int?,
+        startDate: r['start_date'] as String,
+        endDate: r['end_date'] as String?,
+        nextDueDate: r['next_due_date'] as String,
+        active: (r['active'] as int? ?? 1) == 1,
+        createdAt: r['created_at'] as String?,
+        updatedAt: r['updated_at'] as String?,
+        accountName: await _decrypt(r['account_name'] as String?),
+        accountColor: r['account_color'] as String?,
+        accountCurrency: r['account_currency'] as String?,
+        descriptionName: await _decrypt(r['description_name'] as String?),
+        tagName: r['tag_name'] as String?,
+        tagColor: r['tag_color'] as String?,
+        generatedCount: r['generated_count'] as int? ?? 0,
+      ));
+    }
+    return results;
+  }
+
+  /// Generates due occurrences for all active recurring templates of the
+  /// current user. Idempotent: occurrences that already exist (or were
+  /// explicitly deleted) are never recreated.
+  Future<void> generateDueRecurring() async {
+    if (_userId == null) return;
+    final db = await database;
+    final rows = await db.query(
+      'recurring_transactions',
+      where: 'user_id = ? AND active = 1',
+      whereArgs: [_userId],
+    );
+    for (final row in rows) {
+      final base = _recurringFromRow(row);
+      final rec = RecurringTransaction(
+        id: base.id,
+        userId: base.userId,
+        accountId: base.accountId,
+        descriptionId: base.descriptionId,
+        tagId: base.tagId,
+        amount: await _decryptAmount(row['amount'] as String?),
+        transactionType: base.transactionType,
+        currency: base.currency,
+        notes: await _decrypt(row['notes'] as String?),
+        frequency: base.frequency,
+        interval: base.interval,
+        dayOfWeek: base.dayOfWeek,
+        dayOfMonth: base.dayOfMonth,
+        startDate: base.startDate,
+        endDate: base.endDate,
+        nextDueDate: base.nextDueDate,
+        active: base.active,
+      );
+      await _generateForTemplate(db, rec);
+    }
+  }
+
+  Future<void> _generateForTemplate(
+      Database db, RecurringTransaction rec) async {
+    final id = rec.id;
+    if (id == null) return;
+
+    final existingRows = await db.query(
+      'transactions',
+      columns: ['date'],
+      where: 'recurring_id = ? AND user_id = ?',
+      whereArgs: [id, _userId],
+    );
+    final existingDates =
+        existingRows.map((r) => r['date'] as String).toSet();
+
+    final exceptionRows = await db.query(
+      'recurring_exceptions',
+      columns: ['date'],
+      where: 'recurring_id = ?',
+      whereArgs: [id],
+    );
+    final exceptionDates =
+        exceptionRows.map((r) => r['date'] as String).toSet();
+
+    final plan = RecurringService.planGeneration(
+      rec,
+      existingDates: existingDates,
+      exceptionDates: exceptionDates,
+      today: DateTime.now(),
+    );
+
+    for (final dateStr in plan.dueDates) {
+      await db.insert('transactions', {
+        'user_id': rec.userId,
+        'account_id': rec.accountId,
+        'description_id': rec.descriptionId,
+        'tag_id': rec.tagId,
+        'date': dateStr,
+        'amount': await _encrypt(rec.amount.toString()),
+        'transaction_type': rec.transactionType,
+        'currency': rec.currency,
+        'notes': await _encrypt(rec.notes),
+        'recurring_id': id,
+      });
+    }
+
+    if (plan.ended) {
+      await db.update(
+        'recurring_transactions',
+        {'active': 0, 'next_due_date': plan.nextDueDate},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    } else {
+      await db.update(
+        'recurring_transactions',
+        {'next_due_date': plan.nextDueDate},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    }
   }
 
   // ==================== STATISTICS ====================
@@ -1890,6 +2453,8 @@ class DatabaseManager {
     }
 
     await db.delete('transactions', where: 'user_id = ?', whereArgs: [_userId]);
+    await db.delete('recurring_exceptions', where: 'recurring_id IN (SELECT id FROM recurring_transactions WHERE user_id = ?)', whereArgs: [_userId]);
+    await db.delete('recurring_transactions', where: 'user_id = ?', whereArgs: [_userId]);
     await db.delete('accounts', where: 'user_id = ?', whereArgs: [_userId]);
     await db.delete('descriptions', where: 'user_id = ?', whereArgs: [_userId]);
     await db.delete('imported_files', where: 'user_id = ?', whereArgs: [_userId]);

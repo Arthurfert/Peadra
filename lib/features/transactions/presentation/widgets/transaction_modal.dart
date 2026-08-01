@@ -9,6 +9,7 @@ import '../../../../core/database/database_manager.dart';
 import '../../../../core/models/account.dart';
 import '../../../../core/models/tag.dart';
 import '../../../../core/models/transaction.dart';
+import '../../../../core/models/recurring_transaction.dart';
 import '../../../../core/theme/peadra_colors.dart';
 import '../../../../core/services/currency_service.dart';
 import '../../../../core/responsive/responsive_layout.dart';
@@ -20,6 +21,8 @@ class TransactionModal extends StatefulWidget {
   final OnTransactionSaved onSave;
   final String transactionType;
   final TransactionWithDetails? editTransaction;
+  final RecurringTransactionWithDetails? editRecurring;
+  final bool defaultRecurring;
 
   const TransactionModal({
     super.key,
@@ -27,6 +30,8 @@ class TransactionModal extends StatefulWidget {
     required this.onSave,
     this.transactionType = 'expense',
     this.editTransaction,
+    this.editRecurring,
+    this.defaultRecurring = false,
   });
 
   @override
@@ -40,6 +45,7 @@ class _TransactionModalState extends State<TransactionModal> {
   final _descController = TextEditingController();
   final _amountController = TextEditingController();
   final _notesController = TextEditingController();
+  final _endDateController = TextEditingController();
   final _newAccountController = TextEditingController();
 
   String _transactionType = 'expense';
@@ -47,6 +53,12 @@ class _TransactionModalState extends State<TransactionModal> {
   int? _sourceAccountId;
   int? _destAccountId;
   String _selectedCurrency = 'EUR';
+  bool _isRecurring = false;
+  String _frequency = 'monthly';
+  int _interval = 1;
+  int _dayOfWeek = DateTime.now().weekday;
+  int _dayOfMonth = DateTime.now().day;
+  bool _hasEndDate = false;
   List<String> _suggestions = [];
   bool _showSuggestions = false;
   double? _exchangeRate;
@@ -55,12 +67,36 @@ class _TransactionModalState extends State<TransactionModal> {
   int? _selectedTagId;
   Timer? _suggestionDebounce;
 
+  bool get _isTransfer => _transactionType == 'transfer';
+
+  bool get _showRecurringSection =>
+      widget.editRecurring != null ||
+      (widget.editTransaction == null && !_isTransfer);
+
   @override
   void initState() {
     super.initState();
-    _transactionType = widget.editTransaction?.transactionType ?? widget.transactionType;
+    _transactionType = widget.editTransaction?.transactionType ??
+        widget.editRecurring?.transactionType ??
+        widget.transactionType;
+    _isRecurring = widget.editRecurring != null || widget.defaultRecurring;
 
-    if (widget.editTransaction != null) {
+    if (widget.editRecurring != null) {
+      final rec = widget.editRecurring!;
+      _dateController.text = rec.startDate;
+      _descController.text = rec.descriptionName ?? '';
+      _amountController.text = rec.amount.toString();
+      _notesController.text = rec.notes ?? '';
+      _selectedAccountId = rec.accountId;
+      _selectedCurrency = rec.currency.isNotEmpty ? rec.currency : 'EUR';
+      _frequency = rec.frequency;
+      _interval = rec.interval;
+      _dayOfWeek = rec.dayOfWeek ?? DateTime.now().weekday;
+      _dayOfMonth = rec.dayOfMonth ?? DateTime.now().day;
+      _hasEndDate = rec.endDate != null;
+      _endDateController.text = rec.endDate ?? '';
+      _selectedTagId = rec.tagId;
+    } else if (widget.editTransaction != null) {
       final tx = widget.editTransaction!;
       _dateController.text = tx.date;
       _descController.text = tx.descriptionName ?? '';
@@ -105,6 +141,7 @@ class _TransactionModalState extends State<TransactionModal> {
     _descController.dispose();
     _amountController.dispose();
     _notesController.dispose();
+    _endDateController.dispose();
     _newAccountController.dispose();
     super.dispose();
   }
@@ -224,7 +261,13 @@ class _TransactionModalState extends State<TransactionModal> {
       lastDate: DateTime(2100),
     );
     if (picked != null) {
-      controller.text = picked.toIso8601String().substring(0, 10);
+      setState(() {
+        controller.text = picked.toIso8601String().substring(0, 10);
+        if (controller == _dateController) {
+          _dayOfWeek = picked.weekday;
+          _dayOfMonth = picked.day;
+        }
+      });
     }
   }
 
@@ -236,6 +279,13 @@ class _TransactionModalState extends State<TransactionModal> {
     if (amount == null || amount <= 0) return false;
     if (_transactionType == 'transfer' && _sourceAccountId == _destAccountId) {
       return false;
+    }
+    if (_showRecurringSection && _isRecurring) {
+      if (_hasEndDate) {
+        final end = _endDateController.text.trim();
+        if (end.isEmpty) return false;
+        if (end.compareTo(_dateController.text.trim()) < 0) return false;
+      }
     }
     return true;
   }
@@ -254,7 +304,18 @@ class _TransactionModalState extends State<TransactionModal> {
           : null,
       'currency': _selectedCurrency,
       'tag_id': _selectedTagId,
+      'is_recurring': _showRecurringSection && _isRecurring,
     };
+
+    if (_showRecurringSection && _isRecurring) {
+      data['frequency'] = _frequency;
+      data['interval'] = _interval;
+      data['day_of_week'] = _frequency == 'weekly' ? _dayOfWeek : null;
+      data['day_of_month'] =
+          (_frequency == 'monthly' || _frequency == 'yearly') ? _dayOfMonth : null;
+      data['start_date'] = _dateController.text.trim();
+      data['end_date'] = _hasEndDate ? _endDateController.text.trim() : null;
+    }
 
     if (_transactionType == 'transfer') {
       data['source_id'] = _sourceAccountId;
@@ -289,9 +350,11 @@ class _TransactionModalState extends State<TransactionModal> {
       'expense': Translator.t('modal_new_expense'),
       'transfer': Translator.t('modal_new_transfer'),
     };
-    final title = widget.editTransaction != null
-        ? Translator.t('modal_edit_transaction')
-        : typeLabels[_transactionType] ?? Translator.t('modal_new_transaction');
+    final title = widget.editRecurring != null
+        ? Translator.t('rec_edit')
+        : widget.editTransaction != null
+            ? Translator.t('modal_edit_transaction')
+            : typeLabels[_transactionType] ?? Translator.t('modal_new_transaction');
 
     final content = SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -338,6 +401,12 @@ class _TransactionModalState extends State<TransactionModal> {
           // Tag selection (not for transfers)
           if (_transactionType != 'transfer') ...[
             _buildTagSelector(colors),
+            const SizedBox(height: 12),
+          ],
+
+          // Recurring section
+          if (_showRecurringSection) ...[
+            _buildRecurringSection(colors),
             const SizedBox(height: 12),
           ],
 
@@ -395,13 +464,14 @@ class _TransactionModalState extends State<TransactionModal> {
   }
 
   Widget _buildTypeSelector(PeadraColors colors, {bool enabled = true}) {
+    final transferEnabled = enabled && widget.editRecurring == null;
     return Row(
       children: [
         _buildTypeChip('expense', Translator.t('trans_expense'), colors.expenseIcon, colors, enabled: enabled),
         const SizedBox(width: 8),
         _buildTypeChip('income', Translator.t('trans_income'), colors.incomeIcon, colors, enabled: enabled),
         const SizedBox(width: 8),
-        _buildTypeChip('transfer', Translator.t('trans_transfer'), colors.transferIcon, colors, enabled: enabled),
+        _buildTypeChip('transfer', Translator.t('trans_transfer'), colors.transferIcon, colors, enabled: transferEnabled),
       ],
     );
   }
@@ -410,7 +480,14 @@ class _TransactionModalState extends State<TransactionModal> {
     final isSelected = _transactionType == type;
     return Expanded(
       child: GestureDetector(
-        onTap: enabled ? () => setState(() => _transactionType = type) : null,
+        onTap: enabled
+            ? () => setState(() {
+                  _transactionType = type;
+                  if (type == 'transfer') {
+                    _isRecurring = false;
+                  }
+                })
+            : null,
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
@@ -663,6 +740,178 @@ class _TransactionModalState extends State<TransactionModal> {
       onChanged: (v) {
         setState(() => _selectedTagId = v);
       },
+    );
+  }
+
+  Widget _buildRecurringSection(PeadraColors colors) {
+    final canEdit = widget.editTransaction == null;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      decoration: BoxDecoration(
+        color: colors.bg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: colors.borderColor),
+      ),
+      child: Column(
+        children: [
+          SwitchListTile(
+            value: _isRecurring,
+            onChanged: canEdit
+                ? (v) => setState(() => _isRecurring = v)
+                : null,
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            activeTrackColor: colors.accent,
+            title: Text(
+              Translator.t('rec_enable'),
+              style: TextStyle(
+                color: canEdit ? colors.text : colors.placeholderColor,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          if (_isRecurring) ...[
+            _buildFrequencyField(colors),
+            const SizedBox(height: 12),
+            if (_frequency == 'weekly') ...[
+              _buildDayOfWeekField(colors),
+              const SizedBox(height: 12),
+            ],
+            if (_frequency == 'monthly' || _frequency == 'yearly') ...[
+              _buildDayOfMonthField(colors),
+              const SizedBox(height: 12),
+            ],
+            _buildEndDateField(colors),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFrequencyField(PeadraColors colors) {
+    final frequencies = {
+      'daily': Translator.t('rec_daily'),
+      'weekly': Translator.t('rec_weekly'),
+      'monthly': Translator.t('rec_monthly'),
+      'yearly': Translator.t('rec_yearly'),
+    };
+    return Row(
+      children: [
+        Expanded(
+          child: DropdownButtonFormField<String>(
+            initialValue: _frequency,
+            decoration: InputDecoration(
+              labelText: Translator.t('rec_frequency'),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              filled: true,
+              fillColor: colors.surface,
+            ),
+            items: frequencies.entries
+                .map((e) =>
+                    DropdownMenuItem(value: e.key, child: Text(e.value)))
+                .toList(),
+            onChanged: (v) {
+              setState(() => _frequency = v ?? 'monthly');
+            },
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: DropdownButtonFormField<int>(
+            initialValue: _interval,
+            decoration: InputDecoration(
+              labelText: Translator.t('rec_interval'),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              filled: true,
+              fillColor: colors.surface,
+            ),
+            items: List.generate(12, (i) => i + 1)
+                .map((n) => DropdownMenuItem(value: n, child: Text('$n')))
+                .toList(),
+            onChanged: (v) => setState(() => _interval = v ?? 1),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDayOfWeekField(PeadraColors colors) {
+    final days = [
+      (1, Translator.t('week_mon')),
+      (2, Translator.t('week_tue')),
+      (3, Translator.t('week_wed')),
+      (4, Translator.t('week_thu')),
+      (5, Translator.t('week_fri')),
+      (6, Translator.t('week_sat')),
+      (7, Translator.t('week_sun')),
+    ];
+    return DropdownButtonFormField<int>(
+      initialValue: _dayOfWeek,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: Translator.t('rec_day_of_week'),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        filled: true,
+        fillColor: colors.surface,
+      ),
+      items: days
+          .map((d) => DropdownMenuItem(value: d.$1, child: Text(d.$2)))
+          .toList(),
+      onChanged: (v) => setState(() => _dayOfWeek = v ?? DateTime.now().weekday),
+    );
+  }
+
+  Widget _buildDayOfMonthField(PeadraColors colors) {
+    return DropdownButtonFormField<int>(
+      initialValue: _dayOfMonth,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: Translator.t('rec_day_of_month'),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        filled: true,
+        fillColor: colors.surface,
+      ),
+      items: List.generate(31, (i) => i + 1)
+          .map((n) => DropdownMenuItem(value: n, child: Text('$n')))
+          .toList(),
+      onChanged: (v) =>
+          setState(() => _dayOfMonth = v ?? DateTime.now().day),
+    );
+  }
+
+  Widget _buildEndDateField(PeadraColors colors) {
+    return Column(
+      children: [
+        CheckboxListTile(
+          value: _hasEndDate,
+          onChanged: (v) => setState(() => _hasEndDate = v ?? false),
+          title: Text(
+            _hasEndDate
+                ? Translator.t('rec_end_date')
+                : Translator.t('rec_no_end_date'),
+            style: TextStyle(color: colors.text, fontSize: 14),
+          ),
+          controlAffinity: ListTileControlAffinity.leading,
+          contentPadding: EdgeInsets.zero,
+          dense: true,
+        ),
+        if (_hasEndDate)
+          TextField(
+            controller: _endDateController,
+            readOnly: true,
+            onTap: () => _pickDate(_endDateController),
+            decoration: InputDecoration(
+              labelText: Translator.t('rec_end_date'),
+              suffixIcon:
+                  Icon(Icons.calendar_today, color: colors.placeholderColor),
+              border:
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              filled: true,
+              fillColor: colors.surface,
+            ),
+          ),
+      ],
     );
   }
 

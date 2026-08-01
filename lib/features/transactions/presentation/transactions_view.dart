@@ -14,7 +14,6 @@ import '../../../core/models/tag.dart';
 import '../../../core/models/recurring_transaction.dart';
 import '../../../core/theme/peadra_colors.dart';
 import 'widgets/transaction_modal.dart';
-import 'widgets/recurring_modal.dart';
 import 'recurring_view.dart';
 import '../../../shared/widgets/peadra_notification.dart';
 import '../../../core/services/currency_service.dart';
@@ -198,43 +197,72 @@ class _TransactionsViewState extends State<TransactionsView> {
     }
   }
 
-  void _showTransactionModal({TransactionWithDetails? editTxn}) async {
+  void _showTransactionModal(
+      {TransactionWithDetails? editTxn,
+      RecurringTransactionWithDetails? editRecurring}) async {
     final accounts = await _db.getAllAccounts();
     if (!mounted) return;
 
     final isPhone = ResponsiveLayout.isPhone(context);
+    final modal = TransactionModal(
+      accounts: accounts,
+      onSave: (data) =>
+          _handleSave(data, editTxn: editTxn, editRecurring: editRecurring),
+      editTransaction: editTxn,
+      editRecurring: editRecurring,
+      transactionType: editTxn?.transactionType ??
+          editRecurring?.transactionType ??
+          'expense',
+      defaultRecurring: editRecurring != null,
+    );
 
     if (isPhone) {
       Navigator.of(context).push(
         MaterialPageRoute(
           fullscreenDialog: true,
-          builder: (_) => TransactionModal(
-            accounts: accounts,
-            onSave: (data) => _handleSave(data, editTxn: editTxn),
-            editTransaction: editTxn,
-            transactionType: editTxn?.transactionType ?? 'expense',
-          ),
+          builder: (_) => modal,
         ),
       );
     } else {
       showDialog(
         context: context,
-        builder: (_) => TransactionModal(
-          accounts: accounts,
-          onSave: (data) => _handleSave(data, editTxn: editTxn),
-          editTransaction: editTxn,
-          transactionType: editTxn?.transactionType ?? 'expense',
-        ),
+        builder: (_) => modal,
       );
     }
   }
 
   Future<void> _handleSave(Map<String, dynamic> data,
-      {TransactionWithDetails? editTxn}) async {
+      {TransactionWithDetails? editTxn,
+      RecurringTransactionWithDetails? editRecurring}) async {
     final isTransfer = data['transaction_type'] == 'transfer';
     final tagId = data['tag_id'] as int?;
+    final isRecurring = data['is_recurring'] == true;
 
-    if (editTxn != null) {
+    if (editRecurring != null) {
+      // Update the recurring template (affects all future occurrences)
+      await _db.updateRecurringTransaction(
+        editRecurring.id!,
+        description: data['description'],
+        amount: data['amount'],
+        transactionType: data['transaction_type'],
+        currency: data['currency'],
+        frequency: data['frequency'],
+        interval: data['interval'],
+        dayOfWeek: data['day_of_week'],
+        dayOfMonth: data['day_of_month'],
+        startDate: data['start_date'],
+        endDate: data['end_date'],
+        clearEndDate: data['end_date'] == null,
+        accountId: data['category_id'],
+        tagId: tagId,
+        clearTag: tagId == null,
+        notes: data['notes'],
+      );
+      if (mounted) {
+        PeadraNotification.show(
+            context, message: Translator.t('msg_recurring_modified'));
+      }
+    } else if (editTxn != null) {
       // Update existing
       await _db.updateTransaction(
         editTxn.id!,
@@ -250,6 +278,28 @@ class _TransactionsViewState extends State<TransactionsView> {
       );
       if (mounted) {
         PeadraNotification.show(context, message: Translator.t('msg_transaction_modified'));
+      }
+    } else if (isRecurring) {
+      // Create a recurring template (occurrences materialize via generation)
+      await _db.addRecurringTransaction(
+        description: data['description'],
+        amount: data['amount'],
+        transactionType: data['transaction_type'],
+        currency: data['currency'],
+        frequency: data['frequency'],
+        interval: data['interval'],
+        dayOfWeek: data['day_of_week'],
+        dayOfMonth: data['day_of_month'],
+        startDate: data['start_date'],
+        endDate: data['end_date'],
+        accountId: data['category_id'],
+        tagId: tagId,
+        notes: data['notes'],
+      );
+      await _db.generateDueRecurring();
+      if (mounted) {
+        PeadraNotification.show(context,
+            message: Translator.t('msg_recurring_added'));
       }
     } else if (isTransfer) {
       // Create transfer
@@ -441,83 +491,9 @@ class _TransactionsViewState extends State<TransactionsView> {
     } else {
       final rec = await _db.getRecurringTransaction(recurringId);
       if (rec != null) {
-        _showRecurringModal(editRecurring: rec);
+        _showTransactionModal(editRecurring: rec);
       }
     }
-  }
-
-  Future<void> _showRecurringModal(
-      {RecurringTransactionWithDetails? editRecurring}) async {
-    final accounts = await _db.getAllAccounts();
-    if (!mounted) return;
-
-    final isPhone = ResponsiveLayout.isPhone(context);
-    final modal = RecurringModal(
-      accounts: accounts,
-      onSave: (data) => _handleRecurringSave(data, editRecurring: editRecurring),
-      editRecurring: editRecurring,
-      transactionType: editRecurring?.transactionType ?? 'expense',
-    );
-
-    if (isPhone) {
-      Navigator.of(context).push(
-        MaterialPageRoute(fullscreenDialog: true, builder: (_) => modal),
-      );
-    } else {
-      showDialog(context: context, builder: (_) => modal);
-    }
-  }
-
-  Future<void> _handleRecurringSave(Map<String, dynamic> data,
-      {RecurringTransactionWithDetails? editRecurring}) async {
-    if (editRecurring != null) {
-      await _db.updateRecurringTransaction(
-        editRecurring.id!,
-        description: data['description'],
-        amount: data['amount'],
-        transactionType: data['transaction_type'],
-        currency: data['currency'],
-        frequency: data['frequency'],
-        interval: data['interval'],
-        dayOfWeek: data['day_of_week'],
-        dayOfMonth: data['day_of_month'],
-        startDate: data['start_date'],
-        endDate: data['end_date'],
-        clearEndDate: data['end_date'] == null,
-        accountId: data['account_id'],
-        tagId: data['tag_id'],
-        clearTag: data['tag_id'] == null,
-        notes: data['notes'],
-      );
-      if (mounted) {
-        PeadraNotification.show(
-            context, message: Translator.t('msg_recurring_modified'));
-      }
-    } else {
-      await _db.addRecurringTransaction(
-        description: data['description'],
-        amount: data['amount'],
-        transactionType: data['transaction_type'],
-        currency: data['currency'],
-        frequency: data['frequency'],
-        interval: data['interval'],
-        dayOfWeek: data['day_of_week'],
-        dayOfMonth: data['day_of_month'],
-        startDate: data['start_date'],
-        endDate: data['end_date'],
-        accountId: data['account_id'],
-        tagId: data['tag_id'],
-        notes: data['notes'],
-      );
-      if (mounted) {
-        PeadraNotification.show(
-            context, message: Translator.t('msg_recurring_added'));
-      }
-    }
-
-    await _db.generateDueRecurring();
-    _loadTransactions();
-    widget.onDataChanged?.call();
   }
 
   String _recurringFrequencyLabel(String? frequency) {

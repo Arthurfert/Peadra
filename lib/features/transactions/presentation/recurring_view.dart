@@ -9,10 +9,12 @@ import '../../../core/models/account.dart';
 import '../../../core/models/tag.dart';
 import '../../../core/models/recurring_transaction.dart';
 import '../../../core/theme/peadra_colors.dart';
-import 'widgets/recurring_modal.dart';
+import 'widgets/transaction_modal.dart';
 import '../../../shared/widgets/peadra_notification.dart';
 import '../../../core/services/currency_service.dart';
 import '../../../core/responsive/responsive_layout.dart';
+
+enum _RecurringSort { nextDue, tag, amount, name }
 
 class RecurringView extends StatefulWidget {
   final VoidCallback? onDataChanged;
@@ -29,11 +31,48 @@ class _RecurringViewState extends State<RecurringView> {
   List<Account> _accounts = [];
   List<Tag> _tags = [];
   bool _loading = true;
+  _RecurringSort _sortBy = _RecurringSort.nextDue;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  List<RecurringTransactionWithDetails> get _sortedItems {
+    final sorted = [..._items];
+    switch (_sortBy) {
+      case _RecurringSort.tag:
+        sorted.sort((a, b) {
+          final an = (a.tagName ?? '').toLowerCase();
+          final bn = (b.tagName ?? '').toLowerCase();
+          final c = an.compareTo(bn);
+          if (c != 0) return c;
+          return (a.nextDueDate).compareTo(b.nextDueDate);
+        });
+        break;
+      case _RecurringSort.amount:
+        sorted.sort((a, b) {
+          final c = a.amount.compareTo(b.amount);
+          if (c != 0) return c;
+          return (a.nextDueDate).compareTo(b.nextDueDate);
+        });
+        break;
+      case _RecurringSort.name:
+        sorted.sort((a, b) {
+          final an = (a.descriptionName ?? '').toLowerCase();
+          final bn = (b.descriptionName ?? '').toLowerCase();
+          final c = an.compareTo(bn);
+          if (c != 0) return c;
+          return (a.nextDueDate).compareTo(b.nextDueDate);
+        });
+        break;
+      case _RecurringSort.nextDue:
+        sorted.sort(
+            (a, b) => (a.nextDueDate).compareTo(b.nextDueDate));
+        break;
+    }
+    return sorted;
   }
 
   Future<void> _loadData() async {
@@ -62,17 +101,24 @@ class _RecurringViewState extends State<RecurringView> {
     return Translator.t(key, params: {'interval': '$interval'});
   }
 
+  Color tagColor(RecurringTransactionWithDetails rec) {
+    return rec.tagColor == null
+        ? const Color(0xFF1976D2)
+        : Color(int.parse(rec.tagColor!.replaceFirst('#', '0xFF')));
+  }
+
   Future<void> _showRecurringModal(
       {RecurringTransactionWithDetails? editRecurring}) async {
     final accounts = await _db.getAllAccounts();
     if (!mounted) return;
 
     final isPhone = ResponsiveLayout.isPhone(context);
-    final modal = RecurringModal(
+    final modal = TransactionModal(
       accounts: accounts,
       onSave: (data) => _handleSave(data, editRecurring: editRecurring),
       editRecurring: editRecurring,
       transactionType: editRecurring?.transactionType ?? 'expense',
+      defaultRecurring: editRecurring == null,
     );
 
     if (isPhone) {
@@ -100,7 +146,7 @@ class _RecurringViewState extends State<RecurringView> {
         startDate: data['start_date'],
         endDate: data['end_date'],
         clearEndDate: data['end_date'] == null,
-        accountId: data['account_id'],
+        accountId: data['category_id'],
         tagId: data['tag_id'],
         clearTag: data['tag_id'] == null,
         notes: data['notes'],
@@ -110,6 +156,13 @@ class _RecurringViewState extends State<RecurringView> {
             context, message: Translator.t('msg_recurring_modified'));
       }
     } else {
+      if (data['is_recurring'] != true) {
+        if (mounted) {
+          PeadraNotification.show(context,
+              message: Translator.t('rec_requires_recurring'));
+        }
+        return;
+      }
       await _db.addRecurringTransaction(
         description: data['description'],
         amount: data['amount'],
@@ -121,7 +174,7 @@ class _RecurringViewState extends State<RecurringView> {
         dayOfMonth: data['day_of_month'],
         startDate: data['start_date'],
         endDate: data['end_date'],
-        accountId: data['account_id'],
+        accountId: data['category_id'],
         tagId: data['tag_id'],
         notes: data['notes'],
       );
@@ -230,15 +283,22 @@ class _RecurringViewState extends State<RecurringView> {
   }
 
   Widget _buildContent(PeadraColors colors, String currency) {
+    final items = _sortedItems;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        const SizedBox(height: 8),
+        if (items.isNotEmpty)
+          Align(
+            alignment: Alignment.centerRight,
+            child: _buildSortControl(colors),
+          ),
         const SizedBox(height: 8),
         Expanded(
           child: _loading
               ? Center(
                   child: CircularProgressIndicator(color: colors.accent))
-              : _items.isEmpty
+              : items.isEmpty
                   ? Center(
                       child: Padding(
                         padding: const EdgeInsets.all(32),
@@ -253,14 +313,69 @@ class _RecurringViewState extends State<RecurringView> {
                   : RefreshIndicator(
                       onRefresh: _loadData,
                       child: ListView.separated(
-                        itemCount: _items.length,
+                        itemCount: items.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 8),
                         itemBuilder: (context, index) =>
-                            _buildTile(_items[index], colors, currency),
+                            _buildTile(items[index], colors, currency),
                       ),
                     ),
         ),
       ],
+    );
+  }
+
+  Widget _buildSortControl(PeadraColors colors) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: colors.borderColor),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<_RecurringSort>(
+          value: _sortBy,
+          isDense: true,
+          borderRadius: BorderRadius.circular(10),
+          style: TextStyle(color: colors.text, fontSize: 13),
+          dropdownColor: colors.surface,
+          iconEnabledColor: colors.placeholderColor,
+          items: [
+            DropdownMenuItem(
+              value: _RecurringSort.nextDue,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.swap_vert, size: 14, color: colors.placeholderColor),
+                  const SizedBox(width: 6),
+                  Text(Translator.t('rec_sort_by')),
+                  const SizedBox(width: 6),
+                  Text(Translator.t('rec_sort_next_due'),
+                      style: TextStyle(
+                          color: colors.accent,
+                          fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+            DropdownMenuItem(
+              value: _RecurringSort.tag,
+              child: Text(Translator.t('rec_sort_tag'),
+                  style: TextStyle(color: colors.text)),
+            ),
+            DropdownMenuItem(
+              value: _RecurringSort.amount,
+              child: Text(Translator.t('rec_sort_amount'),
+                  style: TextStyle(color: colors.text)),
+            ),
+            DropdownMenuItem(
+              value: _RecurringSort.name,
+              child: Text(Translator.t('rec_sort_name'),
+                  style: TextStyle(color: colors.text)),
+            ),
+          ],
+          onChanged: (v) => setState(() => _sortBy = v ?? _RecurringSort.nextDue),
+        ),
+      ),
     );
   }
 
@@ -320,9 +435,35 @@ class _RecurringViewState extends State<RecurringView> {
               ],
             ),
             const SizedBox(height: 2),
-            Text(
-              '${Translator.t('rec_next_due')}: ${rec.nextDueDate}',
-              style: TextStyle(color: colors.placeholderColor, fontSize: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${Translator.t('rec_next_due')}: ${rec.nextDueDate}',
+                    style:
+                        TextStyle(color: colors.placeholderColor, fontSize: 12),
+                  ),
+                ),
+                if (rec.tagName != null) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: tagColor(rec).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      rec.tagName!,
+                      style: TextStyle(
+                        color: tagColor(rec),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
             if (rec.generatedCount > 0) ...[
               const SizedBox(height: 2),

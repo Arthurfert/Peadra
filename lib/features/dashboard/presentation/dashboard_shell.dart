@@ -33,12 +33,16 @@ class _DashboardShellState extends State<DashboardShell> {
   UpdateInfo? _availableUpdate;
   bool _updateBannerDismissed = false;
 
+  late final List<Widget> _staticViews = [
+    TransactionsView(onDataChanged: _loadTotalPatrimony),
+    const AccountsView(),
+    const CategoriesView(),
+    const ParametersView(showBackButton: false),
+  ];
+
   List<Widget> get _views => [
         DashboardView(refreshSignal: _dashboardRefreshSignal),
-        TransactionsView(onDataChanged: _loadTotalPatrimony),
-        const AccountsView(),
-        const CategoriesView(),
-        const ParametersView(showBackButton: false),
+        ..._staticViews,
       ];
 
   @override
@@ -238,29 +242,20 @@ class _DashboardShellState extends State<DashboardShell> {
           return DashboardShellDesktop(
             selectedIndex: _selectedIndex,
             totalPatrimony: _totalPatrimony,
-            availableUpdate: _availableUpdate,
-            updateBannerDismissed: _updateBannerDismissed,
             updateBanner: updateBanner,
             views: _views,
             onNavTap: _onNavTap,
             onLogout: _logout,
-            onDismissUpdate: () =>
-                setState(() => _updateBannerDismissed = true),
             isDark: isDark,
             colors: colors,
           );
         } else {
           return DashboardShellMobile(
             selectedIndex: _selectedIndex,
-            totalPatrimony: _totalPatrimony,
-            availableUpdate: _availableUpdate,
-            updateBannerDismissed: _updateBannerDismissed,
             updateBanner: updateBanner,
             views: _views,
             onNavTap: _onNavTap,
             onLogout: _logout,
-            onDismissUpdate: () =>
-                setState(() => _updateBannerDismissed = true),
             colors: colors,
           );
         }

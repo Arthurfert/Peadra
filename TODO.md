@@ -13,14 +13,11 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-- New parameter : choose between descriptions-based or tags-based dashboard pie charts
-- New parameter : choose between plain line graphs or with data points (as before)
+
 
 ### Fixed
 
-- Install update button overflowing on mobile
-- Fixed the update manager installing the .apk package on all platform
-- Transfers inflating income and expense stat cards, now excluded
+- [dev] Deleted unused code and general optimization
 
 ## Future Improvements
 

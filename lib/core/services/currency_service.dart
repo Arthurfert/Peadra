@@ -58,12 +58,6 @@ class CurrencyService {
     return currencies[code]?.symbol ?? code;
   }
 
-  static String getName(String code, {String lang = 'en'}) {
-    final data = currencies[code];
-    if (data == null) return code;
-    return lang == 'fr' ? data.nameFr : data.name;
-  }
-
   static bool isValid(String code) => currencies.containsKey(code);
 
   static List<String> get allCodes => currencies.keys.toList();
@@ -77,21 +71,5 @@ class CurrencyService {
           (m) => '${m[1]},',
         );
     return '$prefix$formatted $symbol';
-  }
-
-  static String formatWithConversion(
-    double amount,
-    String fromCurrency,
-    String toCurrency,
-    double? rate,
-  ) {
-    final main = formatAmount(amount, fromCurrency);
-    if (fromCurrency == toCurrency) return main;
-    if (rate != null) {
-      final converted = amount * rate;
-      final conv = formatAmount(converted, toCurrency);
-      return '$main ($conv)';
-    }
-    return '$main (?)';
   }
 }

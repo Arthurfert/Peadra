@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -18,8 +20,6 @@ class TransactionModal extends StatefulWidget {
   final OnTransactionSaved onSave;
   final String transactionType;
   final TransactionWithDetails? editTransaction;
-  final int? otherId;
-  final String? otherDescription;
 
   const TransactionModal({
     super.key,
@@ -27,8 +27,6 @@ class TransactionModal extends StatefulWidget {
     required this.onSave,
     this.transactionType = 'expense',
     this.editTransaction,
-    this.otherId,
-    this.otherDescription,
   });
 
   @override
@@ -55,6 +53,7 @@ class _TransactionModalState extends State<TransactionModal> {
   double? _convertedAmount;
   List<Tag> _tags = [];
   int? _selectedTagId;
+  Timer? _suggestionDebounce;
 
   @override
   void initState() {
@@ -101,6 +100,7 @@ class _TransactionModalState extends State<TransactionModal> {
 
   @override
   void dispose() {
+    _suggestionDebounce?.cancel();
     _dateController.dispose();
     _descController.dispose();
     _amountController.dispose();
@@ -110,9 +110,6 @@ class _TransactionModalState extends State<TransactionModal> {
   }
 
   void _onAmountChanged() {
-    setState(() {
-      _convertedAmount = null;
-    });
     _updateConvertedAmount();
   }
 
@@ -181,7 +178,8 @@ class _TransactionModalState extends State<TransactionModal> {
     return acct.currency.isNotEmpty ? acct.currency : 'EUR';
   }
 
-  void _onDescriptionChanged(String value) async {
+  void _onDescriptionChanged(String value) {
+    _suggestionDebounce?.cancel();
     if (value.trim().isEmpty) {
       setState(() {
         _suggestions = [];
@@ -189,20 +187,23 @@ class _TransactionModalState extends State<TransactionModal> {
       });
       return;
     }
-    final results = await _db.getTopDescriptions(
-      transactionType: _transactionType == 'transfer' ? 'expense' : _transactionType,
-      numMonths: 12,
-      limit: 20,
-    );
-    final filtered = results
-        .where((r) => (r['description'] as String)
-            .toLowerCase()
-            .contains(value.toLowerCase()))
-        .map((r) => r['description'] as String)
-        .toList();
-    setState(() {
-      _suggestions = filtered;
-      _showSuggestions = filtered.isNotEmpty;
+    _suggestionDebounce = Timer(const Duration(milliseconds: 300), () async {
+      final results = await _db.getTopDescriptions(
+        transactionType: _transactionType == 'transfer' ? 'expense' : _transactionType,
+        numMonths: 12,
+        limit: 20,
+      );
+      if (!mounted) return;
+      final filtered = results
+          .where((r) => (r['description'] as String)
+              .toLowerCase()
+              .contains(value.toLowerCase()))
+          .map((r) => r['description'] as String)
+          .toList();
+      setState(() {
+        _suggestions = filtered;
+        _showSuggestions = filtered.isNotEmpty;
+      });
     });
   }
 
@@ -271,13 +272,6 @@ class _TransactionModalState extends State<TransactionModal> {
       data['description'] = Translator.t('trans_transfer');
     } else {
       data['category_id'] = _selectedAccountId;
-    }
-
-    if (widget.editTransaction != null) {
-      data['id'] = widget.editTransaction!.id;
-    }
-    if (widget.otherId != null) {
-      data['other_id'] = widget.otherId;
     }
 
     widget.onSave(data);

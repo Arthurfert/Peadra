@@ -287,11 +287,11 @@ class _CategoriesViewState extends State<CategoriesView> {
 
   Widget _buildSection(String title, List<Map<String, dynamic>> items,
       Color accentColor, PeadraColors colors, {required bool showDots}) {
-    final itemsWithGraph = items.where((item) {
+    final itemsWithGraph = items.map((item) {
       final name = (item['description'] ?? item['tag']) as String;
       final data = _buildSpotsForDescription(name);
-      return data.spots.length > 1;
-    }).toList();
+      return (item: item, name: name, data: data);
+    }).where((e) => e.data.spots.length > 1).toList();
 
     if (itemsWithGraph.isEmpty) {
       return Column(
@@ -333,13 +333,12 @@ class _CategoriesViewState extends State<CategoriesView> {
               mainAxisSpacing: 12,
               crossAxisSpacing: 12,
               childAspectRatio: 1.8,
-              children: itemsWithGraph.map((item) {
-                final name = (item['description'] ?? item['tag']) as String;
-                final count = item['count'] as int;
-                final total = item['total'] as num;
-                final data = _buildSpotsForDescription(name);
-                final spots = data.spots;
-                final labels = data.labels;
+              children: itemsWithGraph.map((e) {
+                final name = e.name;
+                final count = e.item['count'] as int;
+                final total = e.item['total'] as num;
+                final spots = e.data.spots;
+                final labels = e.data.labels;
                 final avg = count > 0 ? total / count : 0.0;
 
                 return Card(

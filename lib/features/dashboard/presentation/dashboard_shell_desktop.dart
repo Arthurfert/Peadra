@@ -5,19 +5,15 @@ import '../../../core/i18n/translator.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/theme/peadra_colors.dart';
 import '../../../core/services/currency_service.dart';
-import '../../../core/services/update_service.dart';
 import '../../../core/responsive/responsive_layout.dart';
 
 class DashboardShellDesktop extends StatelessWidget {
   final int selectedIndex;
   final double totalPatrimony;
-  final UpdateInfo? availableUpdate;
-  final bool updateBannerDismissed;
   final Widget? updateBanner;
   final List<Widget> views;
   final ValueChanged<int> onNavTap;
   final VoidCallback onLogout;
-  final VoidCallback onDismissUpdate;
   final bool isDark;
   final PeadraColors colors;
 
@@ -25,13 +21,10 @@ class DashboardShellDesktop extends StatelessWidget {
     super.key,
     required this.selectedIndex,
     required this.totalPatrimony,
-    this.availableUpdate,
-    required this.updateBannerDismissed,
     this.updateBanner,
     required this.views,
     required this.onNavTap,
     required this.onLogout,
-    required this.onDismissUpdate,
     required this.isDark,
     required this.colors,
   });

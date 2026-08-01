@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -23,6 +22,8 @@ class DatabaseManager {
   int? _userId;
   final Map<String, String?> _settingCache = {};
   final Map<String, String?> _appSettingCache = {};
+  final Map<String, int> _descriptionCache = {};
+  final Map<String, double?> _exchangeRateCache = {};
   SecretKey? _encryptionKey;
 
   DatabaseManager._();
@@ -208,6 +209,23 @@ class DatabaseManager {
         FOREIGN KEY (user_id) REFERENCES users(id)
       )
     ''');
+
+    await _createIndexes(db);
+  }
+
+  Future<void> _createIndexes(Database db) async {
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_transactions_user_date ON transactions(user_id, date)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_transactions_account ON transactions(account_id)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_transactions_description ON transactions(description_id)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_transactions_tag ON transactions(tag_id)',
+    );
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -240,6 +258,11 @@ class DatabaseManager {
           )
         ''');
         await db.execute('ALTER TABLE transactions ADD COLUMN tag_id INTEGER REFERENCES tags(id)');
+      } catch (_) {}
+    }
+    if (oldVersion < 5) {
+      try {
+        await _createIndexes(db);
       } catch (_) {}
     }
   }
@@ -355,6 +378,8 @@ class DatabaseManager {
 
   void setUserId(int userId) {
     _userId = userId;
+    _descriptionCache.clear();
+    _exchangeRateCache.clear();
     _insertDefaultAccounts();
     cleanupUnusedDescriptions();
   }
@@ -419,17 +444,23 @@ class DatabaseManager {
       [_userId],
     );
 
+    final txnRows = await db.rawQuery(
+      'SELECT transaction_type, amount, account_id FROM transactions WHERE user_id = ?',
+      [_userId],
+    );
+    final txnByAccount = <int, List<Map<String, dynamic>>>{};
+    for (final t in txnRows) {
+      final acctId = t['account_id'] as int?;
+      if (acctId == null) continue;
+      (txnByAccount[acctId] ??= []).add(t);
+    }
+
     final results = <AccountWithBalance>[];
     for (final acctRow in acctRows) {
       final startingAmount = await _decryptAmount(acctRow['starting_amount'] as String?);
 
-      final txnRows = await db.rawQuery('''
-        SELECT transaction_type, amount FROM transactions
-        WHERE account_id = ? AND user_id = ?
-      ''', [acctRow['id'], _userId]);
-
       double balance = startingAmount;
-      for (final txn in txnRows) {
+      for (final txn in txnByAccount[acctRow['id']] ?? const <Map<String, dynamic>>[]) {
         final amount = await _decryptAmount(txn['amount'] as String?);
         final type = txn['transaction_type'] as String;
         if (type == 'income') {
@@ -437,10 +468,6 @@ class DatabaseManager {
         } else if (type == 'expense') {
           balance -= amount;
         }
-      }
-
-      if (acctRow['currency'] == null || (acctRow['currency'] as String).isEmpty) {
-        acctRow['currency'] = defaultCurrency;
       }
 
       results.add(AccountWithBalance(
@@ -529,7 +556,7 @@ class DatabaseManager {
       final oldTransferTo = 'Transfer to $oldName';
       final newTransferTo = 'Transfer to $newName';
       final oldTransferFrom = 'Transfer from $oldName';
-      final newTransferFrom = 'Transfer from $oldName';
+      final newTransferFrom = 'Transfer from $newName';
       String updated = decrypted;
       if (updated.contains(oldTransferTo)) {
         updated = updated.replaceAll(oldTransferTo, newTransferTo);
@@ -600,14 +627,6 @@ class DatabaseManager {
     return true;
   }
 
-  Future<int> mergeAccounts(int sourceId, int targetId) async {
-    final db = await database;
-    return await db.rawUpdate(
-      'UPDATE transactions SET account_id = ? WHERE account_id = ? AND user_id = ?',
-      [targetId, sourceId, _userId],
-    );
-  }
-
   // ==================== DESCRIPTIONS ====================
 
   Future<List<Description>> getAllDescriptions() async {
@@ -631,25 +650,31 @@ class DatabaseManager {
   }
 
   Future<int> getOrCreateDescription(String name) async {
-    final db = await database;
     final normalized = name.trim();
+    final cacheKey = normalized.toLowerCase();
+    final cached = _descriptionCache[cacheKey];
+    if (cached != null) return cached;
 
+    final db = await database;
     final allDescs = await db.rawQuery(
       'SELECT id, name FROM descriptions WHERE user_id = ?',
       [_userId],
     );
     for (final row in allDescs) {
       final decrypted = await _decrypt(row['name'] as String?);
-      if (decrypted != null && decrypted.toLowerCase() == normalized.toLowerCase()) {
+      if (decrypted != null && decrypted.toLowerCase() == cacheKey) {
+        _descriptionCache[cacheKey] = row['id'] as int;
         return row['id'] as int;
       }
     }
 
     final encryptedName = await _encrypt(normalized);
-    return await db.insert('descriptions', {
+    final id = await db.insert('descriptions', {
       'user_id': _userId,
       'name': encryptedName,
     });
+    _descriptionCache[cacheKey] = id;
+    return id;
   }
 
   Future<bool> mergeDescriptions(String sourceName, String targetName) async {
@@ -663,6 +688,7 @@ class DatabaseManager {
     );
     await db.delete('descriptions',
         where: 'id = ? AND user_id = ?', whereArgs: [sourceId, _userId]);
+    _descriptionCache.clear();
     return true;
   }
 
@@ -674,6 +700,7 @@ class DatabaseManager {
       'UPDATE descriptions SET name = ? WHERE id = ? AND user_id = ?',
       [encryptedName, descriptionId, _userId],
     );
+    _descriptionCache.clear();
     return count > 0;
   }
 
@@ -685,6 +712,7 @@ class DatabaseManager {
       WHERE user_id = ?
         AND id NOT IN (SELECT DISTINCT description_id FROM transactions WHERE user_id = ?)
     ''', [_userId, _userId]);
+    _descriptionCache.clear();
   }
 
   // ==================== TAGS ====================
@@ -741,20 +769,6 @@ class DatabaseManager {
       whereArgs: [tagId, _userId],
     );
     return count > 0;
-  }
-
-  Future<int?> getOrCreateTag(String name, {String color = '#1976D2'}) async {
-    if (_userId == null) return null;
-    final db = await database;
-    final existing = await db.query(
-      'tags',
-      where: 'user_id = ? AND name = ?',
-      whereArgs: [_userId, name],
-    );
-    if (existing.isNotEmpty) {
-      return existing.first['id'] as int;
-    }
-    return await createTag(name: name, color: color);
   }
 
   // ==================== TRANSACTIONS ====================
@@ -875,6 +889,7 @@ class DatabaseManager {
     final rows = await db.rawQuery(query, [_userId]);
 
     final results = <TransactionWithDetails>[];
+    final sq = searchQuery.toLowerCase();
     for (final r in rows) {
       final amount = await _decryptAmount(r['amount'] as String?);
       final notes = await _decrypt(r['notes'] as String?);
@@ -892,7 +907,6 @@ class DatabaseManager {
       }
 
       if (searchQuery.isNotEmpty) {
-        final sq = searchQuery.toLowerCase();
         final descMatch = descriptionName?.toLowerCase().contains(sq) ?? false;
         final acctMatch = accountName?.toLowerCase().contains(sq) ?? false;
         final tagName = r['tag_name'] as String?;
@@ -969,15 +983,6 @@ class DatabaseManager {
       ));
     }
     return results;
-  }
-
-  Future<String?> getEarliestTransactionDate() async {
-    final db = await database;
-    final result = await db.rawQuery(
-      'SELECT MIN(date) FROM transactions WHERE user_id = ?',
-      [_userId],
-    );
-    return result.first['MIN(date)'] as String?;
   }
 
   // ==================== STATISTICS ====================
@@ -1118,145 +1123,6 @@ class DatabaseManager {
     return total;
   }
 
-  Future<double> getHistoryPatrimony(String dateLimit, {String targetCurrency = 'EUR'}) async {
-    final db = await database;
-
-    final acctRows = await db.rawQuery(
-      'SELECT starting_amount, currency FROM accounts WHERE user_id = ?',
-      [_userId],
-    );
-
-    double total = 0.0;
-    for (final row in acctRows) {
-      final amount = await _decryptAmount(row['starting_amount'] as String?);
-      final acctCurrency = (row['currency'] as String?) ?? 'EUR';
-      if (amount == 0) continue;
-      if (acctCurrency == targetCurrency) {
-        total += amount;
-      } else {
-        final rate = await getExchangeRate(acctCurrency, targetCurrency);
-        total += amount * (rate ?? 1.0);
-      }
-    }
-
-    final txnRows = await db.rawQuery(
-      'SELECT t.amount, t.transaction_type, '
-      'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
-      'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
-      'WHERE t.date < ? AND t.user_id = ?',
-      [dateLimit, _userId],
-    );
-
-    for (final row in txnRows) {
-      final amount = await _decryptAmount(row['amount'] as String?);
-      final type = row['transaction_type'] as String;
-      final txnCurrency = (row['currency'] as String?) ?? 'EUR';
-      final signedAmount = type == 'income' ? amount : (type == 'expense' ? -amount : 0.0);
-      if (signedAmount == 0) continue;
-      if (txnCurrency == targetCurrency) {
-        total += signedAmount;
-      } else {
-        final rate = await getExchangeRate(txnCurrency, targetCurrency);
-        total += signedAmount * (rate ?? 1.0);
-      }
-    }
-    return total;
-  }
-
-  Future<double> getHistoryBalance(String dateLimit, {String targetCurrency = 'EUR'}) async {
-    final db = await database;
-
-    final acctRows = await db.rawQuery(
-      'SELECT starting_amount, currency FROM accounts WHERE type = ? AND user_id = ?',
-      ['checking', _userId],
-    );
-
-    double total = 0.0;
-    for (final row in acctRows) {
-      final amount = await _decryptAmount(row['starting_amount'] as String?);
-      final acctCurrency = (row['currency'] as String?) ?? 'EUR';
-      if (amount == 0) continue;
-      if (acctCurrency == targetCurrency) {
-        total += amount;
-      } else {
-        final rate = await getExchangeRate(acctCurrency, targetCurrency);
-        total += amount * (rate ?? 1.0);
-      }
-    }
-
-    final txnRows = await db.rawQuery(
-      'SELECT t.amount, t.transaction_type, t.account_id, '
-      'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency, a.type as account_type '
-      'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
-      'WHERE t.date < ? AND t.user_id = ?',
-      [dateLimit, _userId],
-    );
-
-    for (final row in txnRows) {
-      final accountType = row['account_type'] as String?;
-      final hasAccount = row['account_id'] != null;
-      if (accountType != 'checking' && hasAccount) continue;
-
-      final amount = await _decryptAmount(row['amount'] as String?);
-      final type = row['transaction_type'] as String;
-      final txnCurrency = (row['currency'] as String?) ?? 'EUR';
-      final signedAmount = type == 'income' ? amount : (type == 'expense' ? -amount : 0.0);
-      if (signedAmount == 0) continue;
-      if (txnCurrency == targetCurrency) {
-        total += signedAmount;
-      } else {
-        final rate = await getExchangeRate(txnCurrency, targetCurrency);
-        total += signedAmount * (rate ?? 1.0);
-      }
-    }
-    return total;
-  }
-
-  Future<double> getHistorySavings(String dateLimit, {String targetCurrency = 'EUR'}) async {
-    final db = await database;
-
-    final acctRows = await db.rawQuery(
-      'SELECT starting_amount, currency FROM accounts WHERE type = ? AND user_id = ?',
-      ['savings', _userId],
-    );
-
-    double total = 0.0;
-    for (final row in acctRows) {
-      final amount = await _decryptAmount(row['starting_amount'] as String?);
-      final acctCurrency = (row['currency'] as String?) ?? 'EUR';
-      if (amount == 0) continue;
-      if (acctCurrency == targetCurrency) {
-        total += amount;
-      } else {
-        final rate = await getExchangeRate(acctCurrency, targetCurrency);
-        total += amount * (rate ?? 1.0);
-      }
-    }
-
-    final txnRows = await db.rawQuery(
-      'SELECT t.amount, t.transaction_type, '
-      'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
-      'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
-      'WHERE t.date < ? AND a.type = ? AND t.user_id = ?',
-      [dateLimit, 'savings', _userId],
-    );
-
-    for (final row in txnRows) {
-      final amount = await _decryptAmount(row['amount'] as String?);
-      final type = row['transaction_type'] as String;
-      final txnCurrency = (row['currency'] as String?) ?? 'EUR';
-      final signedAmount = type == 'income' ? amount : (type == 'expense' ? -amount : 0.0);
-      if (signedAmount == 0) continue;
-      if (txnCurrency == targetCurrency) {
-        total += signedAmount;
-      } else {
-        final rate = await getExchangeRate(txnCurrency, targetCurrency);
-        total += signedAmount * (rate ?? 1.0);
-      }
-    }
-    return total;
-  }
-
   Future<Map<String, double>> getMonthlySummary({int? year, int? month, String targetCurrency = 'EUR'}) async {
     final now = DateTime.now();
     final y = year ?? now.year;
@@ -1268,7 +1134,7 @@ class DatabaseManager {
 
     final db = await database;
     final txnRows = await db.rawQuery(
-      'SELECT t.amount, t.transaction_type, '
+      'SELECT t.amount, t.transaction_type, t.account_id, '
       'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency, a.type as account_type, '
       'd.name as description_name '
       'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
@@ -1315,7 +1181,7 @@ class DatabaseManager {
 
     final db = await database;
     final txnRows = await db.rawQuery(
-      'SELECT t.amount, t.transaction_type, '
+      'SELECT t.amount, t.transaction_type, t.account_id, '
       'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency, a.type as account_type, '
       'd.name as description_name '
       'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
@@ -1362,17 +1228,23 @@ class DatabaseManager {
       [_userId],
     );
 
+    final txnRows = await db.rawQuery(
+      'SELECT transaction_type, amount, account_id FROM transactions WHERE user_id = ?',
+      [_userId],
+    );
+    final txnByAccount = <int, List<Map<String, dynamic>>>{};
+    for (final t in txnRows) {
+      final acctId = t['account_id'] as int?;
+      if (acctId == null) continue;
+      (txnByAccount[acctId] ??= []).add(t);
+    }
+
     final results = <Map<String, dynamic>>[];
     for (final acctRow in acctRows) {
       final startingAmount = await _decryptAmount(acctRow['starting_amount'] as String?);
 
-      final txnRows = await db.rawQuery(
-        'SELECT transaction_type, amount FROM transactions WHERE account_id = ? AND user_id = ?',
-        [acctRow['id'], _userId],
-      );
-
       double balance = startingAmount;
-      for (final txn in txnRows) {
+      for (final txn in txnByAccount[acctRow['id']] ?? const <Map<String, dynamic>>[]) {
         final amount = await _decryptAmount(txn['amount'] as String?);
         final type = txn['transaction_type'] as String;
         if (type == 'income') {
@@ -1400,53 +1272,6 @@ class DatabaseManager {
         'currency': acctCurrency,
       });
     }
-    return results;
-  }
-
-  Future<List<Map<String, dynamic>>> getCategoryDistribution({
-    String transactionType = 'expense',
-    int limit = 8,
-  }) async {
-    final db = await database;
-    final now = DateTime.now();
-    final startDate = now.subtract(const Duration(days: 180)).toIso8601String().substring(0, 10);
-    final endDate = now.toIso8601String().substring(0, 10);
-
-    final rows = await db.rawQuery('''
-      SELECT t.amount, t.transaction_type, t.date,
-             d.name as description_name
-      FROM transactions t
-      LEFT JOIN descriptions d ON t.description_id = d.id
-      WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-    ''', [transactionType, startDate, endDate, _userId]);
-
-    final byDesc = <String, double>{};
-    for (final row in rows) {
-      final desc = await _decrypt(row['description_name'] as String?) ?? 'Uncategorized';
-      if (_isTransferDescription(desc)) continue;
-      final amount = await _decryptAmount(row['amount'] as String?);
-      final month = (row['date'] as String).substring(0, 7);
-      byDesc[desc] = (byDesc[desc] ?? 0) + amount;
-    }
-
-    final sorted = byDesc.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-    final topDescs = sorted.take(limit > 0 ? limit : sorted.length).map((e) => e.key).toSet();
-
-    final results = <Map<String, dynamic>>[];
-    for (final row in rows) {
-      final desc = await _decrypt(row['description_name'] as String?) ?? 'Uncategorized';
-      if (_isTransferDescription(desc)) continue;
-      if (!topDescs.contains(desc)) continue;
-      final amount = await _decryptAmount(row['amount'] as String?);
-      final month = (row['date'] as String).substring(0, 7);
-      results.add({
-        'description': desc,
-        'month': month,
-        'type': row['transaction_type'],
-        'amount': amount,
-      });
-    }
-
     return results;
   }
 
@@ -1609,46 +1434,6 @@ class DatabaseManager {
     return result;
   }
 
-  Future<List<Map<String, dynamic>>> getMonthlyChartData({int? year}) async {
-    final db = await database;
-    final y = year ?? DateTime.now().year;
-    final rows = await db.rawQuery(
-      'SELECT t.amount, t.transaction_type, t.date, '
-      'a.type as account_type '
-      'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
-      'WHERE strftime("%Y", t.date) = ? AND t.user_id = ?',
-      [y.toString(), _userId],
-    );
-
-    final monthMap = <int, Map<String, double>>{};
-    for (final row in rows) {
-      final accountType = row['account_type'] as String?;
-      final hasAccount = row['account_id'] != null;
-      if (accountType != 'checking' && hasAccount) continue;
-
-      final month = int.parse((row['date'] as String).substring(5, 7));
-      final amount = await _decryptAmount(row['amount'] as String?);
-      final type = row['transaction_type'] as String;
-
-      monthMap.putIfAbsent(month, () => {'income': 0.0, 'expenses': 0.0});
-      if (type == 'income') {
-        monthMap[month]!['income'] = monthMap[month]!['income']! + amount;
-      } else if (type == 'expense') {
-        monthMap[month]!['expenses'] = monthMap[month]!['expenses']! + amount;
-      }
-    }
-
-    final result = <Map<String, dynamic>>[];
-    for (final entry in monthMap.entries) {
-      result.add({
-        'month': entry.key,
-        'income': entry.value['income']!,
-        'expenses': entry.value['expenses']!,
-      });
-    }
-    return result;
-  }
-
   // ==================== DASHBOARD DATA ====================
 
   Future<List<Map<String, dynamic>>> getCashFlowData({int months = 6, String targetCurrency = 'EUR'}) async {
@@ -1743,40 +1528,58 @@ class DatabaseManager {
       }
     }
 
-    final results = <Map<String, dynamic>>[];
+    final nowNextMonth = DateTime(now.year, now.month + 1, 1)
+        .toIso8601String()
+        .substring(0, 10);
+    final txnRows = await db.rawQuery(
+      'SELECT t.amount, t.transaction_type, t.date, '
+      'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
+      'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
+      'WHERE t.date < ? AND t.user_id = ?',
+      [nowNextMonth, _userId],
+    );
 
-    for (int i = effectiveMonths; i >= 1; i--) {
-      final month = DateTime(now.year, now.month - i + 1, 1);
-      final nextMonth = DateTime(month.year, month.month + 1, 1);
-      final endDate = nextMonth.toIso8601String().substring(0, 10);
+    final contributions = <(String, double)>[];
+    for (final row in txnRows) {
+      final amount = await _decryptAmount(row['amount'] as String?);
+      final type = row['transaction_type'] as String;
+      final txnCurrency = (row['currency'] as String?) ?? 'EUR';
+      final signedAmount = type == 'income' ? amount : (type == 'expense' ? -amount : 0.0);
+      if (signedAmount == 0) continue;
 
-      final txnRows = await db.rawQuery(
-        'SELECT t.amount, t.transaction_type, '
-        'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
-        'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
-        'WHERE t.date < ? AND t.user_id = ?',
-        [endDate, _userId],
-      );
-
-      double totalValue = startingTotal;
-      for (final row in txnRows) {
-        final amount = await _decryptAmount(row['amount'] as String?);
-        final type = row['transaction_type'] as String;
-        final txnCurrency = (row['currency'] as String?) ?? 'EUR';
-        final signedAmount = type == 'income' ? amount : (type == 'expense' ? -amount : 0.0);
-
-        if (txnCurrency == targetCurrency) {
-          totalValue += signedAmount;
-        } else {
-          final rate = await getExchangeRate(txnCurrency, targetCurrency);
-          totalValue += signedAmount * (rate ?? 1.0);
-        }
+      double converted;
+      if (txnCurrency == targetCurrency) {
+        converted = signedAmount;
+      } else {
+        final rate = await getExchangeRate(txnCurrency, targetCurrency);
+        converted = signedAmount * (rate ?? 1.0);
       }
+      contributions.add((row['date'] as String, converted));
+    }
+    contributions.sort((a, b) => a.$1.compareTo(b.$1));
 
+    final monthStarts = <DateTime>[];
+    for (int i = effectiveMonths; i >= 1; i--) {
+      monthStarts.add(DateTime(now.year, now.month - i + 1, 1));
+    }
+
+    final results = <Map<String, dynamic>>[];
+    double cumulative = startingTotal;
+    int idx = 0;
+    for (int m = 0; m < monthStarts.length; m++) {
+      final month = monthStarts[m];
+      final endDate = DateTime(month.year, month.month + 1, 1)
+          .toIso8601String()
+          .substring(0, 10);
+      while (idx < contributions.length &&
+          contributions[idx].$1.compareTo(endDate) < 0) {
+        cumulative += contributions[idx].$2;
+        idx++;
+      }
       results.add({
         'month': month,
         'label': _getMonthLabel(month.month),
-        'value': totalValue,
+        'value': cumulative,
       });
     }
 
@@ -1938,33 +1741,6 @@ class DatabaseManager {
     return result;
   }
 
-  Future<double> getPreviousMonthTotal() async {
-    final db = await database;
-    final now = DateTime.now();
-    final previousMonth = DateTime(now.year, now.month - 1, 1);
-    final startDate = previousMonth.toIso8601String().substring(0, 10);
-    final endMonth = DateTime(now.year, now.month, 1);
-    final endDate = endMonth.toIso8601String().substring(0, 10);
-
-    final rows = await db.rawQuery(
-      'SELECT amount, transaction_type FROM transactions '
-      'WHERE date >= ? AND date < ? AND user_id = ?',
-      [startDate, endDate, _userId],
-    );
-
-    double total = 0.0;
-    for (final row in rows) {
-      final amount = await _decryptAmount(row['amount'] as String?);
-      final type = row['transaction_type'] as String;
-      if (type == 'income') {
-        total += amount;
-      } else if (type == 'expense') {
-        total -= amount;
-      }
-    }
-    return total;
-  }
-
   // ==================== SETTINGS ====================
 
   Future<String?> getSetting(String key, {String? defaultValue}) async {
@@ -2018,37 +1794,6 @@ class DatabaseManager {
     _appSettingCache[key] = value;
   }
 
-  // ==================== IMPORT ====================
-
-  Future<bool> isFileImported(String fileHash) async {
-    final db = await database;
-    final result = await db.rawQuery(
-      'SELECT COUNT(*) as cnt FROM imported_files WHERE file_hash = ? AND user_id = ?',
-      [fileHash, _userId],
-    );
-    return (result.first['cnt'] as int) > 0;
-  }
-
-  Future<void> logImportedFile(String fileHash, String filename) async {
-    final db = await database;
-    await db.rawInsert(
-      'INSERT INTO imported_files (user_id, file_hash, filename) VALUES (?, ?, ?)',
-      [_userId, fileHash, filename],
-    );
-  }
-
-  // ==================== EXPORT ====================
-
-  Future<Map<String, dynamic>> exportToJson() async {
-    final accounts = await getAllAccounts();
-    final transactions = await getTransactions();
-    return {
-      'accounts': accounts.map((a) => a.toMap()).toList(),
-      'transactions': transactions.map((t) => t.toMap()).toList(),
-      'exported_at': DateTime.now().toIso8601String(),
-    };
-  }
-
   // ==================== EXCHANGE RATES ====================
 
   Future<bool> fetchExchangeRates({String baseCurrency = 'EUR'}) async {
@@ -2075,6 +1820,7 @@ class DatabaseManager {
           );
         }
       }
+      _exchangeRateCache.clear();
       return true;
     } catch (_) {
       return false;
@@ -2086,38 +1832,45 @@ class DatabaseManager {
     if (!CurrencyService.isValid(fromCurrency) || !CurrencyService.isValid(toCurrency)) {
       return null;
     }
+    final cacheKey = '$fromCurrency|$toCurrency';
+    if (_exchangeRateCache.containsKey(cacheKey)) return _exchangeRateCache[cacheKey];
     final db = await database;
+
+    double? rate;
 
     // Direct rate
     var result = await db.rawQuery(
       'SELECT rate FROM exchange_rates WHERE from_currency = ? AND to_currency = ?',
       [fromCurrency, toCurrency],
     );
-    if (result.isNotEmpty) return (result.first['rate'] as num).toDouble();
+    if (result.isNotEmpty) rate = (result.first['rate'] as num).toDouble();
 
-    // Via base
-    if (fromCurrency == 'EUR') {
+    if (rate == null && fromCurrency == 'EUR') {
       result = await db.rawQuery(
         'SELECT rate FROM exchange_rates WHERE from_currency = ? AND to_currency = ?',
         ['EUR', toCurrency],
       );
-      if (result.isNotEmpty) return (result.first['rate'] as num).toDouble();
-      return null;
+      if (result.isNotEmpty) rate = (result.first['rate'] as num).toDouble();
     }
 
-    // Inverse
-    result = await db.rawQuery(
-      'SELECT rate FROM exchange_rates WHERE from_currency = ? AND to_currency = ?',
-      [toCurrency, fromCurrency],
-    );
-    if (result.isNotEmpty) return 1.0 / (result.first['rate'] as num).toDouble();
+    if (rate == null) {
+      // Inverse
+      result = await db.rawQuery(
+        'SELECT rate FROM exchange_rates WHERE from_currency = ? AND to_currency = ?',
+        [toCurrency, fromCurrency],
+      );
+      if (result.isNotEmpty) rate = 1.0 / (result.first['rate'] as num).toDouble();
+    }
 
-    // Via EUR
-    final fromEur = await getExchangeRate('EUR', fromCurrency);
-    final toEur = await getExchangeRate('EUR', toCurrency);
-    if (fromEur != null && toEur != null) return toEur / fromEur;
+    if (rate == null) {
+      // Via EUR
+      final fromEur = await getExchangeRate('EUR', fromCurrency);
+      final toEur = await getExchangeRate('EUR', toCurrency);
+      if (fromEur != null && toEur != null) rate = toEur / fromEur;
+    }
 
-    return null;
+    _exchangeRateCache[cacheKey] = rate;
+    return rate;
   }
 
   // ==================== ACCOUNT DELETION ====================

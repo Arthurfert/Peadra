@@ -1,31 +1,22 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/peadra_colors.dart';
-import '../../../core/services/update_service.dart';
 
 class DashboardShellMobile extends StatelessWidget {
   final int selectedIndex;
-  final double totalPatrimony;
-  final UpdateInfo? availableUpdate;
-  final bool updateBannerDismissed;
   final Widget? updateBanner;
   final List<Widget> views;
   final ValueChanged<int> onNavTap;
   final VoidCallback onLogout;
-  final VoidCallback onDismissUpdate;
   final PeadraColors colors;
 
   const DashboardShellMobile({
     super.key,
     required this.selectedIndex,
-    required this.totalPatrimony,
-    this.availableUpdate,
-    required this.updateBannerDismissed,
     this.updateBanner,
     required this.views,
     required this.onNavTap,
     required this.onLogout,
-    required this.onDismissUpdate,
     required this.colors,
   });
 

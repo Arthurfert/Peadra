@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
@@ -50,9 +52,10 @@ class _TransactionsViewState extends State<TransactionsView> {
   bool _loading = true;
   String _searchQuery = '';
   final Set<int> _selectedTagIds = {};
-  final int _displayLimit = 30;
+  int _displayLimit = 30;
   bool _hasMore = true;
   int _lastRawFetchCount = 0;
+  Timer? _searchDebounce;
 
   @override
   void initState() {
@@ -61,65 +64,68 @@ class _TransactionsViewState extends State<TransactionsView> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final limit = context.read<SettingsProvider>().displayLimit;
+    if (limit != _displayLimit) {
+      _displayLimit = limit;
+      _loadTransactions();
+    }
+  }
+
+  @override
   void dispose() {
+    _searchDebounce?.cancel();
     _tagScrollController.dispose();
     super.dispose();
   }
 
+  static final _toPattern = RegExp(r'^Transfer to (.+)$', caseSensitive: false);
+  static final _fromPattern =
+      RegExp(r'^Transfer from (.+)$', caseSensitive: false);
+
   List<_DisplayItem> _mergeTransfers(List<TransactionWithDetails> txns) {
     final consumed = <int>{};
     final result = <_DisplayItem>[];
+
+    final byDateAccount = <String, List<int>>{};
+    for (var i = 0; i < txns.length; i++) {
+      final t = txns[i];
+      (byDateAccount['${t.date}|${t.accountName}'] ??= []).add(i);
+    }
 
     for (var i = 0; i < txns.length; i++) {
       if (consumed.contains(txns[i].id)) continue;
       final txn = txns[i];
       final desc = (txn.notes ?? txn.descriptionName ?? '').trim();
 
-      final toMatch = RegExp(r'^Transfer to (.+)$', caseSensitive: false)
-          .firstMatch(desc);
-      final fromMatch = RegExp(r'^Transfer from (.+)$', caseSensitive: false)
-          .firstMatch(desc);
+      final toMatch = _toPattern.firstMatch(desc);
+      final fromMatch = _fromPattern.firstMatch(desc);
 
       if (toMatch != null) {
         final destAccountName = toMatch.group(1)!;
-        for (var j = i + 1; j < txns.length; j++) {
-          if (consumed.contains(txns[j].id)) continue;
-          final other = txns[j];
-          if (other.date == txn.date && other.accountName == destAccountName) {
-            final otherDesc =
-                (other.notes ?? other.descriptionName ?? '').trim();
-            if (RegExp(r'^Transfer from .+$', caseSensitive: false)
-                .hasMatch(otherDesc)) {
-              consumed.add(txn.id!);
-              consumed.add(other.id!);
-              result.add(_DisplayItem.transfer(
-                  txn, other, txn.accountName, other.accountName));
-              break;
-            }
-          }
-        }
-        if (!consumed.contains(txn.id)) {
+        final candidates =
+            byDateAccount['${txn.date}|$destAccountName'] ?? const <int>[];
+        final paired = _findPaired(candidates, i, txns, consumed, _fromPattern);
+        if (paired != null) {
+          consumed.add(txn.id!);
+          consumed.add(paired.id!);
+          result.add(_DisplayItem.transfer(
+              txn, paired, txn.accountName, paired.accountName));
+        } else {
           result.add(_DisplayItem.single(txn));
         }
       } else if (fromMatch != null) {
         final srcAccountName = fromMatch.group(1)!;
-        for (var j = i + 1; j < txns.length; j++) {
-          if (consumed.contains(txns[j].id)) continue;
-          final other = txns[j];
-          if (other.date == txn.date && other.accountName == srcAccountName) {
-            final otherDesc =
-                (other.notes ?? other.descriptionName ?? '').trim();
-            if (RegExp(r'^Transfer to .+$', caseSensitive: false)
-                .hasMatch(otherDesc)) {
-              consumed.add(txn.id!);
-              consumed.add(other.id!);
-              result.add(_DisplayItem.transfer(
-                  other, txn, other.accountName, txn.accountName));
-              break;
-            }
-          }
-        }
-        if (!consumed.contains(txn.id)) {
+        final candidates =
+            byDateAccount['${txn.date}|$srcAccountName'] ?? const <int>[];
+        final paired = _findPaired(candidates, i, txns, consumed, _toPattern);
+        if (paired != null) {
+          consumed.add(txn.id!);
+          consumed.add(paired.id!);
+          result.add(_DisplayItem.transfer(
+              paired, txn, paired.accountName, txn.accountName));
+        } else {
           result.add(_DisplayItem.single(txn));
         }
       } else {
@@ -130,31 +136,37 @@ class _TransactionsViewState extends State<TransactionsView> {
     return result;
   }
 
+  TransactionWithDetails? _findPaired(
+    List<int> candidates,
+    int i,
+    List<TransactionWithDetails> txns,
+    Set<int> consumed,
+    RegExp matchPattern,
+  ) {
+    for (final j in candidates) {
+      if (j <= i || consumed.contains(txns[j].id)) continue;
+      final other = txns[j];
+      final otherDesc = (other.notes ?? other.descriptionName ?? '').trim();
+      if (matchPattern.hasMatch(otherDesc)) {
+        return other;
+      }
+    }
+    return null;
+  }
+
   Future<void> _loadData() async {
     final results = await Future.wait([
-      _db.getTransactions(
-        limit: _displayLimit,
-        searchQuery: _searchQuery,
-        tagIds: _selectedTagIds.isEmpty ? null : _selectedTagIds,
-      ),
       _db.getAllAccounts(),
       _db.getAllTags(),
     ]);
 
-    final txns = results[0] as List<TransactionWithDetails>;
-    final accounts = results[1] as List<Account>;
-    final tags = results[2] as List<Tag>;
-
     if (mounted) {
       setState(() {
-        _displayItems = _mergeTransfers(txns);
-        _accounts = accounts;
-        _tags = tags;
-        _lastRawFetchCount = txns.length;
-        _hasMore = txns.length == _displayLimit;
-        _loading = false;
+        _accounts = results[0] as List<Account>;
+        _tags = results[1] as List<Tag>;
       });
     }
+    await _loadTransactions();
   }
 
   Future<void> _loadTransactions({bool loadMore = false}) async {
@@ -562,7 +574,10 @@ class _TransactionsViewState extends State<TransactionsView> {
           TextField(
             onChanged: (v) {
               _searchQuery = v;
-              _loadTransactions();
+              _searchDebounce?.cancel();
+              _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+                _loadTransactions();
+              });
             },
             maxLength: 100,
             decoration: InputDecoration(
@@ -705,6 +720,9 @@ class _TransactionsViewState extends State<TransactionsView> {
             ? txn.accountCurrency!
             : (txn.currency.isNotEmpty ? txn.currency : defaultCurrency);
     final isPhone = ResponsiveLayout.isPhone(context);
+    final tagColor = txn.tagColor == null
+        ? const Color(0xFF1976D2)
+        : Color(int.parse(txn.tagColor!.replaceFirst('#', '0xFF')));
 
     final card = Card(
       color: colors.surface,
@@ -747,16 +765,13 @@ class _TransactionsViewState extends State<TransactionsView> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                 decoration: BoxDecoration(
-                  color: Color(int.parse(
-                          (txn.tagColor ?? '#1976D2').replaceFirst('#', '0xFF')))
-                      .withValues(alpha: 0.15),
+                  color: tagColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
                   txn.tagName!,
                   style: TextStyle(
-                    color: Color(int.parse(
-                        (txn.tagColor ?? '#1976D2').replaceFirst('#', '0xFF'))),
+                    color: tagColor,
                     fontSize: 10,
                     fontWeight: FontWeight.w500,
                   ),
@@ -772,16 +787,13 @@ class _TransactionsViewState extends State<TransactionsView> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                 decoration: BoxDecoration(
-                  color: Color(int.parse(
-                          (txn.tagColor ?? '#1976D2').replaceFirst('#', '0xFF')))
-                      .withValues(alpha: 0.15),
+                  color: tagColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   txn.tagName!,
                   style: TextStyle(
-                    color: Color(int.parse(
-                        (txn.tagColor ?? '#1976D2').replaceFirst('#', '0xFF'))),
+                    color: tagColor,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),

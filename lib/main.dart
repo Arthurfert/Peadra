@@ -31,10 +31,6 @@ void main() async {
     final db = DatabaseManager.instance;
     await db.database;
 
-    final maxBackupsStr = await db.getSetting('max_backups', defaultValue: defaultMaxBackups.toString());
-    final maxBackups = int.tryParse(maxBackupsStr ?? '') ?? defaultMaxBackups;
-    await db.backup(maxBackups: maxBackups);
-
     runApp(
       MultiProvider(
         providers: [
@@ -46,9 +42,22 @@ void main() async {
         child: const PeadraApp(),
       ),
     );
+
+    unawaited(_runStartupBackup(db));
   }, (error, stack) {
     LogService().error('Uncaught async error: $error', stack.toString());
   });
+}
+
+Future<void> _runStartupBackup(DatabaseManager db) async {
+  try {
+    final maxBackupsStr =
+        await db.getSetting('max_backups', defaultValue: defaultMaxBackups.toString());
+    final maxBackups = int.tryParse(maxBackupsStr ?? '') ?? defaultMaxBackups;
+    await db.backup(maxBackups: maxBackups);
+  } catch (e) {
+    LogService().error('Startup backup failed: $e', '');
+  }
 }
 
 class PeadraApp extends StatelessWidget {

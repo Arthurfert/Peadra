@@ -1325,9 +1325,18 @@ void main() {
 
       final foodId = await seedTestDescription(db, userId, 'Food');
       final rentId = await seedTestDescription(db, userId, 'Rent');
+
+      String monthDate(int daysAgo) {
+        final dt = now.subtract(Duration(days: daysAgo));
+        final clamped = dt.isBefore(DateTime(now.year, now.month, 1))
+            ? DateTime(now.year, now.month, 1)
+            : dt;
+        return clamped.toIso8601String().substring(0, 10);
+      }
+
       await seedTestTransaction(db, userId,
           accountId: accountIds[0], descriptionId: foodId,
-          date: now.subtract(const Duration(days: 1)).toIso8601String().substring(0, 10),
+          date: monthDate(1),
           amount: 80, transactionType: 'expense', currency: 'EUR');
       await seedTestTransaction(db, userId,
           accountId: accountIds[0], descriptionId: foodId,
@@ -1335,7 +1344,7 @@ void main() {
           amount: 120, transactionType: 'expense', currency: 'EUR');
       await seedTestTransaction(db, userId,
           accountId: accountIds[0], descriptionId: rentId,
-          date: now.subtract(const Duration(days: 2)).toIso8601String().substring(0, 10),
+          date: monthDate(2),
           amount: 1000, transactionType: 'expense', currency: 'EUR');
 
       final rows = await db.rawQuery('''

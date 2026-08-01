@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
@@ -9,8 +11,10 @@ import '../../../core/database/database_manager.dart';
 import '../../../core/models/transaction.dart';
 import '../../../core/models/account.dart';
 import '../../../core/models/tag.dart';
+import '../../../core/models/recurring_transaction.dart';
 import '../../../core/theme/peadra_colors.dart';
 import 'widgets/transaction_modal.dart';
+import 'recurring_view.dart';
 import '../../../shared/widgets/peadra_notification.dart';
 import '../../../core/services/currency_service.dart';
 import '../../../core/responsive/responsive_layout.dart';
@@ -50,9 +54,10 @@ class _TransactionsViewState extends State<TransactionsView> {
   bool _loading = true;
   String _searchQuery = '';
   final Set<int> _selectedTagIds = {};
-  final int _displayLimit = 30;
+  int _displayLimit = 30;
   bool _hasMore = true;
   int _lastRawFetchCount = 0;
+  Timer? _searchDebounce;
 
   @override
   void initState() {
@@ -61,65 +66,68 @@ class _TransactionsViewState extends State<TransactionsView> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final limit = context.read<SettingsProvider>().displayLimit;
+    if (limit != _displayLimit) {
+      _displayLimit = limit;
+      _loadTransactions();
+    }
+  }
+
+  @override
   void dispose() {
+    _searchDebounce?.cancel();
     _tagScrollController.dispose();
     super.dispose();
   }
 
+  static final _toPattern = RegExp(r'^Transfer to (.+)$', caseSensitive: false);
+  static final _fromPattern =
+      RegExp(r'^Transfer from (.+)$', caseSensitive: false);
+
   List<_DisplayItem> _mergeTransfers(List<TransactionWithDetails> txns) {
     final consumed = <int>{};
     final result = <_DisplayItem>[];
+
+    final byDateAccount = <String, List<int>>{};
+    for (var i = 0; i < txns.length; i++) {
+      final t = txns[i];
+      (byDateAccount['${t.date}|${t.accountName}'] ??= []).add(i);
+    }
 
     for (var i = 0; i < txns.length; i++) {
       if (consumed.contains(txns[i].id)) continue;
       final txn = txns[i];
       final desc = (txn.notes ?? txn.descriptionName ?? '').trim();
 
-      final toMatch = RegExp(r'^Transfer to (.+)$', caseSensitive: false)
-          .firstMatch(desc);
-      final fromMatch = RegExp(r'^Transfer from (.+)$', caseSensitive: false)
-          .firstMatch(desc);
+      final toMatch = _toPattern.firstMatch(desc);
+      final fromMatch = _fromPattern.firstMatch(desc);
 
       if (toMatch != null) {
         final destAccountName = toMatch.group(1)!;
-        for (var j = i + 1; j < txns.length; j++) {
-          if (consumed.contains(txns[j].id)) continue;
-          final other = txns[j];
-          if (other.date == txn.date && other.accountName == destAccountName) {
-            final otherDesc =
-                (other.notes ?? other.descriptionName ?? '').trim();
-            if (RegExp(r'^Transfer from .+$', caseSensitive: false)
-                .hasMatch(otherDesc)) {
-              consumed.add(txn.id!);
-              consumed.add(other.id!);
-              result.add(_DisplayItem.transfer(
-                  txn, other, txn.accountName, other.accountName));
-              break;
-            }
-          }
-        }
-        if (!consumed.contains(txn.id)) {
+        final candidates =
+            byDateAccount['${txn.date}|$destAccountName'] ?? const <int>[];
+        final paired = _findPaired(candidates, i, txns, consumed, _fromPattern);
+        if (paired != null) {
+          consumed.add(txn.id!);
+          consumed.add(paired.id!);
+          result.add(_DisplayItem.transfer(
+              txn, paired, txn.accountName, paired.accountName));
+        } else {
           result.add(_DisplayItem.single(txn));
         }
       } else if (fromMatch != null) {
         final srcAccountName = fromMatch.group(1)!;
-        for (var j = i + 1; j < txns.length; j++) {
-          if (consumed.contains(txns[j].id)) continue;
-          final other = txns[j];
-          if (other.date == txn.date && other.accountName == srcAccountName) {
-            final otherDesc =
-                (other.notes ?? other.descriptionName ?? '').trim();
-            if (RegExp(r'^Transfer to .+$', caseSensitive: false)
-                .hasMatch(otherDesc)) {
-              consumed.add(txn.id!);
-              consumed.add(other.id!);
-              result.add(_DisplayItem.transfer(
-                  other, txn, other.accountName, txn.accountName));
-              break;
-            }
-          }
-        }
-        if (!consumed.contains(txn.id)) {
+        final candidates =
+            byDateAccount['${txn.date}|$srcAccountName'] ?? const <int>[];
+        final paired = _findPaired(candidates, i, txns, consumed, _toPattern);
+        if (paired != null) {
+          consumed.add(txn.id!);
+          consumed.add(paired.id!);
+          result.add(_DisplayItem.transfer(
+              paired, txn, paired.accountName, txn.accountName));
+        } else {
           result.add(_DisplayItem.single(txn));
         }
       } else {
@@ -130,31 +138,38 @@ class _TransactionsViewState extends State<TransactionsView> {
     return result;
   }
 
+  TransactionWithDetails? _findPaired(
+    List<int> candidates,
+    int i,
+    List<TransactionWithDetails> txns,
+    Set<int> consumed,
+    RegExp matchPattern,
+  ) {
+    for (final j in candidates) {
+      if (j <= i || consumed.contains(txns[j].id)) continue;
+      final other = txns[j];
+      final otherDesc = (other.notes ?? other.descriptionName ?? '').trim();
+      if (matchPattern.hasMatch(otherDesc)) {
+        return other;
+      }
+    }
+    return null;
+  }
+
   Future<void> _loadData() async {
+    await _db.generateDueRecurring();
     final results = await Future.wait([
-      _db.getTransactions(
-        limit: _displayLimit,
-        searchQuery: _searchQuery,
-        tagIds: _selectedTagIds.isEmpty ? null : _selectedTagIds,
-      ),
       _db.getAllAccounts(),
       _db.getAllTags(),
     ]);
 
-    final txns = results[0] as List<TransactionWithDetails>;
-    final accounts = results[1] as List<Account>;
-    final tags = results[2] as List<Tag>;
-
     if (mounted) {
       setState(() {
-        _displayItems = _mergeTransfers(txns);
-        _accounts = accounts;
-        _tags = tags;
-        _lastRawFetchCount = txns.length;
-        _hasMore = txns.length == _displayLimit;
-        _loading = false;
+        _accounts = results[0] as List<Account>;
+        _tags = results[1] as List<Tag>;
       });
     }
+    await _loadTransactions();
   }
 
   Future<void> _loadTransactions({bool loadMore = false}) async {
@@ -182,43 +197,72 @@ class _TransactionsViewState extends State<TransactionsView> {
     }
   }
 
-  void _showTransactionModal({TransactionWithDetails? editTxn}) async {
+  void _showTransactionModal(
+      {TransactionWithDetails? editTxn,
+      RecurringTransactionWithDetails? editRecurring}) async {
     final accounts = await _db.getAllAccounts();
     if (!mounted) return;
 
     final isPhone = ResponsiveLayout.isPhone(context);
+    final modal = TransactionModal(
+      accounts: accounts,
+      onSave: (data) =>
+          _handleSave(data, editTxn: editTxn, editRecurring: editRecurring),
+      editTransaction: editTxn,
+      editRecurring: editRecurring,
+      transactionType: editTxn?.transactionType ??
+          editRecurring?.transactionType ??
+          'expense',
+      defaultRecurring: editRecurring != null,
+    );
 
     if (isPhone) {
       Navigator.of(context).push(
         MaterialPageRoute(
           fullscreenDialog: true,
-          builder: (_) => TransactionModal(
-            accounts: accounts,
-            onSave: (data) => _handleSave(data, editTxn: editTxn),
-            editTransaction: editTxn,
-            transactionType: editTxn?.transactionType ?? 'expense',
-          ),
+          builder: (_) => modal,
         ),
       );
     } else {
       showDialog(
         context: context,
-        builder: (_) => TransactionModal(
-          accounts: accounts,
-          onSave: (data) => _handleSave(data, editTxn: editTxn),
-          editTransaction: editTxn,
-          transactionType: editTxn?.transactionType ?? 'expense',
-        ),
+        builder: (_) => modal,
       );
     }
   }
 
   Future<void> _handleSave(Map<String, dynamic> data,
-      {TransactionWithDetails? editTxn}) async {
+      {TransactionWithDetails? editTxn,
+      RecurringTransactionWithDetails? editRecurring}) async {
     final isTransfer = data['transaction_type'] == 'transfer';
     final tagId = data['tag_id'] as int?;
+    final isRecurring = data['is_recurring'] == true;
 
-    if (editTxn != null) {
+    if (editRecurring != null) {
+      // Update the recurring template (affects all future occurrences)
+      await _db.updateRecurringTransaction(
+        editRecurring.id!,
+        description: data['description'],
+        amount: data['amount'],
+        transactionType: data['transaction_type'],
+        currency: data['currency'],
+        frequency: data['frequency'],
+        interval: data['interval'],
+        dayOfWeek: data['day_of_week'],
+        dayOfMonth: data['day_of_month'],
+        startDate: data['start_date'],
+        endDate: data['end_date'],
+        clearEndDate: data['end_date'] == null,
+        accountId: data['category_id'],
+        tagId: tagId,
+        clearTag: tagId == null,
+        notes: data['notes'],
+      );
+      if (mounted) {
+        PeadraNotification.show(
+            context, message: Translator.t('msg_recurring_modified'));
+      }
+    } else if (editTxn != null) {
       // Update existing
       await _db.updateTransaction(
         editTxn.id!,
@@ -228,11 +272,34 @@ class _TransactionsViewState extends State<TransactionsView> {
         transactionType: data['transaction_type'],
         notes: data['notes'],
         currency: data['currency'],
+        accountId: data['category_id'],
         tagId: isTransfer ? null : tagId,
         clearTag: isTransfer || tagId == null,
       );
       if (mounted) {
         PeadraNotification.show(context, message: Translator.t('msg_transaction_modified'));
+      }
+    } else if (isRecurring) {
+      // Create a recurring template (occurrences materialize via generation)
+      await _db.addRecurringTransaction(
+        description: data['description'],
+        amount: data['amount'],
+        transactionType: data['transaction_type'],
+        currency: data['currency'],
+        frequency: data['frequency'],
+        interval: data['interval'],
+        dayOfWeek: data['day_of_week'],
+        dayOfMonth: data['day_of_month'],
+        startDate: data['start_date'],
+        endDate: data['end_date'],
+        accountId: data['category_id'],
+        tagId: tagId,
+        notes: data['notes'],
+      );
+      await _db.generateDueRecurring();
+      if (mounted) {
+        PeadraNotification.show(context,
+            message: Translator.t('msg_recurring_added'));
       }
     } else if (isTransfer) {
       // Create transfer
@@ -306,6 +373,52 @@ class _TransactionsViewState extends State<TransactionsView> {
     final themeName = context.read<ThemeProvider>().themeName;
     final colors = PeadraTheme.getColors(themeName);
 
+    if (txn.recurringId != null) {
+      final scope = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: colors.surface,
+          title: Text(Translator.t('rec_scope_title'),
+              style: TextStyle(color: colors.text)),
+          content: Text(Translator.t('rec_scope_message'),
+              style: TextStyle(color: colors.textSecondary)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, null),
+              child: Text(Translator.t('btn_cancel')),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'this'),
+              child: Text(Translator.t('rec_delete_this')),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'all'),
+              child: Text(Translator.t('rec_delete_all'),
+                  style: TextStyle(color: colors.error)),
+            ),
+          ],
+        ),
+      );
+      if (scope == null || !mounted) return;
+
+      if (scope == 'all') {
+        await _db.deleteRecurringTransaction(txn.recurringId!,
+            deleteOccurrences: true);
+      } else {
+        await _db.deleteTransaction(txn.id!);
+        await _db.markRecurringOccurrenceDeleted(txn.recurringId!, txn.date);
+      }
+      if (mounted) {
+        PeadraNotification.show(context,
+            message: scope == 'all'
+                ? Translator.t('msg_recurring_deleted')
+                : Translator.t('msg_recurring_occurrence_deleted'));
+      }
+      _loadTransactions();
+      widget.onDataChanged?.call();
+      return;
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -335,6 +448,66 @@ class _TransactionsViewState extends State<TransactionsView> {
       }
       _loadTransactions();
       widget.onDataChanged?.call();
+    }
+  }
+
+  Future<void> _editTransaction(TransactionWithDetails txn) async {
+    final recurringId = txn.recurringId;
+    if (recurringId == null) {
+      _showTransactionModal(editTxn: txn);
+      return;
+    }
+
+    final colors =
+        PeadraTheme.getColors(context.read<ThemeProvider>().themeName);
+    final scope = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: colors.surface,
+        title: Text(Translator.t('rec_scope_title'),
+            style: TextStyle(color: colors.text)),
+        content: Text(Translator.t('rec_scope_message'),
+            style: TextStyle(color: colors.textSecondary)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, null),
+            child: Text(Translator.t('btn_cancel')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'this'),
+            child: Text(Translator.t('rec_edit_this')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'all'),
+            child: Text(Translator.t('rec_edit_all')),
+          ),
+        ],
+      ),
+    );
+    if (scope == null || !mounted) return;
+
+    if (scope == 'this') {
+      _showTransactionModal(editTxn: txn);
+    } else {
+      final rec = await _db.getRecurringTransaction(recurringId);
+      if (rec != null) {
+        _showTransactionModal(editRecurring: rec);
+      }
+    }
+  }
+
+  String _recurringFrequencyLabel(String? frequency) {
+    switch (frequency) {
+      case 'daily':
+        return Translator.t('rec_freq_daily');
+      case 'weekly':
+        return Translator.t('rec_freq_weekly');
+      case 'monthly':
+        return Translator.t('rec_freq_monthly');
+      case 'yearly':
+        return Translator.t('rec_freq_yearly');
+      default:
+        return '';
     }
   }
 
@@ -474,7 +647,7 @@ class _TransactionsViewState extends State<TransactionsView> {
           FilledButton(
             onPressed: () {
               Navigator.pop(ctx);
-              _showTransactionModal(editTxn: txn);
+              _editTransaction(txn);
             },
             style: FilledButton.styleFrom(
               backgroundColor: colors.accent,
@@ -556,13 +729,26 @@ class _TransactionsViewState extends State<TransactionsView> {
                 backgroundColor: colors.accent,
                 child: const Icon(Icons.add, color: Colors.white),
               ),
+              const SizedBox(width: 12),
+              IconButton(
+                icon: Icon(Icons.repeat, color: colors.accent),
+                tooltip: Translator.t('rec_title'),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const RecurringView()),
+                  );
+                },
+              ),
             ],
           ),
           const SizedBox(height: 16),
           TextField(
             onChanged: (v) {
               _searchQuery = v;
-              _loadTransactions();
+              _searchDebounce?.cancel();
+              _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+                _loadTransactions();
+              });
             },
             maxLength: 100,
             decoration: InputDecoration(
@@ -705,6 +891,9 @@ class _TransactionsViewState extends State<TransactionsView> {
             ? txn.accountCurrency!
             : (txn.currency.isNotEmpty ? txn.currency : defaultCurrency);
     final isPhone = ResponsiveLayout.isPhone(context);
+    final tagColor = txn.tagColor == null
+        ? const Color(0xFF1976D2)
+        : Color(int.parse(txn.tagColor!.replaceFirst('#', '0xFF')));
 
     final card = Card(
       color: colors.surface,
@@ -720,14 +909,24 @@ class _TransactionsViewState extends State<TransactionsView> {
           ),
           child: Icon(icon, color: iconColor, size: 20),
         ),
-        title: Text(
-          txn.descriptionName ?? '-',
-          style: TextStyle(
-            color: colors.text,
-            fontWeight: FontWeight.w500,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+        title: Row(
+          children: [
+            if (txn.recurringId != null) ...[
+              Icon(Icons.repeat, color: colors.placeholderColor, size: 14),
+              const SizedBox(width: 4),
+            ],
+            Expanded(
+              child: Text(
+                txn.descriptionName ?? '-',
+                style: TextStyle(
+                  color: colors.text,
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
         subtitle: Row(
           children: [
@@ -747,16 +946,13 @@ class _TransactionsViewState extends State<TransactionsView> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                 decoration: BoxDecoration(
-                  color: Color(int.parse(
-                          (txn.tagColor ?? '#1976D2').replaceFirst('#', '0xFF')))
-                      .withValues(alpha: 0.15),
+                  color: tagColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
                   txn.tagName!,
                   style: TextStyle(
-                    color: Color(int.parse(
-                        (txn.tagColor ?? '#1976D2').replaceFirst('#', '0xFF'))),
+                    color: tagColor,
                     fontSize: 10,
                     fontWeight: FontWeight.w500,
                   ),
@@ -768,20 +964,36 @@ class _TransactionsViewState extends State<TransactionsView> {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (!isPhone && txn.recurringId != null) ...[
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                decoration: BoxDecoration(
+                  color: colors.accent.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  _recurringFrequencyLabel(txn.recurringFrequency),
+                  style: TextStyle(
+                    color: colors.accent,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
             if (!isPhone && txn.tagName != null) ...[
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                 decoration: BoxDecoration(
-                  color: Color(int.parse(
-                          (txn.tagColor ?? '#1976D2').replaceFirst('#', '0xFF')))
-                      .withValues(alpha: 0.15),
+                  color: tagColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   txn.tagName!,
                   style: TextStyle(
-                    color: Color(int.parse(
-                        (txn.tagColor ?? '#1976D2').replaceFirst('#', '0xFF'))),
+                    color: tagColor,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),
@@ -804,7 +1016,7 @@ class _TransactionsViewState extends State<TransactionsView> {
           ],
         ),
         onTap: isPhone
-            ? () => _showTransactionModal(editTxn: txn)
+            ? () => _editTransaction(txn)
             : () => _showTransactionPreview(txn),
       ),
     );
@@ -904,7 +1116,7 @@ class _TransactionsViewState extends State<TransactionsView> {
           ),
         ),
         onTap: isPhone
-            ? () => _showTransactionModal(editTxn: txn)
+            ? () => _editTransaction(txn)
             : () => _showTransactionPreview(txn, pairedTxn: pairedTxn),
       ),
     );

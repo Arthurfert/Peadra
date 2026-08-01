@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:convert';
 
 import 'package:csv/csv.dart';
 import 'package:file_picker/file_picker.dart';
@@ -13,39 +12,6 @@ class ExportService {
   static final ExportService _instance = ExportService._();
   factory ExportService() => _instance;
   ExportService._();
-
-  /// Export all transactions to JSON.
-  Future<String> exportToJson({
-    String? startDate,
-    String? endDate,
-  }) async {
-    final transactions = (startDate != null && endDate != null)
-        ? await _db.getTransactionsByPeriod(startDate, endDate)
-        : await _db.getTransactions(limit: 999999);
-
-    final accounts = await _db.getAllAccounts();
-
-    final data = {
-      'exportDate': DateTime.now().toIso8601String(),
-      'accounts': accounts.map((a) => {
-        'id': a.id,
-        'name': a.name,
-        'currency': a.currency,
-      }).toList(),
-      'transactions': transactions.map((t) => {
-        'id': t.id,
-        'accountId': t.accountId,
-        'date': t.date,
-        'amount': t.amount,
-        'description': t.descriptionName ?? '',
-        'transactionType': t.transactionType,
-        'currency': t.currency,
-        'notes': t.notes,
-      }).toList(),
-    };
-
-    return jsonEncode(data);
-  }
 
   /// Export all transactions to CSV.
   Future<String> exportToCsv({

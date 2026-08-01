@@ -30,19 +30,27 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.data.isEmpty) {
-      return Center(
-        child: Text(Translator.t('dashboard_no_data'),
-            style: TextStyle(color: widget.colors.textSecondary)),
-      );
-    }
-
     final total = widget.data.fold<double>(
         0, (sum, d) => sum + (d['amount'] as double));
-    if (total == 0) {
-      return Center(
-        child: Text(Translator.t('dashboard_no_data'),
-            style: TextStyle(color: widget.colors.textSecondary)),
+    if (widget.data.isEmpty || total == 0) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (widget.title.isNotEmpty) ...[
+            Text(widget.title,
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: widget.colors.text)),
+            const SizedBox(height: 8),
+          ],
+          Expanded(
+            child: Center(
+              child: Text(Translator.t('dashboard_no_data'),
+                  style: TextStyle(color: widget.colors.textSecondary)),
+            ),
+          ),
+        ],
       );
     }
 

@@ -24,13 +24,9 @@ class ImportMapping {
 
 class CsvDialect {
   final String fieldDelimiter;
-  final String quoteCharacter;
-  final String eol;
 
   const CsvDialect({
     this.fieldDelimiter = ',',
-    this.quoteCharacter = '"',
-    this.eol = '\n',
   });
 }
 
@@ -79,12 +75,6 @@ class ImportService {
   ImportService._();
 
   // --- Keyword lists for type detection ---
-  static final _expenseKeywords = [
-    'expense', 'debit', 'purchase', 'payment', 'charge', 'withdrawal',
-    'bill', 'cost', 'spend', 'buy',
-    'dépense', 'paiement', 'facture', 'achat',
-  ];
-
   static final _incomeKeywords = [
     'income', 'credit', 'deposit', 'transfer in', 'revenue',
     'reçu', 'dépôt', 'transfert entrant',
@@ -96,10 +86,6 @@ class ImportService {
   static final _debitKeywords = ['debit', 'debit amount', 'débit'];
   static final _descKeywords = ['description', 'memo', 'note', 'details', 'libellé', 'désignation'];
   static final _typeKeywords = ['type', 'category', 'kind', 'nature'];
-  static final _unusedKeywords = [
-    'number', 'ref', 'reference', 'account', 'balance', 'id',
-    'numéro', 'référence', 'solde', 'compte',
-  ];
 
   /// Calculate SHA-256 hash of a file.
   Future<String> calculateFileHash(String path) async {
@@ -267,17 +253,22 @@ class ImportService {
     return mappings;
   }
 
+  static final _currencySymbols = [
+    '€', '\$', '£', '¥', 'CHF', 'CA\$', 'AU\$', 'R\$',
+    'MX\$', 'NT\$', 'NZ\$', 'HK\$', 'SG\$', '₩', '₽', '฿', '₫', '₪',
+    '₦', '₨', '₹', 'zł', 'Kč', 'Ft', 'kr', 'R', 'E£', '﷼',
+    'RM', '₱', 'Rp', 'CLP\$', 'DH', 'TND', 'MAD',
+  ];
+
+  static final _dateFormats = ['%d/%m/%Y', '%m/%d/%Y'];
+
   /// Parse a number from various formats (US/European).
   double? _parseNumber(String s) {
     s = s.trim();
     if (s.isEmpty) return null;
 
     // Remove currency symbols
-    final currencies = ['€', '\$', '£', '¥', 'CHF', 'CA\$', 'AU\$', 'R\$',
-        'MX\$', 'NT\$', 'NZ\$', 'HK\$', 'SG\$', '₩', '₽', '฿', '₫', '₪',
-        '₦', '₨', '₹', 'zł', 'Kč', 'Ft', 'kr', 'R', 'E£', '﷼',
-        'RM', '₱', 'Rp', 'CLP\$', 'DH', 'TND', 'MAD'];
-    for (final c in currencies) {
+    for (final c in _currencySymbols) {
       s = s.replaceAll(c, '');
     }
 
@@ -312,31 +303,12 @@ class ImportService {
     s = s.trim();
     if (s.isEmpty) return null;
 
-    final formats = [
-      '%Y-%m-%d',
-      '%Y-%m-%d %H:%M:%S',
-      '%d/%m/%Y',
-      '%d/%m/%Y %H:%M:%S',
-      '%m/%d/%Y',
-      '%m/%d/%Y %H:%M:%S',
-      '%Y/%m/%d',
-      '%d.%m.%Y',
-      '%m.%d.%Y',
-      '%Y.%m.%d',
-      '%d-%m-%Y',
-      '%m-%d-%Y',
-      '%Y%m%d',
-      '%d %m %Y',
-      '%d/%m/%y',
-      '%d.%m.%y',
-    ];
-
     // Try ISO format first
     final iso = DateTime.tryParse(s);
     if (iso != null) return iso;
 
-    // Try Python-style format strings
-    for (final fmt in formats) {
+    // Try format parsers
+    for (final fmt in _dateFormats) {
       try {
         final date = _parseWithFormat(s, fmt);
         if (date != null) return date;
@@ -347,21 +319,12 @@ class ImportService {
   }
 
   DateTime? _parseWithFormat(String s, String fmt) {
-    // Simple format parser for common date patterns
-    if (fmt == '%Y-%m-%d') {
-      return DateTime.tryParse(s);
-    } else if (fmt == '%d/%m/%Y') {
-      final parts = s.split('/');
-      if (parts.length == 3) {
-        return DateTime.tryParse('${parts[2]}-${parts[1].padLeft(2, '0')}-${parts[0].padLeft(2, '0')}');
-      }
-    } else if (fmt == '%m/%d/%Y') {
-      final parts = s.split('/');
-      if (parts.length == 3) {
-        return DateTime.tryParse('${parts[2]}-${parts[0].padLeft(2, '0')}-${parts[1].padLeft(2, '0')}');
-      }
+    final parts = s.split('/');
+    if (parts.length != 3) return null;
+    if (fmt == '%d/%m/%Y') {
+      return DateTime.tryParse('${parts[2]}-${parts[1].padLeft(2, '0')}-${parts[0].padLeft(2, '0')}');
     }
-    return null;
+    return DateTime.tryParse('${parts[2]}-${parts[0].padLeft(2, '0')}-${parts[1].padLeft(2, '0')}');
   }
 
   /// Import transactions from a CSV file with given mappings.
@@ -412,6 +375,13 @@ class ImportService {
     for (final m in mappings) {
       mappingByCol[m.columnIndex] = m.mapping;
     }
+
+    // Preload existing transactions for this account for duplicate detection.
+    final existingTxns = await _db.getTransactions(accountIds: {accountId});
+    final seenSignatures = <String>{
+      for (final t in existingTxns)
+        '${t.date}|${t.accountId}|${t.amount}|${t.descriptionName}',
+    };
 
     for (int i = 0; i < dataRows.length; i++) {
       final row = dataRows[i];
@@ -489,13 +459,9 @@ class ImportService {
         }
 
         // Check for duplicate (same date, amount, description within account)
-        final existing = await _db.getTransactionsByPeriod(dateFormatted, dateFormatted);
-        final isDuplicate = existing.any(
-          (t) => t.accountId == accountId &&
-                 t.amount == amount!.abs() &&
-                 t.descriptionName == description,
-        );
-        if (isDuplicate) {
+        final signature =
+            '$dateFormatted|$accountId|${amount.abs()}|$description';
+        if (seenSignatures.contains(signature)) {
           duplicates++;
           continue;
         }
@@ -518,6 +484,7 @@ class ImportService {
         );
 
         if (txId != null && txId > 0) {
+          seenSignatures.add(signature);
           imported++;
         } else {
           skipped++;

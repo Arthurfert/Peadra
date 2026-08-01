@@ -5,20 +5,17 @@ import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../database/database_manager.dart';
 import 'log_service.dart';
 
 class UpdateInfo {
   final String version;
   final String downloadUrl;
   final String releaseNotes;
-  final String publishedAt;
 
   UpdateInfo({
     required this.version,
     required this.downloadUrl,
     required this.releaseNotes,
-    required this.publishedAt,
   });
 
   factory UpdateInfo.fromJson(Map<String, dynamic> json) {
@@ -47,13 +44,11 @@ class UpdateInfo {
       version: (json['tag_name'] ?? '').replaceFirst('v', ''),
       downloadUrl: downloadUrl,
       releaseNotes: json['body'] ?? '',
-      publishedAt: json['published_at'] ?? '',
     );
   }
 }
 
 class UpdateService {
-  final DatabaseManager _db = DatabaseManager.instance;
   static final UpdateService _instance = UpdateService._();
   factory UpdateService() => _instance;
   UpdateService._();

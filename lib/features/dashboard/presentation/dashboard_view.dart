@@ -509,7 +509,58 @@ class _DashboardViewState extends State<DashboardView> {
 
     final statCards = _buildStatCards(colors, currency);
 
-    final totalAsset = Card(
+    final cashFlowSection = _buildCashFlowSection(colors);
+    final expensePie = _buildPieChartCard(
+        colors,
+        Translator.t('dash_this_month_expenses'),
+        _monthlyExpenses,
+        currency,
+        maxPieCategories);
+    final incomePie = _buildPieChartCard(
+        colors,
+        Translator.t('dash_this_month_incomes'),
+        _monthlyIncomes,
+        currency,
+        maxPieCategories);
+    final assetsPie = _buildAssetsDistributionPieChart(
+        colors, currency, maxPieCategories);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth > 800) {
+          return DashboardViewDesktop(
+            header: header,
+            statCards: statCards,
+            cashFlowSection: cashFlowSection,
+            expensePie: expensePie,
+            incomePie: incomePie,
+            assetsPie: assetsPie,
+            colors: colors,
+            cashFlowData: _cashFlowData,
+            assetsHistory: _assetsHistory,
+            showLineDots: lineChartDots,
+          );
+        } else {
+          return DashboardViewMobile(
+            header: header,
+            totalAsset: _buildTotalAssetCard(colors, currency),
+            statCards: statCards,
+            cashFlowSection: cashFlowSection,
+            expensePie: expensePie,
+            incomePie: incomePie,
+            assetsPie: assetsPie,
+            colors: colors,
+            cashFlowData: _cashFlowData,
+            assetsHistory: _assetsHistory,
+            showLineDots: lineChartDots,
+          );
+        }
+      },
+    );
+  }
+
+  Widget _buildTotalAssetCard(PeadraColors colors, String currency) {
+    return Card(
       color: colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
@@ -562,55 +613,6 @@ class _DashboardViewState extends State<DashboardView> {
           ],
         ),
       ),
-    );
-
-    final cashFlowSection = _buildCashFlowSection(colors);
-    final expensePie = _buildPieChartCard(
-        colors,
-        Translator.t('dash_this_month_expenses'),
-        _monthlyExpenses,
-        currency,
-        maxPieCategories);
-    final incomePie = _buildPieChartCard(
-        colors,
-        Translator.t('dash_this_month_incomes'),
-        _monthlyIncomes,
-        currency,
-        maxPieCategories);
-    final assetsPie = _buildAssetsDistributionPieChart(
-        colors, currency, maxPieCategories);
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth > 800) {
-          return DashboardViewDesktop(
-            header: header,
-            statCards: statCards,
-            cashFlowSection: cashFlowSection,
-            expensePie: expensePie,
-            incomePie: incomePie,
-            assetsPie: assetsPie,
-            colors: colors,
-            cashFlowData: _cashFlowData,
-            assetsHistory: _assetsHistory,
-            showLineDots: lineChartDots,
-          );
-        } else {
-          return DashboardViewMobile(
-            header: header,
-            totalAsset: totalAsset,
-            statCards: statCards,
-            cashFlowSection: cashFlowSection,
-            expensePie: expensePie,
-            incomePie: incomePie,
-            assetsPie: assetsPie,
-            colors: colors,
-            cashFlowData: _cashFlowData,
-            assetsHistory: _assetsHistory,
-            showLineDots: lineChartDots,
-          );
-        }
-      },
     );
   }
 }

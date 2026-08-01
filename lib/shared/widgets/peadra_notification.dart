@@ -96,12 +96,10 @@ class _NotificationWidgetState extends State<_NotificationWidget>
   late final Animation<Offset> _slideAnimation;
   late final Animation<double> _fadeAnimation;
   bool _disposed = false;
-  int _previousOffsetIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    _previousOffsetIndex = widget.offsetIndex;
 
     _controller = AnimationController(
       vsync: this,
@@ -129,12 +127,6 @@ class _NotificationWidgetState extends State<_NotificationWidget>
         });
       }
     });
-  }
-
-  @override
-  void didUpdateWidget(_NotificationWidget oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    _previousOffsetIndex = oldWidget.offsetIndex;
   }
 
   @override

@@ -4,6 +4,21 @@ import 'package:fl_chart/fl_chart.dart';
 import '../../../core/i18n/translator.dart';
 import '../../../core/theme/peadra_colors.dart';
 
+const _monthAbbrKeys = [
+  'month_jan_abbr',
+  'month_feb_abbr',
+  'month_mar_abbr',
+  'month_apr_abbr',
+  'month_may_abbr',
+  'month_jun_abbr',
+  'month_jul_abbr',
+  'month_aug_abbr',
+  'month_sep_abbr',
+  'month_oct_abbr',
+  'month_nov_abbr',
+  'month_dec_abbr',
+];
+
 class DashboardViewMobile extends StatelessWidget {
   final Widget header;
   final Widget totalAsset;
@@ -166,11 +181,12 @@ class DashboardViewMobile extends StatelessWidget {
     final displayMonths = sortedMonths.length > 6
         ? sortedMonths.sublist(sortedMonths.length - 6)
         : sortedMonths;
+    final displayMonthSet = displayMonths.toSet();
 
     final expenseByMonth = <String, double>{};
     for (final d in expenseData) {
       final m = d['month'] as String;
-      if (displayMonths.contains(m)) {
+      if (displayMonthSet.contains(m)) {
         expenseByMonth[m] =
             (expenseByMonth[m] ?? 0) + (d['amount'] as double);
       }
@@ -179,7 +195,7 @@ class DashboardViewMobile extends StatelessWidget {
     final incomeByMonth = <String, double>{};
     for (final d in incomeData) {
       final m = d['month'] as String;
-      if (displayMonths.contains(m)) {
+      if (displayMonthSet.contains(m)) {
         incomeByMonth[m] =
             (incomeByMonth[m] ?? 0) + (d['amount'] as double);
       }
@@ -253,22 +269,8 @@ class DashboardViewMobile extends StatelessWidget {
                   final m = displayMonths[idx];
                   final monthNum =
                       int.tryParse(m.split('-').last) ?? 1;
-                  final monthKeys = [
-                    'month_jan_abbr',
-                    'month_feb_abbr',
-                    'month_mar_abbr',
-                    'month_apr_abbr',
-                    'month_may_abbr',
-                    'month_jun_abbr',
-                    'month_jul_abbr',
-                    'month_aug_abbr',
-                    'month_sep_abbr',
-                    'month_oct_abbr',
-                    'month_nov_abbr',
-                    'month_dec_abbr'
-                  ];
                   final label = Translator.t(
-                      monthKeys[(monthNum - 1).clamp(0, 11)]);
+                      _monthAbbrKeys[(monthNum - 1).clamp(0, 11)]);
                   return Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(

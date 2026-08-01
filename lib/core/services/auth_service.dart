@@ -69,16 +69,6 @@ class AuthService {
     return results.map((r) => r['username'] as String).toList();
   }
 
-  Future<String> getCurrentUsername(int userId) async {
-    final db = await _db.database;
-    final results = await db.rawQuery(
-      'SELECT username FROM users WHERE id = ?',
-      [userId],
-    );
-    if (results.isEmpty) return '';
-    return results.first['username'] as String;
-  }
-
   Future<bool> updatePassword(int userId, String oldPassword, String newPassword) async {
     if (newPassword.isEmpty) {
       throw ArgumentError('New password cannot be empty.');

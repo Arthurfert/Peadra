@@ -18,6 +18,7 @@ This document presents future changes and wanted improvements.
 ### Fixed
 
 - [dev] Deleted unused code and general optimization
+- Displays the charts titles even when there is no data
 
 ## Future Improvements
 

@@ -108,7 +108,7 @@ class _RecurringViewState extends State<RecurringView> {
   }
 
   Future<void> _showRecurringModal(
-      {RecurringTransactionWithDetails? editRecurring}) async {
+      RecurringTransactionWithDetails editRecurring) async {
     final accounts = await _db.getAllAccounts();
     if (!mounted) return;
 
@@ -117,8 +117,8 @@ class _RecurringViewState extends State<RecurringView> {
       accounts: accounts,
       onSave: (data) => _handleSave(data, editRecurring: editRecurring),
       editRecurring: editRecurring,
-      transactionType: editRecurring?.transactionType ?? 'expense',
-      defaultRecurring: editRecurring == null,
+      transactionType: editRecurring.transactionType,
+      defaultRecurring: true,
     );
 
     if (isPhone) {
@@ -131,59 +131,29 @@ class _RecurringViewState extends State<RecurringView> {
   }
 
   Future<void> _handleSave(Map<String, dynamic> data,
-      {RecurringTransactionWithDetails? editRecurring}) async {
-    if (editRecurring != null) {
-      await _db.updateRecurringTransaction(
-        editRecurring.id!,
-        description: data['description'],
-        amount: data['amount'],
-        transactionType: data['transaction_type'],
-        currency: data['currency'],
-        frequency: data['frequency'],
-        interval: data['interval'],
-        dayOfWeek: data['day_of_week'],
-        dayOfMonth: data['day_of_month'],
-        startDate: data['start_date'],
-        endDate: data['end_date'],
-        clearEndDate: data['end_date'] == null,
-        accountId: data['category_id'],
-        tagId: data['tag_id'],
-        clearTag: data['tag_id'] == null,
-        notes: data['notes'],
-      );
-      if (mounted) {
-        PeadraNotification.show(
-            context, message: Translator.t('msg_recurring_modified'));
-      }
-    } else {
-      if (data['is_recurring'] != true) {
-        if (mounted) {
-          PeadraNotification.show(context,
-              message: Translator.t('rec_requires_recurring'));
-        }
-        return;
-      }
-      await _db.addRecurringTransaction(
-        description: data['description'],
-        amount: data['amount'],
-        transactionType: data['transaction_type'],
-        currency: data['currency'],
-        frequency: data['frequency'],
-        interval: data['interval'],
-        dayOfWeek: data['day_of_week'],
-        dayOfMonth: data['day_of_month'],
-        startDate: data['start_date'],
-        endDate: data['end_date'],
-        accountId: data['category_id'],
-        tagId: data['tag_id'],
-        notes: data['notes'],
-      );
-      if (mounted) {
-        PeadraNotification.show(
-            context, message: Translator.t('msg_recurring_added'));
-      }
+      {required RecurringTransactionWithDetails editRecurring}) async {
+    await _db.updateRecurringTransaction(
+      editRecurring.id!,
+      description: data['description'],
+      amount: data['amount'],
+      transactionType: data['transaction_type'],
+      currency: data['currency'],
+      frequency: data['frequency'],
+      interval: data['interval'],
+      dayOfWeek: data['day_of_week'],
+      dayOfMonth: data['day_of_month'],
+      startDate: data['start_date'],
+      endDate: data['end_date'],
+      clearEndDate: data['end_date'] == null,
+      accountId: data['category_id'],
+      tagId: data['tag_id'],
+      clearTag: data['tag_id'] == null,
+      notes: data['notes'],
+    );
+    if (mounted) {
+      PeadraNotification.show(
+          context, message: Translator.t('msg_recurring_modified'));
     }
-
     _loadData();
     widget.onDataChanged?.call();
   }
@@ -265,13 +235,6 @@ class _RecurringViewState extends State<RecurringView> {
             style: TextStyle(color: colors.text)),
         backgroundColor: colors.surface,
         iconTheme: IconThemeData(color: colors.text),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.add, color: colors.accent),
-            tooltip: Translator.t('rec_new'),
-            onPressed: () => _showRecurringModal(),
-          ),
-        ],
       ),
       body: isPhone
           ? _buildContent(colors, currency)
@@ -325,57 +288,69 @@ class _RecurringViewState extends State<RecurringView> {
   }
 
   Widget _buildSortControl(PeadraColors colors) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: colors.borderColor),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<_RecurringSort>(
-          value: _sortBy,
-          isDense: true,
-          borderRadius: BorderRadius.circular(10),
-          style: TextStyle(color: colors.text, fontSize: 13),
-          dropdownColor: colors.surface,
-          iconEnabledColor: colors.placeholderColor,
-          items: [
-            DropdownMenuItem(
-              value: _RecurringSort.nextDue,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.swap_vert, size: 14, color: colors.placeholderColor),
-                  const SizedBox(width: 6),
-                  Text(Translator.t('rec_sort_by')),
-                  const SizedBox(width: 6),
-                  Text(Translator.t('rec_sort_next_due'),
-                      style: TextStyle(
-                          color: colors.accent,
-                          fontWeight: FontWeight.w600)),
-                ],
-              ),
-            ),
-            DropdownMenuItem(
-              value: _RecurringSort.tag,
-              child: Text(Translator.t('rec_sort_tag'),
-                  style: TextStyle(color: colors.text)),
-            ),
-            DropdownMenuItem(
-              value: _RecurringSort.amount,
-              child: Text(Translator.t('rec_sort_amount'),
-                  style: TextStyle(color: colors.text)),
-            ),
-            DropdownMenuItem(
-              value: _RecurringSort.name,
-              child: Text(Translator.t('rec_sort_name'),
-                  style: TextStyle(color: colors.text)),
-            ),
-          ],
-          onChanged: (v) => setState(() => _sortBy = v ?? _RecurringSort.nextDue),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          Translator.t('rec_sort_by'),
+          style: TextStyle(color: colors.placeholderColor, fontSize: 13),
         ),
-      ),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: colors.borderColor),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<_RecurringSort>(
+              value: _sortBy,
+              isDense: true,
+              borderRadius: BorderRadius.circular(10),
+              style: TextStyle(color: colors.text, fontSize: 13),
+              dropdownColor: colors.surface,
+              iconEnabledColor: colors.placeholderColor,
+              items: [
+                DropdownMenuItem(
+                  value: _RecurringSort.nextDue,
+                  child: Text(Translator.t('rec_sort_next_due'),
+                      style: _sortItemStyle(
+                          colors, _sortBy == _RecurringSort.nextDue)),
+                ),
+                DropdownMenuItem(
+                  value: _RecurringSort.tag,
+                  child: Text(Translator.t('rec_sort_tag'),
+                      style:
+                          _sortItemStyle(colors, _sortBy == _RecurringSort.tag)),
+                ),
+                DropdownMenuItem(
+                  value: _RecurringSort.amount,
+                  child: Text(Translator.t('rec_sort_amount'),
+                      style: _sortItemStyle(
+                          colors, _sortBy == _RecurringSort.amount)),
+                ),
+                DropdownMenuItem(
+                  value: _RecurringSort.name,
+                  child: Text(Translator.t('rec_sort_name'),
+                      style:
+                          _sortItemStyle(colors, _sortBy == _RecurringSort.name)),
+                ),
+              ],
+              onChanged: (v) =>
+                  setState(() => _sortBy = v ?? _RecurringSort.nextDue),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  TextStyle _sortItemStyle(PeadraColors colors, bool isSelected) {
+    return TextStyle(
+      color: isSelected ? colors.accent : colors.text,
+      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+      fontSize: 13,
     );
   }
 
@@ -533,7 +508,7 @@ class _RecurringViewState extends State<RecurringView> {
             ),
           ],
         ),
-        onTap: () => _showRecurringModal(editRecurring: rec),
+        onTap: () => _showRecurringModal(rec),
         onLongPress: () => _deleteRecurring(rec),
       ),
     );

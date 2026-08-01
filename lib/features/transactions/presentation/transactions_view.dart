@@ -941,24 +941,6 @@ class _TransactionsViewState extends State<TransactionsView> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            if (txn.recurringId != null && !isPhone) ...[
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                decoration: BoxDecoration(
-                  color: colors.accent.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  _recurringFrequencyLabel(txn.recurringFrequency),
-                  style: TextStyle(
-                    color: colors.accent,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
             if (isPhone && txn.tagName != null) ...[
               const SizedBox(width: 6),
               Container(
@@ -982,6 +964,25 @@ class _TransactionsViewState extends State<TransactionsView> {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (!isPhone && txn.recurringId != null) ...[
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                decoration: BoxDecoration(
+                  color: colors.accent.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  _recurringFrequencyLabel(txn.recurringFrequency),
+                  style: TextStyle(
+                    color: colors.accent,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
             if (!isPhone && txn.tagName != null) ...[
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),

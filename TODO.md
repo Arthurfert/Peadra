@@ -13,12 +13,11 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-- Ability to set the line chart with day to day data (on addition to existing monthly)
-- Pie charts now uses the tags colors when tag-based charts are enabled
+
 
 ### Fixed
 
-- Fixed tag contrast in transaction view & added more tag colors
+- CSV export parameter french translation missing
 
 ## Future Improvements
 

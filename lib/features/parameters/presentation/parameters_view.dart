@@ -941,7 +941,7 @@ class _ParametersViewState extends State<ParametersView> {
     return ListTile(
       title: Text('${Translator.t('btn_export')} CSV',
           style: TextStyle(color: colors.text)),
-      subtitle: Text('Export transactions as CSV',
+      subtitle: Text(Translator.t('btn_export_desc'),
           style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
       onTap: () async {
         try {

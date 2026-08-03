@@ -1592,7 +1592,7 @@ class DatabaseManager {
     return total;
   }
 
-  Future<double> getBalance({String targetCurrency = 'EUR'}) async {
+  Future<double> getBalance({String targetCurrency = 'EUR', String? before}) async {
     final db = await database;
 
     final acctRows = await db.rawQuery(
@@ -1616,8 +1616,9 @@ class DatabaseManager {
     final txnRows = await db.rawQuery(
       'SELECT t.amount, t.transaction_type, t.account_id, '
       'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency, a.type as account_type '
-      'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id WHERE t.user_id = ?',
-      [_userId],
+      'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id WHERE t.user_id = ?'
+      '${before != null ? ' AND t.date < ?' : ''}',
+      before != null ? [_userId, before] : [_userId],
     );
 
     for (final row in txnRows) {

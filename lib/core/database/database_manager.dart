@@ -2375,6 +2375,18 @@ class DatabaseManager {
     return defaultValue;
   }
 
+  Future<String?> getThemeForUser(String username, {String? defaultValue}) async {
+    final db = await database;
+    final result = await db.rawQuery(
+      'SELECT s.value FROM settings s JOIN users u ON u.id = s.user_id WHERE u.username = ? AND s.key = ?',
+      [username, 'theme_mode'],
+    );
+    if (result.isNotEmpty) {
+      return result.first['value'] as String?;
+    }
+    return defaultValue;
+  }
+
   Future<void> setSetting(String key, String value) async {
     final db = await database;
     await db.rawInsert(

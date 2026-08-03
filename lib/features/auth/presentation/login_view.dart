@@ -54,6 +54,12 @@ class _LoginViewState extends State<LoginView> {
     if (savedLang != null) {
       context.read<LanguageProvider>().setLanguage(savedLang);
     }
+    if (lastUser != null) {
+      final savedTheme = await _db.getThemeForUser(lastUser);
+      if (savedTheme != null) {
+        context.read<ThemeProvider>().setTheme(savedTheme);
+      }
+    }
     final biometricAvailable = await _biometricService.isAvailable();
     final hasCredentials = await _biometricService.hasStoredCredentials();
     if (mounted) {

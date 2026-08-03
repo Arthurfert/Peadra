@@ -18,6 +18,7 @@ This document presents future changes and wanted improvements.
 ### Fixed
 
 - CSV export parameter french translation missing
+- Login view now use the last user connected theme instead of default dark
 
 ## Future Improvements
 

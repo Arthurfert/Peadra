@@ -877,10 +877,7 @@ class _ManageTagsDialogState extends State<_ManageTagsDialog> {
     final nameController = TextEditingController(text: tag.name);
     String selectedColor = tag.color;
 
-    final tagColors = [
-      '#1976D2', '#388E3C', '#F57C00', '#D32F2F', '#7B1FA2',
-      '#00796B', '#C2185B', '#5D4037', '#455A64', '#FFB300',
-    ];
+    final tagColors = PeadraTheme.presetColors;
 
     await showDialog(
       context: context,

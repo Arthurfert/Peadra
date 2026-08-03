@@ -919,10 +919,7 @@ class _TransactionModalState extends State<TransactionModal> {
     final nameController = TextEditingController();
     String selectedColor = '#1976D2';
 
-    final tagColors = [
-      '#1976D2', '#388E3C', '#F57C00', '#D32F2F', '#7B1FA2',
-      '#00796B', '#C2185B', '#5D4037', '#455A64', '#FFB300',
-    ];
+    final tagColors = PeadraTheme.presetColors;
 
     showDialog(
       context: context,

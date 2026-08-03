@@ -2342,6 +2342,20 @@ class DatabaseManager {
     return result;
   }
 
+  Future<Map<String, String>> getTagColors() async {
+    if (_userId == null) return {};
+    final db = await database;
+    final rows = await db.query(
+      'tags',
+      where: 'user_id = ?',
+      whereArgs: [_userId],
+    );
+    return {
+      for (final r in rows)
+        (r['name'] as String): (r['color'] as String? ?? '#1976D2'),
+    };
+  }
+
   // ==================== SETTINGS ====================
 
   Future<String?> getSetting(String key, {String? defaultValue}) async {

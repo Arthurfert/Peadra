@@ -36,6 +36,7 @@ class _DashboardViewState extends State<DashboardView> {
   List<Map<String, dynamic>> _assetsHistory = [];
   Map<String, double> _monthlyExpenses = {};
   Map<String, double> _monthlyIncomes = {};
+  Map<String, String> _tagColors = {};
   bool _loading = true;
   int _selectedMonths = 6;
   String _lastCurrency = '';
@@ -123,6 +124,9 @@ class _DashboardViewState extends State<DashboardView> {
             targetCurrency: currency)),
         _safeQuery(() => _db.getSavingsTotal(
             targetCurrency: currency, before: thisMonthStart)),
+        _safeQuery(() => isTagMode
+            ? _db.getTagColors()
+            : Future.value(<String, String>{})),
       ]);
 
       if (mounted) {
@@ -141,6 +145,7 @@ class _DashboardViewState extends State<DashboardView> {
           _previousIncome = prevSummary['income'] ?? 0;
           _previousExpenses = prevSummary['expenses'] ?? 0;
           _previousSavings = (results[10] as double?) ?? 0;
+          _tagColors = (results[11] as Map<String, String>?) ?? {};
           _loading = false;
         });
       }
@@ -421,10 +426,15 @@ class _DashboardViewState extends State<DashboardView> {
   }
 
   Widget _buildPieChartCard(PeadraColors colors, String title,
-      Map<String, double> data, String currency, int maxCategories) {
-    final pieData = data.entries.map((e) => {
-      'label': e.key,
-      'amount': e.value,
+      Map<String, double> data, String currency, int maxCategories,
+      {Map<String, String> itemColors = const {}}) {
+    final pieData = data.entries.map((e) {
+      final entryColor = itemColors[e.key];
+      return {
+        'label': e.key,
+        'amount': e.value,
+        if (entryColor != null) 'color': entryColor,
+      };
     }).toList();
 
     return Card(
@@ -521,13 +531,15 @@ class _DashboardViewState extends State<DashboardView> {
         Translator.t('dash_this_month_expenses'),
         _monthlyExpenses,
         currency,
-        maxPieCategories);
+        maxPieCategories,
+        itemColors: _tagColors);
     final incomePie = _buildPieChartCard(
         colors,
         Translator.t('dash_this_month_incomes'),
         _monthlyIncomes,
         currency,
-        maxPieCategories);
+        maxPieCategories,
+        itemColors: _tagColors);
     final assetsPie = _buildAssetsDistributionPieChart(
         colors, currency, maxPieCategories);
 

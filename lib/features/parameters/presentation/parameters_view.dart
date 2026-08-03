@@ -115,6 +115,7 @@ class _ParametersViewState extends State<ParametersView> {
             _buildLanguageTile(lang, colors),
             _buildCurrencyTile(settings, colors),
             _buildThemeTile(colors),
+            if (isPhone) _buildNavLabelsTile(settings, colors),
           ], icon: Icons.settings),
           const SizedBox(height: 8),
           _buildSection(Translator.t('param_transactions'), colors, [
@@ -326,6 +327,28 @@ class _ParametersViewState extends State<ParametersView> {
             await _db.setSetting('theme_mode', v);
           }
         },
+      ),
+    );
+  }
+
+  Widget _buildNavLabelsTile(SettingsProvider settings, PeadraColors colors) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(Translator.t('param_nav_labels'),
+              style: TextStyle(color: colors.text)),
+          const SizedBox(height: 4),
+          Text(Translator.t('param_nav_labels_desc'),
+              style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+          const SizedBox(height: 12),
+          Switch(
+            value: settings.showNavLabels,
+            onChanged: (value) => settings.setShowNavLabels(value, _db),
+            activeThumbColor: colors.accent,
+          ),
+        ],
       ),
     );
   }
@@ -941,7 +964,7 @@ class _ParametersViewState extends State<ParametersView> {
     return ListTile(
       title: Text('${Translator.t('btn_export')} CSV',
           style: TextStyle(color: colors.text)),
-      subtitle: Text('Export transactions as CSV',
+      subtitle: Text(Translator.t('btn_export_desc'),
           style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
       onTap: () async {
         try {

@@ -9,7 +9,8 @@ installed_size: 6604
 essential: false
 icon: assets/icon.png
 
-description: Peadra - Financial Asset Tracker - Manage your assets, accounts, and transactions with ease.
+summary: Financial Asset Tracker
+description: Manage your assets, accounts, and transactions with ease.
 homepage: https://github.com/Arthurfert/Peadra
 
 keywords:

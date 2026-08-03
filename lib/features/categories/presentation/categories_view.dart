@@ -339,7 +339,7 @@ class _CategoriesViewState extends State<CategoriesView> {
                 final total = e.item['total'] as num;
                 final spots = e.data.spots;
                 final labels = e.data.labels;
-                final avg = count > 0 ? total / count : 0.0;
+                final avg = spots.isNotEmpty ? total / spots.length : 0.0;
 
                 return Card(
                   color: colors.surface,

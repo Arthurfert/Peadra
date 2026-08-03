@@ -13,12 +13,15 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-- Ability to set the line chart with day to day data (on addition to existing monthly)
-- Pie charts now uses the tags colors when tag-based charts are enabled
+- Launch screen for Android
+- New parameter to choose if you want navigation bar descriptions below icons or not
 
 ### Fixed
 
-- Fixed tag contrast in transaction view & added more tag colors
+- CSV export parameter french translation missing
+- Login view now use the last user connected theme instead of default dark
+- Current balance stat card percentage is now correct
+- Categories average/month amount is now correct
 
 ## Future Improvements
 

@@ -127,6 +127,8 @@ class _DashboardViewState extends State<DashboardView> {
         _safeQuery(() => isTagMode
             ? _db.getTagColors()
             : Future.value(<String, String>{})),
+        _safeQuery(() =>
+            _db.getBalance(targetCurrency: currency, before: thisMonthStart)),
       ]);
 
       if (mounted) {
@@ -141,9 +143,9 @@ class _DashboardViewState extends State<DashboardView> {
           _monthlyExpenses = (results[7] as Map<String, double>?) ?? {};
           _monthlyIncomes = (results[8] as Map<String, double>?) ?? {};
           final prevSummary = (results[9] as Map<String, double>?) ?? {};
-          _previousBalance = prevSummary['balance'] ?? 0;
           _previousIncome = prevSummary['income'] ?? 0;
           _previousExpenses = prevSummary['expenses'] ?? 0;
+          _previousBalance = (results[12] as double?) ?? 0;
           _previousSavings = (results[10] as double?) ?? 0;
           _tagColors = (results[11] as Map<String, String>?) ?? {};
           _loading = false;

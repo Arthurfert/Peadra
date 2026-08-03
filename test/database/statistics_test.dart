@@ -216,6 +216,32 @@ void main() {
       });
       expect(total, 600.0);
     });
+
+    test('only includes checking transactions strictly before the date limit', () async {
+      final descId = await seedTestDescription(db, userId, 'Salary');
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: descId,
+          date: '2025-05-31', amount: 1000, transactionType: 'income', currency: 'EUR');
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: descId,
+          date: '2025-06-01', amount: 2000, transactionType: 'income', currency: 'EUR');
+
+      final rows = await db.rawQuery('''
+        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
+                                 WHEN t.transaction_type = 'expense' THEN -t.amount
+                                 ELSE 0 END), 0) as total,
+               COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
+        FROM transactions t
+        LEFT JOIN accounts a ON t.account_id = a.id
+        WHERE t.date < ? AND (a.type = 'checking' OR t.account_id IS NULL) AND t.user_id = ?
+        GROUP BY a.currency
+      ''', ['2025-06-01', userId]);
+
+      final total = rows.fold<double>(0.0, (sum, row) {
+        return sum + ((row['total'] as num?)?.toDouble() ?? 0.0);
+      });
+      expect(total, 1000.0);
+    });
   });
 
   // =========================================================================

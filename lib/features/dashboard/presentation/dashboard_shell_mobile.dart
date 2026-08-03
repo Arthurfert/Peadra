@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/i18n/translator.dart';
 import '../../../core/theme/peadra_colors.dart';
 
 class DashboardShellMobile extends StatelessWidget {
@@ -8,6 +9,7 @@ class DashboardShellMobile extends StatelessWidget {
   final List<Widget> views;
   final ValueChanged<int> onNavTap;
   final VoidCallback onLogout;
+  final bool showNavLabels;
   final PeadraColors colors;
 
   const DashboardShellMobile({
@@ -17,6 +19,7 @@ class DashboardShellMobile extends StatelessWidget {
     required this.views,
     required this.onNavTap,
     required this.onLogout,
+    this.showNavLabels = false,
     required this.colors,
   });
 
@@ -41,6 +44,16 @@ class DashboardShellMobile extends StatelessWidget {
   }
 
   Widget _buildBottomNav() {
+    final labels = showNavLabels
+        ? [
+            Translator.t('nav_dashboard'),
+            Translator.t('nav_transactions'),
+            Translator.t('nav_accounts'),
+            Translator.t('nav_categories'),
+            Translator.t('nav_settings'),
+          ]
+        : List.filled(5, '');
+
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
@@ -54,33 +67,33 @@ class DashboardShellMobile extends StatelessWidget {
         backgroundColor: colors.surface,
         selectedItemColor: colors.accent,
         unselectedItemColor: colors.placeholderColor,
-        selectedFontSize: 0,
-        unselectedFontSize: 0,
-        items: const [
+        selectedFontSize: showNavLabels ? 11 : 0,
+        unselectedFontSize: showNavLabels ? 11 : 0,
+        items: [
           BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard_outlined),
-            activeIcon: Icon(Icons.dashboard),
-            label: '',
+            icon: const Icon(Icons.dashboard_outlined),
+            activeIcon: const Icon(Icons.dashboard),
+            label: labels[0],
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.receipt_long_outlined),
-            activeIcon: Icon(Icons.receipt_long),
-            label: '',
+            icon: const Icon(Icons.receipt_long_outlined),
+            activeIcon: const Icon(Icons.receipt_long),
+            label: labels[1],
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.account_balance_wallet_outlined),
-            activeIcon: Icon(Icons.account_balance_wallet),
-            label: '',
+            icon: const Icon(Icons.account_balance_wallet_outlined),
+            activeIcon: const Icon(Icons.account_balance_wallet),
+            label: labels[2],
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.bubble_chart_outlined),
-            activeIcon: Icon(Icons.bubble_chart),
-            label: '',
+            icon: const Icon(Icons.bubble_chart_outlined),
+            activeIcon: const Icon(Icons.bubble_chart),
+            label: labels[3],
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.settings_outlined),
-            activeIcon: Icon(Icons.settings),
-            label: '',
+            icon: const Icon(Icons.settings_outlined),
+            activeIcon: const Icon(Icons.settings),
+            label: labels[4],
           ),
         ],
       ),

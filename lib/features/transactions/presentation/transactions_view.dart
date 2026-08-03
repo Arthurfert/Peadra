@@ -16,6 +16,7 @@ import '../../../core/theme/peadra_colors.dart';
 import 'widgets/transaction_modal.dart';
 import 'recurring_view.dart';
 import '../../../shared/widgets/peadra_notification.dart';
+import '../../../shared/widgets/tag_chip.dart';
 import '../../../core/services/currency_service.dart';
 import '../../../core/responsive/responsive_layout.dart';
 
@@ -943,20 +944,12 @@ class _TransactionsViewState extends State<TransactionsView> {
             ),
             if (isPhone && txn.tagName != null) ...[
               const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                decoration: BoxDecoration(
-                  color: tagColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  txn.tagName!,
-                  style: TextStyle(
-                    color: tagColor,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+              TagChip(
+                label: txn.tagName!,
+                color: tagColor,
+                surface: colors.surface,
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
               ),
             ],
           ],
@@ -984,20 +977,14 @@ class _TransactionsViewState extends State<TransactionsView> {
               const SizedBox(width: 8),
             ],
             if (!isPhone && txn.tagName != null) ...[
-              Container(
+              TagChip(
+                label: txn.tagName!,
+                color: tagColor,
+                surface: colors.surface,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                decoration: BoxDecoration(
-                  color: tagColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  txn.tagName!,
-                  style: TextStyle(
-                    color: tagColor,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                borderRadius: BorderRadius.circular(6),
               ),
               const SizedBox(width: 8),
             ],

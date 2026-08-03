@@ -13,6 +13,7 @@ class SettingsProvider extends ChangeNotifier {
   String _categoriesView = defaultCategoriesView;
   String _dashboardPieView = defaultDashboardPieView;
   bool _lineChartDots = defaultLineChartDots;
+  String _assetsGranularity = defaultAssetsGranularity;
 
   int get displayLimit => _displayLimit;
   int get maxPieCategories => _maxPieCategories;
@@ -23,6 +24,7 @@ class SettingsProvider extends ChangeNotifier {
   String get categoriesView => _categoriesView;
   String get dashboardPieView => _dashboardPieView;
   bool get lineChartDots => _lineChartDots;
+  String get assetsGranularity => _assetsGranularity;
 
   Future<void> loadFromSettings(DatabaseManager db) async {
     _displayLimit = int.tryParse(
@@ -43,6 +45,7 @@ class SettingsProvider extends ChangeNotifier {
     _categoriesView = await db.getSetting('categories_view', defaultValue: defaultCategoriesView) ?? defaultCategoriesView;
     _dashboardPieView = await db.getSetting('dashboard_pie_view', defaultValue: defaultDashboardPieView) ?? defaultDashboardPieView;
     _lineChartDots = (await db.getSetting('line_chart_dots', defaultValue: defaultLineChartDots.toString())) == 'true';
+    _assetsGranularity = await db.getSetting('assets_granularity', defaultValue: defaultAssetsGranularity) ?? defaultAssetsGranularity;
     notifyListeners();
   }
 
@@ -106,6 +109,13 @@ class SettingsProvider extends ChangeNotifier {
     _lineChartDots = show;
     await db.setSetting('line_chart_dots', show.toString());
     LogService().log('Line chart dots set to $show');
+    notifyListeners();
+  }
+
+  Future<void> setAssetsGranularity(String granularity, DatabaseManager db) async {
+    _assetsGranularity = granularity;
+    await db.setSetting('assets_granularity', granularity);
+    LogService().log('Assets chart granularity set to $granularity');
     notifyListeners();
   }
 }

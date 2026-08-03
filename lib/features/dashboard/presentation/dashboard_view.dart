@@ -36,11 +36,13 @@ class _DashboardViewState extends State<DashboardView> {
   List<Map<String, dynamic>> _assetsHistory = [];
   Map<String, double> _monthlyExpenses = {};
   Map<String, double> _monthlyIncomes = {};
+  Map<String, String> _tagColors = {};
   bool _loading = true;
   int _selectedMonths = 6;
   String _lastCurrency = '';
   String _lastMonthMode = '';
   String _lastDashboardPieView = '';
+  String _lastAssetsGranularity = '';
 
   @override
   void initState() {
@@ -61,12 +63,15 @@ class _DashboardViewState extends State<DashboardView> {
     final currency = context.watch<SettingsProvider>().currency;
     final monthMode = context.watch<SettingsProvider>().monthMode;
     final categoriesView = context.watch<SettingsProvider>().dashboardPieView;
+    final assetsGranularity = context.watch<SettingsProvider>().assetsGranularity;
     if (currency != _lastCurrency ||
         monthMode != _lastMonthMode ||
-        categoriesView != _lastDashboardPieView) {
+        categoriesView != _lastDashboardPieView ||
+        assetsGranularity != _lastAssetsGranularity) {
       _lastCurrency = currency;
       _lastMonthMode = monthMode;
       _lastDashboardPieView = categoriesView;
+      _lastAssetsGranularity = assetsGranularity;
       _loadData();
     }
   }
@@ -77,6 +82,7 @@ class _DashboardViewState extends State<DashboardView> {
       final monthMode = context.read<SettingsProvider>().monthMode;
       final isRolling = monthMode == 'rolling';
       final isTagMode = context.read<SettingsProvider>().dashboardPieView == 'tags';
+      final assetsGranularity = context.read<SettingsProvider>().assetsGranularity;
 
       final now = DateTime.now();
       final thisMonthStart = DateTime(now.year, now.month, 1).toIso8601String().substring(0, 10);
@@ -89,7 +95,7 @@ class _DashboardViewState extends State<DashboardView> {
             : _db.getMonthlySummary(targetCurrency: currency)),
         _safeQuery(() => _db.getAccountsDistribution(targetCurrency: currency)),
         _safeQuery(() => _db.getCashFlowData(months: _selectedMonths, targetCurrency: currency)),
-        _safeQuery(() => _db.getAssetsHistory(months: _selectedMonths, targetCurrency: currency)),
+        _safeQuery(() => _db.getAssetsHistory(months: _selectedMonths, targetCurrency: currency, granularity: assetsGranularity)),
         _safeQuery(() => isRolling
             ? (isTagMode
                 ? _db.getRollingMonthTagDistribution(
@@ -118,6 +124,9 @@ class _DashboardViewState extends State<DashboardView> {
             targetCurrency: currency)),
         _safeQuery(() => _db.getSavingsTotal(
             targetCurrency: currency, before: thisMonthStart)),
+        _safeQuery(() => isTagMode
+            ? _db.getTagColors()
+            : Future.value(<String, String>{})),
       ]);
 
       if (mounted) {
@@ -136,6 +145,7 @@ class _DashboardViewState extends State<DashboardView> {
           _previousIncome = prevSummary['income'] ?? 0;
           _previousExpenses = prevSummary['expenses'] ?? 0;
           _previousSavings = (results[10] as double?) ?? 0;
+          _tagColors = (results[11] as Map<String, String>?) ?? {};
           _loading = false;
         });
       }
@@ -161,10 +171,11 @@ class _DashboardViewState extends State<DashboardView> {
   Future<void> _loadChartData() async {
     try {
       final currency = context.read<SettingsProvider>().currency;
+      final assetsGranularity = context.read<SettingsProvider>().assetsGranularity;
 
       final results = await Future.wait([
         _db.getCashFlowData(months: _selectedMonths, targetCurrency: currency),
-        _db.getAssetsHistory(months: _selectedMonths, targetCurrency: currency),
+        _db.getAssetsHistory(months: _selectedMonths, targetCurrency: currency, granularity: assetsGranularity),
       ]);
 
       if (mounted) {
@@ -415,10 +426,15 @@ class _DashboardViewState extends State<DashboardView> {
   }
 
   Widget _buildPieChartCard(PeadraColors colors, String title,
-      Map<String, double> data, String currency, int maxCategories) {
-    final pieData = data.entries.map((e) => {
-      'label': e.key,
-      'amount': e.value,
+      Map<String, double> data, String currency, int maxCategories,
+      {Map<String, String> itemColors = const {}}) {
+    final pieData = data.entries.map((e) {
+      final entryColor = itemColors[e.key];
+      return {
+        'label': e.key,
+        'amount': e.value,
+        if (entryColor != null) 'color': entryColor,
+      };
     }).toList();
 
     return Card(
@@ -515,13 +531,15 @@ class _DashboardViewState extends State<DashboardView> {
         Translator.t('dash_this_month_expenses'),
         _monthlyExpenses,
         currency,
-        maxPieCategories);
+        maxPieCategories,
+        itemColors: _tagColors);
     final incomePie = _buildPieChartCard(
         colors,
         Translator.t('dash_this_month_incomes'),
         _monthlyIncomes,
         currency,
-        maxPieCategories);
+        maxPieCategories,
+        itemColors: _tagColors);
     final assetsPie = _buildAssetsDistributionPieChart(
         colors, currency, maxPieCategories);
 

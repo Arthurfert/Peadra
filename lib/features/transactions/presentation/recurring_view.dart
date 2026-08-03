@@ -11,6 +11,7 @@ import '../../../core/models/recurring_transaction.dart';
 import '../../../core/theme/peadra_colors.dart';
 import 'widgets/transaction_modal.dart';
 import '../../../shared/widgets/peadra_notification.dart';
+import '../../../shared/widgets/tag_chip.dart';
 import '../../../core/services/currency_service.dart';
 import '../../../core/responsive/responsive_layout.dart';
 
@@ -421,21 +422,12 @@ class _RecurringViewState extends State<RecurringView> {
                 ),
                 if (rec.tagName != null) ...[
                   const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 1),
-                    decoration: BoxDecoration(
-                      color: tagColor(rec).withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      rec.tagName!,
-                      style: TextStyle(
-                        color: tagColor(rec),
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                  TagChip(
+                    label: rec.tagName!,
+                    color: tagColor(rec),
+                    surface: colors.surface,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
                   ),
                 ],
               ],

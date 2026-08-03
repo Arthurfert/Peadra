@@ -55,6 +55,23 @@ void main() {
       expect(rows, isEmpty);
     });
 
+    test('tag colors map mirrors getTagColors by name', () async {
+      await seedTestTag(db, userId, 'Groceries', color: '#388E3C');
+      await seedTestTag(db, userId, 'Trip', color: '#D32F2F');
+
+      final rows = await db.query('tags',
+          where: 'user_id = ?', whereArgs: [userId]);
+      final colors = {
+        for (final r in rows)
+          (r['name'] as String): (r['color'] as String? ?? '#1976D2'),
+      };
+
+      expect(colors, {
+        'Groceries': '#388E3C',
+        'Trip': '#D32F2F',
+      });
+    });
+
     test('UNIQUE constraint prevents duplicate tag names per user', () async {
       await seedTestTag(db, userId, 'Groceries');
       expect(

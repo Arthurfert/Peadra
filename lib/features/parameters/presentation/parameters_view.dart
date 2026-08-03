@@ -125,6 +125,7 @@ class _ParametersViewState extends State<ParametersView> {
             _buildCategoriesViewTile(settings, colors),
             _buildDashboardPieViewTile(settings, colors),
             _buildLineChartDotsTile(settings, colors),
+            _buildAssetsGranularityTile(settings, colors),
             _buildMonthModeTile(settings, colors),
             _buildMaxPieCategoriesTile(settings, colors),
           ], icon: Icons.bar_chart),
@@ -432,6 +433,32 @@ class _ParametersViewState extends State<ParametersView> {
       subtitle: Text(Translator.t('param_line_chart_dots_desc'),
           style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
       trailing: toggle,
+    );
+  }
+
+  Widget _buildAssetsGranularityTile(
+      SettingsProvider settings, PeadraColors colors) {
+    return ListTile(
+      title: Text(Translator.t('param_assets_granularity'),
+          style: TextStyle(color: colors.text)),
+      subtitle: Text(Translator.t('param_assets_granularity_desc'),
+          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+      trailing: DropdownButton<String>(
+        value: settings.assetsGranularity,
+        dropdownColor: colors.surface,
+        style: TextStyle(color: colors.text),
+        items: [
+          DropdownMenuItem(
+              value: 'monthly',
+              child: Text(Translator.t('param_assets_monthly'))),
+          DropdownMenuItem(
+              value: 'daily',
+              child: Text(Translator.t('param_assets_daily'))),
+        ],
+        onChanged: (v) async {
+          if (v != null) settings.setAssetsGranularity(v, _db);
+        },
+      ),
     );
   }
 

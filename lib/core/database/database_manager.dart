@@ -2052,7 +2052,11 @@ class DatabaseManager {
     return results;
   }
 
-  Future<List<Map<String, dynamic>>> getAssetsHistory({int months = 6, String targetCurrency = 'EUR'}) async {
+  Future<List<Map<String, dynamic>>> getAssetsHistory({
+    int months = 6,
+    String targetCurrency = 'EUR',
+    String granularity = 'monthly',
+  }) async {
     final db = await database;
     final now = DateTime.now();
 
@@ -2121,6 +2125,11 @@ class DatabaseManager {
     }
     contributions.sort((a, b) => a.$1.compareTo(b.$1));
 
+    if (granularity == 'daily') {
+      return _buildDailyAssetsHistory(
+          now, effectiveMonths, startingTotal, contributions);
+    }
+
     final monthStarts = <DateTime>[];
     for (int i = effectiveMonths; i >= 1; i--) {
       monthStarts.add(DateTime(now.year, now.month - i + 1, 1));
@@ -2146,6 +2155,35 @@ class DatabaseManager {
       });
     }
 
+    return results;
+  }
+
+  List<Map<String, dynamic>> _buildDailyAssetsHistory(
+      DateTime now, int effectiveMonths, double startingTotal,
+      List<(String, double)> contributions) {
+    final startDate = DateTime(now.year, now.month - effectiveMonths + 1, 1);
+    final todayEnd = DateTime(now.year, now.month, now.day + 1);
+
+    final results = <Map<String, dynamic>>[];
+    double cumulative = startingTotal;
+    int idx = 0;
+    var day = startDate;
+    while (day.isBefore(todayEnd)) {
+      final nextDay = DateTime(day.year, day.month, day.day + 1);
+      final nextDayIso = nextDay.toIso8601String().substring(0, 10);
+      while (idx < contributions.length &&
+          contributions[idx].$1.compareTo(nextDayIso) < 0) {
+        cumulative += contributions[idx].$2;
+        idx++;
+      }
+      results.add({
+        'date': day.toIso8601String().substring(0, 10),
+        'label': day.day == 1 ? _getMonthLabel(day.month) : '',
+        'tooltipLabel': '${day.day} ${_getMonthLabel(day.month)}',
+        'value': cumulative,
+      });
+      day = nextDay;
+    }
     return results;
   }
 
@@ -2302,6 +2340,20 @@ class DatabaseManager {
       result[tag] = (result[tag] ?? 0) + convertedAmount;
     }
     return result;
+  }
+
+  Future<Map<String, String>> getTagColors() async {
+    if (_userId == null) return {};
+    final db = await database;
+    final rows = await db.query(
+      'tags',
+      where: 'user_id = ?',
+      whereArgs: [_userId],
+    );
+    return {
+      for (final r in rows)
+        (r['name'] as String): (r['color'] as String? ?? '#1976D2'),
+    };
   }
 
   // ==================== SETTINGS ====================

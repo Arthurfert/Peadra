@@ -13,12 +13,12 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-- Ability to set recurring transactions (weekly, monthly, annualy...)
+- Ability to set the line chart with day to day data (on addition to existing monthly)
+- Pie charts now uses the tags colors when tag-based charts are enabled
 
 ### Fixed
 
-- [dev] Deleted unused code and general optimization
-- Displays the charts titles even when there is no data
+- Fixed tag contrast in transaction view & added more tag colors
 
 ## Future Improvements
 

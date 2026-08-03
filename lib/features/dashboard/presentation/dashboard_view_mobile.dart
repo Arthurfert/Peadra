@@ -365,8 +365,13 @@ class DashboardViewMobile extends StatelessWidget {
             getTooltipItems: (spots) {
               return spots.map((s) {
                 final idx = s.x.toInt();
-                final label =
-                    idx < labels.length ? labels[idx] : '';
+                String label;
+                if (idx < assetsHistory.length) {
+                  label = (assetsHistory[idx]['tooltipLabel'] as String?) ??
+                      (assetsHistory[idx]['label'] as String? ?? '');
+                } else {
+                  label = idx < labels.length ? labels[idx] : '';
+                }
                 return LineTooltipItem(
                   '$label\n${s.y.toStringAsFixed(2)}',
                   const TextStyle(color: Colors.white, fontSize: 12),

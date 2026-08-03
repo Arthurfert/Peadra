@@ -231,6 +231,7 @@ class _DashboardShellState extends State<DashboardShell> {
     final themeName = context.watch<ThemeProvider>().themeName;
     final colors = PeadraTheme.getColors(themeName);
     final isDark = context.watch<ThemeProvider>().isDark;
+    final showNavLabels = context.watch<SettingsProvider>().showNavLabels;
 
     final updateBanner = (_availableUpdate != null && !_updateBannerDismissed)
         ? _buildUpdateBanner(colors)
@@ -256,6 +257,7 @@ class _DashboardShellState extends State<DashboardShell> {
             views: _views,
             onNavTap: _onNavTap,
             onLogout: _logout,
+            showNavLabels: showNavLabels,
             colors: colors,
           );
         }

@@ -1,10 +1,11 @@
 class Translator {
   static const Map<String, Map<String, String>> _translations = {
     'en': {
-      'nav_dashboard': 'Dashboard',
+      'nav_dashboard': 'Home',
       'nav_transactions': 'Transactions',
       'nav_accounts': 'Accounts',
       'nav_categories': 'Categories',
+      'nav_settings': 'Settings',
       'login_title': 'Peadra',
       'login_subtitle': 'Financial Asset Tracker',
       'login_username': 'Username',
@@ -227,6 +228,8 @@ class Translator {
       'param_assets_granularity_desc': 'Show one data point per month or per day on the asset line chart.',
       'param_assets_monthly': 'Monthly',
       'param_assets_daily': 'Daily',
+      'param_nav_labels': 'Navigation labels',
+      'param_nav_labels_desc': 'Show text below the navigation bar icons.',
       'param_database': 'Database',
       'param_max_backups': 'Number of backups',
       'param_max_backups_desc': 'Maximum number of backup files to keep.',
@@ -332,10 +335,11 @@ class Translator {
       'period_1y': '1Y',
     },
     'fr': {
-      'nav_dashboard': 'Tableau de bord',
+      'nav_dashboard': 'Accueil',
       'nav_transactions': 'Transactions',
       'nav_accounts': 'Comptes',
       'nav_categories': 'Cat\u00e9gories',
+      'nav_settings': 'Param\u00e8tres',
       'login_title': 'Peadra',
       'login_subtitle': 'Gestionnaire de Patrimoine Financier',
       'login_username': "Nom d'utilisateur",
@@ -568,6 +572,9 @@ class Translator {
           'Afficher un point par mois ou par jour sur le graphique en ligne des actifs.',
       'param_assets_monthly': 'Mensuel',
       'param_assets_daily': 'Quotidien',
+      'param_nav_labels': 'Libell\u00e9s du menu',
+      'param_nav_labels_desc':
+          'Afficher le texte sous les ic\u00f4nes de la barre de navigation.',
       'param_database': 'Base de donn\u00e9es',
       'param_max_backups': 'Nombre de sauvegardes',
       'param_max_backups_desc': 'Nombre maximum de fichiers de sauvegarde \u00e0 conserver.',

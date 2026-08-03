@@ -11,5 +11,6 @@ const String defaultCategoriesView = 'descriptions';
 const String defaultDashboardPieView = 'descriptions';
 const bool defaultLineChartDots = true;
 const String defaultAssetsGranularity = 'monthly';
+const bool defaultShowNavLabels = false;
 
 const int globalSettingsUserId = 0;

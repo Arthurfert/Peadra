@@ -13,7 +13,8 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-- Splash screen for Android
+- Launch screen for Android
+- New parameter to choose if you want navigation bar descriptions below icons or not
 
 ### Fixed
 

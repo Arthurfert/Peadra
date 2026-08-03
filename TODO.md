@@ -13,7 +13,7 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-
+- Splash screen for Android
 
 ### Fixed
 

@@ -20,6 +20,7 @@ This document presents future changes and wanted improvements.
 - CSV export parameter french translation missing
 - Login view now use the last user connected theme instead of default dark
 - Current balance stat card percentage is now correct
+- Categories average/month amount is now correct
 
 ## Future Improvements
 

@@ -10,5 +10,6 @@ const bool defaultBiometricEnabled = false;
 const String defaultCategoriesView = 'descriptions';
 const String defaultDashboardPieView = 'descriptions';
 const bool defaultLineChartDots = true;
+const String defaultAssetsGranularity = 'monthly';
 
 const int globalSettingsUserId = 0;

@@ -41,6 +41,7 @@ class _DashboardViewState extends State<DashboardView> {
   String _lastCurrency = '';
   String _lastMonthMode = '';
   String _lastDashboardPieView = '';
+  String _lastAssetsGranularity = '';
 
   @override
   void initState() {
@@ -61,12 +62,15 @@ class _DashboardViewState extends State<DashboardView> {
     final currency = context.watch<SettingsProvider>().currency;
     final monthMode = context.watch<SettingsProvider>().monthMode;
     final categoriesView = context.watch<SettingsProvider>().dashboardPieView;
+    final assetsGranularity = context.watch<SettingsProvider>().assetsGranularity;
     if (currency != _lastCurrency ||
         monthMode != _lastMonthMode ||
-        categoriesView != _lastDashboardPieView) {
+        categoriesView != _lastDashboardPieView ||
+        assetsGranularity != _lastAssetsGranularity) {
       _lastCurrency = currency;
       _lastMonthMode = monthMode;
       _lastDashboardPieView = categoriesView;
+      _lastAssetsGranularity = assetsGranularity;
       _loadData();
     }
   }
@@ -77,6 +81,7 @@ class _DashboardViewState extends State<DashboardView> {
       final monthMode = context.read<SettingsProvider>().monthMode;
       final isRolling = monthMode == 'rolling';
       final isTagMode = context.read<SettingsProvider>().dashboardPieView == 'tags';
+      final assetsGranularity = context.read<SettingsProvider>().assetsGranularity;
 
       final now = DateTime.now();
       final thisMonthStart = DateTime(now.year, now.month, 1).toIso8601String().substring(0, 10);
@@ -89,7 +94,7 @@ class _DashboardViewState extends State<DashboardView> {
             : _db.getMonthlySummary(targetCurrency: currency)),
         _safeQuery(() => _db.getAccountsDistribution(targetCurrency: currency)),
         _safeQuery(() => _db.getCashFlowData(months: _selectedMonths, targetCurrency: currency)),
-        _safeQuery(() => _db.getAssetsHistory(months: _selectedMonths, targetCurrency: currency)),
+        _safeQuery(() => _db.getAssetsHistory(months: _selectedMonths, targetCurrency: currency, granularity: assetsGranularity)),
         _safeQuery(() => isRolling
             ? (isTagMode
                 ? _db.getRollingMonthTagDistribution(
@@ -161,10 +166,11 @@ class _DashboardViewState extends State<DashboardView> {
   Future<void> _loadChartData() async {
     try {
       final currency = context.read<SettingsProvider>().currency;
+      final assetsGranularity = context.read<SettingsProvider>().assetsGranularity;
 
       final results = await Future.wait([
         _db.getCashFlowData(months: _selectedMonths, targetCurrency: currency),
-        _db.getAssetsHistory(months: _selectedMonths, targetCurrency: currency),
+        _db.getAssetsHistory(months: _selectedMonths, targetCurrency: currency, granularity: assetsGranularity),
       ]);
 
       if (mounted) {

@@ -223,6 +223,10 @@ class Translator {
       'param_rolling_30': 'Rolling 30 days',
       'param_line_chart_dots': 'Line chart data points',
       'param_line_chart_dots_desc': 'Show data points on line charts.',
+      'param_assets_granularity': 'Asset chart granularity',
+      'param_assets_granularity_desc': 'Show one data point per month or per day on the asset line chart.',
+      'param_assets_monthly': 'Monthly',
+      'param_assets_daily': 'Daily',
       'param_database': 'Database',
       'param_max_backups': 'Number of backups',
       'param_max_backups_desc': 'Maximum number of backup files to keep.',
@@ -558,6 +562,11 @@ class Translator {
       'param_line_chart_dots': 'Points sur les graphiques en ligne',
       'param_line_chart_dots_desc':
           'Afficher les points de donn\u00e9es sur les graphiques en ligne.',
+      'param_assets_granularity': 'Pr\u00e9cision du graphique des actifs',
+      'param_assets_granularity_desc':
+          'Afficher un point par mois ou par jour sur le graphique en ligne des actifs.',
+      'param_assets_monthly': 'Mensuel',
+      'param_assets_daily': 'Quotidien',
       'param_database': 'Base de donn\u00e9es',
       'param_max_backups': 'Nombre de sauvegardes',
       'param_max_backups_desc': 'Nombre maximum de fichiers de sauvegarde \u00e0 conserver.',

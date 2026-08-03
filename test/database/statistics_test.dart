@@ -756,9 +756,20 @@ void main() {
       final now = DateTime.now();
       final startDate = now.subtract(const Duration(days: 180)).toIso8601String().substring(0, 10);
       final endDate = now.toIso8601String().substring(0, 10);
-      final sameMonthDate1 = now.subtract(const Duration(days: 3)).toIso8601String().substring(0, 10);
-      final sameMonthDate2 = now.subtract(const Duration(days: 2)).toIso8601String().substring(0, 10);
-      final sameMonthDate3 = now.subtract(const Duration(days: 1)).toIso8601String().substring(0, 10);
+
+      // Keep all dates within the current month so the transactions always
+      // fall into a single month bucket regardless of today's day of month.
+      String currentMonthDate(int daysAgo) {
+        final dt = now.subtract(Duration(days: daysAgo));
+        final clamped = dt.isBefore(DateTime(now.year, now.month, 1))
+            ? DateTime(now.year, now.month, 1)
+            : dt;
+        return clamped.toIso8601String().substring(0, 10);
+      }
+
+      final sameMonthDate1 = currentMonthDate(3);
+      final sameMonthDate2 = currentMonthDate(2);
+      final sameMonthDate3 = currentMonthDate(1);
 
       final foodId = await seedTestDescription(db, userId, 'Food');
       final rentId = await seedTestDescription(db, userId, 'Rent');
@@ -1288,6 +1299,67 @@ void main() {
       for (int i = 1; i < values.length; i++) {
         expect(values[i] >= values[i - 1], true);
       }
+    });
+
+    test('daily granularity yields one point per day with cumulative values', () async {
+      final now = DateTime.now();
+      final incomeId = await seedTestDescription(db, userId, 'Income');
+      final expenseId = await seedTestDescription(db, userId, 'Expense');
+
+      // Both transactions within the window and always in the past.
+      final incomeMonth = DateTime(now.year, now.month - 2, 1);
+      final incomeDate = DateTime(incomeMonth.year, incomeMonth.month, 15)
+          .toIso8601String()
+          .substring(0, 10);
+      final expenseDate = DateTime(incomeMonth.year, incomeMonth.month, 20)
+          .toIso8601String()
+          .substring(0, 10);
+
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: incomeId,
+          date: incomeDate, amount: 500, transactionType: 'income', currency: 'EUR');
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: expenseId,
+          date: expenseDate, amount: 100, transactionType: 'expense', currency: 'EUR');
+
+      // Daily window starts on the first of the earliest effective month (3 months ago
+      // requested, but data only spans the last 2 full months + current month).
+      final startDate = DateTime(now.year, now.month - 2, 1);
+      final today = DateTime(now.year, now.month, now.day);
+      final totalDays = today.difference(startDate).inDays + 1;
+
+      final rows = await db.rawQuery('''
+        SELECT t.date, t.transaction_type, t.amount
+        FROM transactions t
+        WHERE t.date < ? AND t.user_id = ?
+        ORDER BY t.date
+      ''', [DateTime(now.year, now.month, now.day + 1)
+          .toIso8601String()
+          .substring(0, 10), userId]);
+
+      final dailyTotals = <String, double>{};
+      for (final r in rows) {
+        final d = r['date'] as String;
+        final type = r['transaction_type'] as String;
+        final amount = (r['amount'] as num).toDouble();
+        final signed =
+            type == 'income' ? amount : (type == 'expense' ? -amount : 0.0);
+        dailyTotals[d] = (dailyTotals[d] ?? 0) + signed;
+      }
+
+      final values = <double>[];
+      double cumulative = 0.0;
+      var day = startDate;
+      for (int i = 0; i < totalDays; i++) {
+        final key = day.toIso8601String().substring(0, 10);
+        cumulative += dailyTotals[key] ?? 0.0;
+        values.add(cumulative);
+        day = DateTime(day.year, day.month, day.day + 1);
+      }
+
+      expect(values.length, totalDays);
+      expect(values.first, 0.0); // no transactions before the income date
+      expect(values.last, 400.0); // +500 income, -100 expense
     });
   });
 

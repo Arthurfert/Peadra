@@ -589,7 +589,7 @@ class DatabaseManager {
     );
     for (final row in acctRows) {
       final name = row['name'] as String?;
-      final amount = row['starting_amount'] as String?;
+      final amount = row['starting_amount'] as dynamic;
       if (name != null && name.isNotEmpty) {
         final decrypted = await EncryptionService.decrypt(name, oldKey);
         final reEncrypted = await _encrypt(decrypted);
@@ -598,8 +598,9 @@ class DatabaseManager {
           [reEncrypted, row['id'], _userId],
         );
       }
-      if (amount != null && amount.isNotEmpty) {
-        final decrypted = await EncryptionService.decrypt(amount, oldKey);
+      if (amount != null && amount.toString().isNotEmpty) {
+        final decrypted =
+            await EncryptionService.decrypt(amount.toString(), oldKey);
         final reEncrypted = await _encrypt(decrypted);
         await db.execute(
           'UPDATE accounts SET starting_amount = ? WHERE id = ? AND user_id = ?',
@@ -629,10 +630,11 @@ class DatabaseManager {
       [_userId],
     );
     for (final row in txnRows) {
-      final amount = row['amount'] as String?;
+      final amount = row['amount'] as dynamic;
       final notes = row['notes'] as String?;
-      if (amount != null && amount.isNotEmpty) {
-        final decrypted = await EncryptionService.decrypt(amount, oldKey);
+      if (amount != null && amount.toString().isNotEmpty) {
+        final decrypted =
+            await EncryptionService.decrypt(amount.toString(), oldKey);
         final reEncrypted = await _encrypt(decrypted);
         await db.execute(
           'UPDATE transactions SET amount = ? WHERE id = ? AND user_id = ?',
@@ -654,10 +656,11 @@ class DatabaseManager {
       [_userId],
     );
     for (final row in recRows) {
-      final amount = row['amount'] as String?;
+      final amount = row['amount'] as dynamic;
       final notes = row['notes'] as String?;
-      if (amount != null && amount.isNotEmpty) {
-        final decrypted = await EncryptionService.decrypt(amount, oldKey);
+      if (amount != null && amount.toString().isNotEmpty) {
+        final decrypted =
+            await EncryptionService.decrypt(amount.toString(), oldKey);
         final reEncrypted = await _encrypt(decrypted);
         await db.execute(
           'UPDATE recurring_transactions SET amount = ? WHERE id = ? AND user_id = ?',

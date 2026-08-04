@@ -13,16 +13,16 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-
+- Peer to peer sync between mobile and desktop
 
 ### Fixed
 
 - Fixed the line graph x-coordinates legend sometimes overlapping on mobile
+- Fixed a rare re-encryption bug
 
 ## Future Improvements
 
 **New features :**
-- Peer to peer sync between mobile and desktop
 - Budget view, linked to tags
 - Tools view (composed interests, simulations...)
 - Compute trends/forecast

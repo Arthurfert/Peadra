@@ -9,9 +9,9 @@ import 'package:peadra/core/models/user.dart';
 void main() {
   group('Account', () {
     test('constructor defaults', () {
-      final account = Account(userId: 1, name: 'Main');
+      final account = Account(userId: '1', name: 'Main');
       expect(account.id, isNull);
-      expect(account.userId, 1);
+      expect(account.userId, '1');
       expect(account.name, 'Main');
       expect(account.type, 'savings');
       expect(account.color, '#1976D2');
@@ -21,15 +21,15 @@ void main() {
 
     test('constructor with all fields', () {
       final account = Account(
-        id: 5,
-        userId: 1,
+        id: '5',
+        userId: '1',
         name: 'Checking',
         type: 'checking',
         color: '#FF0000',
         currency: 'USD',
         createdAt: '2026-01-01',
       );
-      expect(account.id, 5);
+      expect(account.id, '5');
       expect(account.type, 'checking');
       expect(account.color, '#FF0000');
       expect(account.currency, 'USD');
@@ -37,23 +37,23 @@ void main() {
     });
 
     test('isChecking and isSavings getters', () {
-      final savings = Account(userId: 1, name: 'S', type: 'savings');
+      final savings = Account(userId: '1', name: 'S', type: 'savings');
       expect(savings.isSavings, isTrue);
       expect(savings.isChecking, isFalse);
 
-      final checking = Account(userId: 1, name: 'C', type: 'checking');
+      final checking = Account(userId: '1', name: 'C', type: 'checking');
       expect(checking.isChecking, isTrue);
       expect(checking.isSavings, isFalse);
 
-      final other = Account(userId: 1, name: 'X', type: 'investment');
+      final other = Account(userId: '1', name: 'X', type: 'investment');
       expect(other.isChecking, isFalse);
       expect(other.isSavings, isFalse);
     });
 
     test('fromMap/toMap roundtrip', () {
       final original = Account(
-        id: 3,
-        userId: 1,
+        id: '3',
+        userId: '1',
         name: 'Savings',
         type: 'savings',
         color: '#4CAF50',
@@ -73,14 +73,14 @@ void main() {
     });
 
     test('toMap omits null id and createdAt', () {
-      final account = Account(userId: 1, name: 'Test');
+      final account = Account(userId: '1', name: 'Test');
       final map = account.toMap();
       expect(map.containsKey('id'), isFalse);
       expect(map.containsKey('created_at'), isFalse);
     });
 
     test('fromMap uses defaults for missing optional fields', () {
-      final map = {'user_id': 1, 'name': 'Test'};
+      final map = {'user_id': '1', 'name': 'Test'};
       final account = Account.fromMap(map);
       expect(account.type, 'savings');
       expect(account.color, '#1976D2');
@@ -88,20 +88,20 @@ void main() {
     });
 
     test('copyWith overrides specified fields', () {
-      final original = Account(userId: 1, name: 'A', type: 'savings');
+      final original = Account(userId: '1', name: 'A', type: 'savings');
       final copied = original.copyWith(name: 'B', color: '#FF0000');
 
       expect(copied.name, 'B');
       expect(copied.color, '#FF0000');
-      expect(copied.userId, 1);
+      expect(copied.userId, '1');
       expect(copied.type, 'savings');
       expect(copied.currency, 'EUR');
     });
 
     test('copyWith preserves all fields when none specified', () {
       final original = Account(
-        id: 2,
-        userId: 1,
+        id: '2',
+        userId: '1',
         name: 'X',
         type: 'checking',
         color: '#000',
@@ -122,8 +122,8 @@ void main() {
   group('AccountWithBalance', () {
     test('fromMap with balance', () {
       final map = {
-        'id': 1,
-        'user_id': 1,
+        'id': '1',
+        'user_id': '1',
         'name': 'Main',
         'type': 'checking',
         'color': '#FF0000',
@@ -132,7 +132,7 @@ void main() {
         'balance': 1234.56,
       };
       final account = AccountWithBalance.fromMap(map);
-      expect(account.id, 1);
+      expect(account.id, '1');
       expect(account.balance, 1234.56);
       expect(account.name, 'Main');
       expect(account.type, 'checking');
@@ -140,8 +140,8 @@ void main() {
 
     test('default balance is 0.0', () {
       final account = AccountWithBalance(
-        id: 1,
-        userId: 1,
+        id: '1',
+        userId: '1',
         name: 'Test',
         type: 'savings',
         color: '#000',
@@ -152,8 +152,8 @@ void main() {
 
     test('fromMap defaults balance to 0.0 when missing', () {
       final map = {
-        'id': 1,
-        'user_id': 1,
+        'id': '1',
+        'user_id': '1',
         'name': 'Test',
         'type': 'savings',
         'color': '#000',
@@ -165,8 +165,8 @@ void main() {
 
     test('fromMap handles integer balance', () {
       final map = {
-        'id': 1,
-        'user_id': 1,
+        'id': '1',
+        'user_id': '1',
         'name': 'Test',
         'type': 'savings',
         'color': '#000',
@@ -181,13 +181,13 @@ void main() {
   group('Transaction', () {
     test('constructor defaults', () {
       final tx = Transaction(
-        userId: 1,
+        userId: '1',
         date: '2026-06-01',
         amount: 50.0,
         transactionType: 'expense',
       );
       expect(tx.id, isNull);
-      expect(tx.userId, 1);
+      expect(tx.userId, '1');
       expect(tx.accountId, isNull);
       expect(tx.descriptionId, isNull);
       expect(tx.tagId, isNull);
@@ -202,11 +202,11 @@ void main() {
 
     test('constructor with all fields', () {
       final tx = Transaction(
-        id: 10,
-        userId: 1,
-        accountId: 2,
-        descriptionId: 3,
-        tagId: 5,
+        id: '10',
+        userId: '1',
+        accountId: '2',
+        descriptionId: '3',
+        tagId: '5',
         date: '2026-06-01',
         amount: 100.0,
         transactionType: 'income',
@@ -215,17 +215,17 @@ void main() {
         createdAt: '2026-06-01T10:00:00',
         updatedAt: '2026-06-01T10:00:00',
       );
-      expect(tx.id, 10);
-      expect(tx.accountId, 2);
-      expect(tx.descriptionId, 3);
-      expect(tx.tagId, 5);
+      expect(tx.id, '10');
+      expect(tx.accountId, '2');
+      expect(tx.descriptionId, '3');
+      expect(tx.tagId, '5');
       expect(tx.currency, 'USD');
       expect(tx.notes, 'Salary');
     });
 
     test('isIncome/isExpense/isTransfer getters', () {
       final income = Transaction(
-        userId: 1,
+        userId: '1',
         date: 'd',
         amount: 1,
         transactionType: 'income',
@@ -235,7 +235,7 @@ void main() {
       expect(income.isTransfer, isFalse);
 
       final expense = Transaction(
-        userId: 1,
+        userId: '1',
         date: 'd',
         amount: 1,
         transactionType: 'expense',
@@ -245,7 +245,7 @@ void main() {
       expect(expense.isTransfer, isFalse);
 
       final transfer = Transaction(
-        userId: 1,
+        userId: '1',
         date: 'd',
         amount: 1,
         transactionType: 'transfer',
@@ -257,11 +257,11 @@ void main() {
 
     test('fromMap/toMap roundtrip', () {
       final original = Transaction(
-        id: 7,
-        userId: 1,
-        accountId: 2,
-        descriptionId: 3,
-        tagId: 4,
+        id: '7',
+        userId: '1',
+        accountId: '2',
+        descriptionId: '3',
+        tagId: '4',
         date: '2026-06-15',
         amount: 42.99,
         transactionType: 'expense',
@@ -285,7 +285,7 @@ void main() {
 
     test('toMap omits null id', () {
       final tx = Transaction(
-        userId: 1,
+        userId: '1',
         date: 'd',
         amount: 1,
         transactionType: 'expense',
@@ -296,7 +296,7 @@ void main() {
 
     test('fromMap uses default currency when missing', () {
       final map = {
-        'user_id': 1,
+        'user_id': '1',
         'date': '2026-01-01',
         'amount': 10,
         'transaction_type': 'expense',
@@ -307,7 +307,7 @@ void main() {
 
     test('fromMap handles int amount as num', () {
       final map = {
-        'user_id': 1,
+        'user_id': '1',
         'date': '2026-01-01',
         'amount': 50,
         'transaction_type': 'expense',
@@ -318,8 +318,8 @@ void main() {
 
     test('copyWith overrides specified fields', () {
       final original = Transaction(
-        id: 1,
-        userId: 1,
+        id: '1',
+        userId: '1',
         date: '2026-01-01',
         amount: 10.0,
         transactionType: 'expense',
@@ -328,14 +328,14 @@ void main() {
 
       expect(copied.amount, 20.0);
       expect(copied.notes, 'Updated');
-      expect(copied.id, 1);
-      expect(copied.userId, 1);
+      expect(copied.id, '1');
+      expect(copied.userId, '1');
       expect(copied.transactionType, 'expense');
     });
 
     test('copyWith preserves createdAt and updatedAt', () {
       final original = Transaction(
-        userId: 1,
+        userId: '1',
         date: 'd',
         amount: 1,
         transactionType: 'expense',
@@ -349,31 +349,31 @@ void main() {
 
     test('copyWith tagId and clearTag', () {
       final original = Transaction(
-        userId: 1,
+        userId: '1',
         date: 'd',
         amount: 1,
         transactionType: 'expense',
-        tagId: 5,
+        tagId: '5',
       );
-      final copiedWithTag = original.copyWith(tagId: 10);
-      expect(copiedWithTag.tagId, 10);
+      final copiedWithTag = original.copyWith(tagId: '10');
+      expect(copiedWithTag.tagId, '10');
 
       final copiedClearTag = original.copyWith(clearTag: true);
       expect(copiedClearTag.tagId, isNull);
 
       final copiedNoChange = original.copyWith();
-      expect(copiedNoChange.tagId, 5);
+      expect(copiedNoChange.tagId, '5');
     });
   });
 
   group('TransactionWithDetails', () {
     test('fromMap with joined fields', () {
       final map = {
-        'id': 1,
-        'user_id': 1,
-        'account_id': 2,
-        'description_id': 3,
-        'tag_id': 5,
+        'id': '1',
+        'user_id': '1',
+        'account_id': '2',
+        'description_id': '3',
+        'tag_id': '5',
         'date': '2026-06-01',
         'amount': 100.0,
         'transaction_type': 'expense',
@@ -390,10 +390,10 @@ void main() {
       };
       final tx = TransactionWithDetails.fromMap(map);
 
-      expect(tx.id, 1);
-      expect(tx.accountId, 2);
-      expect(tx.descriptionId, 3);
-      expect(tx.tagId, 5);
+      expect(tx.id, '1');
+      expect(tx.accountId, '2');
+      expect(tx.descriptionId, '3');
+      expect(tx.tagId, '5');
       expect(tx.amount, 100.0);
       expect(tx.accountName, 'Main Checking');
       expect(tx.accountColor, '#4CAF50');
@@ -405,8 +405,8 @@ void main() {
 
     test('fromMap with null joined fields', () {
       final map = {
-        'id': 1,
-        'user_id': 1,
+        'id': '1',
+        'user_id': '1',
         'date': '2026-06-01',
         'amount': 50.0,
         'transaction_type': 'income',
@@ -423,11 +423,11 @@ void main() {
 
     test('constructor with all fields', () {
       final tx = TransactionWithDetails(
-        id: 1,
-        userId: 1,
-        accountId: 2,
-        descriptionId: 3,
-        tagId: 5,
+        id: '1',
+        userId: '1',
+        accountId: '2',
+        descriptionId: '3',
+        tagId: '5',
         date: '2026-06-01',
         amount: 75.0,
         transactionType: 'transfer',
@@ -444,35 +444,35 @@ void main() {
       expect(tx.descriptionName, 'Transfer');
       expect(tx.tagName, 'Trip');
       expect(tx.tagColor, '#D32F2F');
-      expect(tx.tagId, 5);
+      expect(tx.tagId, '5');
       expect(tx.isTransfer, isTrue);
     });
   });
 
   group('Description', () {
     test('constructor', () {
-      final d = desc_model.Description(userId: 1, name: 'Groceries');
+      final d = desc_model.Description(userId: '1', name: 'Groceries');
       expect(d.id, isNull);
-      expect(d.userId, 1);
+      expect(d.userId, '1');
       expect(d.name, 'Groceries');
       expect(d.createdAt, isNull);
     });
 
     test('constructor with all fields', () {
       final d = desc_model.Description(
-        id: 5,
-        userId: 1,
+        id: '5',
+        userId: '1',
         name: 'Salary',
         createdAt: '2026-01-01',
       );
-      expect(d.id, 5);
+      expect(d.id, '5');
       expect(d.createdAt, '2026-01-01');
     });
 
     test('fromMap/toMap roundtrip', () {
       final original = desc_model.Description(
-        id: 3,
-        userId: 2,
+        id: '3',
+        userId: '2',
         name: 'Rent',
         createdAt: '2026-06-01',
       );
@@ -486,25 +486,25 @@ void main() {
     });
 
     test('toMap omits null id and createdAt', () {
-      final d = desc_model.Description(userId: 1, name: 'Test');
+      final d = desc_model.Description(userId: '1', name: 'Test');
       final map = d.toMap();
       expect(map.containsKey('id'), isFalse);
       expect(map.containsKey('created_at'), isFalse);
     });
 
     test('copyWith overrides specified fields', () {
-      final original = desc_model.Description(userId: 1, name: 'A');
-      final copied = original.copyWith(name: 'B', id: 10);
+      final original = desc_model.Description(userId: '1', name: 'A');
+      final copied = original.copyWith(name: 'B', id: '10');
 
       expect(copied.name, 'B');
-      expect(copied.id, 10);
-      expect(copied.userId, 1);
+      expect(copied.id, '10');
+      expect(copied.userId, '1');
     });
 
     test('copyWith preserves all fields when none specified', () {
       final original = desc_model.Description(
-        id: 2,
-        userId: 1,
+        id: '2',
+        userId: '1',
         name: 'Test',
         createdAt: '2026-01-01',
       );
@@ -518,22 +518,22 @@ void main() {
 
   group('Setting', () {
     test('constructor', () {
-      final setting = Setting(userId: 1, key: 'theme', value: 'dark');
+      final setting = Setting(userId: '1', key: 'theme', value: 'dark');
       expect(setting.id, isNull);
-      expect(setting.userId, 1);
+      expect(setting.userId, '1');
       expect(setting.key, 'theme');
       expect(setting.value, 'dark');
     });
 
     test('constructor with null value', () {
-      final setting = Setting(userId: 1, key: 'theme');
+      final setting = Setting(userId: '1', key: 'theme');
       expect(setting.value, isNull);
     });
 
     test('fromMap/toMap roundtrip', () {
       final original = Setting(
-        id: 4,
-        userId: 1,
+        id: '4',
+        userId: '1',
         key: 'language',
         value: 'pt_BR',
       );
@@ -547,13 +547,13 @@ void main() {
     });
 
     test('toMap omits null id', () {
-      final setting = Setting(userId: 1, key: 'k', value: 'v');
+      final setting = Setting(userId: '1', key: 'k', value: 'v');
       final map = setting.toMap();
       expect(map.containsKey('id'), isFalse);
     });
 
     test('fromMap with null value', () {
-      final map = {'user_id': 1, 'key': 'theme'};
+      final map = {'user_id': '1', 'key': 'theme'};
       final setting = Setting.fromMap(map);
       expect(setting.value, isNull);
     });
@@ -561,9 +561,9 @@ void main() {
 
   group('ImportedFile', () {
     test('constructor', () {
-      final file = ImportedFile(userId: 1, fileHash: 'abc123');
+      final file = ImportedFile(userId: '1', fileHash: 'abc123');
       expect(file.id, isNull);
-      expect(file.userId, 1);
+      expect(file.userId, '1');
       expect(file.fileHash, 'abc123');
       expect(file.filename, isNull);
       expect(file.importedAt, isNull);
@@ -571,21 +571,21 @@ void main() {
 
     test('constructor with all fields', () {
       final file = ImportedFile(
-        id: 2,
-        userId: 1,
+        id: '2',
+        userId: '1',
         fileHash: 'def456',
         filename: 'data.csv',
         importedAt: '2026-06-01T10:00:00',
       );
-      expect(file.id, 2);
+      expect(file.id, '2');
       expect(file.filename, 'data.csv');
       expect(file.importedAt, '2026-06-01T10:00:00');
     });
 
     test('fromMap/toMap roundtrip', () {
       final original = ImportedFile(
-        id: 1,
-        userId: 1,
+        id: '1',
+        userId: '1',
         fileHash: 'hash123',
         filename: 'bank.csv',
       );
@@ -599,15 +599,15 @@ void main() {
     });
 
     test('toMap omits null id', () {
-      final file = ImportedFile(userId: 1, fileHash: 'h');
+      final file = ImportedFile(userId: '1', fileHash: 'h');
       final map = file.toMap();
       expect(map.containsKey('id'), isFalse);
     });
 
     test('fromMap reads imported_at', () {
       final map = {
-        'id': 1,
-        'user_id': 1,
+        'id': '1',
+        'user_id': '1',
         'file_hash': 'h',
         'filename': 'f.csv',
         'imported_at': '2026-06-01',
@@ -700,18 +700,18 @@ void main() {
 
     test('constructor with all fields', () {
       final user = User(
-        id: 1,
+        id: '1',
         username: 'bob',
         passwordHash: 'secure',
         createdAt: '2026-01-01',
       );
-      expect(user.id, 1);
+      expect(user.id, '1');
       expect(user.createdAt, '2026-01-01');
     });
 
     test('fromMap/toMap roundtrip', () {
       final original = User(
-        id: 3,
+        id: '3',
         username: 'charlie',
         passwordHash: 'pw123',
         createdAt: '2026-03-10',
@@ -744,9 +744,9 @@ void main() {
 
   group('Tag', () {
     test('constructor defaults', () {
-      final tag = Tag(userId: 1, name: 'Groceries');
+      final tag = Tag(userId: '1', name: 'Groceries');
       expect(tag.id, isNull);
-      expect(tag.userId, 1);
+      expect(tag.userId, '1');
       expect(tag.name, 'Groceries');
       expect(tag.color, '#1976D2');
       expect(tag.createdAt, isNull);
@@ -754,13 +754,13 @@ void main() {
 
     test('constructor with all fields', () {
       final tag = Tag(
-        id: 5,
-        userId: 1,
+        id: '5',
+        userId: '1',
         name: 'Trip',
         color: '#D32F2F',
         createdAt: '2026-06-01',
       );
-      expect(tag.id, 5);
+      expect(tag.id, '5');
       expect(tag.name, 'Trip');
       expect(tag.color, '#D32F2F');
       expect(tag.createdAt, '2026-06-01');
@@ -768,8 +768,8 @@ void main() {
 
     test('fromMap/toMap roundtrip', () {
       final original = Tag(
-        id: 3,
-        userId: 1,
+        id: '3',
+        userId: '1',
         name: 'Taxes',
         color: '#F57C00',
       );
@@ -783,21 +783,21 @@ void main() {
     });
 
     test('toMap omits null id', () {
-      final tag = Tag(userId: 1, name: 'Test');
+      final tag = Tag(userId: '1', name: 'Test');
       final map = tag.toMap();
       expect(map.containsKey('id'), isFalse);
     });
 
     test('copyWith overrides specified fields', () {
-      final original = Tag(userId: 1, name: 'Old', color: '#FF0000');
+      final original = Tag(userId: '1', name: 'Old', color: '#FF0000');
       final copied = original.copyWith(name: 'New', color: '#00FF00');
       expect(copied.name, 'New');
       expect(copied.color, '#00FF00');
-      expect(copied.userId, 1);
+      expect(copied.userId, '1');
     });
 
     test('copyWith preserves all fields when none specified', () {
-      final original = Tag(id: 2, userId: 1, name: 'Tag', color: '#1976D2');
+      final original = Tag(id: '2', userId: '1', name: 'Tag', color: '#1976D2');
       final copied = original.copyWith();
       expect(copied.id, original.id);
       expect(copied.userId, original.userId);

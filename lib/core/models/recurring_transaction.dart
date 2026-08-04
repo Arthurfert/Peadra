@@ -1,9 +1,9 @@
 class RecurringTransaction {
-  final int? id;
-  final int userId;
-  final int? accountId;
-  final int? descriptionId;
-  final int? tagId;
+  final String? id;
+  final String userId;
+  final String? accountId;
+  final String? descriptionId;
+  final String? tagId;
   final double amount;
   final String transactionType;
   final String currency;
@@ -45,11 +45,11 @@ class RecurringTransaction {
   bool get isExpense => transactionType == 'expense';
 
   RecurringTransaction copyWith({
-    int? id,
-    int? userId,
-    int? accountId,
-    int? descriptionId,
-    int? tagId,
+    String? id,
+    String? userId,
+    String? accountId,
+    String? descriptionId,
+    String? tagId,
     bool clearTag = false,
     double? amount,
     String? transactionType,
@@ -109,11 +109,11 @@ class RecurringTransaction {
 
   factory RecurringTransaction.fromMap(Map<String, dynamic> map) =>
       RecurringTransaction(
-        id: map['id'] as int?,
-        userId: map['user_id'] as int,
-        accountId: map['account_id'] as int?,
-        descriptionId: map['description_id'] as int?,
-        tagId: map['tag_id'] as int?,
+        id: map['id'] as String?,
+        userId: map['user_id'] as String,
+        accountId: map['account_id'] as String?,
+        descriptionId: map['description_id'] as String?,
+        tagId: map['tag_id'] as String?,
         amount: (map['amount'] as num).toDouble(),
         transactionType: map['transaction_type'] as String,
         currency: map['currency'] as String? ?? 'EUR',
@@ -171,11 +171,11 @@ class RecurringTransactionWithDetails extends RecurringTransaction {
 
   factory RecurringTransactionWithDetails.fromMap(Map<String, dynamic> map) =>
       RecurringTransactionWithDetails(
-        id: map['id'] as int?,
-        userId: map['user_id'] as int,
-        accountId: map['account_id'] as int?,
-        descriptionId: map['description_id'] as int?,
-        tagId: map['tag_id'] as int?,
+        id: map['id'] as String?,
+        userId: map['user_id'] as String,
+        accountId: map['account_id'] as String?,
+        descriptionId: map['description_id'] as String?,
+        tagId: map['tag_id'] as String?,
         amount: (map['amount'] as num).toDouble(),
         transactionType: map['transaction_type'] as String,
         currency: map['currency'] as String? ?? 'EUR',

@@ -1,6 +1,6 @@
 class Tag {
-  final int? id;
-  final int userId;
+  final String? id;
+  final String userId;
   final String name;
   final String color;
   final String? createdAt;
@@ -14,8 +14,8 @@ class Tag {
   });
 
   Tag copyWith({
-    int? id,
-    int? userId,
+    String? id,
+    String? userId,
     String? name,
     String? color,
   }) =>
@@ -35,8 +35,8 @@ class Tag {
       };
 
   factory Tag.fromMap(Map<String, dynamic> map) => Tag(
-        id: map['id'] as int?,
-        userId: map['user_id'] as int,
+        id: map['id'] as String?,
+        userId: map['user_id'] as String,
         name: map['name'] as String,
         color: map['color'] as String? ?? '#1976D2',
         createdAt: map['created_at'] as String?,

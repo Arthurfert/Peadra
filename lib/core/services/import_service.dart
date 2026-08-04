@@ -332,7 +332,7 @@ class ImportService {
     required String filePath,
     required List<ImportMapping> mappings,
     required String transactionType,
-    required int accountId,
+    required String accountId,
     required String currency,
     String? delimiter,
   }) async {
@@ -467,7 +467,7 @@ class ImportService {
         }
 
         // Get or create description
-        int? descId;
+        String? descId;
         if (description != null && description.isNotEmpty) {
           descId = await _db.getOrCreateDescription(description);
         }
@@ -483,7 +483,7 @@ class ImportService {
           notes: null,
         );
 
-        if (txId != null && txId > 0) {
+        if (txId != null) {
           seenSignatures.add(signature);
           imported++;
         } else {

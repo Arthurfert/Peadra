@@ -3,15 +3,15 @@ import '../database/database_manager.dart';
 import '../services/log_service.dart';
 
 class AuthProvider extends ChangeNotifier {
-  int? _userId;
+  String? _userId;
   String _username = '';
   bool _isAuthenticated = false;
 
-  int? get userId => _userId;
+  String? get userId => _userId;
   String get username => _username;
   bool get isAuthenticated => _isAuthenticated;
 
-  void login(int userId, String username, DatabaseManager db) {
+  void login(String userId, String username, DatabaseManager db) {
     _userId = userId;
     _username = username;
     _isAuthenticated = true;

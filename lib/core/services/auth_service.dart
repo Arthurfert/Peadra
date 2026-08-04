@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
+import 'package:uuid/uuid.dart';
 
 import '../database/database_manager.dart';
 import 'encryption_service.dart';
@@ -8,6 +9,7 @@ import 'log_service.dart';
 
 class AuthService {
   final DatabaseManager _db;
+  final Uuid _uuid = const Uuid();
 
   AuthService(this._db);
 
@@ -21,14 +23,14 @@ class AuthService {
 
   Future<bool> userExists(String username) async {
     final db = await _db.database;
-    final results = await db.rawQuery(
-      'SELECT id FROM users WHERE username = ?',
+    final results = await db.query(
+      'SELECT id FROM users WHERE username = ? AND is_deleted = 0',
       [username],
     );
     return results.isNotEmpty;
   }
 
-  Future<int> registerUser(String username, String password) async {
+  Future<String> registerUser(String username, String password) async {
     if (username.isEmpty || password.isEmpty) {
       throw ArgumentError('Username and password are required.');
     }
@@ -36,26 +38,27 @@ class AuthService {
       throw ArgumentError("Username '$username' already exists.");
     }
     final passwordHash = hashPassword(password);
+    final id = _uuid.v4();
     final db = await _db.database;
-    final id = await db.rawInsert(
-      'INSERT INTO users (username, password_hash) VALUES (?, ?)',
-      [username, passwordHash],
+    await db.execute(
+      'INSERT INTO users (id, username, password_hash) VALUES (?1, ?2, ?3)',
+      [id, username, passwordHash],
     );
     LogService().log('User registered: $username (id $id)');
     return id;
   }
 
-  Future<int?> authenticateUser(String username, String password) async {
+  Future<String?> authenticateUser(String username, String password) async {
     final db = await _db.database;
-    final results = await db.rawQuery(
-      'SELECT id, password_hash FROM users WHERE username = ?',
+    final results = await db.query(
+      'SELECT id, password_hash FROM users WHERE username = ? AND is_deleted = 0',
       [username],
     );
     if (results.isEmpty) return null;
     final row = results.first;
     if (verifyPassword(password, row['password_hash'] as String)) {
       LogService().log('User authenticated: $username');
-      return row['id'] as int;
+      return row['id'] as String;
     }
     LogService().warn('Failed login attempt for: $username');
     return null;
@@ -63,19 +66,19 @@ class AuthService {
 
   Future<List<String>> getAllUsernames() async {
     final db = await _db.database;
-    final results = await db.rawQuery(
-      'SELECT username FROM users ORDER BY username',
+    final results = await db.query(
+      'SELECT username FROM users WHERE is_deleted = 0 ORDER BY username',
     );
     return results.map((r) => r['username'] as String).toList();
   }
 
-  Future<bool> updatePassword(int userId, String oldPassword, String newPassword) async {
+  Future<bool> updatePassword(String userId, String oldPassword, String newPassword) async {
     if (newPassword.isEmpty) {
       throw ArgumentError('New password cannot be empty.');
     }
     final db = await _db.database;
-    final rows = await db.rawQuery(
-      'SELECT password_hash FROM users WHERE id = ?',
+    final rows = await db.query(
+      'SELECT password_hash FROM users WHERE id = ? AND is_deleted = 0',
       [userId],
     );
     if (rows.isEmpty) return false;
@@ -91,30 +94,30 @@ class AuthService {
     }
 
     final newHash = hashPassword(newPassword);
-    final count = await db.rawUpdate(
+    await db.execute(
       'UPDATE users SET password_hash = ? WHERE id = ?',
       [newHash, userId],
     );
     LogService().log('Password changed for user $userId');
-    return count > 0;
+    return true;
   }
 
-  Future<bool> updateUsername(int userId, String newUsername) async {
+  Future<bool> updateUsername(String userId, String newUsername) async {
     if (newUsername.trim().isEmpty) {
       throw ArgumentError('Username cannot be empty.');
     }
     final db = await _db.database;
-    final existing = await db.rawQuery(
-      'SELECT id FROM users WHERE username = ? AND id != ?',
+    final existing = await db.query(
+      'SELECT id FROM users WHERE username = ? AND id != ? AND is_deleted = 0',
       [newUsername.trim(), userId],
     );
     if (existing.isNotEmpty) {
       throw ArgumentError("Username '${newUsername.trim()}' already exists.");
     }
-    final count = await db.rawUpdate(
+    await db.execute(
       'UPDATE users SET username = ? WHERE id = ?',
       [newUsername.trim(), userId],
     );
-    return count > 0;
+    return true;
   }
 }

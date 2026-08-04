@@ -41,8 +41,8 @@ class BiometricService {
     }
   }
 
-  Future<void> saveCredentials(int userId, String username, {SecretKey? encryptionKey}) async {
-    await _storage.write(key: _keyUserId, value: userId.toString());
+  Future<void> saveCredentials(String userId, String username, {SecretKey? encryptionKey}) async {
+    await _storage.write(key: _keyUserId, value: userId);
     await _storage.write(key: _keyUsername, value: username);
     if (encryptionKey != null) {
       final keyBytes = (await encryptionKey.extract()).bytes;

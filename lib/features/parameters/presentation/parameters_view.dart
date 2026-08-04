@@ -635,8 +635,8 @@ class _ParametersViewState extends State<ParametersView> {
           ),
         ),
         onPressed: () async {
-          final db = await _db.database;
-          final path = db.path;
+          final path = _db.dbPath;
+          if (path == null) return;
           final dir = File(path).parent.path;
           if (Platform.isLinux) {
             await Process.run('xdg-open', [dir]);

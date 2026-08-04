@@ -49,9 +49,9 @@ class _TransactionModalState extends State<TransactionModal> {
   final _newAccountController = TextEditingController();
 
   String _transactionType = 'expense';
-  int? _selectedAccountId;
-  int? _sourceAccountId;
-  int? _destAccountId;
+  String? _selectedAccountId;
+  String? _sourceAccountId;
+  String? _destAccountId;
   String _selectedCurrency = 'EUR';
   bool _isRecurring = false;
   String _frequency = 'monthly';
@@ -64,7 +64,7 @@ class _TransactionModalState extends State<TransactionModal> {
   double? _exchangeRate;
   double? _convertedAmount;
   List<Tag> _tags = [];
-  int? _selectedTagId;
+  String? _selectedTagId;
   Timer? _suggestionDebounce;
 
   bool get _isTransfer => _transactionType == 'transfer';
@@ -591,7 +591,7 @@ class _TransactionModalState extends State<TransactionModal> {
   }
 
   Widget _buildAccountDropdown(PeadraColors colors) {
-    return DropdownButtonFormField<int>(
+    return DropdownButtonFormField<String>(
       initialValue: _selectedAccountId,
       isExpanded: true,
       decoration: InputDecoration(
@@ -616,7 +616,7 @@ class _TransactionModalState extends State<TransactionModal> {
   Widget _buildTransferAccounts(PeadraColors colors) {
     return Column(
       children: [
-        DropdownButtonFormField<int>(
+        DropdownButtonFormField<String>(
           initialValue: _sourceAccountId,
           isExpanded: true,
           decoration: InputDecoration(
@@ -635,7 +635,7 @@ class _TransactionModalState extends State<TransactionModal> {
           },
         ),
         const SizedBox(height: 12),
-        DropdownButtonFormField<int>(
+        DropdownButtonFormField<String>(
           initialValue: _destAccountId,
           isExpanded: true,
           decoration: InputDecoration(
@@ -699,7 +699,7 @@ class _TransactionModalState extends State<TransactionModal> {
   }
 
   Widget _buildTagSelector(PeadraColors colors) {
-    return DropdownButtonFormField<int>(
+    return DropdownButtonFormField<String>(
       initialValue: _selectedTagId,
       isExpanded: true,
       decoration: InputDecoration(
@@ -714,12 +714,12 @@ class _TransactionModalState extends State<TransactionModal> {
         ),
       ),
       items: [
-        DropdownMenuItem<int>(
+        DropdownMenuItem<String>(
           value: null,
           child: Text(Translator.t('tag_none'),
               style: TextStyle(color: colors.placeholderColor)),
         ),
-        ..._tags.map((t) => DropdownMenuItem<int>(
+        ..._tags.map((t) => DropdownMenuItem<String>(
               value: t.id,
               child: Row(
                 children: [

@@ -54,7 +54,7 @@ class _TransactionsViewState extends State<TransactionsView> {
   List<Tag> _tags = [];
   bool _loading = true;
   String _searchQuery = '';
-  final Set<int> _selectedTagIds = {};
+  final Set<String> _selectedTagIds = {};
   int _displayLimit = 30;
   bool _hasMore = true;
   int _lastRawFetchCount = 0;
@@ -88,7 +88,7 @@ class _TransactionsViewState extends State<TransactionsView> {
       RegExp(r'^Transfer from (.+)$', caseSensitive: false);
 
   List<_DisplayItem> _mergeTransfers(List<TransactionWithDetails> txns) {
-    final consumed = <int>{};
+    final consumed = <String>{};
     final result = <_DisplayItem>[];
 
     final byDateAccount = <String, List<int>>{};
@@ -143,7 +143,7 @@ class _TransactionsViewState extends State<TransactionsView> {
     List<int> candidates,
     int i,
     List<TransactionWithDetails> txns,
-    Set<int> consumed,
+    Set<String> consumed,
     RegExp matchPattern,
   ) {
     for (final j in candidates) {
@@ -236,7 +236,7 @@ class _TransactionsViewState extends State<TransactionsView> {
       {TransactionWithDetails? editTxn,
       RecurringTransactionWithDetails? editRecurring}) async {
     final isTransfer = data['transaction_type'] == 'transfer';
-    final tagId = data['tag_id'] as int?;
+    final tagId = data['tag_id'] as String?;
     final isRecurring = data['is_recurring'] == true;
 
     if (editRecurring != null) {
@@ -304,8 +304,8 @@ class _TransactionsViewState extends State<TransactionsView> {
       }
     } else if (isTransfer) {
       // Create transfer
-      final srcId = data['source_id'] as int;
-      final destId = data['dest_id'] as int;
+      final srcId = data['source_id'] as String;
+      final destId = data['dest_id'] as String;
       final amount = data['amount'] as double;
       final date = data['date'] as String;
       final srcName = data['source_name'] as String;
@@ -351,7 +351,7 @@ class _TransactionsViewState extends State<TransactionsView> {
     } else {
       // Create regular transaction
       await _db.addTransaction(
-        accountId: data['category_id'] as int,
+        accountId: data['category_id'] as String?,
         tagId: tagId,
         date: data['date'],
         amount: data['amount'],

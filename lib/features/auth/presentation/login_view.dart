@@ -175,7 +175,7 @@ class _LoginViewState extends State<LoginView> {
     await _onLoginSuccess(userId, username, password);
   }
 
-  Future<void> _onLoginSuccess(int userId, String username, String password) async {
+  Future<void> _onLoginSuccess(String userId, String username, String password) async {
     final authProvider = context.read<AuthProvider>();
     final themeProvider = context.read<ThemeProvider>();
     final langProvider = context.read<LanguageProvider>();
@@ -223,7 +223,7 @@ class _LoginViewState extends State<LoginView> {
       return;
     }
 
-    final userId = int.tryParse(credentials['userId'] ?? '');
+    final userId = credentials['userId'] as String?;
     final username = credentials['username'];
     if (userId == null || username == null) {
       LogService().log('Biometric login: invalid credentials (userId=$userId, username=$username)');

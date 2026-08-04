@@ -13,15 +13,11 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-- Launch screen for Android
-- New parameter to choose if you want navigation bar descriptions below icons or not
+
 
 ### Fixed
 
-- CSV export parameter french translation missing
-- Login view now use the last user connected theme instead of default dark
-- Current balance stat card percentage is now correct
-- Categories average/month amount is now correct
+- Fixed the line graph x-coordinates legend sometimes overlapping on mobile
 
 ## Future Improvements
 
@@ -34,10 +30,7 @@ This document presents future changes and wanted improvements.
 **UX :**
 - Onboarding ?
 - More translations
-- More parameters : 
-	- Navigation text or not for mobile
-	- Amount separator (coma or point (FR vs US))
+- More parameters
 
 **UI :**
 - Add themes and enhance them
-- Personalize the pie charts color palette

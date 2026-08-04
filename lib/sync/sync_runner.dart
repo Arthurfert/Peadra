@@ -15,11 +15,15 @@ import 'storage/crdt_database_service.dart';
 /// Each side applies the changeset it receives and returns the new watermark
 /// HLC for the peer (the `since` value to use on the next sync), or null when
 /// the peer is empty and nothing has been applied yet.
+///
+/// [firstRequest] lets the responder resume a sync exchange whose initial
+/// SYNC_REQUEST was already consumed (e.g. after a key refresh preamble).
 Future<Hlc?> runSyncExchange({
   required SyncSession session,
   required CrdtDatabaseService db,
   required Hlc? since,
   required bool isInitiator,
+  Map<String, dynamic>? firstRequest,
 }) async {
   if (isInitiator) {
     await session.send({
@@ -32,7 +36,8 @@ Future<Hlc?> runSyncExchange({
     await _sendOutbound(session, db, request);
     return applied;
   } else {
-    final request = await _expect(session, SyncMessageTypes.syncRequest);
+    final request = firstRequest ??
+        await _expect(session, SyncMessageTypes.syncRequest);
     await _sendOutbound(session, db, request);
     await session.send({
       'type': SyncMessageTypes.syncRequest,
@@ -138,6 +143,98 @@ Future<void> runEncryptionKeyExchange({
       'key_b64': localB64,
     });
   }
+}
+
+/// Re-shares the database encryption key with an already-paired peer (e.g.
+/// after a local password change re-derived the key). The initiator opens the
+/// session with a `KEY_REFRESH` preamble so the responder knows to run the key
+/// exchange before the ordinary sync. Returns the peer's current key (base64).
+///
+/// A separate sync exchange is expected to follow in the same session; callers
+/// run [runSyncExchange] afterwards.
+Future<String?> runKeyRefresh({
+  required SyncSession session,
+  required List<int>? localKey,
+  required bool isInitiator,
+}) async {
+  final localB64 = localKey == null ? null : base64Encode(localKey);
+  if (isInitiator) {
+    await session.send({'type': SyncMessageTypes.keyRefresh});
+    await session.send({
+      'type': SyncMessageTypes.keyExchange,
+      'key_b64': localB64,
+    });
+    final ack = await _expect(session, SyncMessageTypes.keyExchangeAck);
+    return ack['key_b64'] as String?;
+  }
+  final request = await _expect(session, SyncMessageTypes.keyExchange);
+  await session.send({
+    'type': SyncMessageTypes.keyExchangeAck,
+    'key_b64': localB64,
+  });
+  return request['key_b64'] as String?;
+}
+
+/// Runs the responder side of a server session. Returns the peer's encryption
+/// key when the initiator requested a key refresh (password re-share), and the
+/// new watermark for the peer.
+Future<({String? remoteKey, Hlc? watermark})> runServerSession({
+  required SyncSession session,
+  required CrdtDatabaseService db,
+  required Hlc? since,
+  required List<int>? localKey,
+  required void Function(String? remoteKeyB64) onRemoteKey,
+}) async {
+  final first = await _expectAny(session, [
+    SyncMessageTypes.syncRequest,
+    SyncMessageTypes.keyRefresh,
+  ]);
+  if (first['type'] == SyncMessageTypes.keyRefresh) {
+    final remoteKey = await runKeyRefresh(
+      session: session,
+      localKey: localKey,
+      isInitiator: false,
+    );
+    onRemoteKey(remoteKey);
+    final watermark = await runSyncExchange(
+      session: session,
+      db: db,
+      since: since,
+      isInitiator: false,
+    );
+    return (remoteKey: remoteKey, watermark: watermark);
+  }
+  final watermark = await runSyncExchange(
+    session: session,
+    db: db,
+    since: since,
+    isInitiator: false,
+    firstRequest: first,
+  );
+  return (remoteKey: null, watermark: watermark);
+}
+
+Future<Map<String, dynamic>> _expectAny(
+  SyncSession session,
+  List<String> types,
+) async {
+  final message = await session.receive();
+  if (message == null) {
+    throw SyncProtocolException(
+      'Connection closed while waiting for ${types.join(' or ')}',
+    );
+  }
+  if (message['type'] == SyncMessageTypes.error) {
+    throw SyncProtocolException(
+      'Peer rejected: ${message['code'] ?? 'unknown'}',
+    );
+  }
+  if (!types.contains(message['type'])) {
+    throw SyncProtocolException(
+      'Expected ${types.join(' or ')}, got ${message['type']}',
+    );
+  }
+  return message;
 }
 
 Future<Map<String, dynamic>> _expect(

@@ -139,6 +139,59 @@ class SyncManager {
     );
   }
 
+  /// Re-shares the local database encryption key with an already-paired peer
+  /// (after a password change re-derived the key). Updates both sides' stored
+  /// peer key and runs a regular sync in the same session.
+  Future<void> updatePeerKey(String peerId, {String? host, int? port}) async {
+    final known = _knownPeers[peerId];
+    await _refreshPeerKey(
+      peerId,
+      host: host ?? known?.host,
+      port: port ?? known?.port,
+    );
+  }
+
+  Future<void> _refreshPeerKey(String peerId, {String? host, int? port}) async {
+    final peer = await peerStorage.getById(peerId);
+    if (peer == null) return;
+    if (host == null || port == null) return;
+
+    SyncSession? session;
+    try {
+      session = await client.connect(
+        host: host,
+        port: port,
+        nodeId: _nodeId!,
+        deviceName: _deviceName!,
+        peerNodeId: peer.peerId,
+        sharedSecret: peer.sharedSecret,
+      );
+      final remoteKey = await runKeyRefresh(
+        session: session,
+        localKey: await _localDbKeyBytes(),
+        isInitiator: true,
+      );
+      final watermark = await runSyncExchange(
+        session: session,
+        db: db,
+        since: peer.lastSyncHlc,
+        isInitiator: true,
+      );
+      await peerStorage.upsert(
+        peer.copyWith(
+          dbEncryptionKey: remoteKey,
+          lastSyncHlc: watermark,
+          lastSeen: _now(),
+        ),
+      );
+      LogService().log('Key re-shared with ${peer.deviceName}');
+    } catch (e) {
+      LogService().warn('Key re-share with ${peer.deviceName} failed: $e');
+    } finally {
+      await session?.close();
+    }
+  }
+
   /// Pairing session for a freshly scanned device. Runs the one-time steps —
   /// encryption-key sharing, user reconciliation, and the initial full sync —
   /// then stores the peer as trusted.
@@ -293,14 +346,19 @@ class SyncManager {
         _pendingPairingSecrets.clear();
         LogService().log('Paired with ${peerInfo.deviceName} (${peerInfo.nodeId})');
       } else if (existing != null) {
-        final watermark = await runSyncExchange(
+        final result = await runServerSession(
           session: session,
           db: db,
           since: existing.lastSyncHlc,
-          isInitiator: false,
+          localKey: await _localDbKeyBytes(),
+          onRemoteKey: (_) {},
         );
         await peerStorage.upsert(
-          existing.copyWith(lastSyncHlc: watermark, lastSeen: _now()),
+          existing.copyWith(
+            dbEncryptionKey: result.remoteKey ?? existing.dbEncryptionKey,
+            lastSyncHlc: result.watermark,
+            lastSeen: _now(),
+          ),
         );
       }
     } catch (e) {

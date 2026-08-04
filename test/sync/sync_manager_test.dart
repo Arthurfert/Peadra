@@ -1,154 +1,15 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sqlite_crdt/sqlite_crdt.dart';
 
-import 'package:peadra/sync/models/trusted_peer.dart';
 import 'package:peadra/sync/network/discovered_service.dart';
-import 'package:peadra/sync/network/mdns_discovery_service.dart';
-import 'package:peadra/sync/network/p2p_client.dart';
-import 'package:peadra/sync/network/p2p_server.dart';
-import 'package:peadra/sync/network/service_advertiser.dart';
-import 'package:peadra/sync/network/service_browser.dart';
 import 'package:peadra/sync/network/sync_session.dart';
 import 'package:peadra/sync/security/auth_challenge.dart';
-import 'package:peadra/sync/security/node_identity.dart';
-import 'package:peadra/sync/storage/crdt_database_service.dart';
-import 'package:peadra/sync/storage/secure_peer_storage.dart';
-import 'package:peadra/sync/sync_manager.dart';
 
-import '../helpers/in_memory_storage_backend.dart';
+import 'sync_test_helpers.dart';
 import 'test_crdt_schema.dart';
-
-class _FakeAdvertiser implements SyncServiceAdvertiser {
-  int advertiseCount = 0;
-  int stopCount = 0;
-
-  @override
-  Future<void> advertise({
-    required String nodeId,
-    required String deviceName,
-    required int protocolVersion,
-    required int port,
-  }) async {
-    advertiseCount++;
-  }
-
-  @override
-  Future<void> stop() async {
-    stopCount++;
-  }
-}
-
-class _FakeBrowser implements SyncServiceBrowser {
-  final StreamController<DiscoveredService> _controller =
-      StreamController<DiscoveredService>.broadcast();
-  int startCount = 0;
-  int stopCount = 0;
-
-  @override
-  Stream<DiscoveredService> get services => _controller.stream;
-
-  @override
-  Future<void> start() async {
-    startCount++;
-  }
-
-  @override
-  Future<void> stop() async {
-    stopCount++;
-  }
-
-  void emit(DiscoveredService service) => _controller.add(service);
-}
-
-class _SpyClient extends P2pClient {
-  int connectCount = 0;
-
-  @override
-  Future<SyncSession> connect({
-    required String host,
-    required int port,
-    required String nodeId,
-    required String deviceName,
-    required String peerNodeId,
-    required String sharedSecret,
-    Duration timeout = const Duration(seconds: 15),
-  }) async {
-    connectCount++;
-    return super.connect(
-      host: host,
-      port: port,
-      nodeId: nodeId,
-      deviceName: deviceName,
-      peerNodeId: peerNodeId,
-      sharedSecret: sharedSecret,
-      timeout: timeout,
-    );
-  }
-}
-
-class _Device {
-  _Device({
-    required this.id,
-    required this.name,
-    required this.secret,
-    this.localKey,
-  });
-
-  final String id;
-  final String name;
-  final String secret;
-  final SecretKey? localKey;
-
-  late final SqliteCrdt crdt;
-  late final CrdtDatabaseService service;
-  late final SecurePeerStorage peers;
-  late final SyncManager manager;
-  late final _SpyClient client;
-  late final _FakeBrowser browser;
-
-  Future<void> setUp() async {
-    crdt = await createCrdtDatabase();
-    service = CrdtDatabaseService(crdt);
-    final store = InMemoryStorageBackend();
-    await store.write('sync_local_node_id', id);
-    final identity = NodeIdentity(storage: store, deviceName: name);
-    peers = SecurePeerStorage(storage: store);
-    client = _SpyClient();
-    browser = _FakeBrowser();
-    manager = SyncManager(
-      db: service,
-      peerStorage: peers,
-      identity: identity,
-      server: P2pServer(),
-      client: client,
-      discovery: MDnsDiscoveryService(
-        advertiser: _FakeAdvertiser(),
-        browser: browser,
-      ),
-      syncDebounce: const Duration(milliseconds: 50),
-      reconnectCooldown: Duration.zero,
-      localDbKeyResolver: () => localKey,
-    );
-  }
-
-  Future<void> start() => manager.start();
-
-  Future<void> stop() => manager.stop();
-
-  Future<void> trust(_Device other) => peers.upsert(
-        TrustedPeer(
-          peerId: other.id,
-          deviceName: other.name,
-          sharedSecret: other.secret,
-          createdAt: DateTime(2026, 1, 1),
-        ),
-      );
-}
 
 void main() {
   initializeSyncTestDb();
@@ -159,44 +20,23 @@ void main() {
     secret = AuthChallenge.generateSharedSecret();
   });
 
-  Future<void> waitUntil(
-    Future<bool> Function() condition, {
-    Duration timeout = const Duration(seconds: 5),
-  }) async {
-    final deadline = DateTime.now().add(timeout);
-    while (!(await condition())) {
-      if (DateTime.now().isAfter(deadline)) {
-        fail('condition not met within $timeout');
-      }
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-    }
-  }
-
-  Future<void> seedAUser(SqliteCrdt db, String id, String username) {
-    return db.execute(
-      'INSERT INTO users (id, username, password_hash) VALUES (?1, ?2, ?3)',
-      [id, username, 'hash'],
-    );
-  }
+  Future<void> seedAUser(SyncTestDevice device, String id, String username) =>
+      device.seedUser(id, username);
 
   test('E2E delta exchange converges data in both directions', () async {
-    final a = _Device(id: 'device-a', name: 'Device A', secret: secret);
-    final b = _Device(id: 'device-b', name: 'Device B', secret: secret);
-    addTearDown(() async {
-      await a.stop();
-      await b.stop();
-      await a.crdt.close();
-      await b.crdt.close();
-    });
+    final a = SyncTestDevice(id: 'device-a', name: 'Device A', secret: secret);
+    final b = SyncTestDevice(id: 'device-b', name: 'Device B', secret: secret);
+    addTearDown(a.dispose);
+    addTearDown(b.dispose);
     await a.setUp();
     await b.setUp();
 
-    await seedAUser(a.crdt, 'user-a', 'alice');
+    await seedAUser(a, 'user-a', 'alice');
     await a.crdt.execute(
       'INSERT INTO accounts (id, user_id, name, currency) VALUES (?1, ?2, ?3, ?4)',
       ['acct-a', 'user-a', 'A account', 'EUR'],
     );
-    await seedAUser(b.crdt, 'user-b', 'bob');
+    await seedAUser(b, 'user-b', 'bob');
     await b.crdt.execute(
       'INSERT INTO descriptions (id, user_id, name) VALUES (?1, ?2, ?3)',
       ['desc-b', 'user-b', 'B description'],
@@ -234,19 +74,15 @@ void main() {
   });
 
   test('concurrent conflicting edits converge to the same value', () async {
-    final a = _Device(id: 'device-a', name: 'Device A', secret: secret);
-    final b = _Device(id: 'device-b', name: 'Device B', secret: secret);
-    addTearDown(() async {
-      await a.stop();
-      await b.stop();
-      await a.crdt.close();
-      await b.crdt.close();
-    });
+    final a = SyncTestDevice(id: 'device-a', name: 'Device A', secret: secret);
+    final b = SyncTestDevice(id: 'device-b', name: 'Device B', secret: secret);
+    addTearDown(a.dispose);
+    addTearDown(b.dispose);
     await a.setUp();
     await b.setUp();
 
-    await seedAUser(a.crdt, 'user-x', 'alice');
-    await seedAUser(b.crdt, 'user-x', 'alice');
+    await seedAUser(a, 'user-x', 'alice');
+    await seedAUser(b, 'user-x', 'alice');
     await a.crdt.execute(
       'INSERT INTO accounts (id, user_id, name, starting_amount) VALUES (?1, ?2, ?3, ?4)',
       ['acct-x', 'user-x', 'Shared', 0.0],
@@ -289,18 +125,14 @@ void main() {
   });
 
   test('unreachable peer is handled without crashing; retry succeeds', () async {
-    final a = _Device(id: 'device-a', name: 'Device A', secret: secret);
-    final b = _Device(id: 'device-b', name: 'Device B', secret: secret);
-    addTearDown(() async {
-      await a.stop();
-      await b.stop();
-      await a.crdt.close();
-      await b.crdt.close();
-    });
+    final a = SyncTestDevice(id: 'device-a', name: 'Device A', secret: secret);
+    final b = SyncTestDevice(id: 'device-b', name: 'Device B', secret: secret);
+    addTearDown(a.dispose);
+    addTearDown(b.dispose);
     await a.setUp();
     await b.setUp();
 
-    await seedAUser(a.crdt, 'user-a', 'alice');
+    await seedAUser(a, 'user-a', 'alice');
     await a.crdt.execute(
       'INSERT INTO accounts (id, user_id, name) VALUES (?1, ?2, ?3)',
       ['acct-a', 'user-a', 'A account'],
@@ -327,29 +159,25 @@ void main() {
   });
 
   test('pairing exchanges keys, reconciles users and syncs', () async {
-    final a = _Device(
+    final a = SyncTestDevice(
       id: 'device-a',
       name: 'Device A',
       secret: secret,
-      localKey: SecretKey([1, 2, 3]),
+      key: SecretKey([1, 2, 3]),
     );
-    final b = _Device(
+    final b = SyncTestDevice(
       id: 'device-b',
       name: 'Device B',
       secret: secret,
-      localKey: SecretKey([4, 5, 6]),
+      key: SecretKey([4, 5, 6]),
     );
-    addTearDown(() async {
-      await a.stop();
-      await b.stop();
-      await a.crdt.close();
-      await b.crdt.close();
-    });
+    addTearDown(a.dispose);
+    addTearDown(b.dispose);
     await a.setUp();
     await b.setUp();
 
-    await seedAUser(a.crdt, 'user-a', 'alice');
-    await seedAUser(b.crdt, 'user-b', 'alice');
+    await seedAUser(a, 'user-a', 'alice');
+    await seedAUser(b, 'user-b', 'alice');
     await b.crdt.execute(
       'INSERT INTO accounts (id, user_id, name) VALUES (?1, ?2, ?3)',
       ['acct-b', 'user-b', 'B account'],
@@ -391,18 +219,14 @@ void main() {
   });
 
   test('discovery of a trusted peer triggers an automatic sync', () async {
-    final a = _Device(id: 'device-a', name: 'Device A', secret: secret);
-    final b = _Device(id: 'device-b', name: 'Device B', secret: secret);
-    addTearDown(() async {
-      await a.stop();
-      await b.stop();
-      await a.crdt.close();
-      await b.crdt.close();
-    });
+    final a = SyncTestDevice(id: 'device-a', name: 'Device A', secret: secret);
+    final b = SyncTestDevice(id: 'device-b', name: 'Device B', secret: secret);
+    addTearDown(a.dispose);
+    addTearDown(b.dispose);
     await a.setUp();
     await b.setUp();
 
-    await seedAUser(a.crdt, 'user-a', 'alice');
+    await seedAUser(a, 'user-a', 'alice');
     await a.crdt.execute(
       'INSERT INTO accounts (id, user_id, name) VALUES (?1, ?2, ?3)',
       ['acct-a', 'user-a', 'A account'],

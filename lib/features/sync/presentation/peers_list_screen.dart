@@ -17,12 +17,14 @@ class PeersListScreen extends StatefulWidget {
     this.loadPeers,
     this.syncPeer,
     this.forgetPeer,
+    this.updatePeerKey,
   });
 
   /// Injectable data sources, defaulting to the live [SyncService].
   final Future<List<TrustedPeer>> Function()? loadPeers;
   final Future<void> Function(String peerId)? syncPeer;
   final Future<void> Function(String peerId)? forgetPeer;
+  final Future<void> Function(String peerId)? updatePeerKey;
 
   @override
   State<PeersListScreen> createState() => _PeersListScreenState();
@@ -64,6 +66,27 @@ class _PeersListScreenState extends State<PeersListScreen> {
       if (mounted) {
         PeadraNotification.show(context,
             message: Translator.t('sync_sync_failed'),
+            type: NotificationType.error);
+      }
+    } finally {
+      if (mounted) setState(() => _syncingPeerId = null);
+    }
+  }
+
+  Future<void> _reshareKey(TrustedPeer peer) async {
+    setState(() => _syncingPeerId = peer.peerId);
+    try {
+      await (widget.updatePeerKey?.call(peer.peerId) ??
+          SyncService.instance.updatePeerKey(peer.peerId));
+      if (mounted) {
+        PeadraNotification.show(context,
+            message: Translator.t('sync_reshare_success'));
+        await _load();
+      }
+    } catch (e) {
+      if (mounted) {
+        PeadraNotification.show(context,
+            message: Translator.t('sync_reshare_failed'),
             type: NotificationType.error);
       }
     } finally {
@@ -215,6 +238,11 @@ class _PeersListScreenState extends State<PeersListScreen> {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            IconButton(
+              tooltip: Translator.t('sync_reshare'),
+              icon: Icon(Icons.vpn_key_outlined, color: colors.textSecondary),
+              onPressed: syncing ? null : () => _reshareKey(peer),
+            ),
             IconButton(
               tooltip: Translator.t('sync_sync_now'),
               icon: syncing

@@ -11,6 +11,7 @@ abstract final class SyncMessageTypes {
   static const String userReconcileResponse = 'USER_RECONCILE_RESPONSE';
   static const String keyExchange = 'KEY_EXCHANGE';
   static const String keyExchangeAck = 'KEY_EXCHANGE_ACK';
+  static const String keyRefresh = 'KEY_REFRESH';
   static const String error = 'ERROR';
   static const String close = 'CLOSE';
 }

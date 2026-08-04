@@ -115,4 +115,12 @@ class SyncService {
     if (manager == null) return;
     await manager.syncNow(peerId, host: host, port: port);
   }
+
+  /// Re-shares the database encryption key with a paired device after a local
+  /// password change re-derived the key.
+  Future<void> updatePeerKey(String peerId, {String? host, int? port}) async {
+    final manager = _manager;
+    if (manager == null) return;
+    await manager.updatePeerKey(peerId, host: host, port: port);
+  }
 }

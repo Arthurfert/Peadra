@@ -67,7 +67,13 @@ class SyncSession {
   SecretKey? _receiveKey;
   int _sendCounter = 0;
 
+  /// The peer resolved during the handshake; null until one completes.
+  SessionPeer? _peer;
+
   bool get authenticated => _sendKey != null && _receiveKey != null;
+
+  /// The authenticated remote peer, or null before the handshake completes.
+  SessionPeer? get peer => _peer;
 
   /// Responder role: validates the client's HELLO and its HMAC proof.
   Future<HandshakeResult> handshakeAsServer() async {
@@ -124,6 +130,7 @@ class SyncSession {
     );
     _sendKey = serverKey;
     _receiveKey = clientKey;
+    _peer = SessionPeer(peerNodeId, peerDeviceName, peerVersion);
     return HandshakeResult(
       peer: SessionPeer(peerNodeId, peerDeviceName, peerVersion),
       clientToServerKey: clientKey,
@@ -197,6 +204,11 @@ class SyncSession {
     );
     _sendKey = clientKey;
     _receiveKey = serverKey;
+    _peer = SessionPeer(
+      serverNodeId ?? expectedPeerNodeId ?? '',
+      serverDeviceName,
+      _protocolVersion,
+    );
     return HandshakeResult(
       peer: SessionPeer(
         serverNodeId ?? expectedPeerNodeId ?? '',

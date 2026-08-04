@@ -1,9 +1,13 @@
 import 'dart:convert';
 
 import 'package:crdt/crdt.dart';
+import 'package:cryptography/cryptography.dart';
+import 'package:flutter/foundation.dart';
 
+import '../../core/database/database_manager.dart';
 import 'network/sync_messages.dart';
 import 'network/sync_session.dart';
+import 'security/changeset_rekey.dart';
 import 'security/user_reconciliation.dart';
 import 'storage/crdt_database_service.dart';
 
@@ -18,11 +22,17 @@ import 'storage/crdt_database_service.dart';
 ///
 /// [firstRequest] lets the responder resume a sync exchange whose initial
 /// SYNC_REQUEST was already consumed (e.g. after a key refresh preamble).
+///
+/// [peerKey] is the peer's database encryption key (from the pairing key
+/// exchange or the stored [TrustedPeer]). Every inbound changeset is re-keyed
+/// to the local database key before it is merged, so remotely sourced rows
+/// remain decryptable locally.
 Future<Hlc?> runSyncExchange({
   required SyncSession session,
   required CrdtDatabaseService db,
   required Hlc? since,
   required bool isInitiator,
+  SecretKey? peerKey,
   Map<String, dynamic>? firstRequest,
 }) async {
   if (isInitiator) {
@@ -30,22 +40,40 @@ Future<Hlc?> runSyncExchange({
       'type': SyncMessageTypes.syncRequest,
       'since_hlc': since?.toString(),
     });
+    debugPrint('[peadra-sync] sync: initiator sent SYNC_REQUEST since=$since');
     final inbound = await _expect(session, SyncMessageTypes.syncResponse);
-    final applied = await _applyInbound(db, inbound, since);
+    debugPrint('[peadra-sync] sync: initiator got SYNC_RESPONSE '
+        '(${_countChangeset(inbound['changeset'])} records)');
+    final applied = await _applyInbound(db, inbound, since, peerKey);
+    debugPrint('[peadra-sync] sync: initiator applied, watermark=$applied');
     final request = await _expect(session, SyncMessageTypes.syncRequest);
     await _sendOutbound(session, db, request);
+    debugPrint('[peadra-sync] sync: initiator sent SYNC_RESPONSE');
     return applied;
   } else {
     final request = firstRequest ??
         await _expect(session, SyncMessageTypes.syncRequest);
     await _sendOutbound(session, db, request);
+    debugPrint('[peadra-sync] sync: responder sent SYNC_RESPONSE for '
+        'since=${request['since_hlc']}');
     await session.send({
       'type': SyncMessageTypes.syncRequest,
       'since_hlc': since?.toString(),
     });
+    debugPrint('[peadra-sync] sync: responder sent SYNC_REQUEST since=$since');
     final inbound = await _expect(session, SyncMessageTypes.syncResponse);
-    return _applyInbound(db, inbound, since);
+    debugPrint('[peadra-sync] sync: responder got SYNC_RESPONSE '
+        '(${_countChangeset(inbound['changeset'])} records)');
+    return _applyInbound(db, inbound, since, peerKey);
   }
+}
+
+int _countChangeset(dynamic changeset) {
+  if (changeset is! Map<String, dynamic>) return 0;
+  return changeset.values.fold<int>(
+    0,
+    (sum, rows) => sum + ((rows as List<dynamic>?)?.length ?? 0),
+  );
 }
 
 Future<void> _sendOutbound(
@@ -55,6 +83,8 @@ Future<void> _sendOutbound(
 ) async {
   final since = _parseSince(request['since_hlc']);
   final changeset = await db.getChangeset(since: since);
+  debugPrint('[peadra-sync] sync: building outbound changeset since=$since '
+      '(${_countChangeset(changeset)} records)');
   await session.send({
     'type': SyncMessageTypes.syncResponse,
     'since_hlc': request['since_hlc'],
@@ -65,16 +95,25 @@ Future<void> _sendOutbound(
 /// Applies a received changeset and returns the new watermark for the peer.
 /// An empty changeset leaves the watermark unchanged (the peer simply had
 /// nothing newer), so the requesting side never over-advances its watermark.
+///
+/// Inbound rows are re-keyed from [peerKey] to the local database key before
+/// merging so they remain decryptable with the local encryption key.
 Future<Hlc?> _applyInbound(
   CrdtDatabaseService db,
   Map<String, dynamic> response,
   Hlc? previous,
+  SecretKey? peerKey,
 ) async {
   final changeset = response['changeset'] as Map<String, dynamic>;
   if (changeset.isEmpty) {
     return previous;
   }
-  await db.applyChangeset(changeset);
+  final rekeyed = await rekeyInboundChangeset(
+    changeset,
+    localKey: DatabaseManager.instance.encryptionKey,
+    peerKey: peerKey,
+  );
+  await db.applyChangeset(rekeyed);
   return db.lastModifiedHlc();
 }
 
@@ -178,12 +217,19 @@ Future<String?> runKeyRefresh({
 /// Runs the responder side of a server session. Returns the peer's encryption
 /// key when the initiator requested a key refresh (password re-share), and the
 /// new watermark for the peer.
+///
+/// [peerKey] is the initiator's database encryption key, used to re-key the
+/// inbound changeset to the local key. On a key-refresh session the freshly
+/// exchanged [runKeyRefresh] key takes precedence over the (possibly stale)
+/// stored [peerKey], so rows the peer re-encrypted after a password change
+/// remain decryptable.
 Future<({String? remoteKey, Hlc? watermark})> runServerSession({
   required SyncSession session,
   required CrdtDatabaseService db,
   required Hlc? since,
   required List<int>? localKey,
   required void Function(String? remoteKeyB64) onRemoteKey,
+  SecretKey? peerKey,
 }) async {
   final first = await _expectAny(session, [
     SyncMessageTypes.syncRequest,
@@ -201,6 +247,7 @@ Future<({String? remoteKey, Hlc? watermark})> runServerSession({
       db: db,
       since: since,
       isInitiator: false,
+      peerKey: _peerKeyFromB64(remoteKey) ?? peerKey,
     );
     return (remoteKey: remoteKey, watermark: watermark);
   }
@@ -209,9 +256,17 @@ Future<({String? remoteKey, Hlc? watermark})> runServerSession({
     db: db,
     since: since,
     isInitiator: false,
+    peerKey: peerKey,
     firstRequest: first,
   );
   return (remoteKey: null, watermark: watermark);
+}
+
+SecretKey? _peerKeyFromB64(String? keyB64) {
+  if (keyB64 == null || keyB64.isEmpty) {
+    return null;
+  }
+  return SecretKey(base64Decode(keyB64));
 }
 
 Future<Map<String, dynamic>> _expectAny(

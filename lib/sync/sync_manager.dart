@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:crdt/crdt.dart';
 import 'package:cryptography/cryptography.dart';
@@ -178,6 +179,7 @@ class SyncManager {
         db: db,
         since: peer.lastSyncHlc,
         isInitiator: true,
+        peerKey: _peerKeyFrom(remoteKey),
       );
       await peerStorage.upsert(
         peer.copyWith(
@@ -357,6 +359,7 @@ class SyncManager {
           since: existing.lastSyncHlc,
           localKey: await _localDbKeyBytes(),
           onRemoteKey: (_) {},
+          peerKey: _peerKeyFrom(existing.dbEncryptionKey),
         );
         await peerStorage.upsert(
           existing.copyWith(
@@ -378,26 +381,41 @@ class SyncManager {
     required bool isInitiator,
   }) async {
     String? remoteKey;
+    debugPrint('[peadra-sync] pairing: step 1/3 encryption key exchange');
     await runEncryptionKeyExchange(
       session: session,
       localKey: await _localDbKeyBytes(),
       onRemoteKey: (key) => remoteKey = key,
       isInitiator: isInitiator,
     );
+    debugPrint('[peadra-sync] pairing: step 2/3 user reconciliation');
     await runUserReconciliation(
       session: session,
       db: db,
       isInitiator: isInitiator,
     );
+    debugPrint('[peadra-sync] pairing: step 3/3 sync exchange');
     final watermark = await runSyncExchange(
       session: session,
       db: db,
       since: null,
       isInitiator: isInitiator,
+      peerKey: _peerKeyFrom(remoteKey),
     );
+    debugPrint('[peadra-sync] pairing: steps complete, watermark=$watermark, '
+        'remoteKey=${remoteKey == null ? 'null' : 'set'}');
     return (watermark: watermark, remoteKey: remoteKey);
   }
 
   Future<List<int>?> _localDbKeyBytes() async =>
       (await _localDbKeyResolver()?.extractBytes());
+
+  /// Decodes a peer's base64 database key (as exchanged/stored on a
+  /// [TrustedPeer]) into a [SecretKey] usable for re-keying inbound data.
+  SecretKey? _peerKeyFrom(String? keyB64) {
+    if (keyB64 == null || keyB64.isEmpty) {
+      return null;
+    }
+    return SecretKey(base64Decode(keyB64));
+  }
 }

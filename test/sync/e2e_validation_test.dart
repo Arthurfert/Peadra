@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:peadra/core/services/encryption_service.dart';
 import 'package:peadra/sync/security/auth_challenge.dart';
 
 import 'sync_test_helpers.dart';
@@ -202,4 +203,151 @@ void main() {
     final rowsA = await a.crdt.query('SELECT id FROM accounts WHERE is_deleted = 0');
     expect(rowsA.map((r) => r['id']).toSet(), {'acct-b'});
   });
+
+  test('peer-encrypted data is re-keyed and readable on the receiving device',
+      () async {
+    final keyA = SecretKey(List<int>.filled(32, 7));
+    final keyB = SecretKey(List<int>.filled(32, 8));
+    final a = SyncTestDevice(
+      id: 'device-a',
+      name: 'Device A',
+      secret: secret,
+      key: keyA,
+    );
+    final b = SyncTestDevice(
+      id: 'device-b',
+      name: 'Device B',
+      secret: secret,
+      key: keyB,
+    );
+    addTearDown(a.dispose);
+    addTearDown(b.dispose);
+    await a.setUp();
+    await b.setUp();
+
+    // Each device stores its own data field-encrypted with its own key.
+    await a.seedUser('user-a', 'alice');
+    await a.crdt.execute(
+      'INSERT INTO accounts (id, user_id, name, starting_amount) VALUES (?1, ?2, ?3, ?4)',
+      [
+        'acct-a',
+        'user-a',
+        await EncryptionService.encrypt('Groceries', keyA),
+        await EncryptionService.encrypt('100.0', keyA),
+      ],
+    );
+    await b.seedUser('user-b', 'alice');
+    await b.crdt.execute(
+      'INSERT INTO accounts (id, user_id, name, starting_amount) VALUES (?1, ?2, ?3, ?4)',
+      [
+        'acct-b',
+        'user-b',
+        await EncryptionService.encrypt('Rent', keyB),
+        await EncryptionService.encrypt('900.0', keyB),
+      ],
+    );
+
+    await pair(a, b);
+    await b.start();
+
+    // Every row from the peer must be decryptable (stored plaintext here,
+    // since the re-keyed target key is only used when the app has one loaded).
+    final aRows = await waitForAccounts(a);
+    final bRows = await waitForAccounts(b);
+    expect(aRows.map((r) => r['id']).toSet(), {'acct-a', 'acct-b'});
+    expect(bRows.map((r) => r['id']).toSet(), {'acct-a', 'acct-b'});
+
+    final aName = aRows.singleWhere((r) => r['id'] == 'acct-b')['name'] as String;
+    final bName = bRows.singleWhere((r) => r['id'] == 'acct-a')['name'] as String;
+    final aAmount = aRows.singleWhere((r) => r['id'] == 'acct-b')['starting_amount'];
+    final bAmount = bRows.singleWhere((r) => r['id'] == 'acct-a')['starting_amount'];
+    expect(aName, 'Rent');
+    expect(bName, 'Groceries');
+    expect(double.parse(aAmount.toString()), 900.0);
+    expect(double.parse(bAmount.toString()), 100.0);
+  });
+
+  test('password change keeps re-encrypted peer data readable after re-share',
+      () async {
+    final keyA0 = SecretKey(List<int>.filled(32, 11));
+    final keyA1 = SecretKey(List<int>.filled(32, 12));
+    final keyB = SecretKey(List<int>.filled(32, 13));
+    final a = SyncTestDevice(
+      id: 'device-a',
+      name: 'Device A',
+      secret: secret,
+      key: keyA0,
+    );
+    final b = SyncTestDevice(
+      id: 'device-b',
+      name: 'Device B',
+      secret: secret,
+      key: keyB,
+    );
+    addTearDown(a.dispose);
+    addTearDown(b.dispose);
+    await a.setUp();
+    await b.setUp();
+
+    await a.seedUser('user-a', 'alice');
+    await a.crdt.execute(
+      'INSERT INTO accounts (id, user_id, name) VALUES (?1, ?2, ?3)',
+      ['acct-a', 'user-a', await EncryptionService.encrypt('Groceries', keyA0)],
+    );
+    await b.seedUser('user-b', 'alice');
+    await b.crdt.execute(
+      'INSERT INTO accounts (id, user_id, name) VALUES (?1, ?2, ?3)',
+      ['acct-b', 'user-b', await EncryptionService.encrypt('Rent', keyB)],
+    );
+
+    await pair(a, b);
+    await b.start();
+
+    // Baseline: peer data was re-keyed on first contact.
+    final bRows0 = await waitForAccounts(b);
+    expect(
+      bRows0.singleWhere((r) => r['id'] == 'acct-a')['name'],
+      'Groceries',
+    );
+
+    // Device A changes its password: the DB is re-encrypted under a new key
+    // (rewriting rows bumps their HLC so they are pushed on the next sync).
+    a.key = keyA1;
+    await a.crdt.execute(
+      'UPDATE accounts SET name = ? WHERE id = ?',
+      [await EncryptionService.encrypt('Groceries', keyA1), 'acct-a'],
+    );
+
+    final bHlc0 =
+        (await b.query('SELECT hlc FROM accounts WHERE id = ?', ['acct-a']))
+            .single['hlc'];
+
+    await a.manager.updatePeerKey(b.id,
+        host: 'localhost', port: b.manager.serverPort!);
+
+    // Wait for B to actually apply the re-encrypted row (B already had the row
+    // from pairing, so wait for its HLC to advance past the pre-sync value).
+    await waitUntil(() async {
+      final row =
+          (await b.query('SELECT hlc FROM accounts WHERE id = ?', ['acct-a']))
+              .single;
+      return row['hlc'] != bHlc0;
+    });
+
+    // B re-keys A's re-encrypted rows with the *freshly* exchanged key, so the
+    // account name stays readable on B.
+    final bName1 =
+        (await b.query('SELECT name FROM accounts WHERE id = ?', ['acct-a']))
+            .single['name'];
+    expect(bName1, 'Groceries');
+  });
+}
+
+Future<List<Map<String, Object?>>> waitForAccounts(SyncTestDevice device) async {
+  List<Map<String, Object?>> rows = [];
+  await waitUntil(() async {
+    rows = await device.query('SELECT id, name, starting_amount FROM accounts WHERE is_deleted = 0');
+    return rows.length >= 2;
+  });
+  return rows;
 }

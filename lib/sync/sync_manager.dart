@@ -205,6 +205,8 @@ class SyncManager {
     required int port,
   }) async {
     await _ensureIdentity();
+    debugPrint('[peadra-sync] pairing: connecting to $deviceName '
+        '($peerId) at $host:$port');
     final session = await client.connect(
       host: host,
       port: port,
@@ -227,6 +229,7 @@ class SyncManager {
           lastSeen: now,
         ),
       );
+      debugPrint('[peadra-sync] pairing: complete with $deviceName ($peerId)');
       LogService().log('Paired with $deviceName ($peerId)');
     } finally {
       await session.close();

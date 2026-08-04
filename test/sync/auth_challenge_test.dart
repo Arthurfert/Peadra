@@ -64,6 +64,22 @@ void main() {
         final secret = AuthChallenge.generateSharedSecret();
         expect(await AuthChallenge.verify(secret, 'hello', 'not-base64!'), isFalse);
       });
+
+      test('accepts an unpadded URL-safe secret (QR encoding)', () async {
+        final urlSafe = base64UrlEncode(
+          List<int>.generate(32, (i) => i * 7 % 256),
+        ).replaceAll('=', '');
+        final sig = await AuthChallenge.sign(urlSafe, 'hello');
+        expect(await AuthChallenge.verify(urlSafe, 'hello', sig), isTrue);
+      });
+
+      test('sign and verify agree for URL-safe secrets', () async {
+        final urlSafe = base64UrlEncode(
+          List<int>.generate(32, (i) => i * 13 % 256),
+        ).replaceAll('=', '');
+        final sig = await AuthChallenge.sign(urlSafe, 'message');
+        expect(await AuthChallenge.verify(urlSafe, 'message', sig), isTrue);
+      });
     });
 
     group('deriveSessionKeys', () {
@@ -117,6 +133,28 @@ void main() {
           nonceB: 'nonce-b',
         );
         expect(await key.extractBytes(), isNot(base64Decode(secret)));
+      });
+
+      test('derives keys from an unpadded URL-safe secret (QR encoding)', () async {
+        final urlSafe = base64UrlEncode(
+          List<int>.generate(32, (i) => i * 3 % 256),
+        ).replaceAll('=', '');
+        final (keyA, keyB) = await AuthChallenge.deriveSessionKeys(
+          sharedSecret: urlSafe,
+          nonceA: 'nonce-a',
+          nonceB: 'nonce-b',
+        );
+        expect((await keyA.extractBytes()).length, 32);
+        expect((await keyB.extractBytes()).length, 32);
+      });
+
+      test('standard and URL-safe encodings of the same bytes match', () async {
+        final bytes = List<int>.generate(32, (i) => i * 7 % 256);
+        final standard = base64Encode(bytes);
+        final urlSafe = base64UrlEncode(bytes).replaceAll('=', '');
+        final sigA = await AuthChallenge.sign(standard, 'hello');
+        final sigB = await AuthChallenge.sign(urlSafe, 'hello');
+        expect(sigA, sigB);
       });
     });
   });

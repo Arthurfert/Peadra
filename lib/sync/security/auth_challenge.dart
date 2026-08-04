@@ -33,7 +33,7 @@ class AuthChallenge {
   static Future<String> sign(String sharedSecret, String message) async {
     final mac = await Hmac.sha256().calculateMac(
       utf8.encode(message),
-      secretKey: SecretKey(base64Decode(sharedSecret)),
+      secretKey: SecretKey(_decodeSharedSecret(sharedSecret)),
     );
     return base64Encode(mac.bytes);
   }
@@ -53,7 +53,7 @@ class AuthChallenge {
     }
     final mac = await Hmac.sha256().calculateMac(
       utf8.encode(message),
-      secretKey: SecretKey(base64Decode(sharedSecret)),
+      secretKey: SecretKey(_decodeSharedSecret(sharedSecret)),
     );
     return _constantTimeEquals(mac.bytes, provided);
   }
@@ -71,7 +71,7 @@ class AuthChallenge {
       outputLength: sessionKeyBytes * 2,
     );
     final derived = await hkdf.deriveKey(
-      secretKey: SecretKey(base64Decode(sharedSecret)),
+      secretKey: SecretKey(_decodeSharedSecret(sharedSecret)),
       nonce: utf8.encode('$nonceA$nonceB'),
       info: utf8.encode(_info),
     );
@@ -89,5 +89,17 @@ class AuthChallenge {
       diff |= a[i] ^ b[i];
     }
     return diff == 0;
+  }
+
+  /// Decodes a shared secret, accepting both standard padded base64 and the
+  /// unpadded URL-safe variant used in pairing QR codes.
+  static List<int> _decodeSharedSecret(String sharedSecret) {
+    var encoded = sharedSecret
+        .replaceAll('-', '+')
+        .replaceAll('_', '/');
+    while (encoded.length % 4 != 0) {
+      encoded += '=';
+    }
+    return base64Decode(encoded);
   }
 }

@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+
 import '../../core/services/log_service.dart';
 import 'sync_session.dart';
 
@@ -21,6 +23,7 @@ class P2pServer {
   }) async {
     _server = await ServerSocket.bind(InternetAddress.anyIPv4, 0);
     _port = _server!.port;
+    debugPrint('[peadra-sync] server: listening on 0.0.0.0:$_port');
     _server!.listen(
       (socket) {
         _handleConnection(
@@ -53,13 +56,18 @@ class P2pServer {
       secretResolver: secretResolver,
     );
     try {
+      debugPrint('[peadra-sync] server: incoming connection from '
+          '${socket.remoteAddress.address}:${socket.remotePort}');
       final result = await session.handshakeAsServer();
+      debugPrint('[peadra-sync] server: handshake OK with '
+          '${result.peer.deviceName} (${result.peer.nodeId})');
       LogService().log(
         'Sync peer authenticated: '
         '${result.peer.deviceName} (${result.peer.nodeId})',
       );
       await onSession(session);
     } catch (e) {
+      debugPrint('[peadra-sync] server: session error: $e');
       LogService().warn('Sync session error: $e');
     } finally {
       try {

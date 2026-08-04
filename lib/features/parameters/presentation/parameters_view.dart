@@ -19,6 +19,9 @@ import '../../../shared/widgets/peadra_notification.dart';
 import '../../../core/services/log_service.dart';
 import '../../import_data/presentation/import_data_view.dart';
 import '../../auth/presentation/login_view.dart';
+import '../../sync/presentation/peers_list_screen.dart';
+import '../../sync/presentation/qr_pairing_screen.dart';
+import '../../sync/presentation/scanner_screen.dart';
 import '../../../core/responsive/responsive_layout.dart';
 
 class ParametersView extends StatefulWidget {
@@ -142,6 +145,12 @@ class _ParametersViewState extends State<ParametersView> {
             _buildPasswordTile(colors),
             if (_biometricAvailable) _buildBiometricTile(settings, colors),
           ], icon: Icons.shield),
+          const SizedBox(height: 8),
+          _buildSection(Translator.t('sync_title'), colors, [
+            _buildPairTile(colors),
+            _buildScanTile(colors),
+            _buildManagePeersTile(colors),
+          ], icon: Icons.sync),
           const SizedBox(height: 8),
           _buildSection(Translator.t('param_import'), colors, [
             _buildImportTile(colors),
@@ -942,6 +951,51 @@ class _ParametersViewState extends State<ParametersView> {
       subtitle: Text(Translator.t('param_biometric_desc'),
           style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
       trailing: toggle,
+    );
+  }
+
+  Widget _buildPairTile(PeadraColors colors) {
+    return ListTile(
+      title: Text(Translator.t('sync_pair'),
+          style: TextStyle(color: colors.text)),
+      subtitle: Text(Translator.t('sync_pair_desc'),
+          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+      trailing: Icon(Icons.chevron_right, color: colors.placeholderColor),
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const QrPairingScreen()),
+        );
+      },
+    );
+  }
+
+  Widget _buildScanTile(PeadraColors colors) {
+    return ListTile(
+      title: Text(Translator.t('sync_scan'),
+          style: TextStyle(color: colors.text)),
+      subtitle: Text(Translator.t('sync_scan_desc'),
+          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+      trailing: Icon(Icons.chevron_right, color: colors.placeholderColor),
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const ScannerScreen()),
+        );
+      },
+    );
+  }
+
+  Widget _buildManagePeersTile(PeadraColors colors) {
+    return ListTile(
+      title: Text(Translator.t('sync_manage'),
+          style: TextStyle(color: colors.text)),
+      subtitle: Text(Translator.t('sync_manage_desc'),
+          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+      trailing: Icon(Icons.chevron_right, color: colors.placeholderColor),
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const PeersListScreen()),
+        );
+      },
     );
   }
 

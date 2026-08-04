@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:cryptography/cryptography.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -105,6 +106,9 @@ class DatabaseManager {
   String _newId() => _uuid.v4();
 
   // ==================== DATABASE OPEN / MIGRATION ====================
+
+  @visibleForTesting
+  Future<void> migrateDatabaseForTest(String path) => _migrateToV7(path);
 
   Future<SqliteCrdt> _openDatabase() async {
     final path = await _resolveDbPath();
@@ -221,15 +225,22 @@ class DatabaseManager {
 
       String? uid(dynamic oldId) => userMap[oldId];
 
+      // Each table is remapped to fresh UUIDs, so foreign keys must be
+      // translated through the owning table's map (not the user map).
+      final accountMap = <int, String>{};
       if (tables.contains('accounts')) {
         final rows = await src.query('accounts', orderBy: 'id');
         for (final r in rows) {
+          final newUserId = uid(r['user_id']);
+          if (newUserId == null) continue;
+          final newId = _newId();
+          accountMap[r['id'] as int] = newId;
           await crdt.execute(
             'INSERT INTO accounts (id, user_id, name, type, color, currency, starting_amount, created_at) '
             'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)',
             [
-              _newId(),
-              uid(r['user_id']),
+              newId,
+              newUserId,
               r['name'],
               r['type'],
               r['color'],
@@ -241,65 +252,55 @@ class DatabaseManager {
         }
       }
 
+      final descriptionMap = <int, String>{};
       if (tables.contains('descriptions')) {
         final rows = await src.query('descriptions', orderBy: 'id');
         for (final r in rows) {
+          final newUserId = uid(r['user_id']);
+          if (newUserId == null) continue;
+          final newId = _newId();
+          descriptionMap[r['id'] as int] = newId;
           await crdt.execute(
             'INSERT INTO descriptions (id, user_id, name, created_at) '
             'VALUES (?1, ?2, ?3, ?4)',
-            [_newId(), uid(r['user_id']), r['name'], r['created_at']],
+            [newId, newUserId, r['name'], r['created_at']],
           );
         }
       }
 
+      final tagMap = <int, String>{};
       if (tables.contains('tags')) {
         final rows = await src.query('tags', orderBy: 'id');
         for (final r in rows) {
+          final newUserId = uid(r['user_id']);
+          if (newUserId == null) continue;
+          final newId = _newId();
+          tagMap[r['id'] as int] = newId;
           await crdt.execute(
             'INSERT INTO tags (id, user_id, name, color, created_at) '
             'VALUES (?1, ?2, ?3, ?4, ?5)',
-            [_newId(), uid(r['user_id']), r['name'], r['color'], r['created_at']],
+            [newId, newUserId, r['name'], r['color'], r['created_at']],
           );
         }
       }
 
-      if (tables.contains('transactions')) {
-        final rows = await src.query('transactions', orderBy: 'id');
-        for (final r in rows) {
-          await crdt.execute(
-            'INSERT INTO transactions (id, user_id, account_id, description_id, tag_id, date, amount, transaction_type, currency, notes, recurring_id, created_at, updated_at) '
-            'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)',
-            [
-              _newId(),
-              uid(r['user_id']),
-              r['account_id'] != null ? uid(r['account_id']) : null,
-              r['description_id'] != null ? uid(r['description_id']) : null,
-              r['tag_id'] != null ? uid(r['tag_id']) : null,
-              r['date'],
-              r['amount'],
-              r['transaction_type'],
-              r['currency'],
-              r['notes'],
-              r['recurring_id'] != null ? uid(r['recurring_id']) : null,
-              r['created_at'],
-              r['updated_at'],
-            ],
-          );
-        }
-      }
-
+      final recurringMap = <int, String>{};
       if (tables.contains('recurring_transactions')) {
         final rows = await src.query('recurring_transactions', orderBy: 'id');
         for (final r in rows) {
+          final newUserId = uid(r['user_id']);
+          if (newUserId == null) continue;
+          final newId = _newId();
+          recurringMap[r['id'] as int] = newId;
           await crdt.execute(
             'INSERT INTO recurring_transactions (id, user_id, account_id, description_id, tag_id, amount, transaction_type, currency, notes, frequency, interval, day_of_week, day_of_month, start_date, end_date, next_due_date, active, created_at, updated_at) '
             'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)',
             [
-              _newId(),
-              uid(r['user_id']),
-              r['account_id'] != null ? uid(r['account_id']) : null,
-              r['description_id'] != null ? uid(r['description_id']) : null,
-              r['tag_id'] != null ? uid(r['tag_id']) : null,
+              newId,
+              newUserId,
+              r['account_id'] != null ? accountMap[r['account_id']] : null,
+              r['description_id'] != null ? descriptionMap[r['description_id']] : null,
+              r['tag_id'] != null ? tagMap[r['tag_id']] : null,
               r['amount'],
               r['transaction_type'],
               r['currency'],
@@ -319,13 +320,42 @@ class DatabaseManager {
         }
       }
 
+      if (tables.contains('transactions')) {
+        final rows = await src.query('transactions', orderBy: 'id');
+        for (final r in rows) {
+          final newUserId = uid(r['user_id']);
+          if (newUserId == null) continue;
+          await crdt.execute(
+            'INSERT INTO transactions (id, user_id, account_id, description_id, tag_id, date, amount, transaction_type, currency, notes, recurring_id, created_at, updated_at) '
+            'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)',
+            [
+              _newId(),
+              newUserId,
+              r['account_id'] != null ? accountMap[r['account_id']] : null,
+              r['description_id'] != null ? descriptionMap[r['description_id']] : null,
+              r['tag_id'] != null ? tagMap[r['tag_id']] : null,
+              r['date'],
+              r['amount'],
+              r['transaction_type'],
+              r['currency'],
+              r['notes'],
+              r['recurring_id'] != null ? recurringMap[r['recurring_id']] : null,
+              r['created_at'],
+              r['updated_at'],
+            ],
+          );
+        }
+      }
+
       if (tables.contains('recurring_exceptions')) {
         final rows = await src.query('recurring_exceptions', orderBy: 'id');
         for (final r in rows) {
+          final newRecurringId = recurringMap[r['recurring_id']];
+          if (newRecurringId == null) continue;
           await crdt.execute(
             'INSERT INTO recurring_exceptions (id, recurring_id, date, created_at) '
             'VALUES (?1, ?2, ?3, ?4)',
-            [_newId(), uid(r['recurring_id']), r['date'], r['created_at']],
+            [_newId(), newRecurringId, r['date'], r['created_at']],
           );
         }
       }
@@ -333,10 +363,12 @@ class DatabaseManager {
       if (tables.contains('imported_files')) {
         final rows = await src.query('imported_files', orderBy: 'id');
         for (final r in rows) {
+          final newUserId = uid(r['user_id']);
+          if (newUserId == null) continue;
           await crdt.execute(
             'INSERT INTO imported_files (id, user_id, file_hash, filename, imported_at) '
             'VALUES (?1, ?2, ?3, ?4, ?5)',
-            [_newId(), uid(r['user_id']), r['file_hash'], r['filename'], r['imported_at']],
+            [_newId(), newUserId, r['file_hash'], r['filename'], r['imported_at']],
           );
         }
       }
@@ -344,9 +376,18 @@ class DatabaseManager {
       if (tables.contains('settings')) {
         final rows = await src.query('settings', orderBy: 'id');
         for (final r in rows) {
+          // Pre-v7 stored app-global settings (e.g. last_username) under
+          // user_id 0; keep them as global settings in v7. Rows belonging to
+          // users that did not migrate are dropped.
+          final oldUserId = r['user_id'] as int?;
+          final newUserId =
+              (oldUserId == null || oldUserId == globalSettingsUserId)
+                  ? globalSettingsUserId
+                  : uid(oldUserId);
+          if (newUserId == null) continue;
           await crdt.execute(
             'INSERT INTO settings (user_id, "key", value) VALUES (?1, ?2, ?3)',
-            [uid(r['user_id']), r['key'], r['value']],
+            [newUserId, r['key'], r['value']],
           );
         }
       }

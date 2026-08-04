@@ -148,7 +148,7 @@ class _ParametersViewState extends State<ParametersView> {
           const SizedBox(height: 8),
           _buildSection(Translator.t('sync_title'), colors, [
             _buildPairTile(colors),
-            _buildScanTile(colors),
+            if (Platform.isAndroid || Platform.isIOS) _buildScanTile(colors),
             _buildManagePeersTile(colors),
           ], icon: Icons.sync),
           const SizedBox(height: 8),

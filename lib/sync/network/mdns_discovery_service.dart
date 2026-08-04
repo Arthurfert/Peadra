@@ -1,6 +1,10 @@
 import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 
 import '../../core/services/log_service.dart';
+import 'android_multicast_lock.dart';
 import 'discovered_service.dart';
 import 'service_advertiser.dart';
 import 'service_browser.dart';
@@ -23,6 +27,7 @@ class MDnsDiscoveryService {
   final SyncServiceBrowser browser;
   final Duration dedupWindow;
   final DateTime Function() _now;
+  final AndroidMulticastLock _multicastLock = AndroidMulticastLock();
 
   String? _localNodeId;
   final StreamController<DiscoveredService> _controller =
@@ -41,6 +46,11 @@ class MDnsDiscoveryService {
     required int protocolVersion,
     required int port,
   }) async {
+    // Without the WiFi multicast lock Android filters the mDNS multicast
+    // traffic used for both responding to and hearing peer queries.
+    await _multicastLock.acquire();
+    debugPrint('[peadra-sync] discovery: multicast lock acquired '
+        '(android=${Platform.isAndroid})');
     try {
       await advertiser.advertise(
         nodeId: nodeId,
@@ -57,6 +67,8 @@ class MDnsDiscoveryService {
 
   Future<void> startBrowsing({required String localNodeId}) async {
     _localNodeId = localNodeId;
+    debugPrint('[peadra-sync] discovery: start browsing for $syncServiceType '
+        '(local node $localNodeId)');
     await browser.start();
     _browserSubscription ??= browser.services.listen(
       _onService,
@@ -68,13 +80,18 @@ class MDnsDiscoveryService {
 
   void _onService(DiscoveredService service) {
     if (service.nodeId == _localNodeId) {
+      debugPrint('[peadra-sync] discovery: ignored own service '
+          '${service.nodeId}');
       return;
     }
     final last = _lastEmitted[service.nodeId];
     if (last != null && _now().difference(last) < dedupWindow) {
+      debugPrint('[peadra-sync] discovery: deduped ${service.nodeId}');
       return;
     }
     _lastEmitted[service.nodeId] = _now();
+    debugPrint('[peadra-sync] discovery: EMIT ${service.deviceName} '
+        '${service.nodeId} @ ${service.host}:${service.port}');
     _controller.add(service);
   }
 
@@ -87,6 +104,7 @@ class MDnsDiscoveryService {
   Future<void> stop() async {
     await stopBrowsing();
     await stopAdvertising();
+    await _multicastLock.release();
     _lastEmitted.clear();
   }
 }

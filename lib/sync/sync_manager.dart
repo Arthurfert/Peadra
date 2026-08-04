@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:crdt/crdt.dart';
 import 'package:cryptography/cryptography.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../core/database/database_manager.dart';
 import '../../core/services/log_service.dart';
@@ -98,6 +99,7 @@ class SyncManager {
     await discovery.startBrowsing(localNodeId: _nodeId!);
     _discoverySub = discovery.onServiceFound.listen(_onDiscovered);
     _changeSub = db.onTablesChanged.listen(_onLocalChange);
+    debugPrint('[peadra-sync] SyncManager started (node ${_nodeId!} on port $port)');
     LogService().log('SyncManager started on port $port');
   }
 

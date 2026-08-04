@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:mdns_dart/mdns_dart.dart';
 
 import 'discovered_service.dart';
@@ -39,10 +42,25 @@ class MDnsSyncServiceAdvertiser implements SyncServiceAdvertiser {
       }),
     );
     final zone = MultiServiceZone()..addService(service);
-    final server = MDNSServer(MDNSServerConfig(zone: zone));
-    await server.start();
+    // Both the advertiser and the browser bind UDP 5353 on this device, so
+    // the sockets must share the port. The Dart VM rejects reusePort on
+    // Android; there SO_REUSEADDR alone still lets multiple sockets bind 5353
+    // and receive the mDNS multicast.
+    final server = MDNSServer(MDNSServerConfig(
+      zone: zone,
+      reusePort: !Platform.isAndroid,
+      reuseAddress: true,
+      logger: (m) => debugPrint('[peadra-sync] advertiser: $m'),
+    ));
+    try {
+      await server.start();
+    } catch (e) {
+      debugPrint('[peadra-sync] advertiser FAILED to start: $e');
+      rethrow;
+    }
     _server = server;
     _advertising = true;
+    debugPrint('[peadra-sync] advertiser up on port 5353 (service $syncServiceType, port $port)');
   }
 
   @override

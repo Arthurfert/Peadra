@@ -114,6 +114,7 @@ Future<Hlc?> _applyInbound(
     peerKey: peerKey,
   );
   await db.applyChangeset(rekeyed);
+  DatabaseManager.instance.notifyRemoteDataApplied();
   return db.lastModifiedHlc();
 }
 
@@ -147,6 +148,7 @@ Future<void> runUserReconciliation({
     );
     if (!plan.isEmpty) {
       await db.applyUserReconciliation(plan.remaps);
+      _refreshSessionUserId(plan.remaps);
     }
   } else {
     await _expect(session, SyncMessageTypes.userReconcile);
@@ -154,6 +156,20 @@ Future<void> runUserReconciliation({
       'type': SyncMessageTypes.userReconcileResponse,
       'users': local,
     });
+  }
+}
+
+/// If reconciliation rewrote this device's session user to the peer's
+/// canonical id, point the app session at the new id so queries keep matching.
+/// Otherwise the dashboard reads empty until a logout/login re-derives it.
+void _refreshSessionUserId(List<UserIdRemap> remaps) {
+  final sessionUserId = DatabaseManager.instance.userId;
+  if (sessionUserId == null) return;
+  for (final remap in remaps) {
+    if (remap.localUserId == sessionUserId) {
+      DatabaseManager.instance.setSessionUserId(remap.canonicalUserId);
+      return;
+    }
   }
 }
 

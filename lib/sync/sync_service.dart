@@ -3,6 +3,7 @@ import 'dart:async';
 import '../../core/database/database_manager.dart';
 import '../../core/services/log_service.dart';
 import 'models/trusted_peer.dart';
+import 'models/sync_session_status.dart';
 import 'network/discovered_service.dart';
 import 'network/mdns_discovery_service.dart';
 import 'network/p2p_client.dart';
@@ -45,6 +46,11 @@ class SyncService {
   /// Emits devices seen on the local network (used while scanning a QR).
   Stream<DiscoveredService> get onPeerDiscovered =>
       _manager?.discovery.onServiceFound ?? const Stream.empty();
+
+  /// Emits pairing progress (connecting, exchanging keys, syncing, ...) so the
+  /// UI can show what is happening during a first pairing on both devices.
+  Stream<SyncSessionStatus> get onSyncStatus =>
+      _manager?.onSyncStatus ?? const Stream.empty();
 
   /// Builds (once) and returns the manager with the production components.
   Future<SyncManager> ensureStarted() async {

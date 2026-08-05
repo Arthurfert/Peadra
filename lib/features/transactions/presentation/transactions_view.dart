@@ -59,11 +59,16 @@ class _TransactionsViewState extends State<TransactionsView> {
   bool _hasMore = true;
   int _lastRawFetchCount = 0;
   Timer? _searchDebounce;
+  StreamSubscription<void>? _remoteDataSub;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    _remoteDataSub =
+        DatabaseManager.instance.onRemoteDataApplied.listen((_) {
+      _loadData();
+    });
   }
 
   @override
@@ -79,6 +84,7 @@ class _TransactionsViewState extends State<TransactionsView> {
   @override
   void dispose() {
     _searchDebounce?.cancel();
+    _remoteDataSub?.cancel();
     _tagScrollController.dispose();
     super.dispose();
   }

@@ -153,14 +153,16 @@ class _PeersListScreenState extends State<PeersListScreen> {
               backgroundColor: colors.surface,
               iconTheme: IconThemeData(color: colors.text),
             ),
-      body: isPhone
-          ? _buildContent(colors, isPhone: true)
-          : Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 720),
-                child: _buildContent(colors, isPhone: false),
+      body: SafeArea(
+        child: isPhone
+            ? _buildContent(colors, isPhone: true)
+            : Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 720),
+                  child: _buildContent(colors, isPhone: false),
+                ),
               ),
-            ),
+      ),
     );
   }
 

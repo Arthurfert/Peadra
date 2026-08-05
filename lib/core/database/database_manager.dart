@@ -34,12 +34,25 @@ class DatabaseManager {
   SecretKey? _encryptionKey;
   final Uuid _uuid = const Uuid();
 
+  // Notifies UI that a changeset received from a paired device has been applied
+  // to the local database, so mounted views can reload freshly synced data.
+  final StreamController<void> _remoteDataController =
+      StreamController<void>.broadcast();
+
   DatabaseManager._();
   static final DatabaseManager instance = DatabaseManager._();
 
   String? get userId => _userId;
   bool get isEncrypted => _encryptionKey != null;
   String? get dbPath => _dbPath;
+
+  /// Fires after a remote changeset (from a sync) is applied locally.
+  Stream<void> get onRemoteDataApplied => _remoteDataController.stream;
+
+  /// Notifies listeners that remote data just landed (called by the sync layer).
+  void notifyRemoteDataApplied() {
+    _remoteDataController.add(null);
+  }
 
   /// The CRDT-backed database. Every write is timestamped with an HLC so that
   /// changesets can later be exchanged between devices.
@@ -787,13 +800,24 @@ class DatabaseManager {
 
   // ==================== USER ====================
 
-  void setUserId(String userId) {
+void setUserId(String userId) {
     _userId = userId;
     _descriptionCache.clear();
     _exchangeRateCache.clear();
     _insertDefaultAccounts();
     cleanupUnusedDescriptions();
     unawaited(generateDueRecurring());
+  }
+
+  /// Updates the session user id without seeding defaults or generating
+  /// recurring transactions. Used after sync user reconciliation may have
+  /// rewritten this user's id to the peer's canonical id, so queries continue
+  /// filtering against the id that now owns the data.
+  void setSessionUserId(String? userId) {
+    if (userId == _userId) return;
+    _userId = userId;
+    _descriptionCache.clear();
+    _exchangeRateCache.clear();
   }
 
   Future<void> _insertDefaultAccounts() async {

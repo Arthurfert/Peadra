@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:peadra/core/database/database_manager.dart';
+import 'package:peadra/sync/models/sync_session_status.dart';
 import 'package:peadra/sync/network/discovered_service.dart';
 import 'package:peadra/sync/network/sync_session.dart';
 import 'package:peadra/sync/security/auth_challenge.dart';
@@ -251,5 +253,82 @@ void main() {
     final bAccounts = await b.crdt.query('SELECT * FROM accounts WHERE is_deleted = 0');
     expect(bAccounts, hasLength(1));
     expect(b.client.connectCount, 1);
+  });
+
+  test('pairing emits live status progress on both devices', () async {
+    final a = SyncTestDevice(id: 'device-a', name: 'Device A', secret: secret);
+    final b = SyncTestDevice(id: 'device-b', name: 'Device B', secret: secret);
+    addTearDown(a.dispose);
+    addTearDown(b.dispose);
+    await a.setUp();
+    await b.setUp();
+
+    await seedAUser(a, 'user-a', 'alice');
+    await seedAUser(b, 'user-b', 'alice');
+
+    final statusOnA = <SyncSessionStatus>[];
+    final statusOnB = <SyncSessionStatus>[];
+    final subA = a.manager.onSyncStatus.listen(statusOnA.add);
+    final subB = b.manager.onSyncStatus.listen(statusOnB.add);
+    addTearDown(subA.cancel);
+    addTearDown(subB.cancel);
+
+    await a.start();
+    a.manager.registerPairingSecret(b.id, secret);
+
+    await b.manager.runPairingSession(
+      peerId: a.id,
+      deviceName: a.name,
+      sharedSecret: secret,
+      host: 'localhost',
+      port: a.manager.serverPort!,
+    );
+
+    await waitUntil(() async {
+      return statusOnA.contains(SyncSessionStatus.completed) &&
+          statusOnB.contains(SyncSessionStatus.completed);
+    });
+
+    // The scanner drives through the pairing steps; the QR device reports
+    // connecting + syncing and ends in completed.
+    expect(statusOnB, contains(SyncSessionStatus.connecting));
+    expect(statusOnB, contains(SyncSessionStatus.syncing));
+    expect(statusOnA, contains(SyncSessionStatus.syncing));
+    expect(statusOnA, contains(SyncSessionStatus.completed));
+    expect(statusOnB, contains(SyncSessionStatus.completed));
+  });
+
+  test('pairing reconciliation re-points the session user id on the scanner',
+      () async {
+    final a = SyncTestDevice(id: 'device-a', name: 'Device A', secret: secret);
+    final b = SyncTestDevice(id: 'device-b', name: 'Device B', secret: secret);
+    addTearDown(a.dispose);
+    addTearDown(b.dispose);
+    await a.setUp();
+    await b.setUp();
+
+    await seedAUser(a, 'user-a', 'alice');
+    await seedAUser(b, 'user-b', 'alice');
+
+    DatabaseManager.instance.setSessionUserId('user-b');
+    addTearDown(() => DatabaseManager.instance.setSessionUserId(null));
+
+    await a.start();
+    a.manager.registerPairingSecret(b.id, secret);
+
+    await b.manager.runPairingSession(
+      peerId: a.id,
+      deviceName: a.name,
+      sharedSecret: secret,
+      host: 'localhost',
+      port: a.manager.serverPort!,
+    );
+
+    // The scanner (B) adopted the QR device's canonical user id, so the app
+    // session filters against the id that now owns the merged data.
+    expect(DatabaseManager.instance.userId, 'user-a');
+
+    final aUsers = await a.query('SELECT id FROM users WHERE is_deleted = 0');
+    expect(aUsers.single['id'], 'user-a');
   });
 }

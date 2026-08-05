@@ -35,6 +35,7 @@ class _DashboardShellState extends State<DashboardShell> {
   String _lastCurrency = '';
   UpdateInfo? _availableUpdate;
   bool _updateBannerDismissed = false;
+  StreamSubscription<void>? _remoteDataSub;
 
   late final List<Widget> _staticViews = [
     TransactionsView(onDataChanged: _loadTotalPatrimony),
@@ -52,6 +53,16 @@ class _DashboardShellState extends State<DashboardShell> {
   void initState() {
     super.initState();
     _checkForUpdate();
+    _remoteDataSub =
+        DatabaseManager.instance.onRemoteDataApplied.listen((_) {
+      _loadTotalPatrimony();
+    });
+  }
+
+  @override
+  void dispose() {
+    _remoteDataSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _checkForUpdate() async {

@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import '../../core/database/database_manager.dart';
 import '../../core/services/log_service.dart';
 import 'models/trusted_peer.dart';
+import 'models/sync_session_status.dart';
 import 'network/discovered_service.dart';
 import 'network/mdns_discovery_service.dart';
 import 'network/p2p_client.dart';
@@ -70,10 +71,25 @@ class SyncManager {
   String? _nodeId;
   String? _deviceName;
 
+  /// Broadcasts pairing/sync progress so the UI can show live status on both
+  /// the scanner side and the device displaying the pairing QR code.
+  final StreamController<SyncSessionStatus> _statusController =
+      StreamController<SyncSessionStatus>.broadcast();
+
   bool get running => _running;
 
   /// The port the local sync server is listening on, or null before [start].
   int? get serverPort => server.port;
+
+  /// Emits the current [SyncSessionStatus] for pairing sessions this device
+  /// participates in (both as the scanner and as the QR-code device).
+  Stream<SyncSessionStatus> get onSyncStatus => _statusController.stream;
+
+  void _emitStatus(SyncSessionStatus status) {
+    if (!_statusController.isClosed) {
+      _statusController.add(status);
+    }
+  }
 
   /// Registers a fresh pairing secret (generated for a QR code) so an unknown
   /// peer presenting it can authenticate during the pairing handshake.
@@ -207,6 +223,7 @@ class SyncManager {
     required int port,
   }) async {
     await _ensureIdentity();
+    _emitStatus(SyncSessionStatus.connecting);
     debugPrint('[peadra-sync] pairing: connecting to $deviceName '
         '($peerId) at $host:$port');
     final session = await client.connect(
@@ -233,6 +250,9 @@ class SyncManager {
       );
       debugPrint('[peadra-sync] pairing: complete with $deviceName ($peerId)');
       LogService().log('Paired with $deviceName ($peerId)');
+    } catch (_) {
+      _emitStatus(SyncSessionStatus.failed);
+      rethrow;
     } finally {
       await session.close();
     }
@@ -334,6 +354,9 @@ class SyncManager {
 
     final existing = await peerStorage.getById(peerInfo.nodeId);
     final isPairing = existing == null && _pendingPairingSecrets.isNotEmpty;
+    if (isPairing) {
+      _emitStatus(SyncSessionStatus.connecting);
+    }
     try {
       if (isPairing) {
         final secret = _pendingPairingSecrets.values.first;
@@ -370,6 +393,9 @@ class SyncManager {
         );
       }
     } catch (e) {
+      if (isPairing) {
+        _emitStatus(SyncSessionStatus.failed);
+      }
       LogService().warn(
         'Sync session with ${peerInfo.deviceName} failed: $e',
       );
@@ -382,6 +408,7 @@ class SyncManager {
   }) async {
     String? remoteKey;
     debugPrint('[peadra-sync] pairing: step 1/3 encryption key exchange');
+    _emitStatus(SyncSessionStatus.exchangingKeys);
     await runEncryptionKeyExchange(
       session: session,
       localKey: await _localDbKeyBytes(),
@@ -389,12 +416,14 @@ class SyncManager {
       isInitiator: isInitiator,
     );
     debugPrint('[peadra-sync] pairing: step 2/3 user reconciliation');
+    _emitStatus(SyncSessionStatus.reconcilingUsers);
     await runUserReconciliation(
       session: session,
       db: db,
       isInitiator: isInitiator,
     );
     debugPrint('[peadra-sync] pairing: step 3/3 sync exchange');
+    _emitStatus(SyncSessionStatus.syncing);
     final watermark = await runSyncExchange(
       session: session,
       db: db,
@@ -404,6 +433,7 @@ class SyncManager {
     );
     debugPrint('[peadra-sync] pairing: steps complete, watermark=$watermark, '
         'remoteKey=${remoteKey == null ? 'null' : 'set'}');
+    _emitStatus(SyncSessionStatus.completed);
     return (watermark: watermark, remoteKey: remoteKey);
   }
 

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:peadra/core/database/database_manager.dart';
 import 'package:peadra/core/services/encryption_service.dart';
 import 'package:peadra/sync/security/auth_challenge.dart';
 
@@ -340,6 +341,32 @@ void main() {
         (await b.query('SELECT name FROM accounts WHERE id = ?', ['acct-a']))
             .single['name'];
     expect(bName1, 'Groceries');
+  });
+
+  test('applying a remote changeset notifies onRemoteDataApplied', () async {
+    final a = SyncTestDevice(id: 'device-a', name: 'Device A', secret: secret);
+    final b = SyncTestDevice(id: 'device-b', name: 'Device B', secret: secret);
+    addTearDown(a.dispose);
+    addTearDown(b.dispose);
+    await a.setUp();
+    await b.setUp();
+
+    await a.seedUser('user-a', 'alice');
+    await a.crdt.execute(
+      'INSERT INTO accounts (id, user_id, name) VALUES (?1, ?2, ?3)',
+      ['acct-a', 'user-a', 'A account'],
+    );
+
+    final remoteEvents = <void>[];
+    final sub = DatabaseManager.instance.onRemoteDataApplied.listen(remoteEvents.add);
+    addTearDown(sub.cancel);
+
+    await pair(a, b);
+
+    // The device that received A's data (the scanner B) fired the event so its
+    // mounted views know to reload.
+    await waitUntil(() async => remoteEvents.isNotEmpty);
+    expect(remoteEvents, isNotEmpty);
   });
 }
 

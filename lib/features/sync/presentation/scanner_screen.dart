@@ -9,6 +9,7 @@ import '../../../core/providers/theme_provider.dart';
 import '../../../core/responsive/responsive_layout.dart';
 import '../../../core/theme/peadra_colors.dart';
 import '../../../shared/widgets/peadra_notification.dart';
+import '../../../sync/models/sync_session_status.dart';
 import '../../../sync/network/discovered_service.dart';
 import '../../../sync/sync_service.dart';
 import 'pairing_scan_controller.dart';
@@ -24,7 +25,10 @@ class ScannerScreen extends StatefulWidget {
 
 class _ScannerScreenState extends State<ScannerScreen> {
   StreamSubscription<DiscoveredService>? _discoverySub;
+  StreamSubscription<SyncSessionStatus>? _statusSub;
   late final PairingScanController _controller;
+  SyncSessionStatus? _pairingStatus;
+  bool _successShown = false;
 
   @override
   void initState() {
@@ -42,11 +46,19 @@ class _ScannerScreenState extends State<ScannerScreen> {
     _discoverySub = SyncService.instance.onPeerDiscovered.listen(
       _controller.onDiscovered,
     );
+    _statusSub = SyncService.instance.onSyncStatus.listen((status) {
+      if (!mounted) return;
+      setState(() => _pairingStatus = status);
+      if (status == SyncSessionStatus.completed) {
+        _showSuccess();
+      }
+    });
   }
 
   @override
   void dispose() {
     _discoverySub?.cancel();
+    _statusSub?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -64,6 +76,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
   }
 
   Future<void> _showSuccess() async {
+    if (_successShown) return;
+    _successShown = true;
     PeadraNotification.show(context,
         message: Translator.t('sync_pair_success',
             params: {'name': _controller.expectedName ?? ''}));
@@ -73,6 +87,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
   void _reset() {
     _controller.reset();
+    _successShown = false;
     if (mounted) setState(() {});
   }
 
@@ -120,8 +135,26 @@ class _ScannerScreenState extends State<ScannerScreen> {
     );
   }
 
+  String? _stepLabel(SyncSessionStatus? status) {
+    switch (status) {
+      case SyncSessionStatus.connecting:
+        return Translator.t('sync_step_connecting');
+      case SyncSessionStatus.exchangingKeys:
+        return Translator.t('sync_step_keys');
+      case SyncSessionStatus.reconcilingUsers:
+        return Translator.t('sync_step_users');
+      case SyncSessionStatus.syncing:
+        return Translator.t('sync_step_sync');
+      case SyncSessionStatus.completed:
+      case SyncSessionStatus.failed:
+      case null:
+        return null;
+    }
+  }
+
   Widget _buildOverlayStatus(PeadraColors colors) {
     final isPairing = _controller.phase == PairingScanPhase.pairing;
+    final stepLabel = isPairing ? _stepLabel(_pairingStatus) : null;
     return Container(
       color: colors.surface,
       alignment: Alignment.center,
@@ -136,9 +169,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            isPairing
-                ? Translator.t('sync_scan_pairing')
-                : Translator.t('sync_scan_discovering'),
+            stepLabel ??
+                (isPairing
+                    ? Translator.t('sync_scan_pairing')
+                    : Translator.t('sync_scan_discovering')),
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w600,

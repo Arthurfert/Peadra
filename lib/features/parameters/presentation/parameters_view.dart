@@ -215,7 +215,7 @@ class _ParametersViewState extends State<ParametersView> {
             ],
           ),
         ),
-        Column(children: children),
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
       ],
     );
   }

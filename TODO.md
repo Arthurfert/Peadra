@@ -18,6 +18,7 @@ This document presents future changes and wanted improvements.
 ### Fixed
 
 - Fixed an already enabled biometric login using the previous user id after sync resulting in default account
+- Fixed the toggles in settings being centered instead of left-aligned (most visible in english)
 
 ## Future Improvements
 

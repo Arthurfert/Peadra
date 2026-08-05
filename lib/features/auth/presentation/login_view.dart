@@ -311,7 +311,7 @@ class _LoginViewState extends State<LoginView> {
                   const SizedBox(height: 32),
 
                   if (_isLoginMode) ...[
-                    if (_existingUsers.isNotEmpty)
+                    if (_existingUsers.isNotEmpty) ...[
                       DropdownButtonFormField<String>(
                         key: ValueKey(_selectedUser),
                         initialValue: _selectedUser,
@@ -332,6 +332,21 @@ class _LoginViewState extends State<LoginView> {
                           fillColor: colors.bg,
                         ),
                       ),
+                    ] else ...[
+                      TextField(
+                        controller: _usernameController,
+                        maxLength: 50,
+                        autofillHints: const [AutofillHints.username],
+                        decoration: InputDecoration(
+                          labelText: Translator.t('login_username'),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          filled: true,
+                          fillColor: colors.bg,
+                        ),
+                      ),
+                    ],
                   ] else ...[
                     TextField(
                       controller: _usernameController,
@@ -445,7 +460,7 @@ class _LoginViewState extends State<LoginView> {
                     ),
                   ],
 
-                  if (_isLoginMode && _existingUsers.isNotEmpty) ...[
+                  if (_isLoginMode) ...[
                     const SizedBox(height: 12),
                     Center(
                       child: TextButton(

@@ -652,7 +652,7 @@ class Translator {
           'Entrez votre mot de passe pour confirmer :',
       'param_delete_password_required': 'Le mot de passe est requis',
       'param_delete_password_incorrect': 'Mot de passe incorrect',
-      'sync_title': 'Synchronisation',
+      'sync_title': 'Synchroniser',
       'sync_pair': 'Associer un appareil',
       'sync_pair_desc': 'Affichez un QR code qu\'un autre appareil peut scanner pour s\'associer.',
       'sync_scan': 'Scanner un QR code',

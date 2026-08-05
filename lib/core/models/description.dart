@@ -1,6 +1,6 @@
 class Description {
-  final int? id;
-  final int userId;
+  final String? id;
+  final String userId;
   final String name;
   final String? createdAt;
 
@@ -11,7 +11,12 @@ class Description {
     this.createdAt,
   });
 
-  Description copyWith({int? id, int? userId, String? name, String? createdAt}) =>
+  Description copyWith({
+    String? id,
+    String? userId,
+    String? name,
+    String? createdAt,
+  }) =>
       Description(
         id: id ?? this.id,
         userId: userId ?? this.userId,
@@ -27,8 +32,8 @@ class Description {
       };
 
   factory Description.fromMap(Map<String, dynamic> map) => Description(
-        id: map['id'] as int?,
-        userId: map['user_id'] as int,
+        id: map['id'] as String?,
+        userId: map['user_id'] as String,
         name: map['name'] as String,
         createdAt: map['created_at'] as String?,
       );

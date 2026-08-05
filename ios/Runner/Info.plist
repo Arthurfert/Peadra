@@ -4,6 +4,8 @@
 <dict>
 	<key>NSFaceIDUsageDescription</key>
 	<string>This app uses biometrics for quick and secure login.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>This app uses the camera to scan pairing QR codes.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

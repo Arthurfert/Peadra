@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -16,6 +17,7 @@ import '../../../core/services/biometric_service.dart';
 import '../../../core/services/encryption_service.dart';
 import '../../../core/services/log_service.dart';
 import '../../../core/theme/peadra_colors.dart';
+import '../../../sync/sync_service.dart';
 import '../../dashboard/presentation/dashboard_shell.dart';
 
 class LoginView extends StatefulWidget {
@@ -175,7 +177,7 @@ class _LoginViewState extends State<LoginView> {
     await _onLoginSuccess(userId, username, password);
   }
 
-  Future<void> _onLoginSuccess(int userId, String username, String password) async {
+  Future<void> _onLoginSuccess(String userId, String username, String password) async {
     final authProvider = context.read<AuthProvider>();
     final themeProvider = context.read<ThemeProvider>();
     final langProvider = context.read<LanguageProvider>();
@@ -192,6 +194,7 @@ class _LoginViewState extends State<LoginView> {
     await _db.setAppSetting('last_language', langProvider.language);
 
     _db.fetchExchangeRates();
+    unawaited(SyncService.instance.start());
 
     if (mounted) {
       Navigator.of(context).pushReplacement(
@@ -223,7 +226,7 @@ class _LoginViewState extends State<LoginView> {
       return;
     }
 
-    final userId = int.tryParse(credentials['userId'] ?? '');
+    final userId = credentials['userId'] as String?;
     final username = credentials['username'];
     if (userId == null || username == null) {
       LogService().log('Biometric login: invalid credentials (userId=$userId, username=$username)');

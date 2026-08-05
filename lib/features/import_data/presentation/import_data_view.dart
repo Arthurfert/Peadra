@@ -22,7 +22,7 @@ class _ImportDataViewState extends State<ImportDataView> {
 
   int _currentStep = 0;
   List<Account> _accounts = [];
-  int? _selectedAccountId;
+  String? _selectedAccountId;
   String? _selectedDelimiter;
   ImportPreview? _preview;
   bool _loading = false;
@@ -402,7 +402,7 @@ class _ImportDataViewState extends State<ImportDataView> {
           const SizedBox(height: 12),
 
           // Account dropdown
-          DropdownButtonFormField<int>(
+          DropdownButtonFormField<String>(
             initialValue: _selectedAccountId,
             isExpanded: true,
             decoration: InputDecoration(

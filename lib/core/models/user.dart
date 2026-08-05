@@ -1,5 +1,5 @@
 class User {
-  final int? id;
+  final String? id;
   final String username;
   final String passwordHash;
   final String? createdAt;
@@ -19,7 +19,7 @@ class User {
       };
 
   factory User.fromMap(Map<String, dynamic> map) => User(
-        id: map['id'] as int?,
+        id: map['id'] as String?,
         username: map['username'] as String,
         passwordHash: map['password_hash'] as String,
         createdAt: map['created_at'] as String?,

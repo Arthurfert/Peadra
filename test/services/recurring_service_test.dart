@@ -13,7 +13,7 @@ RecurringTransaction _make({
   double amount = 100,
 }) {
   return RecurringTransaction(
-    userId: 1,
+    userId: '1',
     amount: amount,
     transactionType: 'expense',
     currency: 'EUR',

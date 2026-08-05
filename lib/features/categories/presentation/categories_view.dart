@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -25,11 +27,22 @@ class _CategoriesViewState extends State<CategoriesView> {
   Map<String, Map<String, Map<String, double>>> _monthlyData = {};
   bool _loading = true;
   int _selectedMonths = 6;
+  StreamSubscription<void>? _remoteDataSub;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    _remoteDataSub =
+        DatabaseManager.instance.onRemoteDataApplied.listen((_) {
+      _loadData();
+    });
+  }
+
+  @override
+  void dispose() {
+    _remoteDataSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadData() async {

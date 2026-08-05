@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -9,6 +11,7 @@ import '../../../core/theme/peadra_colors.dart';
 import '../../../core/services/update_service.dart';
 import '../../../core/responsive/responsive_layout.dart';
 import '../../../core/database/database_manager.dart';
+import '../../../sync/sync_service.dart';
 import '../../auth/presentation/login_view.dart';
 import '../../transactions/presentation/transactions_view.dart';
 import '../../accounts/presentation/accounts_view.dart';
@@ -32,6 +35,7 @@ class _DashboardShellState extends State<DashboardShell> {
   String _lastCurrency = '';
   UpdateInfo? _availableUpdate;
   bool _updateBannerDismissed = false;
+  StreamSubscription<void>? _remoteDataSub;
 
   late final List<Widget> _staticViews = [
     TransactionsView(onDataChanged: _loadTotalPatrimony),
@@ -49,6 +53,16 @@ class _DashboardShellState extends State<DashboardShell> {
   void initState() {
     super.initState();
     _checkForUpdate();
+    _remoteDataSub =
+        DatabaseManager.instance.onRemoteDataApplied.listen((_) {
+      _loadTotalPatrimony();
+    });
+  }
+
+  @override
+  void dispose() {
+    _remoteDataSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _checkForUpdate() async {
@@ -104,6 +118,7 @@ class _DashboardShellState extends State<DashboardShell> {
   void _logout() {
     final auth = context.read<AuthProvider>();
     final db = DatabaseManager.instance;
+    unawaited(SyncService.instance.stop());
     auth.logout(db);
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const LoginView()),

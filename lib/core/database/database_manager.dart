@@ -3,9 +3,12 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:cryptography/cryptography.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:sqlite_crdt/sqlite_crdt.dart';
+import 'package:uuid/uuid.dart';
 
 import '../models/account.dart';
 import '../models/description.dart';
@@ -21,22 +24,40 @@ import '../services/recurring_service.dart';
 import '../i18n/translator.dart';
 
 class DatabaseManager {
-  static Database? _database;
-  int? _userId;
+  static SqliteCrdt? _database;
+  String? _dbPath;
+  String? _userId;
   final Map<String, String?> _settingCache = {};
   final Map<String, String?> _appSettingCache = {};
-  final Map<String, int> _descriptionCache = {};
+  final Map<String, String> _descriptionCache = {};
   final Map<String, double?> _exchangeRateCache = {};
   SecretKey? _encryptionKey;
+  final Uuid _uuid = const Uuid();
+
+  // Notifies UI that a changeset received from a paired device has been applied
+  // to the local database, so mounted views can reload freshly synced data.
+  final StreamController<void> _remoteDataController =
+      StreamController<void>.broadcast();
 
   DatabaseManager._();
   static final DatabaseManager instance = DatabaseManager._();
 
-  int? get userId => _userId;
+  String? get userId => _userId;
   bool get isEncrypted => _encryptionKey != null;
+  String? get dbPath => _dbPath;
 
-  Future<Database> get database async {
-    _database ??= await _initDatabase();
+  /// Fires after a remote changeset (from a sync) is applied locally.
+  Stream<void> get onRemoteDataApplied => _remoteDataController.stream;
+
+  /// Notifies listeners that remote data just landed (called by the sync layer).
+  void notifyRemoteDataApplied() {
+    _remoteDataController.add(null);
+  }
+
+  /// The CRDT-backed database. Every write is timestamped with an HLC so that
+  /// changesets can later be exchanged between devices.
+  Future<SqliteCrdt> get database async {
+    _database ??= await _openDatabase();
     return _database!;
   }
 
@@ -53,7 +74,9 @@ class DatabaseManager {
   }
 
   Future<String?> _encrypt(String? plaintext) async {
-    if (plaintext == null || plaintext.isEmpty || _encryptionKey == null) return plaintext;
+    if (plaintext == null || plaintext.isEmpty || _encryptionKey == null) {
+      return plaintext;
+    }
     try {
       return await EncryptionService.encrypt(plaintext, _encryptionKey!);
     } catch (_) {
@@ -62,7 +85,9 @@ class DatabaseManager {
   }
 
   Future<String?> _decrypt(String? ciphertext) async {
-    if (ciphertext == null || ciphertext.isEmpty || _encryptionKey == null) return ciphertext;
+    if (ciphertext == null || ciphertext.isEmpty || _encryptionKey == null) {
+      return ciphertext;
+    }
     try {
       return await EncryptionService.decrypt(ciphertext, _encryptionKey!);
     } catch (_) {
@@ -70,46 +95,345 @@ class DatabaseManager {
     }
   }
 
-  Future<double> _decryptAmount(String? encrypted) async {
-    if (encrypted == null || encrypted.isEmpty || _encryptionKey == null) {
-      return double.tryParse(encrypted ?? '') ?? 0.0;
-    }
-    final decrypted = await _decrypt(encrypted);
-    return double.tryParse(decrypted ?? '') ?? 0.0;
+  Future<String?> _decryptValue(dynamic value) async {
+    if (value == null) return null;
+    if (value is num) return value.toString();
+    return _decrypt(value.toString());
   }
 
-  Future<Database> _initDatabase() async {
-    String path;
-    if (Platform.isAndroid || Platform.isIOS) {
-      final dir = await getApplicationDocumentsDirectory();
-      path = join(dir.path, dbName);
-    } else {
-      final home = Platform.environment['HOME'] ??
-          Platform.environment['USERPROFILE'] ??
-          Directory.current.path;
-      final oldDir = Directory(join(home, '.Peadra'));
-      final peadraDir = Directory(join(home, '.peadra'));
-      if (oldDir.existsSync() && !peadraDir.existsSync()) {
-        await oldDir.rename(peadraDir.path);
-      }
-      if (!peadraDir.existsSync()) {
-        await peadraDir.create(recursive: true);
-      }
-      path = join(peadraDir.path, dbName);
+  Future<double> _decryptAmount(dynamic encrypted) async {
+    if (encrypted == null) return 0.0;
+    if (encrypted is num) return encrypted.toDouble();
+    final s = encrypted.toString();
+    if (s.isEmpty || _encryptionKey == null) {
+      return double.tryParse(s) ?? 0.0;
+    }
+    try {
+      final decrypted = await _decrypt(s);
+      return double.tryParse(decrypted ?? '') ?? 0.0;
+    } catch (_) {
+      return double.tryParse(s) ?? 0.0;
+    }
+  }
+
+  String _newId() => _uuid.v4();
+
+  // ==================== DATABASE OPEN / MIGRATION ====================
+
+  @visibleForTesting
+  Future<void> migrateDatabaseForTest(String path) => _migrateToV7(path);
+
+  Future<SqliteCrdt> _openDatabase() async {
+    final path = await _resolveDbPath();
+    _dbPath = path;
+
+    final file = File(path);
+    if (file.existsSync() && await _needsMigration(path)) {
+      await _migrateToV7(path);
     }
 
-    return openDatabase(
+    final crdt = await SqliteCrdt.open(
       path,
       version: dbVersion,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
+    return crdt;
   }
 
-  Future<void> _onCreate(Database db, int version) async {
+  Future<String> _resolveDbPath() async {
+    if (Platform.isAndroid || Platform.isIOS) {
+      final dir = await getApplicationDocumentsDirectory();
+      return join(dir.path, dbName);
+    }
+    final home = Platform.environment['HOME'] ??
+        Platform.environment['USERPROFILE'] ??
+        Directory.current.path;
+    final oldDir = Directory(join(home, '.Peadra'));
+    final peadraDir = Directory(join(home, '.peadra'));
+    if (oldDir.existsSync() && !peadraDir.existsSync()) {
+      await oldDir.rename(peadraDir.path);
+    }
+    if (!peadraDir.existsSync()) {
+      await peadraDir.create(recursive: true);
+    }
+    return join(peadraDir.path, dbName);
+  }
+
+  Future<bool> _needsMigration(String path) async {
+    try {
+      final db = await databaseFactoryFfi.openDatabase(
+        path,
+        options: OpenDatabaseOptions(readOnly: true, singleInstance: false),
+      );
+      final version = await db.getVersion();
+      await db.close();
+      return version < 7;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// One-time migration from the pre-CRDT schema (v1-v6) to v7.
+  /// The old file is left untouched until the new database is fully built, then
+  /// swapped in place.
+  Future<void> _migrateToV7(String path) async {
+    final srcPath = '$path.migrate_src';
+    final tmpPath = '$path.migrate_tmp';
+
+    await File(path).copy(srcPath);
+    final tmpFile = File(tmpPath);
+    if (tmpFile.existsSync()) await tmpFile.delete();
+
+    try {
+      final crdt = await SqliteCrdt.open(
+        tmpPath,
+        version: dbVersion,
+        onCreate: _onCreate,
+      );
+      try {
+        await _copyLegacyData(srcPath, crdt);
+      } finally {
+        await crdt.close();
+      }
+
+      final oldFile = File(path);
+      if (oldFile.existsSync()) await oldFile.delete();
+      await File(tmpPath).rename(path);
+    } finally {
+      final src = File(srcPath);
+      if (src.existsSync()) await src.delete();
+    }
+  }
+
+  Future<void> _copyLegacyData(String srcPath, SqliteCrdt crdt) async {
+    final src = await databaseFactoryFfi.openDatabase(
+      srcPath,
+      options: OpenDatabaseOptions(readOnly: true, singleInstance: false),
+    );
+    try {
+      final tables = (await src.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
+      )).map((r) => r['name'] as String).toSet();
+
+      // users: old int id -> new uuid
+      final userMap = <int, String>{};
+      if (tables.contains('users')) {
+        final rows = await src.query('users', orderBy: 'id');
+        for (final r in rows) {
+          final newId = _newId();
+          userMap[r['id'] as int] = newId;
+          await crdt.execute(
+            'INSERT INTO users (id, username, password_hash, created_at) '
+            'VALUES (?1, ?2, ?3, ?4)',
+            [
+              newId,
+              r['username'] as String,
+              r['password_hash'] as String,
+              r['created_at'] as String?,
+            ],
+          );
+        }
+      }
+
+      String? uid(dynamic oldId) => userMap[oldId];
+
+      // Each table is remapped to fresh UUIDs, so foreign keys must be
+      // translated through the owning table's map (not the user map).
+      final accountMap = <int, String>{};
+      if (tables.contains('accounts')) {
+        final rows = await src.query('accounts', orderBy: 'id');
+        for (final r in rows) {
+          final newUserId = uid(r['user_id']);
+          if (newUserId == null) continue;
+          final newId = _newId();
+          accountMap[r['id'] as int] = newId;
+          await crdt.execute(
+            'INSERT INTO accounts (id, user_id, name, type, color, currency, starting_amount, created_at) '
+            'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)',
+            [
+              newId,
+              newUserId,
+              r['name'],
+              r['type'],
+              r['color'],
+              r['currency'],
+              r['starting_amount'],
+              r['created_at'],
+            ],
+          );
+        }
+      }
+
+      final descriptionMap = <int, String>{};
+      if (tables.contains('descriptions')) {
+        final rows = await src.query('descriptions', orderBy: 'id');
+        for (final r in rows) {
+          final newUserId = uid(r['user_id']);
+          if (newUserId == null) continue;
+          final newId = _newId();
+          descriptionMap[r['id'] as int] = newId;
+          await crdt.execute(
+            'INSERT INTO descriptions (id, user_id, name, created_at) '
+            'VALUES (?1, ?2, ?3, ?4)',
+            [newId, newUserId, r['name'], r['created_at']],
+          );
+        }
+      }
+
+      final tagMap = <int, String>{};
+      if (tables.contains('tags')) {
+        final rows = await src.query('tags', orderBy: 'id');
+        for (final r in rows) {
+          final newUserId = uid(r['user_id']);
+          if (newUserId == null) continue;
+          final newId = _newId();
+          tagMap[r['id'] as int] = newId;
+          await crdt.execute(
+            'INSERT INTO tags (id, user_id, name, color, created_at) '
+            'VALUES (?1, ?2, ?3, ?4, ?5)',
+            [newId, newUserId, r['name'], r['color'], r['created_at']],
+          );
+        }
+      }
+
+      final recurringMap = <int, String>{};
+      if (tables.contains('recurring_transactions')) {
+        final rows = await src.query('recurring_transactions', orderBy: 'id');
+        for (final r in rows) {
+          final newUserId = uid(r['user_id']);
+          if (newUserId == null) continue;
+          final newId = _newId();
+          recurringMap[r['id'] as int] = newId;
+          await crdt.execute(
+            'INSERT INTO recurring_transactions (id, user_id, account_id, description_id, tag_id, amount, transaction_type, currency, notes, frequency, interval, day_of_week, day_of_month, start_date, end_date, next_due_date, active, created_at, updated_at) '
+            'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)',
+            [
+              newId,
+              newUserId,
+              r['account_id'] != null ? accountMap[r['account_id']] : null,
+              r['description_id'] != null ? descriptionMap[r['description_id']] : null,
+              r['tag_id'] != null ? tagMap[r['tag_id']] : null,
+              r['amount'],
+              r['transaction_type'],
+              r['currency'],
+              r['notes'],
+              r['frequency'],
+              r['interval'],
+              r['day_of_week'],
+              r['day_of_month'],
+              r['start_date'],
+              r['end_date'],
+              r['next_due_date'],
+              r['active'],
+              r['created_at'],
+              r['updated_at'],
+            ],
+          );
+        }
+      }
+
+      if (tables.contains('transactions')) {
+        final rows = await src.query('transactions', orderBy: 'id');
+        for (final r in rows) {
+          final newUserId = uid(r['user_id']);
+          if (newUserId == null) continue;
+          await crdt.execute(
+            'INSERT INTO transactions (id, user_id, account_id, description_id, tag_id, date, amount, transaction_type, currency, notes, recurring_id, created_at, updated_at) '
+            'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)',
+            [
+              _newId(),
+              newUserId,
+              r['account_id'] != null ? accountMap[r['account_id']] : null,
+              r['description_id'] != null ? descriptionMap[r['description_id']] : null,
+              r['tag_id'] != null ? tagMap[r['tag_id']] : null,
+              r['date'],
+              r['amount'],
+              r['transaction_type'],
+              r['currency'],
+              r['notes'],
+              r['recurring_id'] != null ? recurringMap[r['recurring_id']] : null,
+              r['created_at'],
+              r['updated_at'],
+            ],
+          );
+        }
+      }
+
+      if (tables.contains('recurring_exceptions')) {
+        final rows = await src.query('recurring_exceptions', orderBy: 'id');
+        for (final r in rows) {
+          final newRecurringId = recurringMap[r['recurring_id']];
+          if (newRecurringId == null) continue;
+          await crdt.execute(
+            'INSERT INTO recurring_exceptions (id, recurring_id, date, created_at) '
+            'VALUES (?1, ?2, ?3, ?4)',
+            [_newId(), newRecurringId, r['date'], r['created_at']],
+          );
+        }
+      }
+
+      if (tables.contains('imported_files')) {
+        final rows = await src.query('imported_files', orderBy: 'id');
+        for (final r in rows) {
+          final newUserId = uid(r['user_id']);
+          if (newUserId == null) continue;
+          await crdt.execute(
+            'INSERT INTO imported_files (id, user_id, file_hash, filename, imported_at) '
+            'VALUES (?1, ?2, ?3, ?4, ?5)',
+            [_newId(), newUserId, r['file_hash'], r['filename'], r['imported_at']],
+          );
+        }
+      }
+
+      if (tables.contains('settings')) {
+        final rows = await src.query('settings', orderBy: 'id');
+        for (final r in rows) {
+          // Pre-v7 stored app-global settings (e.g. last_username) under
+          // user_id 0; keep them as global settings in v7. Rows belonging to
+          // users that did not migrate are dropped.
+          final oldUserId = r['user_id'] as int?;
+          final newUserId =
+              (oldUserId == null || oldUserId == globalSettingsUserId)
+                  ? globalSettingsUserId
+                  : uid(oldUserId);
+          if (newUserId == null) continue;
+          await crdt.execute(
+            'INSERT INTO settings (user_id, "key", value) VALUES (?1, ?2, ?3)',
+            [newUserId, r['key'], r['value']],
+          );
+        }
+      }
+
+      if (tables.contains('encryption_meta')) {
+        final rows = await src.query('encryption_meta');
+        for (final r in rows) {
+          await crdt.execute(
+            'INSERT INTO encryption_meta ("key", value) VALUES (?1, ?2)',
+            [r['key'], r['value']],
+          );
+        }
+      }
+
+      if (tables.contains('exchange_rates')) {
+        final rows = await src.query('exchange_rates');
+        for (final r in rows) {
+          await crdt.execute(
+            'INSERT INTO exchange_rates (from_currency, to_currency, rate, updated_at) '
+            'VALUES (?1, ?2, ?3, ?4)',
+            [r['from_currency'], r['to_currency'], r['rate'], r['updated_at']],
+          );
+        }
+      }
+    } finally {
+      await src.close();
+    }
+  }
+
+  Future<void> _onCreate(CrdtTableExecutor db, int version) async {
     await db.execute('''
       CREATE TABLE users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id TEXT PRIMARY KEY,
         username TEXT NOT NULL UNIQUE,
         password_hash TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -118,8 +442,8 @@ class DatabaseManager {
 
     await db.execute('''
       CREATE TABLE accounts (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
         name TEXT NOT NULL,
         type TEXT NOT NULL DEFAULT 'savings' CHECK(type IN ('checking', 'savings')),
         color TEXT DEFAULT '#1976D2',
@@ -133,8 +457,8 @@ class DatabaseManager {
 
     await db.execute('''
       CREATE TABLE descriptions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
         name TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id, name),
@@ -144,20 +468,24 @@ class DatabaseManager {
 
     await db.execute('''
       CREATE TABLE transactions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        account_id INTEGER,
-        description_id INTEGER,
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        account_id TEXT,
+        description_id TEXT,
+        tag_id TEXT,
         date DATE NOT NULL,
         amount REAL NOT NULL,
         transaction_type TEXT NOT NULL CHECK(transaction_type IN ('income', 'expense', 'transfer')),
         currency TEXT DEFAULT 'EUR',
         notes TEXT,
+        recurring_id TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id),
         FOREIGN KEY (account_id) REFERENCES accounts(id),
-        FOREIGN KEY (description_id) REFERENCES descriptions(id)
+        FOREIGN KEY (description_id) REFERENCES descriptions(id),
+        FOREIGN KEY (tag_id) REFERENCES tags(id),
+        FOREIGN KEY (recurring_id) REFERENCES recurring_transactions(id)
       )
     ''');
 
@@ -173,8 +501,8 @@ class DatabaseManager {
 
     await db.execute('''
       CREATE TABLE imported_files (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
         file_hash TEXT NOT NULL,
         filename TEXT,
         imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -186,25 +514,25 @@ class DatabaseManager {
     await db.execute('''
       CREATE TABLE settings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        key TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        "key" TEXT NOT NULL,
         value TEXT,
-        UNIQUE(user_id, key),
+        UNIQUE(user_id, "key"),
         FOREIGN KEY (user_id) REFERENCES users(id)
       )
     ''');
 
     await db.execute('''
-      CREATE TABLE IF NOT EXISTS encryption_meta (
-        key TEXT PRIMARY KEY,
+      CREATE TABLE encryption_meta (
+        "key" TEXT PRIMARY KEY,
         value TEXT
       )
     ''');
 
     await db.execute('''
       CREATE TABLE tags (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
         name TEXT NOT NULL,
         color TEXT DEFAULT '#1976D2',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -215,11 +543,11 @@ class DatabaseManager {
 
     await db.execute('''
       CREATE TABLE recurring_transactions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        account_id INTEGER,
-        description_id INTEGER,
-        tag_id INTEGER,
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        account_id TEXT,
+        description_id TEXT,
+        tag_id TEXT,
         amount REAL NOT NULL,
         transaction_type TEXT NOT NULL CHECK(transaction_type IN ('income', 'expense')),
         currency TEXT DEFAULT 'EUR',
@@ -243,8 +571,8 @@ class DatabaseManager {
 
     await db.execute('''
       CREATE TABLE recurring_exceptions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        recurring_id INTEGER NOT NULL,
+        id TEXT PRIMARY KEY,
+        recurring_id TEXT NOT NULL,
         date DATE NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(recurring_id, date),
@@ -255,7 +583,12 @@ class DatabaseManager {
     await _createIndexes(db);
   }
 
-  Future<void> _createIndexes(Database db) async {
+  Future<void> _onUpgrade(CrdtTableExecutor db, int oldVersion, int newVersion) async {
+    // Pre-v7 databases are migrated outside of the CRDT layer by
+    // [_migrateToV7]; nothing to do here.
+  }
+
+  Future<void> _createIndexes(CrdtTableExecutor db) async {
     await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_transactions_user_date ON transactions(user_id, date)',
     );
@@ -276,93 +609,15 @@ class DatabaseManager {
     );
   }
 
-  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    if (oldVersion < 2) {
-      try {
-        await db.execute('ALTER TABLE accounts ADD COLUMN starting_amount REAL DEFAULT 0');
-      } catch (_) {}
-    }
-    if (oldVersion < 3) {
-      try {
-        await db.execute('''
-          CREATE TABLE IF NOT EXISTS encryption_meta (
-            key TEXT PRIMARY KEY,
-            value TEXT
-          )
-        ''');
-      } catch (_) {}
-    }
-    if (oldVersion < 4) {
-      try {
-        await db.execute('''
-          CREATE TABLE IF NOT EXISTS tags (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            name TEXT NOT NULL,
-            color TEXT DEFAULT '#1976D2',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(user_id, name),
-            FOREIGN KEY (user_id) REFERENCES users(id)
-          )
-        ''');
-        await db.execute('ALTER TABLE transactions ADD COLUMN tag_id INTEGER REFERENCES tags(id)');
-      } catch (_) {}
-    }
-    if (oldVersion < 5) {
-      try {
-        await _createIndexes(db);
-      } catch (_) {}
-    }
-    if (oldVersion < 6) {
-      try {
-        await db.execute('''
-          CREATE TABLE IF NOT EXISTS recurring_transactions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            account_id INTEGER,
-            description_id INTEGER,
-            tag_id INTEGER,
-            amount REAL NOT NULL,
-            transaction_type TEXT NOT NULL CHECK(transaction_type IN ('income', 'expense')),
-            currency TEXT DEFAULT 'EUR',
-            notes TEXT,
-            frequency TEXT NOT NULL CHECK(frequency IN ('daily', 'weekly', 'monthly', 'yearly')),
-            interval INTEGER DEFAULT 1,
-            day_of_week INTEGER,
-            day_of_month INTEGER,
-            start_date DATE NOT NULL,
-            end_date DATE,
-            next_due_date DATE NOT NULL,
-            active INTEGER DEFAULT 1,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id),
-            FOREIGN KEY (account_id) REFERENCES accounts(id),
-            FOREIGN KEY (description_id) REFERENCES descriptions(id),
-            FOREIGN KEY (tag_id) REFERENCES tags(id)
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE IF NOT EXISTS recurring_exceptions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            recurring_id INTEGER NOT NULL,
-            date DATE NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(recurring_id, date),
-            FOREIGN KEY (recurring_id) REFERENCES recurring_transactions(id)
-          )
-        ''');
-        await db.execute('ALTER TABLE transactions ADD COLUMN recurring_id INTEGER REFERENCES recurring_transactions(id)');
-      } catch (_) {}
-    }
-  }
-
   /// Encrypt all existing unencrypted data. Called after login when encryption is first enabled.
   Future<void> migrateToEncryption() async {
     if (_encryptionKey == null) return;
     final db = await database;
 
-    final meta = await db.rawQuery('SELECT value FROM encryption_meta WHERE key = ?', ['version']);
+    final meta = await db.query(
+      'SELECT value FROM encryption_meta WHERE "key" = ?',
+      ['version'],
+    );
     if (meta.isNotEmpty && meta.first['value'] == '1') return;
 
     await _encryptAccounts(db);
@@ -370,8 +625,8 @@ class DatabaseManager {
     await _encryptTransactions(db);
     await _encryptRecurring(db);
 
-    await db.rawInsert(
-      'INSERT OR REPLACE INTO encryption_meta (key, value) VALUES (?, ?)',
+    await db.execute(
+      'INSERT OR REPLACE INTO encryption_meta ("key", value) VALUES (?, ?)',
       ['version', '1'],
     );
   }
@@ -382,122 +637,170 @@ class DatabaseManager {
     final oldKey = _encryptionKey!;
     _encryptionKey = newKey;
 
-    final acctRows = await db.rawQuery('SELECT id, name, starting_amount FROM accounts WHERE user_id = ?', [_userId]);
+    final acctRows = await db.query(
+      'SELECT id, name, starting_amount FROM accounts WHERE user_id = ? AND is_deleted = 0',
+      [_userId],
+    );
     for (final row in acctRows) {
       final name = row['name'] as String?;
-      final amount = row['starting_amount'] as String?;
+      final amount = row['starting_amount'] as dynamic;
       if (name != null && name.isNotEmpty) {
         final decrypted = await EncryptionService.decrypt(name, oldKey);
         final reEncrypted = await _encrypt(decrypted);
-        await db.rawUpdate('UPDATE accounts SET name = ? WHERE id = ?', [reEncrypted, row['id']]);
+        await db.execute(
+          'UPDATE accounts SET name = ? WHERE id = ? AND user_id = ?',
+          [reEncrypted, row['id'], _userId],
+        );
       }
-      if (amount != null && amount.isNotEmpty) {
-        final decrypted = await EncryptionService.decrypt(amount, oldKey);
+      if (amount != null && amount.toString().isNotEmpty) {
+        final decrypted =
+            await EncryptionService.decrypt(amount.toString(), oldKey);
         final reEncrypted = await _encrypt(decrypted);
-        await db.rawUpdate('UPDATE accounts SET starting_amount = ? WHERE id = ?', [reEncrypted, row['id']]);
+        await db.execute(
+          'UPDATE accounts SET starting_amount = ? WHERE id = ? AND user_id = ?',
+          [reEncrypted, row['id'], _userId],
+        );
       }
     }
 
-    final descRows = await db.rawQuery('SELECT id, name FROM descriptions WHERE user_id = ?', [_userId]);
+    final descRows = await db.query(
+      'SELECT id, name FROM descriptions WHERE user_id = ? AND is_deleted = 0',
+      [_userId],
+    );
     for (final row in descRows) {
       final name = row['name'] as String?;
       if (name != null && name.isNotEmpty) {
         final decrypted = await EncryptionService.decrypt(name, oldKey);
         final reEncrypted = await _encrypt(decrypted);
-        await db.rawUpdate('UPDATE descriptions SET name = ? WHERE id = ?', [reEncrypted, row['id']]);
+        await db.execute(
+          'UPDATE descriptions SET name = ? WHERE id = ? AND user_id = ?',
+          [reEncrypted, row['id'], _userId],
+        );
       }
     }
 
-    final txnRows = await db.rawQuery('SELECT id, amount, notes FROM transactions WHERE user_id = ?', [_userId]);
+    final txnRows = await db.query(
+      'SELECT id, amount, notes FROM transactions WHERE user_id = ? AND is_deleted = 0',
+      [_userId],
+    );
     for (final row in txnRows) {
-      final amount = row['amount'] as String?;
+      final amount = row['amount'] as dynamic;
       final notes = row['notes'] as String?;
-      if (amount != null && amount.isNotEmpty) {
-        final decrypted = await EncryptionService.decrypt(amount, oldKey);
+      if (amount != null && amount.toString().isNotEmpty) {
+        final decrypted =
+            await EncryptionService.decrypt(amount.toString(), oldKey);
         final reEncrypted = await _encrypt(decrypted);
-        await db.rawUpdate('UPDATE transactions SET amount = ? WHERE id = ?', [reEncrypted, row['id']]);
+        await db.execute(
+          'UPDATE transactions SET amount = ? WHERE id = ? AND user_id = ?',
+          [reEncrypted, row['id'], _userId],
+        );
       }
       if (notes != null && notes.isNotEmpty) {
         final decrypted = await EncryptionService.decrypt(notes, oldKey);
         final reEncrypted = await _encrypt(decrypted);
-        await db.rawUpdate('UPDATE transactions SET notes = ? WHERE id = ?', [reEncrypted, row['id']]);
+        await db.execute(
+          'UPDATE transactions SET notes = ? WHERE id = ? AND user_id = ?',
+          [reEncrypted, row['id'], _userId],
+        );
       }
     }
 
-    final recRows = await db.rawQuery('SELECT id, amount, notes FROM recurring_transactions WHERE user_id = ?', [_userId]);
+    final recRows = await db.query(
+      'SELECT id, amount, notes FROM recurring_transactions WHERE user_id = ? AND is_deleted = 0',
+      [_userId],
+    );
     for (final row in recRows) {
-      final amount = row['amount'] as String?;
+      final amount = row['amount'] as dynamic;
       final notes = row['notes'] as String?;
-      if (amount != null && amount.isNotEmpty) {
-        final decrypted = await EncryptionService.decrypt(amount, oldKey);
+      if (amount != null && amount.toString().isNotEmpty) {
+        final decrypted =
+            await EncryptionService.decrypt(amount.toString(), oldKey);
         final reEncrypted = await _encrypt(decrypted);
-        await db.rawUpdate('UPDATE recurring_transactions SET amount = ? WHERE id = ?', [reEncrypted, row['id']]);
+        await db.execute(
+          'UPDATE recurring_transactions SET amount = ? WHERE id = ? AND user_id = ?',
+          [reEncrypted, row['id'], _userId],
+        );
       }
       if (notes != null && notes.isNotEmpty) {
         final decrypted = await EncryptionService.decrypt(notes, oldKey);
         final reEncrypted = await _encrypt(decrypted);
-        await db.rawUpdate('UPDATE recurring_transactions SET notes = ? WHERE id = ?', [reEncrypted, row['id']]);
+        await db.execute(
+          'UPDATE recurring_transactions SET notes = ? WHERE id = ? AND user_id = ?',
+          [reEncrypted, row['id'], _userId],
+        );
       }
     }
   }
 
-  Future<void> _encryptAccounts(Database db) async {
-    final rows = await db.rawQuery('SELECT id, name, starting_amount FROM accounts WHERE user_id = ?', [_userId]);
+  Future<void> _encryptAccounts(SqliteCrdt db) async {
+    final rows = await db.query(
+      'SELECT id, name, starting_amount FROM accounts WHERE user_id = ? AND is_deleted = 0',
+      [_userId],
+    );
     for (final row in rows) {
       final name = row['name'] as String?;
-      final amount = row['starting_amount'] as num?;
+      final amount = row['starting_amount'] as dynamic;
       final encryptedName = await _encrypt(name);
       final encryptedAmount = amount != null ? await _encrypt(amount.toString()) : null;
-      await db.rawUpdate(
-        'UPDATE accounts SET name = ?, starting_amount = ? WHERE id = ?',
-        [encryptedName, encryptedAmount, row['id']],
+      await db.execute(
+        'UPDATE accounts SET name = ?, starting_amount = ? WHERE id = ? AND user_id = ?',
+        [encryptedName, encryptedAmount, row['id'], _userId],
       );
     }
   }
 
-  Future<void> _encryptDescriptions(Database db) async {
-    final rows = await db.rawQuery('SELECT id, name FROM descriptions WHERE user_id = ?', [_userId]);
+  Future<void> _encryptDescriptions(SqliteCrdt db) async {
+    final rows = await db.query(
+      'SELECT id, name FROM descriptions WHERE user_id = ? AND is_deleted = 0',
+      [_userId],
+    );
     for (final row in rows) {
       final name = row['name'] as String?;
       final encryptedName = await _encrypt(name);
-      await db.rawUpdate(
-        'UPDATE descriptions SET name = ? WHERE id = ?',
-        [encryptedName, row['id']],
+      await db.execute(
+        'UPDATE descriptions SET name = ? WHERE id = ? AND user_id = ?',
+        [encryptedName, row['id'], _userId],
       );
     }
   }
 
-  Future<void> _encryptTransactions(Database db) async {
-    final rows = await db.rawQuery('SELECT id, amount, notes FROM transactions WHERE user_id = ?', [_userId]);
+  Future<void> _encryptTransactions(SqliteCrdt db) async {
+    final rows = await db.query(
+      'SELECT id, amount, notes FROM transactions WHERE user_id = ? AND is_deleted = 0',
+      [_userId],
+    );
     for (final row in rows) {
-      final amount = row['amount'] as num?;
+      final amount = row['amount'] as dynamic;
       final notes = row['notes'] as String?;
       final encryptedAmount = amount != null ? await _encrypt(amount.toString()) : null;
       final encryptedNotes = await _encrypt(notes);
-      await db.rawUpdate(
-        'UPDATE transactions SET amount = ?, notes = ? WHERE id = ?',
-        [encryptedAmount, encryptedNotes, row['id']],
+      await db.execute(
+        'UPDATE transactions SET amount = ?, notes = ? WHERE id = ? AND user_id = ?',
+        [encryptedAmount, encryptedNotes, row['id'], _userId],
       );
     }
   }
 
-  Future<void> _encryptRecurring(Database db) async {
-    final rows = await db.rawQuery('SELECT id, amount, notes FROM recurring_transactions WHERE user_id = ?', [_userId]);
+  Future<void> _encryptRecurring(SqliteCrdt db) async {
+    final rows = await db.query(
+      'SELECT id, amount, notes FROM recurring_transactions WHERE user_id = ? AND is_deleted = 0',
+      [_userId],
+    );
     for (final row in rows) {
-      final amount = row['amount'] as num?;
+      final amount = row['amount'] as dynamic;
       final notes = row['notes'] as String?;
       final encryptedAmount = amount != null ? await _encrypt(amount.toString()) : null;
       final encryptedNotes = await _encrypt(notes);
-      await db.rawUpdate(
-        'UPDATE recurring_transactions SET amount = ?, notes = ? WHERE id = ?',
-        [encryptedAmount, encryptedNotes, row['id']],
+      await db.execute(
+        'UPDATE recurring_transactions SET amount = ?, notes = ? WHERE id = ? AND user_id = ?',
+        [encryptedAmount, encryptedNotes, row['id'], _userId],
       );
     }
   }
 
   // ==================== USER ====================
 
-  void setUserId(int userId) {
+void setUserId(String userId) {
     _userId = userId;
     _descriptionCache.clear();
     _exchangeRateCache.clear();
@@ -506,14 +809,27 @@ class DatabaseManager {
     unawaited(generateDueRecurring());
   }
 
+  /// Updates the session user id without seeding defaults or generating
+  /// recurring transactions. Used after sync user reconciliation may have
+  /// rewritten this user's id to the peer's canonical id, so queries continue
+  /// filtering against the id that now owns the data.
+  void setSessionUserId(String? userId) {
+    if (userId == _userId) return;
+    _userId = userId;
+    _descriptionCache.clear();
+    _exchangeRateCache.clear();
+  }
+
   Future<void> _insertDefaultAccounts() async {
     if (_userId == null) return;
     final db = await database;
-    final count = Sqflite.firstIntValue(await db.rawQuery(
-      'SELECT COUNT(*) FROM accounts WHERE user_id = ?',
+    final countRows = await db.query(
+      'SELECT COUNT(*) as count FROM accounts WHERE user_id = ? AND is_deleted = 0',
       [_userId],
-    ));
-    if (count != null && count > 0) return;
+    );
+    if (countRows.isNotEmpty && (countRows.first['count'] as num? ?? 0) > 0) {
+      return;
+    }
 
     final currency = await getSetting('currency', defaultValue: defaultCurrency);
     final defaults = [
@@ -523,13 +839,11 @@ class DatabaseManager {
     ];
 
     for (final acct in defaults) {
-      await db.insert('accounts', {
-        'user_id': _userId,
-        'name': acct['name'],
-        'color': acct['color'],
-        'type': acct['type'],
-        'currency': acct['currency'],
-      });
+      await db.execute(
+        'INSERT INTO accounts (id, user_id, name, color, type, currency) '
+        'VALUES (?1, ?2, ?3, ?4, ?5, ?6)',
+        [_newId(), _userId, acct['name'], acct['color'], acct['type'], acct['currency']],
+      );
     }
   }
 
@@ -538,20 +852,19 @@ class DatabaseManager {
   Future<List<Account>> getAllAccounts() async {
     final db = await database;
     final rows = await db.query(
-      'accounts',
-      where: 'user_id = ?',
-      whereArgs: [_userId],
+      'SELECT * FROM accounts WHERE user_id = ? AND is_deleted = 0',
+      [_userId],
     );
     final accounts = <Account>[];
     for (final r in rows) {
       accounts.add(Account(
-        id: r['id'] as int?,
-        userId: r['user_id'] as int,
-        name: await _decrypt(r['name'] as String?) ?? '',
+        id: r['id'] as String?,
+        userId: r['user_id'] as String,
+        name: await _decryptValue(r['name']) ?? '',
         type: r['type'] as String? ?? 'savings',
         color: r['color'] as String? ?? '#1976D2',
         currency: r['currency'] as String? ?? 'EUR',
-        startingAmount: await _decryptAmount(r['starting_amount'] as String?),
+        startingAmount: await _decryptAmount(r['starting_amount']),
         createdAt: r['created_at'] as String?,
       ));
     }
@@ -561,29 +874,29 @@ class DatabaseManager {
 
   Future<List<AccountWithBalance>> getAccountsWithBalances() async {
     final db = await database;
-    final acctRows = await db.rawQuery(
-      'SELECT * FROM accounts WHERE user_id = ? ORDER BY name',
+    final acctRows = await db.query(
+      'SELECT * FROM accounts WHERE user_id = ? AND is_deleted = 0 ORDER BY name',
       [_userId],
     );
 
-    final txnRows = await db.rawQuery(
-      'SELECT transaction_type, amount, account_id FROM transactions WHERE user_id = ?',
+    final txnRows = await db.query(
+      'SELECT transaction_type, amount, account_id FROM transactions WHERE user_id = ? AND is_deleted = 0',
       [_userId],
     );
-    final txnByAccount = <int, List<Map<String, dynamic>>>{};
+    final txnByAccount = <String, List<Map<String, Object?>>>{};
     for (final t in txnRows) {
-      final acctId = t['account_id'] as int?;
+      final acctId = t['account_id'] as String?;
       if (acctId == null) continue;
       (txnByAccount[acctId] ??= []).add(t);
     }
 
     final results = <AccountWithBalance>[];
     for (final acctRow in acctRows) {
-      final startingAmount = await _decryptAmount(acctRow['starting_amount'] as String?);
+      final startingAmount = await _decryptAmount(acctRow['starting_amount']);
 
       double balance = startingAmount;
-      for (final txn in txnByAccount[acctRow['id']] ?? const <Map<String, dynamic>>[]) {
-        final amount = await _decryptAmount(txn['amount'] as String?);
+      for (final txn in txnByAccount[acctRow['id']] ?? const <Map<String, Object?>>[]) {
+        final amount = await _decryptAmount(txn['amount']);
         final type = txn['transaction_type'] as String;
         if (type == 'income') {
           balance += amount;
@@ -593,9 +906,9 @@ class DatabaseManager {
       }
 
       results.add(AccountWithBalance(
-        id: acctRow['id'] as int?,
-        userId: acctRow['user_id'] as int,
-        name: await _decrypt(acctRow['name'] as String?) ?? '',
+        id: acctRow['id'] as String?,
+        userId: acctRow['user_id'] as String,
+        name: await _decryptValue(acctRow['name']) ?? '',
         type: acctRow['type'] as String? ?? 'savings',
         color: acctRow['color'] as String? ?? '#1976D2',
         currency: acctRow['currency'] as String? ?? 'EUR',
@@ -607,31 +920,29 @@ class DatabaseManager {
     return results;
   }
 
-  Future<int?> addAccount(String name, String color, String type, String currency, {double startingAmount = 0.0}) async {
+  Future<String?> addAccount(String name, String color, String type, String currency, {double startingAmount = 0.0}) async {
     final db = await database;
     try {
       final encryptedName = await _encrypt(name);
       final encryptedAmount = await _encrypt(startingAmount.toString());
-      return await db.insert('accounts', {
-        'user_id': _userId,
-        'name': encryptedName,
-        'color': color,
-        'type': type,
-        'currency': currency,
-        'starting_amount': encryptedAmount,
-      });
+      final id = _newId();
+      await db.execute(
+        'INSERT INTO accounts (id, user_id, name, color, type, currency, starting_amount) '
+        'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)',
+        [id, _userId, encryptedName, color, type, currency, encryptedAmount],
+      );
+      return id;
     } catch (_) {
-      return -1;
+      return null;
     }
   }
 
-  Future<bool> updateAccount(int accountId, String name, String color,
+  Future<bool> updateAccount(String accountId, String name, String color,
       {String? type, String? currency, double? startingAmount, bool updateNameInTransactions = false}) async {
     final db = await database;
     final existing = await db.query(
-      'accounts',
-      where: 'id = ? AND user_id = ?',
-      whereArgs: [accountId, _userId],
+      'SELECT * FROM accounts WHERE id = ? AND user_id = ? AND is_deleted = 0',
+      [accountId, _userId],
     );
     if (existing.isEmpty) return false;
 
@@ -641,33 +952,31 @@ class DatabaseManager {
     final effectiveCurrency = currency ?? oldCurrency;
 
     final encryptedName = await _encrypt(name);
-    final updates = <String, dynamic>{
-      'name': encryptedName,
-      'color': color,
-      'currency': effectiveCurrency,
-    };
-    if (type != null) updates['type'] = type;
-    if (startingAmount != null) {
-      updates['starting_amount'] = await _encrypt(startingAmount.toString());
+    var sql = 'UPDATE accounts SET name = ?, color = ?, currency = ?';
+    final args = <Object?>[encryptedName, color, effectiveCurrency];
+    if (type != null) {
+      sql += ', type = ?';
+      args.add(type);
     }
+    if (startingAmount != null) {
+      sql += ', starting_amount = ?';
+      args.add(await _encrypt(startingAmount.toString()));
+    }
+    sql += ' WHERE id = ? AND user_id = ?';
+    args.add(accountId);
+    args.add(_userId);
+    await db.execute(sql, args);
 
-    final count = await db.update(
-      'accounts',
-      updates,
-      where: 'id = ? AND user_id = ?',
-      whereArgs: [accountId, _userId],
-    );
-
-    if (count > 0 && updateNameInTransactions && oldName != name) {
+    if (updateNameInTransactions && oldName != name) {
       await _updateTransferNames(db, oldName, name);
     }
 
-    return count > 0;
+    return true;
   }
 
-  Future<void> _updateTransferNames(Database db, String oldName, String newName) async {
-    final txnRows = await db.rawQuery(
-      'SELECT id, notes FROM transactions WHERE user_id = ? AND notes IS NOT NULL',
+  Future<void> _updateTransferNames(SqliteCrdt db, String oldName, String newName) async {
+    final txnRows = await db.query(
+      'SELECT id, notes FROM transactions WHERE user_id = ? AND is_deleted = 0 AND notes IS NOT NULL',
       [_userId],
     );
     for (final row in txnRows) {
@@ -688,15 +997,15 @@ class DatabaseManager {
       }
       if (updated != decrypted) {
         final reEncrypted = await _encrypt(updated);
-        await db.rawUpdate(
-          'UPDATE transactions SET notes = ? WHERE id = ?',
-          [reEncrypted, row['id']],
+        await db.execute(
+          'UPDATE transactions SET notes = ? WHERE id = ? AND user_id = ?',
+          [reEncrypted, row['id'], _userId],
         );
       }
     }
 
-    final descRows = await db.rawQuery(
-      'SELECT id, name FROM descriptions WHERE user_id = ?',
+    final descRows = await db.query(
+      'SELECT id, name FROM descriptions WHERE user_id = ? AND is_deleted = 0',
       [_userId],
     );
     for (final row in descRows) {
@@ -717,48 +1026,49 @@ class DatabaseManager {
       }
       if (updated != decrypted) {
         final reEncrypted = await _encrypt(updated);
-        await db.rawUpdate(
-          'UPDATE descriptions SET name = ? WHERE id = ?',
-          [reEncrypted, row['id']],
+        await db.execute(
+          'UPDATE descriptions SET name = ? WHERE id = ? AND user_id = ?',
+          [reEncrypted, row['id'], _userId],
         );
       }
     }
   }
 
-  Future<bool> deleteAccount(int accountId, {bool deleteTransactions = false}) async {
+  Future<bool> deleteAccount(String accountId, {bool deleteTransactions = false}) async {
     final db = await database;
     final existing = await db.query(
-      'accounts',
-      where: 'id = ? AND user_id = ?',
-      whereArgs: [accountId, _userId],
+      'SELECT * FROM accounts WHERE id = ? AND user_id = ? AND is_deleted = 0',
+      [accountId, _userId],
     );
     if (existing.isEmpty) return false;
 
     if (deleteTransactions) {
       final recIds = await db.query(
-        'recurring_transactions',
-        columns: ['id'],
-        where: 'account_id = ? AND user_id = ?',
-        whereArgs: [accountId, _userId],
+        'SELECT id FROM recurring_transactions WHERE account_id = ? AND user_id = ? AND is_deleted = 0',
+        [accountId, _userId],
       );
-      await db.delete('transactions',
-          where: 'account_id = ? AND user_id = ?', whereArgs: [accountId, _userId]);
+      await db.execute(
+        'DELETE FROM transactions WHERE account_id = ? AND user_id = ?',
+        [accountId, _userId],
+      );
       for (final rec in recIds) {
-        await _deleteRecurringWithChildren(db, rec['id'] as int);
+        await _deleteRecurringWithChildren(db, rec['id'] as String);
       }
     } else {
-      await db.rawUpdate(
+      await db.execute(
         'UPDATE transactions SET account_id = NULL WHERE account_id = ? AND user_id = ?',
         [accountId, _userId],
       );
-      await db.rawUpdate(
+      await db.execute(
         'UPDATE recurring_transactions SET account_id = NULL WHERE account_id = ? AND user_id = ?',
         [accountId, _userId],
       );
     }
 
-    await db.delete('accounts',
-        where: 'id = ? AND user_id = ?', whereArgs: [accountId, _userId]);
+    await db.execute(
+      'DELETE FROM accounts WHERE id = ? AND user_id = ?',
+      [accountId, _userId],
+    );
     return true;
   }
 
@@ -767,16 +1077,15 @@ class DatabaseManager {
   Future<List<Description>> getAllDescriptions() async {
     final db = await database;
     final rows = await db.query(
-      'descriptions',
-      where: 'user_id = ?',
-      whereArgs: [_userId],
+      'SELECT * FROM descriptions WHERE user_id = ? AND is_deleted = 0',
+      [_userId],
     );
     final descriptions = <Description>[];
     for (final r in rows) {
       descriptions.add(Description(
-        id: r['id'] as int?,
-        userId: r['user_id'] as int,
-        name: await _decrypt(r['name'] as String?) ?? '',
+        id: r['id'] as String?,
+        userId: r['user_id'] as String,
+        name: await _decryptValue(r['name']) ?? '',
         createdAt: r['created_at'] as String?,
       ));
     }
@@ -784,30 +1093,32 @@ class DatabaseManager {
     return descriptions;
   }
 
-  Future<int> getOrCreateDescription(String name) async {
+  Future<String> getOrCreateDescription(String name) async {
     final normalized = name.trim();
     final cacheKey = normalized.toLowerCase();
     final cached = _descriptionCache[cacheKey];
     if (cached != null) return cached;
 
     final db = await database;
-    final allDescs = await db.rawQuery(
-      'SELECT id, name FROM descriptions WHERE user_id = ?',
+    final allDescs = await db.query(
+      'SELECT id, name FROM descriptions WHERE user_id = ? AND is_deleted = 0',
       [_userId],
     );
     for (final row in allDescs) {
-      final decrypted = await _decrypt(row['name'] as String?);
+      final decrypted = await _decryptValue(row['name']);
       if (decrypted != null && decrypted.toLowerCase() == cacheKey) {
-        _descriptionCache[cacheKey] = row['id'] as int;
-        return row['id'] as int;
+        final id = row['id'] as String;
+        _descriptionCache[cacheKey] = id;
+        return id;
       }
     }
 
+    final id = _newId();
     final encryptedName = await _encrypt(normalized);
-    final id = await db.insert('descriptions', {
-      'user_id': _userId,
-      'name': encryptedName,
-    });
+    await db.execute(
+      'INSERT INTO descriptions (id, user_id, name) VALUES (?1, ?2, ?3)',
+      [id, _userId, encryptedName],
+    );
     _descriptionCache[cacheKey] = id;
     return id;
   }
@@ -817,106 +1128,124 @@ class DatabaseManager {
     final db = await database;
     final sourceId = await getOrCreateDescription(sourceName);
     final targetId = await getOrCreateDescription(targetName);
-    await db.rawUpdate(
+    await db.execute(
       'UPDATE transactions SET description_id = ? WHERE description_id = ? AND user_id = ?',
       [targetId, sourceId, _userId],
     );
-    await db.rawUpdate(
+    await db.execute(
       'UPDATE recurring_transactions SET description_id = ? WHERE description_id = ? AND user_id = ?',
       [targetId, sourceId, _userId],
     );
-    await db.delete('descriptions',
-        where: 'id = ? AND user_id = ?', whereArgs: [sourceId, _userId]);
+    await db.execute(
+      'DELETE FROM descriptions WHERE id = ? AND user_id = ?',
+      [sourceId, _userId],
+    );
     _descriptionCache.clear();
     return true;
   }
 
-  Future<bool> renameDescription(int descriptionId, String newName) async {
+  Future<bool> renameDescription(String descriptionId, String newName) async {
     if (newName.trim().isEmpty) return false;
     final db = await database;
     final encryptedName = await _encrypt(newName.trim());
-    final count = await db.rawUpdate(
+    final existing = await db.query(
+      'SELECT id FROM descriptions WHERE id = ? AND user_id = ? AND is_deleted = 0',
+      [descriptionId, _userId],
+    );
+    if (existing.isEmpty) return false;
+    await db.execute(
       'UPDATE descriptions SET name = ? WHERE id = ? AND user_id = ?',
       [encryptedName, descriptionId, _userId],
     );
     _descriptionCache.clear();
-    return count > 0;
+    return true;
   }
 
   Future<void> cleanupUnusedDescriptions() async {
     if (_userId == null) return;
     final db = await database;
-    await db.rawDelete('''
+    await db.execute('''
       DELETE FROM descriptions
       WHERE user_id = ?
-        AND id NOT IN (SELECT DISTINCT description_id FROM transactions WHERE user_id = ?)
-        AND id NOT IN (SELECT DISTINCT description_id FROM recurring_transactions WHERE user_id = ?)
+        AND is_deleted = 0
+        AND id NOT IN (SELECT DISTINCT description_id FROM transactions WHERE user_id = ? AND is_deleted = 0)
+        AND id NOT IN (SELECT DISTINCT description_id FROM recurring_transactions WHERE user_id = ? AND is_deleted = 0)
     ''', [_userId, _userId, _userId]);
     _descriptionCache.clear();
   }
 
   // ==================== TAGS ====================
 
-  Future<int?> createTag({required String name, String color = '#1976D2'}) async {
+  Future<String?> createTag({required String name, String color = '#1976D2'}) async {
     if (_userId == null) return null;
     final db = await database;
-    return await db.insert('tags', {
-      'user_id': _userId,
-      'name': name,
-      'color': color,
-    });
+    final id = _newId();
+    await db.execute(
+      'INSERT INTO tags (id, user_id, name, color) VALUES (?1, ?2, ?3, ?4)',
+      [id, _userId, name, color],
+    );
+    return id;
   }
 
   Future<List<Tag>> getAllTags() async {
     if (_userId == null) return [];
     final db = await database;
     final rows = await db.query(
-      'tags',
-      where: 'user_id = ?',
-      whereArgs: [_userId],
-      orderBy: 'name ASC',
+      'SELECT * FROM tags WHERE user_id = ? AND is_deleted = 0 ORDER BY name ASC',
+      [_userId],
     );
     return rows.map((r) => Tag.fromMap(r)).toList();
   }
 
-  Future<bool> updateTag(int tagId, {String? name, String? color}) async {
+  Future<bool> updateTag(String tagId, {String? name, String? color}) async {
     if (_userId == null) return false;
     final db = await database;
-    final updates = <String, dynamic>{};
-    if (name != null) updates['name'] = name;
-    if (color != null) updates['color'] = color;
-    if (updates.isEmpty) return false;
-    final count = await db.update(
-      'tags',
-      updates,
-      where: 'id = ? AND user_id = ?',
-      whereArgs: [tagId, _userId],
+    final existing = await db.query(
+      'SELECT id FROM tags WHERE id = ? AND user_id = ? AND is_deleted = 0',
+      [tagId, _userId],
     );
-    return count > 0;
+    if (existing.isEmpty) return false;
+    var sql = 'UPDATE tags SET';
+    final args = <Object?>[];
+    if (name != null) {
+      sql += ' name = ?';
+      args.add(name);
+    }
+    if (color != null) {
+      if (args.isNotEmpty) sql += ',';
+      sql += ' color = ?';
+      args.add(color);
+    }
+    if (args.isEmpty) return false;
+    sql += ' WHERE id = ? AND user_id = ?';
+    args.add(tagId);
+    args.add(_userId);
+    await db.execute(sql, args);
+    return true;
   }
 
-  Future<bool> deleteTag(int tagId) async {
+  Future<bool> deleteTag(String tagId) async {
     if (_userId == null) return false;
     final db = await database;
-    // Unassign tag from transactions before deleting
-    await db.rawUpdate(
+    final existing = await db.query(
+      'SELECT id FROM tags WHERE id = ? AND user_id = ? AND is_deleted = 0',
+      [tagId, _userId],
+    );
+    if (existing.isEmpty) return false;
+    await db.execute(
       'UPDATE transactions SET tag_id = NULL WHERE tag_id = ? AND user_id = ?',
       [tagId, _userId],
     );
-    final count = await db.delete(
-      'tags',
-      where: 'id = ? AND user_id = ?',
-      whereArgs: [tagId, _userId],
-    );
-    return count > 0;
+    await db.execute('DELETE FROM tags WHERE id = ? AND user_id = ?', [tagId, _userId]);
+    return true;
   }
 
   // ==================== TRANSACTIONS ====================
 
-  Future<String?> getAccountCurrency(int accountId) async {
+  Future<String?> getAccountCurrency(String accountId) async {
     final db = await database;
-    final result = await db.rawQuery(
-      'SELECT currency FROM accounts WHERE id = ? AND user_id = ?',
+    final result = await db.query(
+      'SELECT currency FROM accounts WHERE id = ? AND user_id = ? AND is_deleted = 0',
       [accountId, _userId],
     );
     if (result.isEmpty) return null;
@@ -925,13 +1254,13 @@ class DatabaseManager {
     return null;
   }
 
-  Future<int?> addTransaction({
+  Future<String?> addTransaction({
     required String date,
     required String description,
     required double amount,
     required String transactionType,
-    int? accountId,
-    int? tagId,
+    String? accountId,
+    String? tagId,
     String? notes,
     String? currency,
   }) async {
@@ -944,34 +1273,36 @@ class DatabaseManager {
       if (acctCurrency != null) effectiveCurrency = acctCurrency;
     }
 
+    final id = _newId();
     final encryptedAmount = await _encrypt(amount.toString());
     final encryptedNotes = await _encrypt(notes);
 
-    return await db.insert('transactions', {
-      'user_id': _userId,
-      'account_id': accountId,
-      'description_id': descId,
-      'tag_id': tagId,
-      'date': date,
-      'amount': encryptedAmount,
-      'transaction_type': transactionType,
-      'currency': effectiveCurrency,
-      'notes': encryptedNotes,
-    });
+    await db.execute(
+      'INSERT INTO transactions (id, user_id, account_id, description_id, tag_id, date, amount, transaction_type, currency, notes) '
+      'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)',
+      [id, _userId, accountId, descId, tagId, date, encryptedAmount, transactionType, effectiveCurrency, encryptedNotes],
+    );
+    return id;
   }
 
-  Future<bool> updateTransaction(int transactionId, {
+  Future<bool> updateTransaction(String transactionId, {
     String? date,
     String? description,
     double? amount,
     String? transactionType,
-    int? accountId,
-    int? tagId,
+    String? accountId,
+    String? tagId,
     bool clearTag = false,
     String? notes,
     String? currency,
   }) async {
     final db = await database;
+    final existing = await db.query(
+      'SELECT id FROM transactions WHERE id = ? AND user_id = ? AND is_deleted = 0',
+      [transactionId, _userId],
+    );
+    if (existing.isEmpty) return false;
+
     final updates = <String, dynamic>{};
     if (date != null) updates['date'] = date;
     if (amount != null) updates['amount'] = await _encrypt(amount.toString());
@@ -987,31 +1318,43 @@ class DatabaseManager {
     if (updates.isEmpty) return false;
 
     updates['updated_at'] = DateTime.now().toIso8601String();
-    final count = await db.update(
-      'transactions',
-      updates,
-      where: 'id = ? AND user_id = ?',
-      whereArgs: [transactionId, _userId],
-    );
-    return count > 0;
+
+    var sql = 'UPDATE transactions SET';
+    final args = <Object?>[];
+    var first = true;
+    for (final entry in updates.entries) {
+      if (!first) sql += ',';
+      sql += ' ${entry.key} = ?';
+      args.add(entry.value);
+      first = false;
+    }
+    sql += ' WHERE id = ? AND user_id = ?';
+    args.add(transactionId);
+    args.add(_userId);
+    await db.execute(sql, args);
+    return true;
   }
 
-  Future<bool> deleteTransaction(int transactionId) async {
+  Future<bool> deleteTransaction(String transactionId) async {
     final db = await database;
-    final count = await db.delete(
-      'transactions',
-      where: 'id = ? AND user_id = ?',
-      whereArgs: [transactionId, _userId],
+    final existing = await db.query(
+      'SELECT id FROM transactions WHERE id = ? AND user_id = ? AND is_deleted = 0',
+      [transactionId, _userId],
     );
-    return count > 0;
+    if (existing.isEmpty) return false;
+    await db.execute(
+      'DELETE FROM transactions WHERE id = ? AND user_id = ?',
+      [transactionId, _userId],
+    );
+    return true;
   }
 
   Future<List<TransactionWithDetails>> getTransactions({
     int? limit,
     int offset = 0,
     String searchQuery = '',
-    Set<int>? accountIds,
-    Set<int>? tagIds,
+    Set<String>? accountIds,
+    Set<String>? tagIds,
   }) async {
     final db = await database;
     var query = '''
@@ -1020,31 +1363,31 @@ class DatabaseManager {
              tg.name as tag_name, tg.color as tag_color,
              rt.frequency as recurring_frequency
       FROM transactions t
-      LEFT JOIN accounts a ON t.account_id = a.id
-      LEFT JOIN descriptions d ON t.description_id = d.id
-      LEFT JOIN tags tg ON t.tag_id = tg.id
-      LEFT JOIN recurring_transactions rt ON t.recurring_id = rt.id
-      WHERE t.user_id = ?
+      LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0
+      LEFT JOIN descriptions d ON t.description_id = d.id AND d.is_deleted = 0
+      LEFT JOIN tags tg ON t.tag_id = tg.id AND tg.is_deleted = 0
+      LEFT JOIN recurring_transactions rt ON t.recurring_id = rt.id AND rt.is_deleted = 0
+      WHERE t.user_id = ? AND t.is_deleted = 0
       ORDER BY t.date DESC, t.id DESC
     ''';
 
-    final rows = await db.rawQuery(query, [_userId]);
+    final rows = await db.query(query, [_userId]);
 
     final results = <TransactionWithDetails>[];
     final sq = searchQuery.toLowerCase();
     for (final r in rows) {
-      final amount = await _decryptAmount(r['amount'] as String?);
-      final notes = await _decrypt(r['notes'] as String?);
-      final accountName = await _decrypt(r['account_name'] as String?);
-      final descriptionName = await _decrypt(r['description_name'] as String?);
+      final amount = await _decryptAmount(r['amount']);
+      final notes = await _decryptValue(r['notes']);
+      final accountName = await _decryptValue(r['account_name']);
+      final descriptionName = await _decryptValue(r['description_name']);
 
       if (accountIds != null && accountIds.isNotEmpty) {
-        final acctId = r['account_id'] as int?;
+        final acctId = r['account_id'] as String?;
         if (acctId == null || !accountIds.contains(acctId)) continue;
       }
 
       if (tagIds != null && tagIds.isNotEmpty) {
-        final txnTagId = r['tag_id'] as int?;
+        final txnTagId = r['tag_id'] as String?;
         if (txnTagId == null || !tagIds.contains(txnTagId)) continue;
       }
 
@@ -1057,17 +1400,17 @@ class DatabaseManager {
       }
 
       results.add(TransactionWithDetails(
-        id: r['id'] as int?,
-        userId: r['user_id'] as int,
-        accountId: r['account_id'] as int?,
-        descriptionId: r['description_id'] as int?,
-        tagId: r['tag_id'] as int?,
+        id: r['id'] as String?,
+        userId: r['user_id'] as String,
+        accountId: r['account_id'] as String?,
+        descriptionId: r['description_id'] as String?,
+        tagId: r['tag_id'] as String?,
         date: r['date'] as String,
         amount: amount,
         transactionType: r['transaction_type'] as String,
         currency: r['currency'] as String? ?? 'EUR',
         notes: notes,
-        recurringId: r['recurring_id'] as int?,
+        recurringId: r['recurring_id'] as String?,
         createdAt: r['created_at'] as String?,
         updatedAt: r['updated_at'] as String?,
         accountName: accountName,
@@ -1091,40 +1434,40 @@ class DatabaseManager {
   Future<List<TransactionWithDetails>> getTransactionsByPeriod(
       String startDate, String endDate) async {
     final db = await database;
-    final rows = await db.rawQuery('''
+    final rows = await db.query('''
       SELECT t.*, a.name as account_name, a.color as account_color,
              a.currency as account_currency, d.name as description_name,
              tg.name as tag_name, tg.color as tag_color,
              rt.frequency as recurring_frequency
       FROM transactions t
-      LEFT JOIN accounts a ON t.account_id = a.id
-      LEFT JOIN descriptions d ON t.description_id = d.id
-      LEFT JOIN tags tg ON t.tag_id = tg.id
-      LEFT JOIN recurring_transactions rt ON t.recurring_id = rt.id
-      WHERE t.date BETWEEN ? AND ? AND t.user_id = ?
+      LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0
+      LEFT JOIN descriptions d ON t.description_id = d.id AND d.is_deleted = 0
+      LEFT JOIN tags tg ON t.tag_id = tg.id AND tg.is_deleted = 0
+      LEFT JOIN recurring_transactions rt ON t.recurring_id = rt.id AND rt.is_deleted = 0
+      WHERE t.date BETWEEN ? AND ? AND t.user_id = ? AND t.is_deleted = 0
       ORDER BY t.date DESC
     ''', [startDate, endDate, _userId]);
 
     final results = <TransactionWithDetails>[];
     for (final r in rows) {
       results.add(TransactionWithDetails(
-        id: r['id'] as int?,
-        userId: r['user_id'] as int,
-        accountId: r['account_id'] as int?,
-        descriptionId: r['description_id'] as int?,
-        tagId: r['tag_id'] as int?,
+        id: r['id'] as String?,
+        userId: r['user_id'] as String,
+        accountId: r['account_id'] as String?,
+        descriptionId: r['description_id'] as String?,
+        tagId: r['tag_id'] as String?,
         date: r['date'] as String,
-        amount: await _decryptAmount(r['amount'] as String?),
+        amount: await _decryptAmount(r['amount']),
         transactionType: r['transaction_type'] as String,
         currency: r['currency'] as String? ?? 'EUR',
-        notes: await _decrypt(r['notes'] as String?),
-        recurringId: r['recurring_id'] as int?,
+        notes: await _decryptValue(r['notes']),
+        recurringId: r['recurring_id'] as String?,
         createdAt: r['created_at'] as String?,
         updatedAt: r['updated_at'] as String?,
-        accountName: await _decrypt(r['account_name'] as String?),
+        accountName: await _decryptValue(r['account_name']),
         accountColor: r['account_color'] as String?,
         accountCurrency: r['account_currency'] as String?,
-        descriptionName: await _decrypt(r['description_name'] as String?),
+        descriptionName: await _decryptValue(r['description_name']),
         tagName: r['tag_name'] as String?,
         tagColor: r['tag_color'] as String?,
         recurringFrequency: r['recurring_frequency'] as String?,
@@ -1135,14 +1478,14 @@ class DatabaseManager {
 
   // ==================== RECURRING TRANSACTIONS ====================
 
-  Future<int?> addRecurringTransaction({
+  Future<String?> addRecurringTransaction({
     required String description,
     required double amount,
     required String transactionType,
     required String frequency,
     required String startDate,
-    int? accountId,
-    int? tagId,
+    String? accountId,
+    String? tagId,
     String? notes,
     String? currency,
     int interval = 1,
@@ -1164,27 +1507,34 @@ class DatabaseManager {
     final computedDow = dayOfWeek ?? RecurringService.isoWeekday(start);
     final computedDom = dayOfMonth ?? anchorDay;
 
-    return await db.insert('recurring_transactions', {
-      'user_id': _userId,
-      'account_id': accountId,
-      'description_id': descId,
-      'tag_id': tagId,
-      'amount': await _encrypt(amount.toString()),
-      'transaction_type': transactionType,
-      'currency': effectiveCurrency,
-      'notes': await _encrypt(notes),
-      'frequency': frequency,
-      'interval': interval,
-      'day_of_week': frequency == 'weekly' ? computedDow : dayOfWeek,
-      'day_of_month': (frequency == 'monthly' || frequency == 'yearly') ? computedDom : dayOfMonth,
-      'start_date': startDate,
-      'end_date': endDate,
-      'next_due_date': startDate,
-      'active': 1,
-    });
+    final id = _newId();
+    await db.execute(
+      'INSERT INTO recurring_transactions (id, user_id, account_id, description_id, tag_id, amount, transaction_type, currency, notes, frequency, interval, day_of_week, day_of_month, start_date, end_date, next_due_date, active) '
+      'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)',
+      [
+        id,
+        _userId,
+        accountId,
+        descId,
+        tagId,
+        await _encrypt(amount.toString()),
+        transactionType,
+        effectiveCurrency,
+        await _encrypt(notes),
+        frequency,
+        interval,
+        frequency == 'weekly' ? computedDow : dayOfWeek,
+        (frequency == 'monthly' || frequency == 'yearly') ? computedDom : dayOfMonth,
+        startDate,
+        endDate,
+        startDate,
+        1,
+      ],
+    );
+    return id;
   }
 
-  Future<bool> updateRecurringTransaction(int recurringId, {
+  Future<bool> updateRecurringTransaction(String recurringId, {
     String? description,
     double? amount,
     String? transactionType,
@@ -1192,8 +1542,8 @@ class DatabaseManager {
     String? startDate,
     String? endDate,
     bool clearEndDate = false,
-    int? accountId,
-    int? tagId,
+    String? accountId,
+    String? tagId,
     bool clearTag = false,
     String? notes,
     String? currency,
@@ -1204,9 +1554,8 @@ class DatabaseManager {
   }) async {
     final db = await database;
     final existing = await db.query(
-      'recurring_transactions',
-      where: 'id = ? AND user_id = ?',
-      whereArgs: [recurringId, _userId],
+      'SELECT * FROM recurring_transactions WHERE id = ? AND user_id = ? AND is_deleted = 0',
+      [recurringId, _userId],
     );
     if (existing.isEmpty) return false;
     final row = existing.first;
@@ -1268,76 +1617,94 @@ class DatabaseManager {
 
     if (updates.isEmpty) return false;
     updates['updated_at'] = DateTime.now().toIso8601String();
-    final count = await db.update(
-      'recurring_transactions',
-      updates,
-      where: 'id = ? AND user_id = ?',
-      whereArgs: [recurringId, _userId],
-    );
-    return count > 0;
+
+    var sql = 'UPDATE recurring_transactions SET';
+    final args = <Object?>[];
+    var first = true;
+    for (final entry in updates.entries) {
+      if (!first) sql += ',';
+      sql += ' ${entry.key} = ?';
+      args.add(entry.value);
+      first = false;
+    }
+    sql += ' WHERE id = ? AND user_id = ?';
+    args.add(recurringId);
+    args.add(_userId);
+    await db.execute(sql, args);
+    return true;
   }
 
-  Future<bool> toggleRecurringActive(int recurringId, bool active) async {
+  Future<bool> toggleRecurringActive(String recurringId, bool active) async {
     final db = await database;
-    final count = await db.update(
-      'recurring_transactions',
-      {'active': active ? 1 : 0, 'updated_at': DateTime.now().toIso8601String()},
-      where: 'id = ? AND user_id = ?',
-      whereArgs: [recurringId, _userId],
+    final existing = await db.query(
+      'SELECT id FROM recurring_transactions WHERE id = ? AND user_id = ? AND is_deleted = 0',
+      [recurringId, _userId],
     );
-    return count > 0;
+    if (existing.isEmpty) return false;
+    await db.execute(
+      'UPDATE recurring_transactions SET active = ?, updated_at = ? WHERE id = ? AND user_id = ?',
+      [active ? 1 : 0, DateTime.now().toIso8601String(), recurringId, _userId],
+    );
+    return true;
   }
 
-  Future<bool> deleteRecurringTransaction(int recurringId,
+  Future<bool> deleteRecurringTransaction(String recurringId,
       {bool deleteOccurrences = true}) async {
     final db = await database;
-    final count = await db.delete(
-      'recurring_transactions',
-      where: 'id = ? AND user_id = ?',
-      whereArgs: [recurringId, _userId],
+    final existing = await db.query(
+      'SELECT id FROM recurring_transactions WHERE id = ? AND user_id = ? AND is_deleted = 0',
+      [recurringId, _userId],
     );
-    if (count > 0) {
-      if (deleteOccurrences) {
-        await db.delete('transactions',
-            where: 'recurring_id = ? AND user_id = ?',
-            whereArgs: [recurringId, _userId]);
-      }
-      await db.delete('recurring_exceptions',
-          where: 'recurring_id = ?', whereArgs: [recurringId]);
+    if (existing.isEmpty) return false;
+    if (deleteOccurrences) {
+      await db.execute(
+        'DELETE FROM transactions WHERE recurring_id = ? AND user_id = ?',
+        [recurringId, _userId],
+      );
     }
-    return count > 0;
+    await db.execute('DELETE FROM recurring_exceptions WHERE recurring_id = ?', [recurringId]);
+    await db.execute(
+      'DELETE FROM recurring_transactions WHERE id = ? AND user_id = ?',
+      [recurringId, _userId],
+    );
+    return true;
   }
 
-  Future<void> _deleteRecurringWithChildren(Database db, int recurringId) async {
-    await db.delete('transactions',
-        where: 'recurring_id = ? AND user_id = ?', whereArgs: [recurringId, _userId]);
-    await db.delete('recurring_exceptions',
-        where: 'recurring_id = ?', whereArgs: [recurringId]);
-    await db.delete('recurring_transactions',
-        where: 'id = ? AND user_id = ?', whereArgs: [recurringId, _userId]);
+  Future<void> _deleteRecurringWithChildren(SqliteCrdt db, String recurringId) async {
+    await db.execute(
+      'DELETE FROM transactions WHERE recurring_id = ? AND user_id = ?',
+      [recurringId, _userId],
+    );
+    await db.execute('DELETE FROM recurring_exceptions WHERE recurring_id = ?', [recurringId]);
+    await db.execute(
+      'DELETE FROM recurring_transactions WHERE id = ? AND user_id = ?',
+      [recurringId, _userId],
+    );
   }
 
-  Future<void> markRecurringOccurrenceDeleted(int recurringId, String date) async {
+  Future<void> markRecurringOccurrenceDeleted(String recurringId, String date) async {
     final db = await database;
-    await db.rawInsert(
-      'INSERT OR REPLACE INTO recurring_exceptions (recurring_id, date) VALUES (?, ?)',
+    await db.execute(
+      'INSERT OR REPLACE INTO recurring_exceptions (id, recurring_id, date) VALUES (?1, ?2, ?3)',
+      [_newId(), recurringId, date],
+    );
+  }
+
+  Future<void> clearRecurringOccurrenceDeleted(String recurringId, String date) async {
+    final db = await database;
+    await db.execute(
+      'DELETE FROM recurring_exceptions WHERE recurring_id = ? AND date = ?',
       [recurringId, date],
     );
   }
 
-  Future<void> clearRecurringOccurrenceDeleted(int recurringId, String date) async {
-    final db = await database;
-    await db.delete('recurring_exceptions',
-        where: 'recurring_id = ? AND date = ?', whereArgs: [recurringId, date]);
-  }
-
-  RecurringTransaction _recurringFromRow(Map<String, dynamic> row) {
+  RecurringTransaction _recurringFromRow(Map<String, Object?> row) {
     return RecurringTransaction(
-      id: row['id'] as int?,
-      userId: row['user_id'] as int,
-      accountId: row['account_id'] as int?,
-      descriptionId: row['description_id'] as int?,
-      tagId: row['tag_id'] as int?,
+      id: row['id'] as String?,
+      userId: row['user_id'] as String,
+      accountId: row['account_id'] as String?,
+      descriptionId: row['description_id'] as String?,
+      tagId: row['tag_id'] as String?,
       amount: (row['amount'] is num) ? (row['amount'] as num).toDouble() : 0,
       transactionType: row['transaction_type'] as String,
       currency: row['currency'] as String? ?? 'EUR',
@@ -1356,31 +1723,31 @@ class DatabaseManager {
   }
 
   Future<RecurringTransactionWithDetails?> getRecurringTransaction(
-      int recurringId) async {
+      String recurringId) async {
     final db = await database;
-    final rows = await db.rawQuery('''
+    final rows = await db.query('''
       SELECT r.*, a.name as account_name, a.color as account_color,
              a.currency as account_currency, d.name as description_name,
              tg.name as tag_name, tg.color as tag_color,
-             (SELECT COUNT(*) FROM transactions t WHERE t.recurring_id = r.id) as generated_count
+             (SELECT COUNT(*) FROM transactions t WHERE t.recurring_id = r.id AND t.is_deleted = 0) as generated_count
       FROM recurring_transactions r
-      LEFT JOIN accounts a ON r.account_id = a.id
-      LEFT JOIN descriptions d ON r.description_id = d.id
-      LEFT JOIN tags tg ON r.tag_id = tg.id
-      WHERE r.id = ? AND r.user_id = ?
+      LEFT JOIN accounts a ON r.account_id = a.id AND a.is_deleted = 0
+      LEFT JOIN descriptions d ON r.description_id = d.id AND d.is_deleted = 0
+      LEFT JOIN tags tg ON r.tag_id = tg.id AND tg.is_deleted = 0
+      WHERE r.id = ? AND r.user_id = ? AND r.is_deleted = 0
     ''', [recurringId, _userId]);
     if (rows.isEmpty) return null;
     final r = rows.first;
     return RecurringTransactionWithDetails(
-      id: r['id'] as int?,
-      userId: r['user_id'] as int,
-      accountId: r['account_id'] as int?,
-      descriptionId: r['description_id'] as int?,
-      tagId: r['tag_id'] as int?,
-      amount: await _decryptAmount(r['amount'] as String?),
+      id: r['id'] as String?,
+      userId: r['user_id'] as String,
+      accountId: r['account_id'] as String?,
+      descriptionId: r['description_id'] as String?,
+      tagId: r['tag_id'] as String?,
+      amount: await _decryptAmount(r['amount']),
       transactionType: r['transaction_type'] as String,
       currency: r['currency'] as String? ?? 'EUR',
-      notes: await _decrypt(r['notes'] as String?),
+      notes: await _decryptValue(r['notes']),
       frequency: r['frequency'] as String,
       interval: r['interval'] as int? ?? 1,
       dayOfWeek: r['day_of_week'] as int?,
@@ -1391,10 +1758,10 @@ class DatabaseManager {
       active: (r['active'] as int? ?? 1) == 1,
       createdAt: r['created_at'] as String?,
       updatedAt: r['updated_at'] as String?,
-      accountName: await _decrypt(r['account_name'] as String?),
+      accountName: await _decryptValue(r['account_name']),
       accountColor: r['account_color'] as String?,
       accountCurrency: r['account_currency'] as String?,
-      descriptionName: await _decrypt(r['description_name'] as String?),
+      descriptionName: await _decryptValue(r['description_name']),
       tagName: r['tag_name'] as String?,
       tagColor: r['tag_color'] as String?,
       generatedCount: r['generated_count'] as int? ?? 0,
@@ -1403,31 +1770,31 @@ class DatabaseManager {
 
   Future<List<RecurringTransactionWithDetails>> getRecurringTransactions() async {
     final db = await database;
-    final rows = await db.rawQuery('''
+    final rows = await db.query('''
       SELECT r.*, a.name as account_name, a.color as account_color,
              a.currency as account_currency, d.name as description_name,
              tg.name as tag_name, tg.color as tag_color,
-             (SELECT COUNT(*) FROM transactions t WHERE t.recurring_id = r.id) as generated_count
+             (SELECT COUNT(*) FROM transactions t WHERE t.recurring_id = r.id AND t.is_deleted = 0) as generated_count
       FROM recurring_transactions r
-      LEFT JOIN accounts a ON r.account_id = a.id
-      LEFT JOIN descriptions d ON r.description_id = d.id
-      LEFT JOIN tags tg ON r.tag_id = tg.id
-      WHERE r.user_id = ?
+      LEFT JOIN accounts a ON r.account_id = a.id AND a.is_deleted = 0
+      LEFT JOIN descriptions d ON r.description_id = d.id AND d.is_deleted = 0
+      LEFT JOIN tags tg ON r.tag_id = tg.id AND tg.is_deleted = 0
+      WHERE r.user_id = ? AND r.is_deleted = 0
       ORDER BY r.next_due_date ASC, r.id DESC
     ''', [_userId]);
 
     final results = <RecurringTransactionWithDetails>[];
     for (final r in rows) {
       results.add(RecurringTransactionWithDetails(
-        id: r['id'] as int?,
-        userId: r['user_id'] as int,
-        accountId: r['account_id'] as int?,
-        descriptionId: r['description_id'] as int?,
-        tagId: r['tag_id'] as int?,
-        amount: await _decryptAmount(r['amount'] as String?),
+        id: r['id'] as String?,
+        userId: r['user_id'] as String,
+        accountId: r['account_id'] as String?,
+        descriptionId: r['description_id'] as String?,
+        tagId: r['tag_id'] as String?,
+        amount: await _decryptAmount(r['amount']),
         transactionType: r['transaction_type'] as String,
         currency: r['currency'] as String? ?? 'EUR',
-        notes: await _decrypt(r['notes'] as String?),
+        notes: await _decryptValue(r['notes']),
         frequency: r['frequency'] as String,
         interval: r['interval'] as int? ?? 1,
         dayOfWeek: r['day_of_week'] as int?,
@@ -1438,10 +1805,10 @@ class DatabaseManager {
         active: (r['active'] as int? ?? 1) == 1,
         createdAt: r['created_at'] as String?,
         updatedAt: r['updated_at'] as String?,
-        accountName: await _decrypt(r['account_name'] as String?),
+        accountName: await _decryptValue(r['account_name']),
         accountColor: r['account_color'] as String?,
         accountCurrency: r['account_currency'] as String?,
-        descriptionName: await _decrypt(r['description_name'] as String?),
+        descriptionName: await _decryptValue(r['description_name']),
         tagName: r['tag_name'] as String?,
         tagColor: r['tag_color'] as String?,
         generatedCount: r['generated_count'] as int? ?? 0,
@@ -1457,9 +1824,8 @@ class DatabaseManager {
     if (_userId == null) return;
     final db = await database;
     final rows = await db.query(
-      'recurring_transactions',
-      where: 'user_id = ? AND active = 1',
-      whereArgs: [_userId],
+      'SELECT * FROM recurring_transactions WHERE user_id = ? AND active = 1 AND is_deleted = 0',
+      [_userId],
     );
     for (final row in rows) {
       final base = _recurringFromRow(row);
@@ -1469,10 +1835,10 @@ class DatabaseManager {
         accountId: base.accountId,
         descriptionId: base.descriptionId,
         tagId: base.tagId,
-        amount: await _decryptAmount(row['amount'] as String?),
+        amount: await _decryptAmount(row['amount']),
         transactionType: base.transactionType,
         currency: base.currency,
-        notes: await _decrypt(row['notes'] as String?),
+        notes: await _decryptValue(row['notes']),
         frequency: base.frequency,
         interval: base.interval,
         dayOfWeek: base.dayOfWeek,
@@ -1487,27 +1853,21 @@ class DatabaseManager {
   }
 
   Future<void> _generateForTemplate(
-      Database db, RecurringTransaction rec) async {
+      SqliteCrdt db, RecurringTransaction rec) async {
     final id = rec.id;
     if (id == null) return;
 
     final existingRows = await db.query(
-      'transactions',
-      columns: ['date'],
-      where: 'recurring_id = ? AND user_id = ?',
-      whereArgs: [id, _userId],
+      'SELECT date FROM transactions WHERE recurring_id = ? AND user_id = ? AND is_deleted = 0',
+      [id, _userId],
     );
-    final existingDates =
-        existingRows.map((r) => r['date'] as String).toSet();
+    final existingDates = existingRows.map((r) => r['date'] as String).toSet();
 
     final exceptionRows = await db.query(
-      'recurring_exceptions',
-      columns: ['date'],
-      where: 'recurring_id = ?',
-      whereArgs: [id],
+      'SELECT date FROM recurring_exceptions WHERE recurring_id = ? AND is_deleted = 0',
+      [id],
     );
-    final exceptionDates =
-        exceptionRows.map((r) => r['date'] as String).toSet();
+    final exceptionDates = exceptionRows.map((r) => r['date'] as String).toSet();
 
     final plan = RecurringService.planGeneration(
       rec,
@@ -1517,33 +1877,34 @@ class DatabaseManager {
     );
 
     for (final dateStr in plan.dueDates) {
-      await db.insert('transactions', {
-        'user_id': rec.userId,
-        'account_id': rec.accountId,
-        'description_id': rec.descriptionId,
-        'tag_id': rec.tagId,
-        'date': dateStr,
-        'amount': await _encrypt(rec.amount.toString()),
-        'transaction_type': rec.transactionType,
-        'currency': rec.currency,
-        'notes': await _encrypt(rec.notes),
-        'recurring_id': id,
-      });
+      await db.execute(
+        'INSERT INTO transactions (id, user_id, account_id, description_id, tag_id, date, amount, transaction_type, currency, notes, recurring_id) '
+        'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)',
+        [
+          _newId(),
+          rec.userId,
+          rec.accountId,
+          rec.descriptionId,
+          rec.tagId,
+          dateStr,
+          await _encrypt(rec.amount.toString()),
+          rec.transactionType,
+          rec.currency,
+          await _encrypt(rec.notes),
+          id,
+        ],
+      );
     }
 
     if (plan.ended) {
-      await db.update(
-        'recurring_transactions',
-        {'active': 0, 'next_due_date': plan.nextDueDate},
-        where: 'id = ?',
-        whereArgs: [id],
+      await db.execute(
+        'UPDATE recurring_transactions SET active = 0, next_due_date = ? WHERE id = ?',
+        [plan.nextDueDate, id],
       );
     } else {
-      await db.update(
-        'recurring_transactions',
-        {'next_due_date': plan.nextDueDate},
-        where: 'id = ?',
-        whereArgs: [id],
+      await db.execute(
+        'UPDATE recurring_transactions SET next_due_date = ? WHERE id = ?',
+        [plan.nextDueDate, id],
       );
     }
   }
@@ -1552,14 +1913,14 @@ class DatabaseManager {
 
   Future<double> getTotalPatrimony({String targetCurrency = 'EUR'}) async {
     final db = await database;
-    final acctRows = await db.rawQuery(
-      'SELECT starting_amount, currency FROM accounts WHERE user_id = ?',
+    final acctRows = await db.query(
+      'SELECT starting_amount, currency FROM accounts WHERE user_id = ? AND is_deleted = 0',
       [_userId],
     );
 
     double total = 0.0;
     for (final row in acctRows) {
-      final amount = await _decryptAmount(row['starting_amount'] as String?);
+      final amount = await _decryptAmount(row['starting_amount']);
       final acctCurrency = (row['currency'] as String?) ?? 'EUR';
       if (amount == 0) continue;
       if (acctCurrency == targetCurrency) {
@@ -1570,14 +1931,15 @@ class DatabaseManager {
       }
     }
 
-    final txnRows = await db.rawQuery(
+    final txnRows = await db.query(
       'SELECT t.amount, t.transaction_type, COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
-      'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id WHERE t.user_id = ?',
+      'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
+      'WHERE t.user_id = ? AND t.is_deleted = 0',
       [_userId],
     );
 
     for (final row in txnRows) {
-      final amount = await _decryptAmount(row['amount'] as String?);
+      final amount = await _decryptAmount(row['amount']);
       final type = row['transaction_type'] as String;
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
       final signedAmount = type == 'income' ? amount : (type == 'expense' ? -amount : 0.0);
@@ -1595,14 +1957,14 @@ class DatabaseManager {
   Future<double> getBalance({String targetCurrency = 'EUR', String? before}) async {
     final db = await database;
 
-    final acctRows = await db.rawQuery(
-      'SELECT starting_amount, currency FROM accounts WHERE type = ? AND user_id = ?',
+    final acctRows = await db.query(
+      'SELECT starting_amount, currency FROM accounts WHERE type = ? AND user_id = ? AND is_deleted = 0',
       ['checking', _userId],
     );
 
     double total = 0.0;
     for (final row in acctRows) {
-      final amount = await _decryptAmount(row['starting_amount'] as String?);
+      final amount = await _decryptAmount(row['starting_amount']);
       final acctCurrency = (row['currency'] as String?) ?? 'EUR';
       if (amount == 0) continue;
       if (acctCurrency == targetCurrency) {
@@ -1613,10 +1975,11 @@ class DatabaseManager {
       }
     }
 
-    final txnRows = await db.rawQuery(
+    final txnRows = await db.query(
       'SELECT t.amount, t.transaction_type, t.account_id, '
       'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency, a.type as account_type '
-      'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id WHERE t.user_id = ?'
+      'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
+      'WHERE t.user_id = ? AND t.is_deleted = 0'
       '${before != null ? ' AND t.date < ?' : ''}',
       before != null ? [_userId, before] : [_userId],
     );
@@ -1626,7 +1989,7 @@ class DatabaseManager {
       final hasAccount = row['account_id'] != null;
       if (accountType != 'checking' && hasAccount) continue;
 
-      final amount = await _decryptAmount(row['amount'] as String?);
+      final amount = await _decryptAmount(row['amount']);
       final type = row['transaction_type'] as String;
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
       final signedAmount = type == 'income' ? amount : (type == 'expense' ? -amount : 0.0);
@@ -1644,14 +2007,14 @@ class DatabaseManager {
   Future<double> getSavingsTotal({String targetCurrency = 'EUR', String? before}) async {
     final db = await database;
 
-    final acctRows = await db.rawQuery(
-      'SELECT starting_amount, currency FROM accounts WHERE type = ? AND user_id = ?',
+    final acctRows = await db.query(
+      'SELECT starting_amount, currency FROM accounts WHERE type = ? AND user_id = ? AND is_deleted = 0',
       ['savings', _userId],
     );
 
     double total = 0.0;
     for (final row in acctRows) {
-      final amount = await _decryptAmount(row['starting_amount'] as String?);
+      final amount = await _decryptAmount(row['starting_amount']);
       final acctCurrency = (row['currency'] as String?) ?? 'EUR';
       if (amount == 0) continue;
       if (acctCurrency == targetCurrency) {
@@ -1662,17 +2025,17 @@ class DatabaseManager {
       }
     }
 
-    final txnRows = await db.rawQuery(
+    final txnRows = await db.query(
       'SELECT t.amount, t.transaction_type, '
       'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
-      'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
-      'WHERE a.type = ? AND t.user_id = ?'
+      'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
+      'WHERE a.type = ? AND t.user_id = ? AND t.is_deleted = 0'
       '${before != null ? ' AND t.date < ?' : ''}',
       before != null ? ['savings', _userId, before] : ['savings', _userId],
     );
 
     for (final row in txnRows) {
-      final amount = await _decryptAmount(row['amount'] as String?);
+      final amount = await _decryptAmount(row['amount']);
       final type = row['transaction_type'] as String;
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
       final signedAmount = type == 'income' ? amount : (type == 'expense' ? -amount : 0.0);
@@ -1697,13 +2060,13 @@ class DatabaseManager {
     final endDate = '$endYear-${endMonth.toString().padLeft(2, '0')}-01';
 
     final db = await database;
-    final txnRows = await db.rawQuery(
+    final txnRows = await db.query(
       'SELECT t.amount, t.transaction_type, t.account_id, '
       'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency, a.type as account_type, '
       'd.name as description_name '
-      'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
-      'LEFT JOIN descriptions d ON t.description_id = d.id '
-      'WHERE t.date >= ? AND t.date < ? AND t.user_id = ?',
+      'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
+      'LEFT JOIN descriptions d ON t.description_id = d.id AND d.is_deleted = 0 '
+      'WHERE t.date >= ? AND t.date < ? AND t.user_id = ? AND t.is_deleted = 0',
       [startDate, endDate, _userId],
     );
 
@@ -1714,10 +2077,10 @@ class DatabaseManager {
       final hasAccount = row['account_id'] != null;
       if (accountType != 'checking' && hasAccount) continue;
 
-      final desc = await _decrypt(row['description_name'] as String?);
+      final desc = await _decryptValue(row['description_name']);
       if (desc != null && _isTransferDescription(desc)) continue;
 
-      final amount = await _decryptAmount(row['amount'] as String?);
+      final amount = await _decryptAmount(row['amount']);
       final type = row['transaction_type'] as String;
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
 
@@ -1744,13 +2107,13 @@ class DatabaseManager {
     final startDate = now.subtract(Duration(days: days)).toIso8601String().substring(0, 10);
 
     final db = await database;
-    final txnRows = await db.rawQuery(
+    final txnRows = await db.query(
       'SELECT t.amount, t.transaction_type, t.account_id, '
       'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency, a.type as account_type, '
       'd.name as description_name '
-      'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
-      'LEFT JOIN descriptions d ON t.description_id = d.id '
-      'WHERE t.date >= ? AND t.date <= ? AND t.user_id = ?',
+      'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
+      'LEFT JOIN descriptions d ON t.description_id = d.id AND d.is_deleted = 0 '
+      'WHERE t.date >= ? AND t.date <= ? AND t.user_id = ? AND t.is_deleted = 0',
       [startDate, endDate, _userId],
     );
 
@@ -1761,10 +2124,10 @@ class DatabaseManager {
       final hasAccount = row['account_id'] != null;
       if (accountType != 'checking' && hasAccount) continue;
 
-      final desc = await _decrypt(row['description_name'] as String?);
+      final desc = await _decryptValue(row['description_name']);
       if (desc != null && _isTransferDescription(desc)) continue;
 
-      final amount = await _decryptAmount(row['amount'] as String?);
+      final amount = await _decryptAmount(row['amount']);
       final type = row['transaction_type'] as String;
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
 
@@ -1787,29 +2150,29 @@ class DatabaseManager {
 
   Future<List<Map<String, dynamic>>> getAccountsDistribution({String targetCurrency = 'EUR'}) async {
     final db = await database;
-    final acctRows = await db.rawQuery(
-      'SELECT * FROM accounts WHERE user_id = ? ORDER BY name',
+    final acctRows = await db.query(
+      'SELECT * FROM accounts WHERE user_id = ? AND is_deleted = 0 ORDER BY name',
       [_userId],
     );
 
-    final txnRows = await db.rawQuery(
-      'SELECT transaction_type, amount, account_id FROM transactions WHERE user_id = ?',
+    final txnRows = await db.query(
+      'SELECT transaction_type, amount, account_id FROM transactions WHERE user_id = ? AND is_deleted = 0',
       [_userId],
     );
-    final txnByAccount = <int, List<Map<String, dynamic>>>{};
+    final txnByAccount = <String, List<Map<String, Object?>>>{};
     for (final t in txnRows) {
-      final acctId = t['account_id'] as int?;
+      final acctId = t['account_id'] as String?;
       if (acctId == null) continue;
       (txnByAccount[acctId] ??= []).add(t);
     }
 
     final results = <Map<String, dynamic>>[];
     for (final acctRow in acctRows) {
-      final startingAmount = await _decryptAmount(acctRow['starting_amount'] as String?);
+      final startingAmount = await _decryptAmount(acctRow['starting_amount']);
 
       double balance = startingAmount;
-      for (final txn in txnByAccount[acctRow['id']] ?? const <Map<String, dynamic>>[]) {
-        final amount = await _decryptAmount(txn['amount'] as String?);
+      for (final txn in txnByAccount[acctRow['id']] ?? const <Map<String, Object?>>[]) {
+        final amount = await _decryptAmount(txn['amount']);
         final type = txn['transaction_type'] as String;
         if (type == 'income') {
           balance += amount;
@@ -1829,7 +2192,7 @@ class DatabaseManager {
       }
 
       results.add({
-        'name': await _decrypt(acctRow['name'] as String?),
+        'name': await _decryptValue(acctRow['name']),
         'color': acctRow['color'],
         'value': convertedBalance,
         'nativeValue': balance,
@@ -1842,20 +2205,20 @@ class DatabaseManager {
   Future<Map<String, Map<String, Map<String, double>>>> getDescriptionMonthlyData(
       String startDate, String endDate) async {
     final db = await database;
-    final rows = await db.rawQuery('''
+    final rows = await db.query('''
       SELECT t.amount, t.transaction_type, t.date,
              d.name as description_name
       FROM transactions t
-      LEFT JOIN descriptions d ON t.description_id = d.id
-      WHERE t.date >= ? AND t.date <= ? AND t.user_id = ?
+      LEFT JOIN descriptions d ON t.description_id = d.id AND d.is_deleted = 0
+      WHERE t.date >= ? AND t.date <= ? AND t.user_id = ? AND t.is_deleted = 0
     ''', [startDate, endDate, _userId]);
 
     final result = <String, Map<String, Map<String, double>>>{};
     for (final row in rows) {
-      final desc = await _decrypt(row['description_name'] as String?) ?? 'uncategorized';
+      final desc = await _decryptValue(row['description_name']) ?? 'uncategorized';
       final month = (row['date'] as String).substring(0, 7);
       final type = row['transaction_type'] as String;
-      final total = await _decryptAmount(row['amount'] as String?);
+      final total = await _decryptAmount(row['amount']);
 
       if (_isTransferDescription(desc)) continue;
 
@@ -1883,18 +2246,18 @@ class DatabaseManager {
     final startDate = now.subtract(Duration(days: numMonths * 30)).toIso8601String().substring(0, 10);
     final endDate = now.toIso8601String().substring(0, 10);
 
-    final rows = await db.rawQuery('''
+    final rows = await db.query('''
       SELECT t.amount, d.name as description_name
       FROM transactions t
-      LEFT JOIN descriptions d ON t.description_id = d.id
-      WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
+      LEFT JOIN descriptions d ON t.description_id = d.id AND d.is_deleted = 0
+      WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ? AND t.is_deleted = 0
     ''', [transactionType, startDate, endDate, _userId]);
 
     final byDesc = <String, Map<String, dynamic>>{};
     for (final row in rows) {
-      final desc = await _decrypt(row['description_name'] as String?) ?? 'Uncategorized';
+      final desc = await _decryptValue(row['description_name']) ?? 'Uncategorized';
       if (_isTransferDescription(desc)) continue;
-      final amount = await _decryptAmount(row['amount'] as String?);
+      final amount = await _decryptAmount(row['amount']);
 
       if (!byDesc.containsKey(desc)) {
         byDesc[desc] = {'total': 0.0, 'count': 0};
@@ -1933,18 +2296,18 @@ class DatabaseManager {
     final startDate = now.subtract(Duration(days: numMonths * 30)).toIso8601String().substring(0, 10);
     final endDate = now.toIso8601String().substring(0, 10);
 
-    final rows = await db.rawQuery('''
+    final rows = await db.query('''
       SELECT t.amount, tg.name as tag_name
       FROM transactions t
-      LEFT JOIN tags tg ON t.tag_id = tg.id
+      LEFT JOIN tags tg ON t.tag_id = tg.id AND tg.is_deleted = 0
       WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-        AND t.tag_id IS NOT NULL
+        AND t.tag_id IS NOT NULL AND t.is_deleted = 0
     ''', [transactionType, startDate, endDate, _userId]);
 
     final byTag = <String, Map<String, dynamic>>{};
     for (final row in rows) {
       final tag = row['tag_name'] as String? ?? 'Untagged';
-      final amount = await _decryptAmount(row['amount'] as String?);
+      final amount = await _decryptAmount(row['amount']);
 
       if (!byTag.containsKey(tag)) {
         byTag[tag] = {'total': 0.0, 'count': 0};
@@ -1969,12 +2332,12 @@ class DatabaseManager {
   Future<Map<String, Map<String, Map<String, double>>>> getTagMonthlyData(
       String startDate, String endDate) async {
     final db = await database;
-    final rows = await db.rawQuery('''
+    final rows = await db.query('''
       SELECT t.amount, t.transaction_type, t.date,
              tg.name as tag_name
       FROM transactions t
-      LEFT JOIN tags tg ON t.tag_id = tg.id
-      WHERE t.date >= ? AND t.date <= ? AND t.user_id = ?
+      LEFT JOIN tags tg ON t.tag_id = tg.id AND tg.is_deleted = 0
+      WHERE t.date >= ? AND t.date <= ? AND t.user_id = ? AND t.is_deleted = 0
         AND t.tag_id IS NOT NULL
     ''', [startDate, endDate, _userId]);
 
@@ -1983,7 +2346,7 @@ class DatabaseManager {
       final tag = row['tag_name'] as String? ?? 'Untagged';
       final month = (row['date'] as String).substring(0, 7);
       final type = row['transaction_type'] as String;
-      final total = await _decryptAmount(row['amount'] as String?);
+      final total = await _decryptAmount(row['amount']);
 
       result.putIfAbsent(tag, () => {});
       result[tag]!.putIfAbsent(month, () => {'income': 0, 'expense': 0, 'total': 0});
@@ -2007,25 +2370,25 @@ class DatabaseManager {
         .toIso8601String()
         .substring(0, 10);
 
-    final rows = await db.rawQuery(
+    final rows = await db.query(
       'SELECT t.amount, t.transaction_type, t.date, '
       'd.name as description_name, '
       'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
       'FROM transactions t '
-      'LEFT JOIN accounts a ON t.account_id = a.id '
-      'LEFT JOIN descriptions d ON t.description_id = d.id '
-      'WHERE t.date >= ? AND t.user_id = ?',
+      'LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
+      'LEFT JOIN descriptions d ON t.description_id = d.id AND d.is_deleted = 0 '
+      'WHERE t.date >= ? AND t.user_id = ? AND t.is_deleted = 0',
       [startDate, _userId],
     );
 
     final monthMap = <String, Map<String, double>>{};
     for (final r in rows) {
-      final desc = await _decrypt(r['description_name'] as String?);
+      final desc = await _decryptValue(r['description_name']);
       if (desc != null && _isTransferDescription(desc)) continue;
 
       final monthKey = (r['date'] as String).substring(0, 7);
       final type = r['transaction_type'] as String;
-      final amount = await _decryptAmount(r['amount'] as String?);
+      final amount = await _decryptAmount(r['amount']);
       final txnCurrency = (r['currency'] as String?) ?? 'EUR';
 
       double convertedAmount;
@@ -2061,8 +2424,8 @@ class DatabaseManager {
     final db = await database;
     final now = DateTime.now();
 
-    final earliestResult = await db.rawQuery(
-      'SELECT MIN(date) as earliest FROM transactions WHERE user_id = ?',
+    final earliestResult = await db.query(
+      'SELECT MIN(date) as earliest FROM transactions WHERE user_id = ? AND is_deleted = 0',
       [_userId],
     );
     final earliestDate = earliestResult.first['earliest'] as String?;
@@ -2078,14 +2441,14 @@ class DatabaseManager {
       }
     }
 
-    final acctRows = await db.rawQuery(
-      'SELECT starting_amount, currency FROM accounts WHERE user_id = ?',
+    final acctRows = await db.query(
+      'SELECT starting_amount, currency FROM accounts WHERE user_id = ? AND is_deleted = 0',
       [_userId],
     );
 
     double startingTotal = 0.0;
     for (final row in acctRows) {
-      final amount = await _decryptAmount(row['starting_amount'] as String?);
+      final amount = await _decryptAmount(row['starting_amount']);
       final acctCurrency = (row['currency'] as String?) ?? 'EUR';
       if (amount == 0) continue;
       if (acctCurrency == targetCurrency) {
@@ -2099,17 +2462,17 @@ class DatabaseManager {
     final nowNextMonth = DateTime(now.year, now.month + 1, 1)
         .toIso8601String()
         .substring(0, 10);
-    final txnRows = await db.rawQuery(
+    final txnRows = await db.query(
       'SELECT t.amount, t.transaction_type, t.date, '
       'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
-      'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id '
-      'WHERE t.date < ? AND t.user_id = ?',
+      'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
+      'WHERE t.date < ? AND t.user_id = ? AND t.is_deleted = 0',
       [nowNextMonth, _userId],
     );
 
     final contributions = <(String, double)>[];
     for (final row in txnRows) {
-      final amount = await _decryptAmount(row['amount'] as String?);
+      final amount = await _decryptAmount(row['amount']);
       final type = row['transaction_type'] as String;
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
       final signedAmount = type == 'income' ? amount : (type == 'expense' ? -amount : 0.0);
@@ -2206,18 +2569,18 @@ class DatabaseManager {
         .substring(0, 10);
     final endDate = now.toIso8601String().substring(0, 10);
 
-    final rows = await db.rawQuery(
+    final rows = await db.query(
       'SELECT t.amount, t.currency, d.name as description_name '
-      'FROM transactions t LEFT JOIN descriptions d ON t.description_id = d.id '
-      'WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?',
+      'FROM transactions t LEFT JOIN descriptions d ON t.description_id = d.id AND d.is_deleted = 0 '
+      'WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ? AND t.is_deleted = 0',
       [transactionType, startDate, endDate, _userId],
     );
 
     final result = <String, double>{};
     for (final row in rows) {
-      final category = await _decrypt(row['description_name'] as String?) ?? 'Uncategorized';
+      final category = await _decryptValue(row['description_name']) ?? 'Uncategorized';
       if (_isTransferDescription(category)) continue;
-      final rawAmount = await _decryptAmount(row['amount'] as String?);
+      final rawAmount = await _decryptAmount(row['amount']);
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
 
       double convertedAmount;
@@ -2243,18 +2606,18 @@ class DatabaseManager {
     final endDate = now.toIso8601String().substring(0, 10);
     final startDate = now.subtract(Duration(days: days)).toIso8601String().substring(0, 10);
 
-    final rows = await db.rawQuery(
+    final rows = await db.query(
       'SELECT t.amount, t.currency, d.name as description_name '
-      'FROM transactions t LEFT JOIN descriptions d ON t.description_id = d.id '
-      'WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?',
+      'FROM transactions t LEFT JOIN descriptions d ON t.description_id = d.id AND d.is_deleted = 0 '
+      'WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ? AND t.is_deleted = 0',
       [transactionType, startDate, endDate, _userId],
     );
 
     final result = <String, double>{};
     for (final row in rows) {
-      final category = await _decrypt(row['description_name'] as String?) ?? 'Uncategorized';
+      final category = await _decryptValue(row['description_name']) ?? 'Uncategorized';
       if (_isTransferDescription(category)) continue;
-      final rawAmount = await _decryptAmount(row['amount'] as String?);
+      final rawAmount = await _decryptAmount(row['amount']);
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
 
       double convertedAmount;
@@ -2281,17 +2644,17 @@ class DatabaseManager {
         .substring(0, 10);
     final endDate = now.toIso8601String().substring(0, 10);
 
-    final rows = await db.rawQuery(
+    final rows = await db.query(
       'SELECT t.amount, t.currency, tg.name as tag_name '
-      'FROM transactions t LEFT JOIN tags tg ON t.tag_id = tg.id '
-      'WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?',
+      'FROM transactions t LEFT JOIN tags tg ON t.tag_id = tg.id AND tg.is_deleted = 0 '
+      'WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ? AND t.is_deleted = 0',
       [transactionType, startDate, endDate, _userId],
     );
 
     final result = <String, double>{};
     for (final row in rows) {
       final tag = row['tag_name'] as String? ?? 'Untagged';
-      final rawAmount = await _decryptAmount(row['amount'] as String?);
+      final rawAmount = await _decryptAmount(row['amount']);
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
 
       double convertedAmount;
@@ -2317,17 +2680,17 @@ class DatabaseManager {
     final endDate = now.toIso8601String().substring(0, 10);
     final startDate = now.subtract(Duration(days: days)).toIso8601String().substring(0, 10);
 
-    final rows = await db.rawQuery(
+    final rows = await db.query(
       'SELECT t.amount, t.currency, tg.name as tag_name '
-      'FROM transactions t LEFT JOIN tags tg ON t.tag_id = tg.id '
-      'WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?',
+      'FROM transactions t LEFT JOIN tags tg ON t.tag_id = tg.id AND tg.is_deleted = 0 '
+      'WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ? AND t.is_deleted = 0',
       [transactionType, startDate, endDate, _userId],
     );
 
     final result = <String, double>{};
     for (final row in rows) {
       final tag = row['tag_name'] as String? ?? 'Untagged';
-      final rawAmount = await _decryptAmount(row['amount'] as String?);
+      final rawAmount = await _decryptAmount(row['amount']);
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
 
       double convertedAmount;
@@ -2347,9 +2710,8 @@ class DatabaseManager {
     if (_userId == null) return {};
     final db = await database;
     final rows = await db.query(
-      'tags',
-      where: 'user_id = ?',
-      whereArgs: [_userId],
+      'SELECT name, color FROM tags WHERE user_id = ? AND is_deleted = 0',
+      [_userId],
     );
     return {
       for (final r in rows)
@@ -2364,8 +2726,8 @@ class DatabaseManager {
     if (_settingCache.containsKey(cacheKey)) return _settingCache[cacheKey];
 
     final db = await database;
-    final result = await db.rawQuery(
-      'SELECT value FROM settings WHERE key = ? AND user_id = ?',
+    final result = await db.query(
+      'SELECT value FROM settings WHERE "key" = ? AND user_id = ? AND is_deleted = 0',
       [key, _userId],
     );
     if (result.isNotEmpty) {
@@ -2378,8 +2740,9 @@ class DatabaseManager {
 
   Future<String?> getThemeForUser(String username, {String? defaultValue}) async {
     final db = await database;
-    final result = await db.rawQuery(
-      'SELECT s.value FROM settings s JOIN users u ON u.id = s.user_id WHERE u.username = ? AND s.key = ?',
+    final result = await db.query(
+      'SELECT s.value FROM settings s JOIN users u ON u.id = s.user_id '
+      'WHERE u.username = ? AND s."key" = ? AND s.is_deleted = 0 AND u.is_deleted = 0',
       [username, 'theme_mode'],
     );
     if (result.isNotEmpty) {
@@ -2390,8 +2753,8 @@ class DatabaseManager {
 
   Future<void> setSetting(String key, String value) async {
     final db = await database;
-    await db.rawInsert(
-      'INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, ?, ?)',
+    await db.execute(
+      'INSERT OR REPLACE INTO settings (user_id, "key", value) VALUES (?, ?, ?)',
       [_userId, key, value],
     );
     _settingCache['${_userId}_$key'] = value;
@@ -2401,8 +2764,8 @@ class DatabaseManager {
     if (_appSettingCache.containsKey(key)) return _appSettingCache[key];
 
     final db = await database;
-    final result = await db.rawQuery(
-      'SELECT value FROM settings WHERE key = ? AND user_id = ?',
+    final result = await db.query(
+      'SELECT value FROM settings WHERE "key" = ? AND user_id = ? AND is_deleted = 0',
       [key, globalSettingsUserId],
     );
     if (result.isNotEmpty) {
@@ -2415,8 +2778,8 @@ class DatabaseManager {
 
   Future<void> setAppSetting(String key, String value) async {
     final db = await database;
-    await db.rawInsert(
-      'INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, ?, ?)',
+    await db.execute(
+      'INSERT OR REPLACE INTO settings (user_id, "key", value) VALUES (?, ?, ?)',
       [globalSettingsUserId, key, value],
     );
     _appSettingCache[key] = value;
@@ -2442,8 +2805,8 @@ class DatabaseManager {
       final now = DateTime.now().toIso8601String();
       for (final entry in apiRates.entries) {
         if (CurrencyService.isValid(entry.key) && entry.key != baseCurrency) {
-          await db.rawInsert(
-            'INSERT OR REPLACE INTO exchange_rates (from_currency, to_currency, rate, updated_at) VALUES (?, ?, ?, ?)',
+          await db.execute(
+            'INSERT OR REPLACE INTO exchange_rates (from_currency, to_currency, rate, updated_at) VALUES (?1, ?2, ?3, ?4)',
             [baseCurrency, entry.key, (entry.value as num).toDouble(), now],
           );
         }
@@ -2467,15 +2830,15 @@ class DatabaseManager {
     double? rate;
 
     // Direct rate
-    var result = await db.rawQuery(
-      'SELECT rate FROM exchange_rates WHERE from_currency = ? AND to_currency = ?',
+    var result = await db.query(
+      'SELECT rate FROM exchange_rates WHERE from_currency = ? AND to_currency = ? AND is_deleted = 0',
       [fromCurrency, toCurrency],
     );
     if (result.isNotEmpty) rate = (result.first['rate'] as num).toDouble();
 
     if (rate == null && fromCurrency == 'EUR') {
-      result = await db.rawQuery(
-        'SELECT rate FROM exchange_rates WHERE from_currency = ? AND to_currency = ?',
+      result = await db.query(
+        'SELECT rate FROM exchange_rates WHERE from_currency = ? AND to_currency = ? AND is_deleted = 0',
         ['EUR', toCurrency],
       );
       if (result.isNotEmpty) rate = (result.first['rate'] as num).toDouble();
@@ -2483,8 +2846,8 @@ class DatabaseManager {
 
     if (rate == null) {
       // Inverse
-      result = await db.rawQuery(
-        'SELECT rate FROM exchange_rates WHERE from_currency = ? AND to_currency = ?',
+      result = await db.query(
+        'SELECT rate FROM exchange_rates WHERE from_currency = ? AND to_currency = ? AND is_deleted = 0',
         [toCurrency, fromCurrency],
       );
       if (result.isNotEmpty) rate = 1.0 / (result.first['rate'] as num).toDouble();
@@ -2507,8 +2870,8 @@ class DatabaseManager {
     if (_userId == null) return false;
     final db = await database;
 
-    final rows = await db.rawQuery(
-      'SELECT password_hash FROM users WHERE id = ?',
+    final rows = await db.query(
+      'SELECT password_hash FROM users WHERE id = ? AND is_deleted = 0',
       [_userId],
     );
     if (rows.isEmpty) return false;
@@ -2517,16 +2880,47 @@ class DatabaseManager {
       return false;
     }
 
-    await db.delete('transactions', where: 'user_id = ?', whereArgs: [_userId]);
-    await db.delete('recurring_exceptions', where: 'recurring_id IN (SELECT id FROM recurring_transactions WHERE user_id = ?)', whereArgs: [_userId]);
-    await db.delete('recurring_transactions', where: 'user_id = ?', whereArgs: [_userId]);
-    await db.delete('accounts', where: 'user_id = ?', whereArgs: [_userId]);
-    await db.delete('descriptions', where: 'user_id = ?', whereArgs: [_userId]);
-    await db.delete('imported_files', where: 'user_id = ?', whereArgs: [_userId]);
-    await db.delete('settings', where: 'user_id = ?', whereArgs: [_userId]);
-    await db.delete('users', where: 'id = ?', whereArgs: [_userId]);
+    await db.execute('DELETE FROM transactions WHERE user_id = ?', [_userId]);
+    await db.execute('DELETE FROM recurring_exceptions WHERE recurring_id IN (SELECT id FROM recurring_transactions WHERE user_id = ?)', [_userId]);
+    await db.execute('DELETE FROM recurring_transactions WHERE user_id = ?', [_userId]);
+    await db.execute('DELETE FROM accounts WHERE user_id = ?', [_userId]);
+    await db.execute('DELETE FROM descriptions WHERE user_id = ?', [_userId]);
+    await db.execute('DELETE FROM imported_files WHERE user_id = ?', [_userId]);
+    await db.execute('DELETE FROM settings WHERE user_id = ?', [_userId]);
+    await db.execute('DELETE FROM users WHERE id = ?', [_userId]);
     _userId = null;
     return true;
+  }
+
+  // ==================== CRDT (SYNC) HELPERS ====================
+
+  /// Changes this node's CRDT identity. Safe to call after opening the
+  /// database; used when the node id is first provisioned.
+  Future<void> resetCrdtNodeId(String nodeId) async {
+    final crdt = await database;
+    await crdt.resetNodeId(nodeId);
+  }
+
+  String? get crdtNodeId => _database?.nodeId;
+
+  /// Generates a changeset of all rows modified after [since]. Used by the
+  /// sync layer.
+  Future<CrdtChangeset> getChangeset({String? since, Iterable<String>? onlyTables}) async {
+    final crdt = await database;
+    return crdt.getChangeset(
+      onlyTables: onlyTables,
+      modifiedAfter: since != null ? Hlc.parse(since) : null,
+    );
+  }
+
+  /// Applies a remote changeset.
+  Future<void> applyChangeset(CrdtChangeset changeset) async {
+    final crdt = await database;
+    await crdt.merge(parseCrdtChangeset(changeset));
+    _descriptionCache.clear();
+    _settingCache.clear();
+    _appSettingCache.clear();
+    _exchangeRateCache.clear();
   }
 
   // ==================== CLOSE ====================
@@ -2540,8 +2934,8 @@ class DatabaseManager {
   // ==================== BACKUP ====================
 
   Future<void> backup({int maxBackups = 5}) async {
-    final db = await database;
-    final path = db.path;
+    final path = _dbPath;
+    if (path == null) return;
     final dbFile = File(path);
     if (!dbFile.existsSync()) return;
 

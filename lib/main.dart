@@ -46,6 +46,12 @@ void main() async {
     unawaited(_runStartupBackup(db));
   }, (error, stack) {
     LogService().error('Uncaught async error: $error', stack.toString());
+    try {
+      stderr.writeln('Peadra fatal error: $error');
+      stderr.writeln(stack);
+    } catch (_) {
+      // stderr unavailable.
+    }
   });
 }
 

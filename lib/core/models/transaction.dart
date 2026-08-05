@@ -1,15 +1,15 @@
 class Transaction {
-  final int? id;
-  final int userId;
-  final int? accountId;
-  final int? descriptionId;
-  final int? tagId;
+  final String? id;
+  final String userId;
+  final String? accountId;
+  final String? descriptionId;
+  final String? tagId;
   final String date;
   final double amount;
   final String transactionType;
   final String currency;
   final String? notes;
-  final int? recurringId;
+  final String? recurringId;
   final String? createdAt;
   final String? updatedAt;
 
@@ -34,18 +34,18 @@ class Transaction {
   bool get isTransfer => transactionType == 'transfer';
 
   Transaction copyWith({
-    int? id,
-    int? userId,
-    int? accountId,
-    int? descriptionId,
-    int? tagId,
+    String? id,
+    String? userId,
+    String? accountId,
+    String? descriptionId,
+    String? tagId,
     bool clearTag = false,
     String? date,
     double? amount,
     String? transactionType,
     String? currency,
     String? notes,
-    int? recurringId,
+    String? recurringId,
     bool clearRecurring = false,
   }) =>
       Transaction(
@@ -80,17 +80,17 @@ class Transaction {
       };
 
   factory Transaction.fromMap(Map<String, dynamic> map) => Transaction(
-        id: map['id'] as int?,
-        userId: map['user_id'] as int,
-        accountId: map['account_id'] as int?,
-        descriptionId: map['description_id'] as int?,
-        tagId: map['tag_id'] as int?,
+        id: map['id'] as String?,
+        userId: map['user_id'] as String,
+        accountId: map['account_id'] as String?,
+        descriptionId: map['description_id'] as String?,
+        tagId: map['tag_id'] as String?,
         date: map['date'] as String,
         amount: (map['amount'] as num).toDouble(),
         transactionType: map['transaction_type'] as String,
         currency: map['currency'] as String? ?? 'EUR',
         notes: map['notes'] as String?,
-        recurringId: map['recurring_id'] as int?,
+        recurringId: map['recurring_id'] as String?,
         createdAt: map['created_at'] as String?,
         updatedAt: map['updated_at'] as String?,
       );
@@ -130,17 +130,17 @@ class TransactionWithDetails extends Transaction {
 
   factory TransactionWithDetails.fromMap(Map<String, dynamic> map) =>
       TransactionWithDetails(
-        id: map['id'] as int?,
-        userId: map['user_id'] as int,
-        accountId: map['account_id'] as int?,
-        descriptionId: map['description_id'] as int?,
-        tagId: map['tag_id'] as int?,
+        id: map['id'] as String?,
+        userId: map['user_id'] as String,
+        accountId: map['account_id'] as String?,
+        descriptionId: map['description_id'] as String?,
+        tagId: map['tag_id'] as String?,
         date: map['date'] as String,
         amount: (map['amount'] as num).toDouble(),
         transactionType: map['transaction_type'] as String,
         currency: map['currency'] as String? ?? 'EUR',
         notes: map['notes'] as String?,
-        recurringId: map['recurring_id'] as int?,
+        recurringId: map['recurring_id'] as String?,
         createdAt: map['created_at'] as String?,
         updatedAt: map['updated_at'] as String?,
         accountName: map['account_name'] as String?,

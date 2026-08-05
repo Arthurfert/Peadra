@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -21,11 +23,22 @@ class _AccountsViewState extends State<AccountsView> {
   final _db = DatabaseManager.instance;
   List<AccountWithBalance> _accounts = [];
   bool _loading = true;
+  StreamSubscription<void>? _remoteDataSub;
 
   @override
   void initState() {
     super.initState();
     _loadAccounts();
+    _remoteDataSub =
+        DatabaseManager.instance.onRemoteDataApplied.listen((_) {
+      _loadAccounts();
+    });
+  }
+
+  @override
+  void dispose() {
+    _remoteDataSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadAccounts() async {

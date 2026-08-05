@@ -329,6 +329,7 @@ class SyncManager {
         db: db,
         since: peer.lastSyncHlc,
         isInitiator: true,
+        peerKey: _peerKeyFrom(peer.dbEncryptionKey),
       );
       await peerStorage.upsert(
         peer.copyWith(lastSyncHlc: watermark, lastSeen: _now()),

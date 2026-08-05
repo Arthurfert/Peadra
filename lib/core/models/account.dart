@@ -1,6 +1,6 @@
 class Account {
-  final int? id;
-  final int userId;
+  final String? id;
+  final String userId;
   final String name;
   final String type;
   final String color;
@@ -23,8 +23,8 @@ class Account {
   bool get isSavings => type == 'savings';
 
   Account copyWith({
-    int? id,
-    int? userId,
+    String? id,
+    String? userId,
     String? name,
     String? type,
     String? color,
@@ -55,8 +55,8 @@ class Account {
       };
 
   factory Account.fromMap(Map<String, dynamic> map) => Account(
-        id: map['id'] as int?,
-        userId: map['user_id'] as int,
+        id: map['id'] as String?,
+        userId: map['user_id'] as String,
         name: map['name'] as String,
         type: map['type'] as String? ?? 'savings',
         color: map['color'] as String? ?? '#1976D2',
@@ -83,8 +83,8 @@ class AccountWithBalance extends Account {
 
   factory AccountWithBalance.fromMap(Map<String, dynamic> map) =>
       AccountWithBalance(
-        id: map['id'] as int?,
-        userId: map['user_id'] as int,
+        id: map['id'] as String?,
+        userId: map['user_id'] as String,
         name: map['name'] as String,
         type: map['type'] as String? ?? 'savings',
         color: map['color'] as String? ?? '#1976D2',

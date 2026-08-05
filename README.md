@@ -32,7 +32,7 @@ Track your assets, manage transactions across multiple accounts and currencies, 
 - Track your current balance, asset distribution, and financial evolution over time.
 - Bar charts, pie charts, and line charts for visual insights into spending patterns and trends.
 - Organize transactions into categories with the ability to dynamically rename, merge, and restructure them.
-- Observe the evolution of your categories over time with precise charts.
+- Create recurring transactions to avoid entering multiple times the same transactions.
 
 **Account & Transaction Management**
 - Easily add, modify, or delete transactions (expense, income, transfer), in any of 36 supported currencies with automatic exchange rate conversion.
@@ -41,9 +41,9 @@ Track your assets, manage transactions across multiple accounts and currencies, 
 - Transaction descriptions are auto-suggested from your history as you type.
 
 **Data Control & System**
-- Powered by a local SQLite database with AES-256-GCM encryption. Sensitive fields are encrypted at rest using a key derived from your password (via PBKDF2, 100k iterations). Your financial data never leaves your machine.
+- Powered by a local SQLite database with AES-256-GCM encryption. Sensitive fields are encrypted at rest. Your financial data never leaves your machine.
 - Import data via CSV files with automatic column detection and dialect parsing, and export your history in CSV format.
-- Adaptive layout that works beautifully on phones, tablets, and desktops.
+- Synchronize your data across multiple devices *on the same network*.
 - Four built-in themes - Light, Dark, Autumn, and Summer.
 
 **Supported platforms:** Linux, Windows, Android. (*The Apple ecosystem is theoretically supported, but has not been tested*).  

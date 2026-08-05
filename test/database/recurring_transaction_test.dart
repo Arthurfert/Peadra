@@ -223,8 +223,15 @@ Future<int> insertTemplate(
 Future<RecurringTransaction> loadTemplate(Database db, int id) async {
   final rows =
       await db.query('recurring_transactions', where: 'id = ?', whereArgs: [id]);
-  return RecurringTransaction.fromMap(rows.first);
+  return RecurringTransaction.fromMap(_stringifyIds(rows.first));
 }
+
+Map<String, dynamic> _stringifyIds(Map<String, dynamic> row) => {
+      for (final e in row.entries)
+        e.key: (e.key == 'id' || e.key.endsWith('_id'))
+            ? e.value?.toString()
+            : e.value,
+    };
 
 void main() {
   late Database db;

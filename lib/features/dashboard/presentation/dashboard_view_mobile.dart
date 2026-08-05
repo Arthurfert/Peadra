@@ -353,6 +353,7 @@ class DashboardViewMobile extends StatelessWidget {
     }
 
     final lineColor = colors.chartAsset;
+    final showLabelIndices = _computeLabelIndices(labels);
 
     return LineChart(
       LineChartData(
@@ -388,16 +389,11 @@ class DashboardViewMobile extends StatelessWidget {
               interval: 1,
               getTitlesWidget: (value, meta) {
                 final idx = value.toInt();
-                if (idx >= 0 && idx < labels.length) {
-                  final label = labels[idx];
-                  final showLabel = idx == 0 ||
-                      idx == labels.length - 1 ||
-                      label != labels[idx - 1];
-                  if (!showLabel) return const Text('');
+                if (idx >= 0 && idx < labels.length && showLabelIndices.contains(idx)) {
                   return Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
-                      label,
+                      labels[idx],
                       style: TextStyle(
                           color: colors.textSecondary, fontSize: 10),
                     ),
@@ -482,5 +478,29 @@ class DashboardViewMobile extends StatelessWidget {
                 const TextStyle(fontSize: 12, color: Colors.grey)),
       ],
     );
+  }
+
+  static const int _maxAxisLabels = 5;
+
+  Set<int> _computeLabelIndices(List<String> labels) {
+    final candidates = <int>[];
+    for (int i = 0; i < labels.length; i++) {
+      final label = labels[i];
+      final show = i == 0 ||
+          i == labels.length - 1 ||
+          (label.isNotEmpty && label != labels[i - 1]);
+      if (show) candidates.add(i);
+    }
+
+    if (candidates.length <= _maxAxisLabels) {
+      return candidates.toSet();
+    }
+
+    final result = <int>{};
+    final step = (candidates.length - 1) / (_maxAxisLabels - 1);
+    for (int j = 0; j < _maxAxisLabels; j++) {
+      result.add(candidates[(j * step).round()]);
+    }
+    return result;
   }
 }

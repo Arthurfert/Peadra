@@ -1,6 +1,6 @@
 class Setting {
-  final int? id;
-  final int userId;
+  final String? id;
+  final String userId;
   final String key;
   final String? value;
 
@@ -14,16 +14,16 @@ class Setting {
       };
 
   factory Setting.fromMap(Map<String, dynamic> map) => Setting(
-        id: map['id'] as int?,
-        userId: map['user_id'] as int,
+        id: map['id'] as String?,
+        userId: map['user_id'] as String,
         key: map['key'] as String,
         value: map['value'] as String?,
       );
 }
 
 class ImportedFile {
-  final int? id;
-  final int userId;
+  final String? id;
+  final String userId;
   final String fileHash;
   final String? filename;
   final String? importedAt;
@@ -44,8 +44,8 @@ class ImportedFile {
       };
 
   factory ImportedFile.fromMap(Map<String, dynamic> map) => ImportedFile(
-        id: map['id'] as int?,
-        userId: map['user_id'] as int,
+        id: map['id'] as String?,
+        userId: map['user_id'] as String,
         fileHash: map['file_hash'] as String,
         filename: map['filename'] as String?,
         importedAt: map['imported_at'] as String?,

@@ -13,7 +13,10 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-- Peer to peer sync between mobile and desktop
+- Peer to peer sync between mobile and desktop :
+    - Encrypted transport
+    - QR code based pairing (encryption key)
+    - Synchronizes every time both apps are opened on the same network after pairing
 
 ### Fixed
 

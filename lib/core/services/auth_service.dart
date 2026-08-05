@@ -64,6 +64,30 @@ class AuthService {
     return null;
   }
 
+  /// Returns the canonical user id for [userId].
+  ///
+  /// After sync reconciliation the local user row may have been remapped to a
+  /// peer's canonical id, making [userId] stale.  When that happens the method
+  /// falls back to looking up the id by [username].
+  Future<String> resolveUserId(String userId, String username) async {
+    final db = await _db.database;
+    final rows = await db.query(
+      'SELECT id FROM users WHERE id = ? AND is_deleted = 0',
+      [userId],
+    );
+    if (rows.isNotEmpty) return userId;
+    final canonical = await db.query(
+      'SELECT id FROM users WHERE username = ? AND is_deleted = 0',
+      [username],
+    );
+    if (canonical.isNotEmpty) {
+      final resolved = canonical.first['id'] as String;
+      LogService().log('User id resolved: $userId -> $resolved');
+      return resolved;
+    }
+    return userId;
+  }
+
   Future<List<String>> getAllUsernames() async {
     final db = await _db.database;
     final results = await db.query(

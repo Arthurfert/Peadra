@@ -183,6 +183,10 @@ class _LoginViewState extends State<LoginView> {
     final langProvider = context.read<LanguageProvider>();
     final settingsProvider = context.read<SettingsProvider>();
 
+    // After sync reconciliation the stored userId may have been remapped to
+    // the peer's canonical id.  Re-resolve so queries hit the right rows.
+    userId = await _authService.resolveUserId(userId, username);
+
     authProvider.login(userId, username, _db);
     await _setupEncryption(password);
 
@@ -192,6 +196,9 @@ class _LoginViewState extends State<LoginView> {
 
     await _db.setAppSetting('last_username', username);
     await _db.setAppSetting('last_language', langProvider.language);
+
+    // Persist the resolved userId so biometric login stays in sync.
+    await _biometricService.saveCredentials(userId, username, encryptionKey: _db.encryptionKey);
 
     _db.fetchExchangeRates();
     unawaited(SyncService.instance.start());

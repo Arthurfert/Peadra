@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../../core/i18n/translator.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/settings_provider.dart';
+import '../../../core/providers/update_provider.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../../core/theme/peadra_colors.dart';
 import '../../../core/services/update_service.dart';
@@ -33,7 +34,6 @@ class _DashboardShellState extends State<DashboardShell> {
   double _totalPatrimony = 0;
   int _dashboardRefreshSignal = 0;
   String _lastCurrency = '';
-  UpdateInfo? _availableUpdate;
   bool _updateBannerDismissed = false;
   StreamSubscription<void>? _remoteDataSub;
 
@@ -65,11 +65,8 @@ class _DashboardShellState extends State<DashboardShell> {
     super.dispose();
   }
 
-  Future<void> _checkForUpdate() async {
-    final update = await UpdateService().checkForUpdate();
-    if (mounted && update != null) {
-      setState(() => _availableUpdate = update);
-    }
+  void _checkForUpdate() {
+    context.read<UpdateProvider>().checkForUpdate();
   }
 
   @override
@@ -125,7 +122,7 @@ class _DashboardShellState extends State<DashboardShell> {
     );
   }
 
-  Widget _buildUpdateBanner(PeadraColors colors) {
+  Widget _buildUpdateBanner(PeadraColors colors, UpdateInfo update) {
     final isPhone = ResponsiveLayout.isPhone(context);
     return Material(
       color: colors.success.withValues(alpha: 0.1),
@@ -142,7 +139,7 @@ class _DashboardShellState extends State<DashboardShell> {
               Expanded(
                 child: Text(
                   Translator.t('param_update_status_available',
-                      params: {'version': _availableUpdate!.version}),
+                      params: {'version': update.version}),
                   style: TextStyle(
                     color: colors.text,
                     fontSize: 13,
@@ -152,7 +149,7 @@ class _DashboardShellState extends State<DashboardShell> {
               ),
               if (!isPhone) ...[
                 TextButton(
-                  onPressed: () => _showChangelogDialog(colors),
+                  onPressed: () => _showChangelogDialog(colors, update),
                   child: Text(
                     Translator.t('param_see_whats_new'),
                     style: TextStyle(
@@ -162,7 +159,7 @@ class _DashboardShellState extends State<DashboardShell> {
                   ),
                 ),
                 TextButton(
-                  onPressed: () => UpdateService().openDownloadUrl(_availableUpdate!.downloadUrl),
+                  onPressed: () => UpdateService().openDownloadUrl(update.downloadUrl),
                   child: Text(
                     Translator.t('param_install_update'),
                     style: TextStyle(
@@ -186,8 +183,8 @@ class _DashboardShellState extends State<DashboardShell> {
     );
   }
 
-  void _showChangelogDialog(PeadraColors colors) {
-    final notes = _availableUpdate!.releaseNotes;
+  void _showChangelogDialog(PeadraColors colors, UpdateInfo update) {
+    final notes = update.releaseNotes;
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
@@ -204,7 +201,7 @@ class _DashboardShellState extends State<DashboardShell> {
                   children: [
                     Expanded(
                       child: Text(
-                        '${_availableUpdate!.version} - ${Translator.t('param_changelog_title')}',
+                        '${update.version} - ${Translator.t('param_changelog_title')}',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -250,9 +247,10 @@ class _DashboardShellState extends State<DashboardShell> {
     final colors = PeadraTheme.getColors(themeName);
     final isDark = context.watch<ThemeProvider>().isDark;
     final showNavLabels = context.watch<SettingsProvider>().showNavLabels;
+    final availableUpdate = context.watch<UpdateProvider>().availableUpdate;
 
-    final updateBanner = (_availableUpdate != null && !_updateBannerDismissed)
-        ? _buildUpdateBanner(colors)
+    final updateBanner = (availableUpdate != null && !_updateBannerDismissed)
+        ? _buildUpdateBanner(colors, availableUpdate)
         : null;
 
     return LayoutBuilder(

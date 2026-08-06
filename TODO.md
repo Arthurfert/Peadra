@@ -13,7 +13,7 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-
+- New Spring theme for a greenier experience
 
 ### Fixed
 

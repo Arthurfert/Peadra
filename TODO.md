@@ -13,7 +13,7 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-- The "Update available" banner now redirect to parameters on mobile, and parameters directly shows the update
+
 
 ### Fixed
 

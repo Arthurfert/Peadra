@@ -36,6 +36,7 @@ class _LoginViewState extends State<LoginView> {
   final _confirmController = TextEditingController();
 
   bool _isLoginMode = true;
+  bool _isInitializing = true;
   bool _isLoading = false;
   String? _error;
   List<String> _existingUsers = [];
@@ -50,31 +51,50 @@ class _LoginViewState extends State<LoginView> {
   }
 
   Future<void> _loadUsers() async {
-    final users = await _authService.getAllUsernames();
-    final lastUser = await _db.getAppSetting('last_username');
-    final savedLang = await _db.getAppSetting('last_language');
-    if (savedLang != null) {
-      context.read<LanguageProvider>().setLanguage(savedLang);
-    }
-    if (lastUser != null) {
-      final savedTheme = await _db.getThemeForUser(lastUser);
-      if (savedTheme != null) {
-        context.read<ThemeProvider>().setTheme(savedTheme);
+    try {
+      final users = await _authService.getAllUsernames();
+      final lastUser = await _db.getAppSetting('last_username');
+      final savedLang = await _db.getAppSetting('last_language');
+      final biometricAvailable = await _biometricService.isAvailable();
+      final credentials = biometricAvailable
+          ? await _biometricService.loadCredentials()
+          : null;
+
+      if (!mounted) return;
+
+      if (savedLang != null) {
+        context.read<LanguageProvider>().setLanguage(savedLang);
       }
-    }
-    final biometricAvailable = await _biometricService.isAvailable();
-    final hasCredentials = await _biometricService.hasStoredCredentials();
-    if (mounted) {
+      if (lastUser != null) {
+        final savedTheme = await _db.getThemeForUser(lastUser);
+        if (savedTheme != null) {
+          context.read<ThemeProvider>().setTheme(savedTheme);
+        }
+      }
+
+      final selectedUser = users.isEmpty
+          ? null
+          : (lastUser != null && users.contains(lastUser) ? lastUser : null);
+      final storedUsername = credentials?['username'] as String?;
+      final biometricEnabled = biometricAvailable &&
+          storedUsername != null &&
+          users.contains(storedUsername);
+
       setState(() {
         _existingUsers = users;
+        _selectedUser = selectedUser;
         _biometricAvailable = biometricAvailable;
-        _biometricEnabled = biometricAvailable && hasCredentials;
+        _biometricEnabled = biometricEnabled;
         if (users.isEmpty) {
           _isLoginMode = false;
-        } else if (lastUser != null && users.contains(lastUser)) {
-          _selectedUser = lastUser;
         }
+        _isInitializing = false;
       });
+    } catch (e) {
+      LogService().error('Failed to load login state: $e', '');
+      if (mounted) {
+        setState(() => _isInitializing = false);
+      }
     }
   }
 
@@ -198,8 +218,14 @@ class _LoginViewState extends State<LoginView> {
     await _db.setAppSetting('last_username', username);
     await _db.setAppSetting('last_language', langProvider.language);
 
-    // Persist the resolved userId so biometric login stays in sync.
-    await _biometricService.saveCredentials(userId, username, encryptionKey: _db.encryptionKey);
+    // Keep biometric credentials in sync only when the user has enabled
+    // biometric login; otherwise drop any stale credentials so the button
+    // never shows on the login screen for an opted-out user.
+    if (settingsProvider.biometricEnabled) {
+      await _biometricService.saveCredentials(userId, username, encryptionKey: _db.encryptionKey);
+    } else {
+      await _biometricService.clearCredentials();
+    }
 
     _db.fetchExchangeRates();
     unawaited(SyncService.instance.start());
@@ -281,6 +307,15 @@ class _LoginViewState extends State<LoginView> {
     final themeName = context.watch<ThemeProvider>().themeName;
     final colors = PeadraTheme.getColors(themeName);
     final isDark = context.watch<ThemeProvider>().isDark;
+
+    if (_isInitializing) {
+      return Scaffold(
+        backgroundColor: colors.bg,
+        body: Center(
+          child: CircularProgressIndicator(color: colors.accent),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: colors.bg,

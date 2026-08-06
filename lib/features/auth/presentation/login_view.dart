@@ -189,6 +189,7 @@ class _LoginViewState extends State<LoginView> {
 
     authProvider.login(userId, username, _db);
     await _setupEncryption(password);
+    await _db.generateDueRecurring();
 
     await themeProvider.loadFromSettings(_db);
     await langProvider.loadFromSettings(_db);

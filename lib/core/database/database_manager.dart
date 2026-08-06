@@ -806,7 +806,6 @@ void setUserId(String userId) {
     _exchangeRateCache.clear();
     _insertDefaultAccounts();
     cleanupUnusedDescriptions();
-    unawaited(generateDueRecurring());
   }
 
   /// Updates the session user id without seeding defaults or generating
@@ -1822,6 +1821,7 @@ void setUserId(String userId) {
   /// explicitly deleted) are never recreated.
   Future<void> generateDueRecurring() async {
     if (_userId == null) return;
+    if (_encryptionKey == null) return;
     final db = await database;
     final rows = await db.query(
       'SELECT * FROM recurring_transactions WHERE user_id = ? AND active = 1 AND is_deleted = 0',
@@ -1858,10 +1858,24 @@ void setUserId(String userId) {
     if (id == null) return;
 
     final existingRows = await db.query(
-      'SELECT date FROM transactions WHERE recurring_id = ? AND user_id = ? AND is_deleted = 0',
+      'SELECT id, date, amount FROM transactions WHERE recurring_id = ? AND user_id = ? AND is_deleted = 0',
       [id, _userId],
     );
     final existingDates = existingRows.map((r) => r['date'] as String).toSet();
+
+    // Repair occurrences whose amount was written while the encryption key was
+    // unavailable (the null-key generation bug stored an unencrypted 0). Only
+    // rewrite when the stored value is a plaintext zero that does not decrypt,
+    // so legitimately edited occurrences are left untouched.
+    final correctAmount = await _encrypt(rec.amount.toString());
+    for (final existing in existingRows) {
+      if (await _isUnencryptedZeroAmount(existing['amount'])) {
+        await db.execute(
+          'UPDATE transactions SET amount = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?',
+          [correctAmount, existing['id'], _userId],
+        );
+      }
+    }
 
     final exceptionRows = await db.query(
       'SELECT date FROM recurring_exceptions WHERE recurring_id = ? AND is_deleted = 0',
@@ -1907,6 +1921,19 @@ void setUserId(String userId) {
         [plan.nextDueDate, id],
       );
     }
+  }
+
+  /// True when [raw] is the null-key generation corruption: a plaintext zero
+  /// that does not decrypt under the current key.
+  Future<bool> _isUnencryptedZeroAmount(dynamic raw) async {
+    if (_encryptionKey == null) return false;
+    if (raw is num) return raw.toDouble() == 0.0;
+    final s = raw?.toString() ?? '';
+    if (s.isEmpty) return false;
+    final decrypted = await _decrypt(s);
+    if (decrypted != null && decrypted != s) return false;
+    final v = double.tryParse(s);
+    return v != null && v == 0.0;
   }
 
   // ==================== STATISTICS ====================

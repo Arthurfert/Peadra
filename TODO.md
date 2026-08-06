@@ -13,13 +13,11 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-- Transactions set in the future are now gathered in "to come", rather than polluting the view
+
 
 ### Fixed
 
-- Fixed an already enabled biometric login using the previous user id after sync resulting in default account
-- Fixed the toggles in settings being centered instead of left-aligned (most visible in english)
-- Fixed amounts being encrypted twice at regular sync, resulting in zeroed amounts
+- Fixed a bug where generated recurring transactions had an amount of 0
 
 ## Future Improvements
 

@@ -131,7 +131,9 @@ class _DashboardShellState extends State<DashboardShell> {
       color: colors.success.withValues(alpha: 0.1),
       child: SafeArea(
         bottom: false,
-        child: Padding(
+        child: InkWell(
+          onTap: isPhone ? () => _onNavTap(4) : null,
+          child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Row(
             children: [
@@ -178,6 +180,7 @@ class _DashboardShellState extends State<DashboardShell> {
               ),
             ],
           ),
+        ),
         ),
       ),
     );

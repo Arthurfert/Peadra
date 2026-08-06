@@ -166,7 +166,7 @@ class PeadraTheme {
     ),
     'spring': const PeadraColors(
       name: 'spring',
-      bg: Color(0xFFB8D28C),
+      bg: Color(0xFFBFDA92),
       surface: Color(0xFFEDF4CE),
       text: Color(0xFF132A13),
       textSecondary: Color(0xFF31572C),

@@ -13,12 +13,11 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-- The "Update available" banner now redirect to parameters on mobile, and parameters directly shows the update
+
 
 ### Fixed
 
-- Fixed sync between two phones (couldn't discover each other because they had the same name)
-- Fixed the login view bugging/changing mid-flight
+- Fixed multiple accounts devices sync. **All previous paired devices must re-pair**
 
 ## Future Improvements
 

@@ -13,7 +13,7 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-
+- Transactions set in the future are now gathered in "to come", rather than polluting the view
 
 ### Fixed
 

@@ -53,6 +53,7 @@ class _TransactionsViewState extends State<TransactionsView> {
   List<Account> _accounts = [];
   List<Tag> _tags = [];
   bool _loading = true;
+  bool _showUpcoming = false;
   String _searchQuery = '';
   final Set<String> _selectedTagIds = {};
   int _displayLimit = 30;
@@ -697,6 +698,33 @@ class _TransactionsViewState extends State<TransactionsView> {
     );
   }
 
+  /// A transaction is "upcoming" when its date is after today.
+  bool _isUpcomingItem(_DisplayItem item) {
+    final txn = item.transaction;
+    if (txn == null || txn.date.isEmpty) return false;
+    final date = DateTime.tryParse(txn.date);
+    if (date == null) return false;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final txDate = DateTime(date.year, date.month, date.day);
+    return txDate.isAfter(today);
+  }
+
+  /// Future-dated transactions, hidden by default behind the "To come" toggle.
+  List<_DisplayItem> _upcomingItems() =>
+      _displayItems.where(_isUpcomingItem).toList();
+
+  /// Transactions that occurred up to today.
+  List<_DisplayItem> _currentItems() =>
+      _displayItems.where((item) => !_isUpcomingItem(item)).toList();
+
+  /// Subtle, clearly-visible tint for upcoming rows on both light and dark
+  /// themes: a faint blue on light surfaces, a slightly lighter blue on dark.
+  Color _upcomingBackground(PeadraColors colors) => Color.alphaBlend(
+        const Color(0xFF60A5FA).withValues(alpha: 0.16),
+        colors.surface,
+      );
+
   @override
   Widget build(BuildContext context) {
     final themeName = context.watch<ThemeProvider>().themeName;
@@ -845,21 +873,7 @@ class _TransactionsViewState extends State<TransactionsView> {
                       )
                     : RefreshIndicator(
                         onRefresh: () => _loadTransactions(),
-                        child: ListView.builder(
-                          itemCount:
-                              _displayItems.length + (_hasMore ? 1 : 0),
-                          itemBuilder: (context, index) {
-                            if (index == _displayItems.length) {
-                              return TextButton(
-                                onPressed: () =>
-                                    _loadTransactions(loadMore: true),
-                                child: Text(Translator.t('btn_load_more')),
-                              );
-                            }
-                            return _buildTransactionTile(
-                                _displayItems[index], colors, currency);
-                          },
-                        ),
+                        child: _buildTransactionList(colors, currency),
                       ),
           ),
         ],
@@ -867,10 +881,93 @@ class _TransactionsViewState extends State<TransactionsView> {
     );
   }
 
-  Widget _buildTransactionTile(
-      _DisplayItem item, PeadraColors colors, String defaultCurrency) {
+  Widget _buildTransactionList(PeadraColors colors, String defaultCurrency) {
+    final upcomingItems = _upcomingItems();
+    final currentItems = _currentItems();
+    final hasUpcoming = upcomingItems.isNotEmpty;
+    final toggleCount = hasUpcoming ? 1 : 0;
+    final visibleUpcoming =
+        hasUpcoming && _showUpcoming ? upcomingItems.length : 0;
+    final isPhone = ResponsiveLayout.isPhone(context);
+
+    return ListView.builder(
+      itemCount: toggleCount +
+          visibleUpcoming +
+          currentItems.length +
+          (_hasMore ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (index == 0 && hasUpcoming) {
+          return _buildUpcomingToggle(colors, upcomingItems.length, isPhone);
+        }
+        var itemIndex = index - toggleCount;
+        if (itemIndex < visibleUpcoming) {
+          return _buildTransactionTile(
+              upcomingItems[itemIndex], colors, defaultCurrency,
+              upcoming: true);
+        }
+        itemIndex -= visibleUpcoming;
+        if (itemIndex < currentItems.length) {
+          return _buildTransactionTile(
+              currentItems[itemIndex], colors, defaultCurrency);
+        }
+        return TextButton(
+          onPressed: () => _loadTransactions(loadMore: true),
+          child: Text(Translator.t('btn_load_more')),
+        );
+      },
+    );
+  }
+
+  Widget _buildUpcomingToggle(
+      PeadraColors colors, int count, bool isPhone) {
+    final toggle = Card(
+      color: colors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: isPhone ? null : EdgeInsets.zero,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => setState(() => _showUpcoming = !_showUpcoming),
+        child: ListTile(
+          leading: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: colors.info.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(Icons.schedule, color: colors.info, size: 20),
+          ),
+          title: Text(
+            Translator.t('trans_upcoming'),
+            style: TextStyle(
+              color: colors.text,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          subtitle: Text(
+            Translator.t('trans_upcoming_count',
+                params: {'count': '$count'}),
+            style: TextStyle(color: colors.placeholderColor, fontSize: 12),
+          ),
+          trailing: Icon(
+            _showUpcoming ? Icons.expand_less : Icons.expand_more,
+            color: colors.placeholderColor,
+          ),
+        ),
+      ),
+    );
+
+    return isPhone
+        ? toggle
+        : Padding(padding: const EdgeInsets.only(bottom: 8), child: toggle);
+  }
+
+  Widget _buildTransactionTile(_DisplayItem item, PeadraColors colors,
+      String defaultCurrency,
+      {bool upcoming = false}) {
     if (item.isMergedTransfer) {
-      return _buildMergedTransferTile(item, colors, defaultCurrency);
+      return _buildMergedTransferTile(item, colors, defaultCurrency,
+          upcoming: upcoming);
     }
 
     final txn = item.transaction!;
@@ -903,7 +1000,7 @@ class _TransactionsViewState extends State<TransactionsView> {
         : Color(int.parse(txn.tagColor!.replaceFirst('#', '0xFF')));
 
     final card = Card(
-      color: colors.surface,
+      color: upcoming ? _upcomingBackground(colors) : colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       margin: isPhone ? null : EdgeInsets.zero,
       child: ListTile(
@@ -1044,8 +1141,9 @@ class _TransactionsViewState extends State<TransactionsView> {
     );
   }
 
-  Widget _buildMergedTransferTile(
-      _DisplayItem item, PeadraColors colors, String defaultCurrency) {
+  Widget _buildMergedTransferTile(_DisplayItem item, PeadraColors colors,
+      String defaultCurrency,
+      {bool upcoming = false}) {
     final txn = item.transaction!;
     final pairedTxn = item.pairedTransaction;
     final srcCurrency =
@@ -1071,7 +1169,7 @@ class _TransactionsViewState extends State<TransactionsView> {
     final isPhone = ResponsiveLayout.isPhone(context);
 
     final card = Card(
-      color: colors.surface,
+      color: upcoming ? _upcomingBackground(colors) : colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       margin: isPhone ? null : EdgeInsets.zero,
       child: ListTile(

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -208,7 +207,7 @@ class _LoginViewState extends State<LoginView> {
     userId = await _authService.resolveUserId(userId, username);
 
     authProvider.login(userId, username, _db);
-    await _setupEncryption(password);
+    await _setupEncryption(username, password);
     await _db.generateDueRecurring();
 
     await themeProvider.loadFromSettings(_db);
@@ -287,18 +286,28 @@ class _LoginViewState extends State<LoginView> {
     _onLoginSuccess(userId, username, '');
   }
 
-  Future<void> _setupEncryption(String password) async {
+  Future<void> _setupEncryption(String username, String password) async {
     if (_db.isEncrypted) return;
-    final saltStr = await _db.getSetting('encryption_salt');
-    Uint8List salt;
-    if (saltStr == null) {
-      salt = EncryptionService.generateSalt();
-      await _db.setSetting('encryption_salt', base64Encode(salt));
-    } else {
-      salt = base64Decode(saltStr);
+
+    // The salt is deterministic per account (derived from the username), so the
+    // same password yields the same key on every device. No salt sync required.
+    final salt = EncryptionService.saltForUsername(username);
+    final expectedSaltB64 = base64Encode(salt);
+
+    final storedSaltStr = await _db.getSetting('encryption_salt');
+    if (storedSaltStr != null && storedSaltStr != expectedSaltB64) {
+      // Legacy device encrypted under a random salt. Migrate its data to the
+      // deterministic per-account key so it matches every other device for
+      // this account, then persist the new salt.
+      final oldKey =
+          await EncryptionService.deriveKey(password, base64Decode(storedSaltStr));
+      final newKey = await EncryptionService.deriveKey(password, salt);
+      await _db.migrateEncryptionKey(oldKey, newKey);
     }
+
     final key = await EncryptionService.deriveKey(password, salt);
     await _db.setEncryptionKey(key);
+    await _db.setSetting('encryption_salt', expectedSaltB64);
     await _db.migrateToEncryption();
   }
 

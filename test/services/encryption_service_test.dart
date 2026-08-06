@@ -29,6 +29,52 @@ void main() {
       });
     });
 
+    group('saltForUsername', () {
+      test('is deterministic for the same username', () {
+        expect(
+          EncryptionService.saltForUsername('arthur'),
+          EncryptionService.saltForUsername('arthur'),
+        );
+      });
+
+      test('differs across usernames', () {
+        expect(
+          EncryptionService.saltForUsername('arthur'),
+          isNot(equals(EncryptionService.saltForUsername('bob'))),
+        );
+      });
+
+      test('is 32 bytes', () {
+        expect(EncryptionService.saltForUsername('arthur').length, 32);
+      });
+    });
+
+    group('deriveKeyForUser', () {
+      test('same username and password derive the same key on any device', () async {
+        final key1 = await EncryptionService.deriveKeyForUser('secret', 'arthur');
+        final key2 = await EncryptionService.deriveKeyForUser('secret', 'arthur');
+        expect(await key1.extractBytes(), await key2.extractBytes());
+      });
+
+      test('different passwords derive different keys', () async {
+        final key1 = await EncryptionService.deriveKeyForUser('secret', 'arthur');
+        final key2 = await EncryptionService.deriveKeyForUser('other', 'arthur');
+        expect(
+          await key1.extractBytes(),
+          isNot(equals(await key2.extractBytes())),
+        );
+      });
+
+      test('matches deriveKey with the deterministic salt', () async {
+        final fromUser = await EncryptionService.deriveKeyForUser('secret', 'arthur');
+        final fromSalt = await EncryptionService.deriveKey(
+          'secret',
+          EncryptionService.saltForUsername('arthur'),
+        );
+        expect(await fromUser.extractBytes(), await fromSalt.extractBytes());
+      });
+    });
+
     group('deriveKey', () {
       test('produces consistent key from same password and salt', () async {
         final salt = Uint8List.fromList(List<int>.generate(32, (i) => i));

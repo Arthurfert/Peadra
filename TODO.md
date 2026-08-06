@@ -15,7 +15,7 @@ This document presents future changes and wanted improvements.
 
 
 
-### Fixed
+### Fixes
 
 - Fixed multiple accounts devices sync. **All previous paired devices must re-pair**
 

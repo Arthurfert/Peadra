@@ -123,6 +123,20 @@ class DatabaseManager {
   @visibleForTesting
   Future<void> migrateDatabaseForTest(String path) => _migrateToV7(path);
 
+  /// Binds an in-memory production-schema CRDT for isolated tests, re-pointing
+  /// the singleton's [database] so `migrateEncryptionKey` etc. can be driven.
+  @visibleForTesting
+  Future<SqliteCrdt> openInMemoryForTest({String? userId}) async {
+    final crdt = await SqliteCrdt.openInMemory(
+      singleInstance: false,
+      version: dbVersion,
+      onCreate: _onCreate,
+    );
+    _database = crdt;
+    if (userId != null) _userId = userId;
+    return crdt;
+  }
+
   Future<SqliteCrdt> _openDatabase() async {
     final path = await _resolveDbPath();
     _dbPath = path;
@@ -633,34 +647,52 @@ class DatabaseManager {
 
   Future<void> reEncryptData(SecretKey newKey) async {
     if (_encryptionKey == null) return;
+    await migrateEncryptionKey(_encryptionKey!, newKey);
+  }
+
+  /// Re-encrypts the current user's encrypted fields from [oldKey] to [newKey].
+  ///
+  /// Fields that cannot be decrypted with [oldKey] — plaintext or rows synced
+  /// from another device under a different key — are left untouched, so this is
+  /// safe on devices holding mixed-key data.
+  Future<void> migrateEncryptionKey(SecretKey oldKey, SecretKey newKey) async {
     final db = await database;
-    final oldKey = _encryptionKey!;
     _encryptionKey = newKey;
+
+    Future<void> updateRow(
+      String table,
+      Object? id,
+      Map<String, String> fields,
+    ) async {
+      final sets = fields.keys.map((k) => '$k = ?').join(', ');
+      await db.execute(
+        'UPDATE $table SET $sets WHERE id = ? AND user_id = ?',
+        [...fields.values, id, _userId],
+      );
+    }
+
+    Future<String?> reencrypt(dynamic value) async {
+      if (value == null || value.toString().isEmpty) return null;
+      try {
+        final decrypted =
+            await EncryptionService.decrypt(value.toString(), oldKey);
+        return await _encrypt(decrypted);
+      } catch (_) {
+        return null;
+      }
+    }
 
     final acctRows = await db.query(
       'SELECT id, name, starting_amount FROM accounts WHERE user_id = ? AND is_deleted = 0',
       [_userId],
     );
     for (final row in acctRows) {
-      final name = row['name'] as String?;
-      final amount = row['starting_amount'] as dynamic;
-      if (name != null && name.isNotEmpty) {
-        final decrypted = await EncryptionService.decrypt(name, oldKey);
-        final reEncrypted = await _encrypt(decrypted);
-        await db.execute(
-          'UPDATE accounts SET name = ? WHERE id = ? AND user_id = ?',
-          [reEncrypted, row['id'], _userId],
-        );
-      }
-      if (amount != null && amount.toString().isNotEmpty) {
-        final decrypted =
-            await EncryptionService.decrypt(amount.toString(), oldKey);
-        final reEncrypted = await _encrypt(decrypted);
-        await db.execute(
-          'UPDATE accounts SET starting_amount = ? WHERE id = ? AND user_id = ?',
-          [reEncrypted, row['id'], _userId],
-        );
-      }
+      final fields = <String, String>{};
+      final name = await reencrypt(row['name']);
+      final amount = await reencrypt(row['starting_amount']);
+      if (name != null) fields['name'] = name;
+      if (amount != null) fields['starting_amount'] = amount;
+      if (fields.isNotEmpty) await updateRow('accounts', row['id'], fields);
     }
 
     final descRows = await db.query(
@@ -668,14 +700,9 @@ class DatabaseManager {
       [_userId],
     );
     for (final row in descRows) {
-      final name = row['name'] as String?;
-      if (name != null && name.isNotEmpty) {
-        final decrypted = await EncryptionService.decrypt(name, oldKey);
-        final reEncrypted = await _encrypt(decrypted);
-        await db.execute(
-          'UPDATE descriptions SET name = ? WHERE id = ? AND user_id = ?',
-          [reEncrypted, row['id'], _userId],
-        );
+      final name = await reencrypt(row['name']);
+      if (name != null) {
+        await updateRow('descriptions', row['id'], {'name': name});
       }
     }
 
@@ -684,24 +711,13 @@ class DatabaseManager {
       [_userId],
     );
     for (final row in txnRows) {
-      final amount = row['amount'] as dynamic;
-      final notes = row['notes'] as String?;
-      if (amount != null && amount.toString().isNotEmpty) {
-        final decrypted =
-            await EncryptionService.decrypt(amount.toString(), oldKey);
-        final reEncrypted = await _encrypt(decrypted);
-        await db.execute(
-          'UPDATE transactions SET amount = ? WHERE id = ? AND user_id = ?',
-          [reEncrypted, row['id'], _userId],
-        );
-      }
-      if (notes != null && notes.isNotEmpty) {
-        final decrypted = await EncryptionService.decrypt(notes, oldKey);
-        final reEncrypted = await _encrypt(decrypted);
-        await db.execute(
-          'UPDATE transactions SET notes = ? WHERE id = ? AND user_id = ?',
-          [reEncrypted, row['id'], _userId],
-        );
+      final fields = <String, String>{};
+      final amount = await reencrypt(row['amount']);
+      final notes = await reencrypt(row['notes']);
+      if (amount != null) fields['amount'] = amount;
+      if (notes != null) fields['notes'] = notes;
+      if (fields.isNotEmpty) {
+        await updateRow('transactions', row['id'], fields);
       }
     }
 
@@ -710,24 +726,13 @@ class DatabaseManager {
       [_userId],
     );
     for (final row in recRows) {
-      final amount = row['amount'] as dynamic;
-      final notes = row['notes'] as String?;
-      if (amount != null && amount.toString().isNotEmpty) {
-        final decrypted =
-            await EncryptionService.decrypt(amount.toString(), oldKey);
-        final reEncrypted = await _encrypt(decrypted);
-        await db.execute(
-          'UPDATE recurring_transactions SET amount = ? WHERE id = ? AND user_id = ?',
-          [reEncrypted, row['id'], _userId],
-        );
-      }
-      if (notes != null && notes.isNotEmpty) {
-        final decrypted = await EncryptionService.decrypt(notes, oldKey);
-        final reEncrypted = await _encrypt(decrypted);
-        await db.execute(
-          'UPDATE recurring_transactions SET notes = ? WHERE id = ? AND user_id = ?',
-          [reEncrypted, row['id'], _userId],
-        );
+      final fields = <String, String>{};
+      final amount = await reencrypt(row['amount']);
+      final notes = await reencrypt(row['notes']);
+      if (amount != null) fields['amount'] = amount;
+      if (notes != null) fields['notes'] = notes;
+      if (fields.isNotEmpty) {
+        await updateRow('recurring_transactions', row['id'], fields);
       }
     }
   }

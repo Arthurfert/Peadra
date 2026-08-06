@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart' hide Hmac;
 import 'package:cryptography/cryptography.dart';
 
 class EncryptionService {
@@ -17,6 +18,23 @@ class EncryptionService {
     return Uint8List.fromList(
       List<int>.generate(_saltLength, (_) => random.nextInt(256)),
     );
+  }
+
+  /// Deterministic per-account salt derived from the account's username, so the
+  /// same account derives the same key on every device without needing the salt
+  /// to be synced first.
+  static Uint8List saltForUsername(String username) {
+    return Uint8List.fromList(
+      sha256.convert(utf8.encode(username)).bytes,
+    );
+  }
+
+  /// Derives the account's encryption key from its password and username.
+  static Future<SecretKey> deriveKeyForUser(
+    String password,
+    String username,
+  ) {
+    return deriveKey(password, saltForUsername(username));
   }
 
   /// Derive an encryption key from a password and salt using PBKDF2.

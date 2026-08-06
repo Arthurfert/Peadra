@@ -9,7 +9,7 @@ class ThemeProvider extends ChangeNotifier {
 
   bool get isDark => !_lightThemes.contains(_themeName);
 
-  static const _lightThemes = {'light', 'summer'};
+  static const _lightThemes = {'light', 'summer', 'spring'};
 
   ThemeMode get themeMode => isDark ? ThemeMode.dark : ThemeMode.light;
 

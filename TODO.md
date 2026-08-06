@@ -13,11 +13,12 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-- New Spring theme for a greenier experience
+- The "Update available" banner now redirect to parameters on mobile, and parameters directly shows the update
 
 ### Fixed
 
-- Fixed a bug where generated recurring transactions had an amount of 0
+- Fixed sync between two phones (couldn't discover each other because they had the same name)
+- Fixed the login view bugging/changing mid-flight
 
 ## Future Improvements
 

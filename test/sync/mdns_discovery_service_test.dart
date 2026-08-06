@@ -216,6 +216,41 @@ void main() {
     });
   });
 
+  group('buildServiceInstanceName', () {
+    test('differentiates devices that share a device name', () {
+      final a = buildServiceInstanceName(
+        deviceName: 'Peadra android',
+        nodeId: 'aaaaaaaa-1111-2222-3333-444444444444',
+      );
+      final b = buildServiceInstanceName(
+        deviceName: 'Peadra android',
+        nodeId: 'bbbbbbbb-5555-6666-7777-888888888888',
+      );
+      expect(a, isNot(b));
+    });
+
+    test('is stable per node id', () {
+      final first = buildServiceInstanceName(
+        deviceName: 'Peadra android',
+        nodeId: 'aaaaaaaa-1111-2222-3333-444444444444',
+      );
+      final second = buildServiceInstanceName(
+        deviceName: 'Peadra android',
+        nodeId: 'aaaaaaaa-1111-2222-3333-444444444444',
+      );
+      expect(first, second);
+      expect(first, 'Peadra android-aaaaaaaa');
+    });
+
+    test('keeps the friendly name prefix', () {
+      final name = buildServiceInstanceName(
+        deviceName: 'My Phone',
+        nodeId: 'aaaaaaaa-1111-2222-3333-444444444444',
+      );
+      expect(name, startsWith('My Phone-'));
+    });
+  });
+
   group('parseDiscoveredService', () {
     test('builds a service from TXT fields', () {
       final service = parseDiscoveredService(

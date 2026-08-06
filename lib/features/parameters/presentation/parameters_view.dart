@@ -8,6 +8,7 @@ import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/language_provider.dart';
+import '../../../core/providers/update_provider.dart';
 import '../../../core/database/database_manager.dart';
 import '../../../core/theme/peadra_colors.dart';
 import '../../../core/services/auth_service.dart';
@@ -40,7 +41,6 @@ class _ParametersViewState extends State<ParametersView> {
   final _updateService = UpdateService();
 
   String _currentVersion = '';
-  UpdateInfo? _availableUpdate;
   _UpdateStatus _updateStatus = _UpdateStatus.idle;
   bool _biometricAvailable = false;
 
@@ -64,11 +64,11 @@ class _ParametersViewState extends State<ParametersView> {
   Future<void> _checkForUpdate() async {
     setState(() => _updateStatus = _UpdateStatus.checking);
     try {
-      final update = await _updateService.checkForUpdate();
+      await context.read<UpdateProvider>().checkForUpdate();
       if (!mounted) return;
+      final update = context.read<UpdateProvider>().availableUpdate;
       setState(() {
         if (update != null) {
-          _availableUpdate = update;
           _updateStatus = _UpdateStatus.available;
         } else {
           _updateStatus = _UpdateStatus.upToDate;
@@ -86,6 +86,7 @@ class _ParametersViewState extends State<ParametersView> {
     final settings = context.watch<SettingsProvider>();
     final lang = context.watch<LanguageProvider>();
     final auth = context.watch<AuthProvider>();
+    final updateProvider = context.watch<UpdateProvider>();
 
     final isPhone = ResponsiveLayout.isPhone(context);
 
@@ -161,8 +162,8 @@ class _ParametersViewState extends State<ParametersView> {
           _buildSection(Translator.t('param_updates'), colors, [
             _buildVersionTile(colors),
             _buildCheckUpdateTile(colors),
-            if (_updateStatus == _UpdateStatus.available && _availableUpdate != null)
-              _buildUpdateAvailableTile(colors),
+            if (updateProvider.availableUpdate != null)
+              _buildUpdateAvailableTile(colors, updateProvider.availableUpdate!),
           ], icon: Icons.system_update),
           const SizedBox(height: 8),
           _buildSection(Translator.t('param_danger_zone'), colors, [
@@ -1161,7 +1162,7 @@ class _ParametersViewState extends State<ParametersView> {
     );
   }
 
-  Widget _buildUpdateAvailableTile(PeadraColors colors) {
+  Widget _buildUpdateAvailableTile(PeadraColors colors, UpdateInfo update) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Column(
@@ -1173,7 +1174,7 @@ class _ParametersViewState extends State<ParametersView> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  Translator.t('param_update_status_available', params: {'version': _availableUpdate!.version}),
+                  Translator.t('param_update_status_available', params: {'version': update.version}),
                   style: TextStyle(color: colors.success, fontWeight: FontWeight.w600),
                 ),
               ),
@@ -1183,7 +1184,7 @@ class _ParametersViewState extends State<ParametersView> {
           Row(
             children: [
               TextButton(
-                onPressed: () => _showChangelogDialog(colors),
+                onPressed: () => _showChangelogDialog(colors, update),
                 child: Text(
                   Translator.t('param_see_whats_new'),
                   style: TextStyle(color: colors.success, fontSize: 12),
@@ -1200,7 +1201,7 @@ class _ParametersViewState extends State<ParametersView> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                onPressed: () => _updateService.openDownloadUrl(_availableUpdate!.downloadUrl),
+                onPressed: () => _updateService.openDownloadUrl(update.downloadUrl),
               ),
             ],
           ),
@@ -1209,8 +1210,8 @@ class _ParametersViewState extends State<ParametersView> {
     );
   }
 
-  void _showChangelogDialog(PeadraColors colors) {
-    final notes = _availableUpdate!.releaseNotes;
+  void _showChangelogDialog(PeadraColors colors, UpdateInfo update) {
+    final notes = update.releaseNotes;
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
@@ -1227,7 +1228,7 @@ class _ParametersViewState extends State<ParametersView> {
                   children: [
                     Expanded(
                       child: Text(
-                        '${_availableUpdate!.version} - ${Translator.t('param_changelog_title')}',
+                        '${update.version} - ${Translator.t('param_changelog_title')}',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,

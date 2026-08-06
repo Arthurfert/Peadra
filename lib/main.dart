@@ -10,6 +10,7 @@ import 'core/providers/auth_provider.dart';
 import 'core/providers/theme_provider.dart';
 import 'core/providers/language_provider.dart';
 import 'core/providers/settings_provider.dart';
+import 'core/providers/update_provider.dart';
 import 'core/database/database_manager.dart';
 import 'core/theme/peadra_colors.dart';
 import 'core/services/log_service.dart';
@@ -38,6 +39,7 @@ void main() async {
           ChangeNotifierProvider(create: (_) => ThemeProvider()),
           ChangeNotifierProvider(create: (_) => LanguageProvider()),
           ChangeNotifierProvider(create: (_) => SettingsProvider()),
+          ChangeNotifierProvider(create: (_) => UpdateProvider()),
         ],
         child: const PeadraApp(),
       ),

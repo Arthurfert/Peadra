@@ -17,8 +17,7 @@ This document presents future changes and wanted improvements.
 
 ### Fixed
 
-- Fixed sync between two phones (couldn't discover each other because they had the same name)
-- Fixed the login view bugging/changing mid-flight
+- Fixed multiple accounts devices sync. **All previous paired devices must re-pair**
 
 ## Future Improvements
 

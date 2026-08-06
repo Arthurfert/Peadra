@@ -1,13 +1,11 @@
 import 'dart:convert';
 
 import 'package:crdt/crdt.dart';
-import 'package:cryptography/cryptography.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../core/database/database_manager.dart';
 import 'network/sync_messages.dart';
 import 'network/sync_session.dart';
-import 'security/changeset_rekey.dart';
 import 'security/user_reconciliation.dart';
 import 'storage/crdt_database_service.dart';
 
@@ -23,16 +21,15 @@ import 'storage/crdt_database_service.dart';
 /// [firstRequest] lets the responder resume a sync exchange whose initial
 /// SYNC_REQUEST was already consumed (e.g. after a key refresh preamble).
 ///
-/// [peerKey] is the peer's database encryption key (from the pairing key
-/// exchange or the stored [TrustedPeer]). Every inbound changeset is re-keyed
-/// to the local database key before it is merged, so remotely sourced rows
-/// remain decryptable locally.
+/// Inbound rows are applied as-is: every row stays encrypted under its owner
+/// account's key. Account keys are derived from the account password and a
+/// per-account salt that is synced across devices, so the owner can decrypt
+/// its rows on any paired device without any re-keying on the wire.
 Future<Hlc?> runSyncExchange({
   required SyncSession session,
   required CrdtDatabaseService db,
   required Hlc? since,
   required bool isInitiator,
-  SecretKey? peerKey,
   Map<String, dynamic>? firstRequest,
 }) async {
   if (isInitiator) {
@@ -44,7 +41,7 @@ Future<Hlc?> runSyncExchange({
     final inbound = await _expect(session, SyncMessageTypes.syncResponse);
     debugPrint('[peadra-sync] sync: initiator got SYNC_RESPONSE '
         '(${_countChangeset(inbound['changeset'])} records)');
-    final applied = await _applyInbound(db, inbound, since, peerKey);
+    final applied = await _applyInbound(db, inbound, since);
     debugPrint('[peadra-sync] sync: initiator applied, watermark=$applied');
     final request = await _expect(session, SyncMessageTypes.syncRequest);
     await _sendOutbound(session, db, request);
@@ -64,7 +61,7 @@ Future<Hlc?> runSyncExchange({
     final inbound = await _expect(session, SyncMessageTypes.syncResponse);
     debugPrint('[peadra-sync] sync: responder got SYNC_RESPONSE '
         '(${_countChangeset(inbound['changeset'])} records)');
-    return _applyInbound(db, inbound, since, peerKey);
+    return _applyInbound(db, inbound, since);
   }
 }
 
@@ -96,24 +93,21 @@ Future<void> _sendOutbound(
 /// An empty changeset leaves the watermark unchanged (the peer simply had
 /// nothing newer), so the requesting side never over-advances its watermark.
 ///
-/// Inbound rows are re-keyed from [peerKey] to the local database key before
-/// merging so they remain decryptable with the local encryption key.
+/// Inbound rows are applied verbatim. Because every account's encryption key
+/// is derived from the account password plus a synced per-account salt, rows
+/// encrypted under their owner's key are decryptable by that account on any
+/// paired device; re-encrypting them with the local user's key would instead
+/// lock the owner out of its own data on this device.
 Future<Hlc?> _applyInbound(
   CrdtDatabaseService db,
   Map<String, dynamic> response,
   Hlc? previous,
-  SecretKey? peerKey,
 ) async {
   final changeset = response['changeset'] as Map<String, dynamic>;
   if (changeset.isEmpty) {
     return previous;
   }
-  final rekeyed = await rekeyInboundChangeset(
-    changeset,
-    localKey: DatabaseManager.instance.encryptionKey,
-    peerKey: peerKey,
-  );
-  await db.applyChangeset(rekeyed);
+  await db.applyChangeset(changeset);
   DatabaseManager.instance.notifyRemoteDataApplied();
   return db.lastModifiedHlc();
 }
@@ -233,19 +227,12 @@ Future<String?> runKeyRefresh({
 /// Runs the responder side of a server session. Returns the peer's encryption
 /// key when the initiator requested a key refresh (password re-share), and the
 /// new watermark for the peer.
-///
-/// [peerKey] is the initiator's database encryption key, used to re-key the
-/// inbound changeset to the local key. On a key-refresh session the freshly
-/// exchanged [runKeyRefresh] key takes precedence over the (possibly stale)
-/// stored [peerKey], so rows the peer re-encrypted after a password change
-/// remain decryptable.
 Future<({String? remoteKey, Hlc? watermark})> runServerSession({
   required SyncSession session,
   required CrdtDatabaseService db,
   required Hlc? since,
   required List<int>? localKey,
   required void Function(String? remoteKeyB64) onRemoteKey,
-  SecretKey? peerKey,
 }) async {
   final first = await _expectAny(session, [
     SyncMessageTypes.syncRequest,
@@ -263,7 +250,6 @@ Future<({String? remoteKey, Hlc? watermark})> runServerSession({
       db: db,
       since: since,
       isInitiator: false,
-      peerKey: _peerKeyFromB64(remoteKey) ?? peerKey,
     );
     return (remoteKey: remoteKey, watermark: watermark);
   }
@@ -272,17 +258,9 @@ Future<({String? remoteKey, Hlc? watermark})> runServerSession({
     db: db,
     since: since,
     isInitiator: false,
-    peerKey: peerKey,
     firstRequest: first,
   );
   return (remoteKey: null, watermark: watermark);
-}
-
-SecretKey? _peerKeyFromB64(String? keyB64) {
-  if (keyB64 == null || keyB64.isEmpty) {
-    return null;
-  }
-  return SecretKey(base64Decode(keyB64));
 }
 
 Future<Map<String, dynamic>> _expectAny(

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:crdt/crdt.dart';
 import 'package:cryptography/cryptography.dart';
@@ -195,7 +194,6 @@ class SyncManager {
         db: db,
         since: peer.lastSyncHlc,
         isInitiator: true,
-        peerKey: _peerKeyFrom(remoteKey),
       );
       await peerStorage.upsert(
         peer.copyWith(
@@ -329,7 +327,6 @@ class SyncManager {
         db: db,
         since: peer.lastSyncHlc,
         isInitiator: true,
-        peerKey: _peerKeyFrom(peer.dbEncryptionKey),
       );
       await peerStorage.upsert(
         peer.copyWith(lastSyncHlc: watermark, lastSeen: _now()),
@@ -383,7 +380,6 @@ class SyncManager {
           since: existing.lastSyncHlc,
           localKey: await _localDbKeyBytes(),
           onRemoteKey: (_) {},
-          peerKey: _peerKeyFrom(existing.dbEncryptionKey),
         );
         await peerStorage.upsert(
           existing.copyWith(
@@ -430,7 +426,6 @@ class SyncManager {
       db: db,
       since: null,
       isInitiator: isInitiator,
-      peerKey: _peerKeyFrom(remoteKey),
     );
     debugPrint('[peadra-sync] pairing: steps complete, watermark=$watermark, '
         'remoteKey=${remoteKey == null ? 'null' : 'set'}');
@@ -440,13 +435,4 @@ class SyncManager {
 
   Future<List<int>?> _localDbKeyBytes() async =>
       (await _localDbKeyResolver()?.extractBytes());
-
-  /// Decodes a peer's base64 database key (as exchanged/stored on a
-  /// [TrustedPeer]) into a [SecretKey] usable for re-keying inbound data.
-  SecretKey? _peerKeyFrom(String? keyB64) {
-    if (keyB64 == null || keyB64.isEmpty) {
-      return null;
-    }
-    return SecretKey(base64Decode(keyB64));
-  }
 }

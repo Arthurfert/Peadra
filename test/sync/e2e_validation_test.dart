@@ -205,7 +205,7 @@ void main() {
     expect(rowsA.map((r) => r['id']).toSet(), {'acct-b'});
   });
 
-  test('peer-encrypted data is re-keyed and readable on the receiving device',
+  test('peer data stays encrypted under its owner key and stays readable',
       () async {
     final keyA = SecretKey(List<int>.filled(32, 7));
     final keyB = SecretKey(List<int>.filled(32, 8));
@@ -226,7 +226,7 @@ void main() {
     await a.setUp();
     await b.setUp();
 
-    // Each device stores its own data field-encrypted with its own key.
+    // Each device stores its own data field-encrypted with its own account key.
     await a.seedUser('user-a', 'alice');
     await a.crdt.execute(
       'INSERT INTO accounts (id, user_id, name, starting_amount) VALUES (?1, ?2, ?3, ?4)',
@@ -251,8 +251,9 @@ void main() {
     await pair(a, b);
     await b.start();
 
-    // Every row from the peer must be decryptable (stored plaintext here,
-    // since the re-keyed target key is only used when the app has one loaded).
+    // After pairing both devices hold both accounts, but each row is still
+    // encrypted under its owner's key: the owner can decrypt it on either
+    // device, and a different account's key cannot.
     final aRows = await waitForAccounts(a);
     final bRows = await waitForAccounts(b);
     expect(aRows.map((r) => r['id']).toSet(), {'acct-a', 'acct-b'});
@@ -260,15 +261,36 @@ void main() {
 
     final aName = aRows.singleWhere((r) => r['id'] == 'acct-b')['name'] as String;
     final bName = bRows.singleWhere((r) => r['id'] == 'acct-a')['name'] as String;
-    final aAmount = aRows.singleWhere((r) => r['id'] == 'acct-b')['starting_amount'];
-    final bAmount = bRows.singleWhere((r) => r['id'] == 'acct-a')['starting_amount'];
-    expect(aName, 'Rent');
-    expect(bName, 'Groceries');
-    expect(double.parse(aAmount.toString()), 900.0);
-    expect(double.parse(bAmount.toString()), 100.0);
+    final aAmount =
+        aRows.singleWhere((r) => r['id'] == 'acct-b')['starting_amount'];
+    final bAmount =
+        bRows.singleWhere((r) => r['id'] == 'acct-a')['starting_amount'];
+
+    // Owner-readable on the peer device: B's row read on A, A's row read on B.
+    expect(await EncryptionService.decrypt(aName, keyB), 'Rent');
+    expect(await EncryptionService.decrypt(bName, keyA), 'Groceries');
+    expect(
+      double.parse(await EncryptionService.decrypt(aAmount.toString(), keyB)),
+      900.0,
+    );
+    expect(
+      double.parse(await EncryptionService.decrypt(bAmount.toString(), keyA)),
+      100.0,
+    );
+
+    // A different account's key cannot read them.
+    await expectLater(
+      EncryptionService.decrypt(aName, keyA),
+      throwsA(anything),
+    );
+    await expectLater(
+      EncryptionService.decrypt(bName, keyB),
+      throwsA(anything),
+    );
   });
 
-  test('regular sync re-keys amounts so they do not arrive zeroed', () async {
+  test('regular sync keeps owner-encrypted amounts readable on the peer',
+      () async {
     final keyA = SecretKey(List<int>.filled(32, 21));
     final keyB = SecretKey(List<int>.filled(32, 22));
     final a = SyncTestDevice(
@@ -288,11 +310,6 @@ void main() {
     await a.setUp();
     await b.setUp();
 
-    // Simulate B being logged in (holding its live encryption key), which the
-    // sync layer uses as the re-keying target for inbound rows.
-    DatabaseManager.instance.setEncryptionKey(keyB);
-    addTearDown(() => DatabaseManager.instance.clearEncryptionKey());
-
     await a.seedUser('user-a', 'alice');
     await b.seedUser('user-b', 'alice');
     await a.crdt.execute(
@@ -309,10 +326,10 @@ void main() {
     await pair(a, b);
     await b.start();
 
-    // Pairing already established B's stored peer key (A's db key). A later
-    // adds a new account, and a *regular* sync initiated by B must re-key it
-    // to B's key. Regression: _doSync used to apply A's rows with a null peer
-    // key, double-encrypting the amount so it decrypted to 0 on B.
+    // A adds a new account after pairing; a *regular* sync initiated by B must
+    // apply the row without re-encrypting its amount under B's key, otherwise
+    // A would be locked out of its own data on B. Regression: the old
+    // re-keying path re-encrypted inbound rows with the local user's key.
     await a.crdt.execute(
       'INSERT INTO accounts (id, user_id, name, starting_amount) VALUES '
       '(?1, ?2, ?3, ?4)',
@@ -342,13 +359,13 @@ void main() {
     expect(
       await EncryptionService.decrypt(
         rows.single['starting_amount'] as String,
-        keyB,
+        keyA,
       ),
       '7.25',
     );
   });
 
-  test('password change keeps re-encrypted peer data readable after re-share',
+  test('password change keeps re-encrypted peer data readable on the peer',
       () async {
     final keyA0 = SecretKey(List<int>.filled(32, 11));
     final keyA1 = SecretKey(List<int>.filled(32, 12));
@@ -384,10 +401,13 @@ void main() {
     await pair(a, b);
     await b.start();
 
-    // Baseline: peer data was re-keyed on first contact.
+    // Baseline: after pairing, B holds A's row still encrypted under A's key.
     final bRows0 = await waitForAccounts(b);
     expect(
-      bRows0.singleWhere((r) => r['id'] == 'acct-a')['name'],
+      await EncryptionService.decrypt(
+        bRows0.singleWhere((r) => r['id'] == 'acct-a')['name'] as String,
+        keyA0,
+      ),
       'Groceries',
     );
 
@@ -415,12 +435,12 @@ void main() {
       return row['hlc'] != bHlc0;
     });
 
-    // B re-keys A's re-encrypted rows with the *freshly* exchanged key, so the
-    // account name stays readable on B.
+    // B stores the row verbatim, now encrypted under A's *new* key, which the
+    // re-shared key confirms; A's new key still decrypts it on B.
     final bName1 =
         (await b.query('SELECT name FROM accounts WHERE id = ?', ['acct-a']))
-            .single['name'];
-    expect(bName1, 'Groceries');
+            .single['name'] as String;
+    expect(await EncryptionService.decrypt(bName1, keyA1), 'Groceries');
   });
 
   test('applying a remote changeset notifies onRemoteDataApplied', () async {

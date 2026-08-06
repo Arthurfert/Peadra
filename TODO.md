@@ -13,15 +13,13 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-- Peer to peer sync between mobile and desktop :
-    - Encrypted transport
-    - QR code based pairing (encryption key)
-    - Synchronizes every time both apps are opened on the same network after pairing
+- Transactions set in the future are now gathered in "to come", rather than polluting the view
 
 ### Fixed
 
-- Fixed the line graph x-coordinates legend sometimes overlapping on mobile
-- Fixed a rare re-encryption bug
+- Fixed an already enabled biometric login using the previous user id after sync resulting in default account
+- Fixed the toggles in settings being centered instead of left-aligned (most visible in english)
+- Fixed amounts being encrypted twice at regular sync, resulting in zeroed amounts
 
 ## Future Improvements
 

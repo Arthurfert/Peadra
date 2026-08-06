@@ -268,6 +268,86 @@ void main() {
     expect(double.parse(bAmount.toString()), 100.0);
   });
 
+  test('regular sync re-keys amounts so they do not arrive zeroed', () async {
+    final keyA = SecretKey(List<int>.filled(32, 21));
+    final keyB = SecretKey(List<int>.filled(32, 22));
+    final a = SyncTestDevice(
+      id: 'device-a',
+      name: 'Device A',
+      secret: secret,
+      key: keyA,
+    );
+    final b = SyncTestDevice(
+      id: 'device-b',
+      name: 'Device B',
+      secret: secret,
+      key: keyB,
+    );
+    addTearDown(a.dispose);
+    addTearDown(b.dispose);
+    await a.setUp();
+    await b.setUp();
+
+    // Simulate B being logged in (holding its live encryption key), which the
+    // sync layer uses as the re-keying target for inbound rows.
+    DatabaseManager.instance.setEncryptionKey(keyB);
+    addTearDown(() => DatabaseManager.instance.clearEncryptionKey());
+
+    await a.seedUser('user-a', 'alice');
+    await b.seedUser('user-b', 'alice');
+    await a.crdt.execute(
+      'INSERT INTO accounts (id, user_id, name, starting_amount) VALUES '
+      '(?1, ?2, ?3, ?4)',
+      [
+        'acct-a',
+        'user-a',
+        await EncryptionService.encrypt('Groceries', keyA),
+        await EncryptionService.encrypt('42.5', keyA),
+      ],
+    );
+
+    await pair(a, b);
+    await b.start();
+
+    // Pairing already established B's stored peer key (A's db key). A later
+    // adds a new account, and a *regular* sync initiated by B must re-key it
+    // to B's key. Regression: _doSync used to apply A's rows with a null peer
+    // key, double-encrypting the amount so it decrypted to 0 on B.
+    await a.crdt.execute(
+      'INSERT INTO accounts (id, user_id, name, starting_amount) VALUES '
+      '(?1, ?2, ?3, ?4)',
+      [
+        'acct-a2',
+        'user-a',
+        await EncryptionService.encrypt('Rent', keyA),
+        await EncryptionService.encrypt('7.25', keyA),
+      ],
+    );
+
+    await b.manager.syncNow(a.id,
+        host: 'localhost', port: a.manager.serverPort!);
+
+    await waitUntil(
+      () async =>
+          (await b.crdt.query(
+                    'SELECT id FROM accounts WHERE id = ? AND is_deleted = 0',
+                    ['acct-a2'],
+                  ))
+              .isNotEmpty,
+    );
+    final rows = await b.crdt.query(
+      'SELECT starting_amount FROM accounts WHERE id = ?',
+      ['acct-a2'],
+    );
+    expect(
+      await EncryptionService.decrypt(
+        rows.single['starting_amount'] as String,
+        keyB,
+      ),
+      '7.25',
+    );
+  });
+
   test('password change keeps re-encrypted peer data readable after re-share',
       () async {
     final keyA0 = SecretKey(List<int>.filled(32, 11));

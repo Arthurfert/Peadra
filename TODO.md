@@ -17,7 +17,7 @@ This document presents future changes and wanted improvements.
 
 ### Fixes
 
-- Fixed multiple accounts devices sync. **All previous paired devices must re-pair**
+
 
 ## Future Improvements
 
@@ -33,3 +33,5 @@ This document presents future changes and wanted improvements.
 
 **UI :**
 - Add themes and enhance them
+- Enhance the UI for smaller screens (small smartphones)
+- Fix : swap french Debit/Credit (I'm dumb)

@@ -17,7 +17,7 @@ This document presents future changes and wanted improvements.
 
 ### Fixes
 
-
+- Fixes the french translation being reversed (Débits/Crédits)
 
 ## Future Improvements
 
@@ -34,4 +34,3 @@ This document presents future changes and wanted improvements.
 **UI :**
 - Add themes and enhance them
 - Enhance the UI for smaller screens (small smartphones)
-- Fix : swap french Debit/Credit (I'm dumb)

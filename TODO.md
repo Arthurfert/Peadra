@@ -19,6 +19,7 @@ This document presents future changes and wanted improvements.
 
 - Reduced the borders on mobile
 - Translated *untagged* segments of the pie charts
+- Fixed a flaw were transfers appeared in tag-based pie charts
 
 ## Future Improvements
 

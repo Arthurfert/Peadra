@@ -2329,15 +2329,18 @@ void setUserId(String userId) {
     final endDate = now.toIso8601String().substring(0, 10);
 
     final rows = await db.query('''
-      SELECT t.amount, tg.name as tag_name
+      SELECT t.amount, tg.name as tag_name, d.name as description_name
       FROM transactions t
       LEFT JOIN tags tg ON t.tag_id = tg.id AND tg.is_deleted = 0
+      LEFT JOIN descriptions d ON t.description_id = d.id
       WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
         AND t.tag_id IS NOT NULL AND t.is_deleted = 0
     ''', [transactionType, startDate, endDate, _userId]);
 
     final byTag = <String, Map<String, dynamic>>{};
     for (final row in rows) {
+      final desc = await _decryptValue(row['description_name']);
+      if (_isTransferDescription(desc)) continue;
       final tag = row['tag_name'] as String? ?? Translator.t('tag_untagged');
       final amount = await _decryptAmount(row['amount']);
 
@@ -2366,15 +2369,18 @@ void setUserId(String userId) {
     final db = await database;
     final rows = await db.query('''
       SELECT t.amount, t.transaction_type, t.date,
-             tg.name as tag_name
+             tg.name as tag_name, d.name as description_name
       FROM transactions t
       LEFT JOIN tags tg ON t.tag_id = tg.id AND tg.is_deleted = 0
+      LEFT JOIN descriptions d ON t.description_id = d.id
       WHERE t.date >= ? AND t.date <= ? AND t.user_id = ? AND t.is_deleted = 0
-        AND t.tag_id IS NOT NULL
+        AND t.tag_id IS NOT NULL AND t.transaction_type != 'transfer'
     ''', [startDate, endDate, _userId]);
 
     final result = <String, Map<String, Map<String, double>>>{};
     for (final row in rows) {
+      final desc = await _decryptValue(row['description_name']);
+      if (_isTransferDescription(desc)) continue;
       final tag = row['tag_name'] as String? ?? Translator.t('tag_untagged');
       final month = (row['date'] as String).substring(0, 7);
       final type = row['transaction_type'] as String;
@@ -2677,14 +2683,17 @@ void setUserId(String userId) {
     final endDate = now.toIso8601String().substring(0, 10);
 
     final rows = await db.query(
-      'SELECT t.amount, t.currency, tg.name as tag_name '
+      'SELECT t.amount, t.currency, tg.name as tag_name, d.name as description_name '
       'FROM transactions t LEFT JOIN tags tg ON t.tag_id = tg.id AND tg.is_deleted = 0 '
+      'LEFT JOIN descriptions d ON t.description_id = d.id '
       'WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ? AND t.is_deleted = 0',
       [transactionType, startDate, endDate, _userId],
     );
 
     final result = <String, double>{};
     for (final row in rows) {
+      final desc = await _decryptValue(row['description_name']);
+      if (_isTransferDescription(desc)) continue;
       final tag = row['tag_name'] as String? ?? Translator.t('tag_untagged');
       final rawAmount = await _decryptAmount(row['amount']);
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
@@ -2713,14 +2722,17 @@ void setUserId(String userId) {
     final startDate = now.subtract(Duration(days: days)).toIso8601String().substring(0, 10);
 
     final rows = await db.query(
-      'SELECT t.amount, t.currency, tg.name as tag_name '
+      'SELECT t.amount, t.currency, tg.name as tag_name, d.name as description_name '
       'FROM transactions t LEFT JOIN tags tg ON t.tag_id = tg.id AND tg.is_deleted = 0 '
+      'LEFT JOIN descriptions d ON t.description_id = d.id '
       'WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ? AND t.is_deleted = 0',
       [transactionType, startDate, endDate, _userId],
     );
 
     final result = <String, double>{};
     for (final row in rows) {
+      final desc = await _decryptValue(row['description_name']);
+      if (_isTransferDescription(desc)) continue;
       final tag = row['tag_name'] as String? ?? Translator.t('tag_untagged');
       final rawAmount = await _decryptAmount(row['amount']);
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';

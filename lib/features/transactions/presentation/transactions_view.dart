@@ -732,7 +732,11 @@ class _TransactionsViewState extends State<TransactionsView> {
     final currency = context.watch<SettingsProvider>().currency;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+      padding: EdgeInsets.fromLTRB(
+          ResponsiveLayout.isPhone(context) ? 16 : 24,
+          24,
+          ResponsiveLayout.isPhone(context) ? 16 : 24,
+          0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -923,7 +927,7 @@ class _TransactionsViewState extends State<TransactionsView> {
     final toggle = Card(
       color: colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: isPhone ? null : EdgeInsets.zero,
+      margin: const EdgeInsets.symmetric(vertical: 4),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: () => setState(() => _showUpcoming = !_showUpcoming),
@@ -1002,7 +1006,7 @@ class _TransactionsViewState extends State<TransactionsView> {
     final card = Card(
       color: upcoming ? _upcomingBackground(colors) : colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: isPhone ? null : EdgeInsets.zero,
+      margin: const EdgeInsets.symmetric(vertical: 4),
       child: ListTile(
         leading: Container(
           width: 40,
@@ -1171,7 +1175,7 @@ class _TransactionsViewState extends State<TransactionsView> {
     final card = Card(
       color: upcoming ? _upcomingBackground(colors) : colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: isPhone ? null : EdgeInsets.zero,
+      margin: const EdgeInsets.symmetric(vertical: 4),
       child: ListTile(
         leading: Container(
           width: 40,

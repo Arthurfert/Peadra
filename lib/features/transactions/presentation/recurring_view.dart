@@ -240,7 +240,11 @@ class _RecurringViewState extends State<RecurringView> {
       body: isPhone
           ? _buildContent(colors, currency)
           : Padding(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+              padding: EdgeInsets.fromLTRB(
+                  ResponsiveLayout.isPhone(context) ? 16 : 24,
+                  24,
+                  ResponsiveLayout.isPhone(context) ? 16 : 24,
+                  0),
               child: _buildContent(colors, currency),
             ),
     );

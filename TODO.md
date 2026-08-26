@@ -17,7 +17,7 @@ This document presents future changes and wanted improvements.
 
 ### Fixes
 
-- Fixes the french translation being reversed (Débits/Crédits)
+- Reduced the borders on mobile
 
 ## Future Improvements
 

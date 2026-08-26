@@ -927,7 +927,7 @@ class _TransactionsViewState extends State<TransactionsView> {
     final toggle = Card(
       color: colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: const EdgeInsets.symmetric(vertical: 4),
+      margin: isPhone ? null : EdgeInsets.zero,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: () => setState(() => _showUpcoming = !_showUpcoming),
@@ -1006,7 +1006,7 @@ class _TransactionsViewState extends State<TransactionsView> {
     final card = Card(
       color: upcoming ? _upcomingBackground(colors) : colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: const EdgeInsets.symmetric(vertical: 4),
+      margin: isPhone ? null : EdgeInsets.zero,
       child: ListTile(
         leading: Container(
           width: 40,
@@ -1175,7 +1175,7 @@ class _TransactionsViewState extends State<TransactionsView> {
     final card = Card(
       color: upcoming ? _upcomingBackground(colors) : colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: const EdgeInsets.symmetric(vertical: 4),
+      margin: isPhone ? null : EdgeInsets.zero,
       child: ListTile(
         leading: Container(
           width: 40,

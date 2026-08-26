@@ -706,9 +706,10 @@ class DatabaseManager {
       }
     }
 
+    final today = DateTime.now().toIso8601String().substring(0, 10);
     final txnRows = await db.query(
-      'SELECT id, amount, notes FROM transactions WHERE user_id = ? AND is_deleted = 0',
-      [_userId],
+      'SELECT transaction_type, amount, account_id FROM transactions WHERE user_id = ? AND is_deleted = 0 AND date <= ?',
+      [_userId, today],
     );
     for (final row in txnRows) {
       final fields = <String, String>{};
@@ -1963,11 +1964,12 @@ void setUserId(String userId) {
       }
     }
 
+    final today = DateTime.now().toIso8601String().substring(0, 10);
     final txnRows = await db.query(
       'SELECT t.amount, t.transaction_type, COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
       'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
-      'WHERE t.user_id = ? AND t.is_deleted = 0',
-      [_userId],
+      'WHERE t.user_id = ? AND t.is_deleted = 0 AND t.date <= ?',
+      [_userId, today],
     );
 
     for (final row in txnRows) {
@@ -2007,13 +2009,14 @@ void setUserId(String userId) {
       }
     }
 
+    final today = DateTime.now().toIso8601String().substring(0, 10);
     final txnRows = await db.query(
       'SELECT t.amount, t.transaction_type, t.account_id, '
       'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency, a.type as account_type '
       'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
-      'WHERE t.user_id = ? AND t.is_deleted = 0'
+      'WHERE t.user_id = ? AND t.is_deleted = 0 AND t.date <= ?'
       '${before != null ? ' AND t.date < ?' : ''}',
-      before != null ? [_userId, before] : [_userId],
+      before != null ? [_userId, today, before] : [_userId, today],
     );
 
     for (final row in txnRows) {
@@ -2057,13 +2060,14 @@ void setUserId(String userId) {
       }
     }
 
+    final today = DateTime.now().toIso8601String().substring(0, 10);
     final txnRows = await db.query(
       'SELECT t.amount, t.transaction_type, '
       'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
       'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
-      'WHERE a.type = ? AND t.user_id = ? AND t.is_deleted = 0'
+      'WHERE a.type = ? AND t.user_id = ? AND t.is_deleted = 0 AND t.date <= ?'
       '${before != null ? ' AND t.date < ?' : ''}',
-      before != null ? ['savings', _userId, before] : ['savings', _userId],
+      before != null ? ['savings', _userId, today, before] : ['savings', _userId, today],
     );
 
     for (final row in txnRows) {
@@ -2408,6 +2412,7 @@ void setUserId(String userId) {
         .toIso8601String()
         .substring(0, 10);
 
+    final today = now.toIso8601String().substring(0, 10);
     final rows = await db.query(
       'SELECT t.amount, t.transaction_type, t.date, '
       'd.name as description_name, '
@@ -2415,8 +2420,8 @@ void setUserId(String userId) {
       'FROM transactions t '
       'LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
       'LEFT JOIN descriptions d ON t.description_id = d.id AND d.is_deleted = 0 '
-      'WHERE t.date >= ? AND t.user_id = ? AND t.is_deleted = 0',
-      [startDate, _userId],
+      'WHERE t.date >= ? AND t.date <= ? AND t.user_id = ? AND t.is_deleted = 0',
+      [startDate, today, _userId],
     );
 
     final monthMap = <String, Map<String, double>>{};

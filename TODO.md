@@ -20,6 +20,7 @@ This document presents future changes and wanted improvements.
 - Reduced the borders on mobile
 - Translated *untagged* segments of the pie charts
 - Fixed a flaw were transfers appeared in tag-based pie charts
+- Future transactions are now excluded from the dashboard
 
 ## Future Improvements
 
@@ -29,10 +30,9 @@ This document presents future changes and wanted improvements.
 - Compute trends/forecast
 
 **UX :**
-- Onboarding ?
+- Ability to dismiss the *notifications*
 - More translations
 - More parameters
 
 **UI :**
-- Add themes and enhance them
-- Enhance the UI for smaller screens (small smartphones)
+- Add themes : Sakura, High-Contrast (light and dark)

@@ -18,6 +18,7 @@ This document presents future changes and wanted improvements.
 ### Fixes
 
 - Reduced the borders on mobile
+- Translated *untagged* segments of the pie charts
 
 ## Future Improvements
 

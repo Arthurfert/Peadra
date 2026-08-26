@@ -2338,7 +2338,7 @@ void setUserId(String userId) {
 
     final byTag = <String, Map<String, dynamic>>{};
     for (final row in rows) {
-      final tag = row['tag_name'] as String? ?? 'Untagged';
+      final tag = row['tag_name'] as String? ?? Translator.t('tag_untagged');
       final amount = await _decryptAmount(row['amount']);
 
       if (!byTag.containsKey(tag)) {
@@ -2375,7 +2375,7 @@ void setUserId(String userId) {
 
     final result = <String, Map<String, Map<String, double>>>{};
     for (final row in rows) {
-      final tag = row['tag_name'] as String? ?? 'Untagged';
+      final tag = row['tag_name'] as String? ?? Translator.t('tag_untagged');
       final month = (row['date'] as String).substring(0, 7);
       final type = row['transaction_type'] as String;
       final total = await _decryptAmount(row['amount']);
@@ -2685,7 +2685,7 @@ void setUserId(String userId) {
 
     final result = <String, double>{};
     for (final row in rows) {
-      final tag = row['tag_name'] as String? ?? 'Untagged';
+      final tag = row['tag_name'] as String? ?? Translator.t('tag_untagged');
       final rawAmount = await _decryptAmount(row['amount']);
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
 
@@ -2721,7 +2721,7 @@ void setUserId(String userId) {
 
     final result = <String, double>{};
     for (final row in rows) {
-      final tag = row['tag_name'] as String? ?? 'Untagged';
+      final tag = row['tag_name'] as String? ?? Translator.t('tag_untagged');
       final rawAmount = await _decryptAmount(row['amount']);
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
 

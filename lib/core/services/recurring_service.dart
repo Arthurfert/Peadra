@@ -69,25 +69,31 @@ class RecurringService {
   /// Returns the list of dates (in order) that should be created, and the
   /// template's next `next_due_date` to persist. If the schedule has reached
   /// its end date, [ended] is true and the caller should deactivate it.
+  ///
+  /// When [lookAheadDays] is > 0, dates up to that many days into the future
+  /// are also included (used to pre-generate upcoming recurring transactions
+  /// so they appear in the "To come" section of the transaction view).
   static RecurringPlan planGeneration(
     RecurringTransaction rec, {
     required Set<String> existingDates,
     required Set<String> exceptionDates,
     required DateTime today,
+    int lookAheadDays = 0,
   }) {
     final endDate = rec.endDate != null ? DateTime.parse(rec.endDate!) : null;
     var cursor = DateTime.parse(rec.nextDueDate);
+    final cutoff = today.add(Duration(days: lookAheadDays));
 
     if (endDate != null && cursor.isAfter(endDate)) {
       return RecurringPlan(dueDates: const [], nextDueDate: dateOnly(cursor), ended: true);
     }
-    if (cursor.isAfter(today)) {
+    if (cursor.isAfter(cutoff)) {
       return RecurringPlan(dueDates: const [], nextDueDate: dateOnly(cursor), ended: false);
     }
 
     final due = <String>[];
     var guard = 0;
-    while (!cursor.isAfter(today)) {
+    while (!cursor.isAfter(cutoff)) {
       if (endDate != null && cursor.isAfter(endDate)) break;
       final dateStr = dateOnly(cursor);
       if (!existingDates.contains(dateStr) && !exceptionDates.contains(dateStr)) {

@@ -13,11 +13,15 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-
+- Recurring transactions now appears in the `To come` section 5 days ahead
+- You can now filter by accounts in the transaction view !
 
 ### Fixes
 
-- Fixed multiple accounts devices sync. **All previous paired devices must re-pair**
+- Reduced the borders on mobile
+- Translated *untagged* segments of the pie charts
+- Fixed a flaw were transfers appeared in tag-based pie charts
+- Future transactions are now excluded from the dashboard
 
 ## Future Improvements
 
@@ -27,9 +31,9 @@ This document presents future changes and wanted improvements.
 - Compute trends/forecast
 
 **UX :**
-- Onboarding ?
+- Ability to dismiss the *notifications*
 - More translations
 - More parameters
 
 **UI :**
-- Add themes and enhance them
+- Add themes : Sakura, High-Contrast (light and dark)

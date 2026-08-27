@@ -706,9 +706,10 @@ class DatabaseManager {
       }
     }
 
+    final today = DateTime.now().toIso8601String().substring(0, 10);
     final txnRows = await db.query(
-      'SELECT id, amount, notes FROM transactions WHERE user_id = ? AND is_deleted = 0',
-      [_userId],
+      'SELECT transaction_type, amount, account_id FROM transactions WHERE user_id = ? AND is_deleted = 0 AND date <= ?',
+      [_userId, today],
     );
     for (final row in txnRows) {
       final fields = <String, String>{};
@@ -1361,7 +1362,23 @@ void setUserId(String userId) {
     Set<String>? tagIds,
   }) async {
     final db = await database;
-    var query = '''
+
+    final where = <String>['t.user_id = ? AND t.is_deleted = 0'];
+    final args = <Object?>[_userId];
+
+    if (accountIds != null && accountIds.isNotEmpty) {
+      final placeholders = accountIds.map((_) => '?').join(', ');
+      where.add('t.account_id IN ($placeholders)');
+      args.addAll(accountIds);
+    }
+
+    if (tagIds != null && tagIds.isNotEmpty) {
+      final placeholders = tagIds.map((_) => '?').join(', ');
+      where.add('t.tag_id IN ($placeholders)');
+      args.addAll(tagIds);
+    }
+
+    final query = '''
       SELECT t.*, a.name as account_name, a.color as account_color,
              a.currency as account_currency, d.name as description_name,
              tg.name as tag_name, tg.color as tag_color,
@@ -1371,11 +1388,11 @@ void setUserId(String userId) {
       LEFT JOIN descriptions d ON t.description_id = d.id AND d.is_deleted = 0
       LEFT JOIN tags tg ON t.tag_id = tg.id AND tg.is_deleted = 0
       LEFT JOIN recurring_transactions rt ON t.recurring_id = rt.id AND rt.is_deleted = 0
-      WHERE t.user_id = ? AND t.is_deleted = 0
+      WHERE ${where.join(' AND ')}
       ORDER BY t.date DESC, t.id DESC
     ''';
 
-    final rows = await db.query(query, [_userId]);
+    final rows = await db.query(query, args);
 
     final results = <TransactionWithDetails>[];
     final sq = searchQuery.toLowerCase();
@@ -1384,16 +1401,6 @@ void setUserId(String userId) {
       final notes = await _decryptValue(r['notes']);
       final accountName = await _decryptValue(r['account_name']);
       final descriptionName = await _decryptValue(r['description_name']);
-
-      if (accountIds != null && accountIds.isNotEmpty) {
-        final acctId = r['account_id'] as String?;
-        if (acctId == null || !accountIds.contains(acctId)) continue;
-      }
-
-      if (tagIds != null && tagIds.isNotEmpty) {
-        final txnTagId = r['tag_id'] as String?;
-        if (txnTagId == null || !tagIds.contains(txnTagId)) continue;
-      }
 
       if (searchQuery.isNotEmpty) {
         final descMatch = descriptionName?.toLowerCase().contains(sq) ?? false;
@@ -1431,6 +1438,62 @@ void setUserId(String userId) {
 
     if (limit != null) {
       return results.skip(offset).take(limit).toList();
+    }
+    return results;
+  }
+
+  Future<List<TransactionWithDetails>> getTransactionsByKeys(
+      Iterable<({String accountId, String date, String type})> keys) async {
+    if (keys.isEmpty) return const [];
+    final db = await database;
+    final results = <TransactionWithDetails>[];
+
+    for (final k in keys) {
+      final rows = await db.query(
+        '''
+        SELECT t.*, a.name as account_name, a.color as account_color,
+               a.currency as account_currency, d.name as description_name,
+               tg.name as tag_name, tg.color as tag_color,
+               rt.frequency as recurring_frequency
+        FROM transactions t
+        LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0
+        LEFT JOIN descriptions d ON t.description_id = d.id AND d.is_deleted = 0
+        LEFT JOIN tags tg ON t.tag_id = tg.id AND tg.is_deleted = 0
+        LEFT JOIN recurring_transactions rt ON t.recurring_id = rt.id AND rt.is_deleted = 0
+        WHERE t.user_id = ? AND t.is_deleted = 0
+          AND t.account_id = ? AND t.date = ? AND t.transaction_type = ?
+        ''',
+        [_userId, k.accountId, k.date, k.type],
+      );
+
+      for (final r in rows) {
+        final amount = await _decryptAmount(r['amount']);
+        final notes = await _decryptValue(r['notes']);
+        final accountName = await _decryptValue(r['account_name']);
+        final descriptionName = await _decryptValue(r['description_name']);
+        results.add(TransactionWithDetails(
+          id: r['id'] as String?,
+          userId: r['user_id'] as String,
+          accountId: r['account_id'] as String?,
+          descriptionId: r['description_id'] as String?,
+          tagId: r['tag_id'] as String?,
+          date: r['date'] as String,
+          amount: amount,
+          transactionType: r['transaction_type'] as String,
+          currency: r['currency'] as String? ?? 'EUR',
+          notes: notes,
+          recurringId: r['recurring_id'] as String?,
+          createdAt: r['created_at'] as String?,
+          updatedAt: r['updated_at'] as String?,
+          accountName: accountName,
+          accountColor: r['account_color'] as String?,
+          accountCurrency: r['account_currency'] as String?,
+          descriptionName: descriptionName,
+          tagName: r['tag_name'] as String?,
+          tagColor: r['tag_color'] as String?,
+          recurringFrequency: r['recurring_frequency'] as String?,
+        ));
+      }
     }
     return results;
   }
@@ -1635,6 +1698,10 @@ void setUserId(String userId) {
     args.add(recurringId);
     args.add(_userId);
     await db.execute(sql, args);
+    if (scheduleChanged) {
+      // Stale pre-generated future occurrences; regenerate on next load.
+      await _deletePreGeneratedFuture(db, recurringId, DateTime.now());
+    }
     return true;
   }
 
@@ -1649,6 +1716,10 @@ void setUserId(String userId) {
       'UPDATE recurring_transactions SET active = ?, updated_at = ? WHERE id = ? AND user_id = ?',
       [active ? 1 : 0, DateTime.now().toIso8601String(), recurringId, _userId],
     );
+    if (!active) {
+      // Deactivating: remove pre-generated future transactions.
+      await _deletePreGeneratedFuture(db, recurringId, DateTime.now());
+    }
     return true;
   }
 
@@ -1665,6 +1736,9 @@ void setUserId(String userId) {
         'DELETE FROM transactions WHERE recurring_id = ? AND user_id = ?',
         [recurringId, _userId],
       );
+    } else {
+      // Keep past occurrences as one-offs, but remove pre-generated future ones.
+      await _deletePreGeneratedFuture(db, recurringId, DateTime.now());
     }
     await db.execute('DELETE FROM recurring_exceptions WHERE recurring_id = ?', [recurringId]);
     await db.execute(
@@ -1691,6 +1765,18 @@ void setUserId(String userId) {
     await db.execute(
       'INSERT OR REPLACE INTO recurring_exceptions (id, recurring_id, date) VALUES (?1, ?2, ?3)',
       [_newId(), recurringId, date],
+    );
+  }
+
+  /// Deletes pre-generated future transactions for [recurringId] that fall
+  /// beyond [today] (i.e. occurrences generated by the look-ahead window that
+  /// are no longer valid after a template is deleted, deactivated or rescheduled).
+  Future<void> _deletePreGeneratedFuture(
+      SqliteCrdt db, String recurringId, DateTime today) async {
+    final todayStr = RecurringService.dateOnly(today);
+    await db.execute(
+      'DELETE FROM transactions WHERE recurring_id = ? AND user_id = ? AND date > ?',
+      [recurringId, _userId, todayStr],
     );
   }
 
@@ -1893,6 +1979,7 @@ void setUserId(String userId) {
       existingDates: existingDates,
       exceptionDates: exceptionDates,
       today: DateTime.now(),
+      lookAheadDays: 5,
     );
 
     for (final dateStr in plan.dueDates) {
@@ -1963,11 +2050,12 @@ void setUserId(String userId) {
       }
     }
 
+    final today = DateTime.now().toIso8601String().substring(0, 10);
     final txnRows = await db.query(
       'SELECT t.amount, t.transaction_type, COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
       'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
-      'WHERE t.user_id = ? AND t.is_deleted = 0',
-      [_userId],
+      'WHERE t.user_id = ? AND t.is_deleted = 0 AND t.date <= ?',
+      [_userId, today],
     );
 
     for (final row in txnRows) {
@@ -2007,13 +2095,14 @@ void setUserId(String userId) {
       }
     }
 
+    final today = DateTime.now().toIso8601String().substring(0, 10);
     final txnRows = await db.query(
       'SELECT t.amount, t.transaction_type, t.account_id, '
       'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency, a.type as account_type '
       'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
-      'WHERE t.user_id = ? AND t.is_deleted = 0'
+      'WHERE t.user_id = ? AND t.is_deleted = 0 AND t.date <= ?'
       '${before != null ? ' AND t.date < ?' : ''}',
-      before != null ? [_userId, before] : [_userId],
+      before != null ? [_userId, today, before] : [_userId, today],
     );
 
     for (final row in txnRows) {
@@ -2057,13 +2146,14 @@ void setUserId(String userId) {
       }
     }
 
+    final today = DateTime.now().toIso8601String().substring(0, 10);
     final txnRows = await db.query(
       'SELECT t.amount, t.transaction_type, '
       'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
       'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
-      'WHERE a.type = ? AND t.user_id = ? AND t.is_deleted = 0'
+      'WHERE a.type = ? AND t.user_id = ? AND t.is_deleted = 0 AND t.date <= ?'
       '${before != null ? ' AND t.date < ?' : ''}',
-      before != null ? ['savings', _userId, before] : ['savings', _userId],
+      before != null ? ['savings', _userId, today, before] : ['savings', _userId, today],
     );
 
     for (final row in txnRows) {
@@ -2329,16 +2419,19 @@ void setUserId(String userId) {
     final endDate = now.toIso8601String().substring(0, 10);
 
     final rows = await db.query('''
-      SELECT t.amount, tg.name as tag_name
+      SELECT t.amount, tg.name as tag_name, d.name as description_name
       FROM transactions t
       LEFT JOIN tags tg ON t.tag_id = tg.id AND tg.is_deleted = 0
+      LEFT JOIN descriptions d ON t.description_id = d.id
       WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
         AND t.tag_id IS NOT NULL AND t.is_deleted = 0
     ''', [transactionType, startDate, endDate, _userId]);
 
     final byTag = <String, Map<String, dynamic>>{};
     for (final row in rows) {
-      final tag = row['tag_name'] as String? ?? 'Untagged';
+      final desc = await _decryptValue(row['description_name']);
+      if (_isTransferDescription(desc)) continue;
+      final tag = row['tag_name'] as String? ?? Translator.t('tag_untagged');
       final amount = await _decryptAmount(row['amount']);
 
       if (!byTag.containsKey(tag)) {
@@ -2366,16 +2459,19 @@ void setUserId(String userId) {
     final db = await database;
     final rows = await db.query('''
       SELECT t.amount, t.transaction_type, t.date,
-             tg.name as tag_name
+             tg.name as tag_name, d.name as description_name
       FROM transactions t
       LEFT JOIN tags tg ON t.tag_id = tg.id AND tg.is_deleted = 0
+      LEFT JOIN descriptions d ON t.description_id = d.id
       WHERE t.date >= ? AND t.date <= ? AND t.user_id = ? AND t.is_deleted = 0
-        AND t.tag_id IS NOT NULL
+        AND t.tag_id IS NOT NULL AND t.transaction_type != 'transfer'
     ''', [startDate, endDate, _userId]);
 
     final result = <String, Map<String, Map<String, double>>>{};
     for (final row in rows) {
-      final tag = row['tag_name'] as String? ?? 'Untagged';
+      final desc = await _decryptValue(row['description_name']);
+      if (_isTransferDescription(desc)) continue;
+      final tag = row['tag_name'] as String? ?? Translator.t('tag_untagged');
       final month = (row['date'] as String).substring(0, 7);
       final type = row['transaction_type'] as String;
       final total = await _decryptAmount(row['amount']);
@@ -2402,6 +2498,7 @@ void setUserId(String userId) {
         .toIso8601String()
         .substring(0, 10);
 
+    final today = now.toIso8601String().substring(0, 10);
     final rows = await db.query(
       'SELECT t.amount, t.transaction_type, t.date, '
       'd.name as description_name, '
@@ -2409,8 +2506,8 @@ void setUserId(String userId) {
       'FROM transactions t '
       'LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
       'LEFT JOIN descriptions d ON t.description_id = d.id AND d.is_deleted = 0 '
-      'WHERE t.date >= ? AND t.user_id = ? AND t.is_deleted = 0',
-      [startDate, _userId],
+      'WHERE t.date >= ? AND t.date <= ? AND t.user_id = ? AND t.is_deleted = 0',
+      [startDate, today, _userId],
     );
 
     final monthMap = <String, Map<String, double>>{};
@@ -2677,15 +2774,18 @@ void setUserId(String userId) {
     final endDate = now.toIso8601String().substring(0, 10);
 
     final rows = await db.query(
-      'SELECT t.amount, t.currency, tg.name as tag_name '
+      'SELECT t.amount, t.currency, tg.name as tag_name, d.name as description_name '
       'FROM transactions t LEFT JOIN tags tg ON t.tag_id = tg.id AND tg.is_deleted = 0 '
+      'LEFT JOIN descriptions d ON t.description_id = d.id '
       'WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ? AND t.is_deleted = 0',
       [transactionType, startDate, endDate, _userId],
     );
 
     final result = <String, double>{};
     for (final row in rows) {
-      final tag = row['tag_name'] as String? ?? 'Untagged';
+      final desc = await _decryptValue(row['description_name']);
+      if (_isTransferDescription(desc)) continue;
+      final tag = row['tag_name'] as String? ?? Translator.t('tag_untagged');
       final rawAmount = await _decryptAmount(row['amount']);
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
 
@@ -2713,15 +2813,18 @@ void setUserId(String userId) {
     final startDate = now.subtract(Duration(days: days)).toIso8601String().substring(0, 10);
 
     final rows = await db.query(
-      'SELECT t.amount, t.currency, tg.name as tag_name '
+      'SELECT t.amount, t.currency, tg.name as tag_name, d.name as description_name '
       'FROM transactions t LEFT JOIN tags tg ON t.tag_id = tg.id AND tg.is_deleted = 0 '
+      'LEFT JOIN descriptions d ON t.description_id = d.id '
       'WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ? AND t.is_deleted = 0',
       [transactionType, startDate, endDate, _userId],
     );
 
     final result = <String, double>{};
     for (final row in rows) {
-      final tag = row['tag_name'] as String? ?? 'Untagged';
+      final desc = await _decryptValue(row['description_name']);
+      if (_isTransferDescription(desc)) continue;
+      final tag = row['tag_name'] as String? ?? Translator.t('tag_untagged');
       final rawAmount = await _decryptAmount(row['amount']);
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
 

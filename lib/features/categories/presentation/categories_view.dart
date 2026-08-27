@@ -111,7 +111,7 @@ class _CategoriesViewState extends State<CategoriesView> {
     final lineChartDots = context.watch<SettingsProvider>().lineChartDots;
 
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: ResponsiveLayout.pagePaddingAll(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

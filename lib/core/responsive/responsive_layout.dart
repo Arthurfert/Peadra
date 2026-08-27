@@ -28,6 +28,16 @@ class ResponsiveLayout extends StatelessWidget {
   static bool isDesktop(BuildContext context) =>
       getScreenSize(context) == ScreenSize.desktop;
 
+  static EdgeInsets pagePadding(BuildContext context) {
+    final h = isPhone(context) ? 12.0 : 24.0;
+    return EdgeInsets.symmetric(horizontal: h);
+  }
+
+  static EdgeInsets pagePaddingAll(BuildContext context) {
+    final s = isPhone(context) ? 12.0 : 24.0;
+    return EdgeInsets.all(s);
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(

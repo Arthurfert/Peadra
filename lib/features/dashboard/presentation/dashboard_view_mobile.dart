@@ -3,6 +3,7 @@ import 'package:fl_chart/fl_chart.dart';
 
 import '../../../core/i18n/translator.dart';
 import '../../../core/theme/peadra_colors.dart';
+import '../../../core/responsive/responsive_layout.dart';
 
 const _monthAbbrKeys = [
   'month_jan_abbr',
@@ -50,7 +51,7 @@ class DashboardViewMobile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: ResponsiveLayout.pagePaddingAll(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

@@ -16,6 +16,7 @@ import '../../../core/services/biometric_service.dart';
 import '../../../core/services/encryption_service.dart';
 import '../../../core/services/log_service.dart';
 import '../../../core/theme/peadra_colors.dart';
+import '../../../core/responsive/responsive_layout.dart';
 import '../../../sync/sync_service.dart';
 import '../../dashboard/presentation/dashboard_shell.dart';
 
@@ -331,7 +332,7 @@ class _LoginViewState extends State<LoginView> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+            padding: ResponsiveLayout.pagePaddingAll(context),
             child: Container(
               constraints: const BoxConstraints(maxWidth: 400),
               padding: const EdgeInsets.all(32),

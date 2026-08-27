@@ -49,6 +49,7 @@ class TransactionsView extends StatefulWidget {
 class _TransactionsViewState extends State<TransactionsView> {
   final _db = DatabaseManager.instance;
   final _tagScrollController = ScrollController();
+  final _accountScrollController = ScrollController();
   List<_DisplayItem> _displayItems = [];
   List<Account> _accounts = [];
   List<Tag> _tags = [];
@@ -56,6 +57,7 @@ class _TransactionsViewState extends State<TransactionsView> {
   bool _showUpcoming = false;
   String _searchQuery = '';
   final Set<String> _selectedTagIds = {};
+  final Set<String> _selectedAccountIds = {};
   int _displayLimit = 30;
   bool _hasMore = true;
   int _lastRawFetchCount = 0;
@@ -87,6 +89,7 @@ class _TransactionsViewState extends State<TransactionsView> {
     _searchDebounce?.cancel();
     _remoteDataSub?.cancel();
     _tagScrollController.dispose();
+    _accountScrollController.dispose();
     super.dispose();
   }
 
@@ -183,12 +186,60 @@ class _TransactionsViewState extends State<TransactionsView> {
   Future<void> _loadTransactions({bool loadMore = false}) async {
     final limit = loadMore ? null : _displayLimit;
     final offset = loadMore ? _lastRawFetchCount : 0;
-    final txns = await _db.getTransactions(
+    var txns = await _db.getTransactions(
       limit: limit,
       offset: offset,
       searchQuery: _searchQuery,
+      accountIds:
+          _selectedAccountIds.isEmpty ? null : _selectedAccountIds,
       tagIds: _selectedTagIds.isEmpty ? null : _selectedTagIds,
     );
+
+    if (_selectedAccountIds.isNotEmpty) {
+      // Collect needed paired account IDs by date and opposite type.
+      final needed = <String, Map<String, String>>{};
+      for (final txn in txns) {
+        final desc = (txn.notes ?? txn.descriptionName ?? '').trim();
+        final toM = _toPattern.firstMatch(desc);
+        final fromM = _fromPattern.firstMatch(desc);
+        String? pairedName;
+        String neededType;
+        if (toM != null) {
+          pairedName = toM.group(1)!;
+          neededType = 'income';
+        } else if (fromM != null) {
+          pairedName = fromM.group(1)!;
+          neededType = 'expense';
+        } else {
+          continue;
+        }
+        String? pairedId;
+        for (final a in _accounts) {
+          if (a.name == pairedName && !_selectedAccountIds.contains(a.id)) {
+            pairedId = a.id!;
+            break;
+          }
+        }
+        if (pairedId == null) continue;
+        final key = '$pairedId|${txn.date}|$neededType';
+        needed.putIfAbsent(key, () => {
+              'accountId': pairedId!,
+              'date': txn.date,
+              'type': neededType,
+            });
+      }
+
+      if (needed.isNotEmpty) {
+        final paired = await _db.getTransactionsByKeys(
+          needed.values.map((v) => (
+                accountId: v['accountId']!,
+                date: v['date']!,
+                type: v['type']!,
+              )),
+        );
+        txns = [...txns, ...paired];
+      }
+    }
 
     if (mounted) {
       setState(() {
@@ -732,7 +783,11 @@ class _TransactionsViewState extends State<TransactionsView> {
     final currency = context.watch<SettingsProvider>().currency;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+      padding: EdgeInsets.fromLTRB(
+          ResponsiveLayout.isPhone(context) ? 16 : 24,
+          24,
+          ResponsiveLayout.isPhone(context) ? 16 : 24,
+          0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -855,6 +910,88 @@ class _TransactionsViewState extends State<TransactionsView> {
                   );
                 },
               ),
+              ),
+            ),
+          ],
+          if (_accounts.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 40,
+              child: Listener(
+                onPointerSignal: (event) {
+                  if (event is PointerScrollEvent &&
+                      _accountScrollController.hasClients) {
+                    _accountScrollController.jumpTo(
+                      (_accountScrollController.offset +
+                              event.scrollDelta.dy)
+                          .clamp(
+                        0.0,
+                        _accountScrollController
+                            .position.maxScrollExtent,
+                      ),
+                    );
+                  }
+                },
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  controller: _accountScrollController,
+                  itemCount: _accounts.length,
+                  separatorBuilder: (_, __) =>
+                      const SizedBox(width: 6),
+                  itemBuilder: (context, index) {
+                    final acct = _accounts[index];
+                    final isSelected = _selectedAccountIds
+                        .contains(acct.id);
+                    final acctColor = Color(int.parse(
+                        acct.color
+                            .replaceFirst('#', '0xFF')));
+                    return FilterChip(
+                      label: Text(acct.name),
+                      labelStyle: TextStyle(
+                        color: isSelected
+                            ? Colors.white
+                            : acctColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      selected: isSelected,
+                      selectedColor: acctColor,
+                      backgroundColor: acctColor
+                          .withValues(alpha: 0.1),
+                      checkmarkColor: Colors.white,
+                      side: BorderSide(
+                        color: isSelected
+                            ? acctColor
+                            : acctColor
+                                .withValues(alpha: 0.3),
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(20),
+                      ),
+                      padding:
+                          const EdgeInsets.symmetric(
+                              horizontal: 4),
+                      materialTapTargetSize:
+                          MaterialTapTargetSize
+                              .shrinkWrap,
+                      visualDensity:
+                          VisualDensity.compact,
+                      onSelected: (selected) {
+                        setState(() {
+                          if (selected) {
+                            _selectedAccountIds
+                                .add(acct.id!);
+                          } else {
+                            _selectedAccountIds
+                                .remove(acct.id);
+                          }
+                        });
+                        _loadTransactions();
+                      },
+                    );
+                  },
+                ),
               ),
             ),
           ],

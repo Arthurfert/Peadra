@@ -100,7 +100,7 @@ class _ParametersViewState extends State<ParametersView> {
         automaticallyImplyLeading: widget.showBackButton,
       ),
       body: ListView(
-        padding: const EdgeInsets.all(24),
+        padding: ResponsiveLayout.pagePaddingAll(context),
         children: [
           if (isPhone) ...[
             Padding(

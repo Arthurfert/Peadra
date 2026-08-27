@@ -183,8 +183,9 @@ class _TransactionsViewState extends State<TransactionsView> {
     await _loadTransactions();
   }
 
-  Future<void> _loadTransactions({bool loadMore = false}) async {
-    final limit = loadMore ? null : _displayLimit;
+  Future<void> _loadTransactions(
+      {bool loadMore = false, bool loadAll = false}) async {
+    final limit = (loadMore || loadAll) ? null : _displayLimit;
     final offset = loadMore ? _lastRawFetchCount : 0;
     var txns = await _db.getTransactions(
       limit: limit,
@@ -194,6 +195,8 @@ class _TransactionsViewState extends State<TransactionsView> {
           _selectedAccountIds.isEmpty ? null : _selectedAccountIds,
       tagIds: _selectedTagIds.isEmpty ? null : _selectedTagIds,
     );
+
+    final rawCount = txns.length;
 
     if (_selectedAccountIds.isNotEmpty) {
       // Collect needed paired account IDs by date and opposite type.
@@ -249,8 +252,8 @@ class _TransactionsViewState extends State<TransactionsView> {
         } else {
           _displayItems = newItems;
         }
-        _lastRawFetchCount = txns.length;
-        _hasMore = txns.length == (_displayLimit);
+        _lastRawFetchCount = rawCount;
+        _hasMore = !loadAll && rawCount == _displayLimit;
         _loading = false;
       });
     }
@@ -1047,9 +1050,22 @@ class _TransactionsViewState extends State<TransactionsView> {
           return _buildTransactionTile(
               currentItems[itemIndex], colors, defaultCurrency);
         }
-        return TextButton(
-          onPressed: () => _loadTransactions(loadMore: true),
-          child: Text(Translator.t('btn_load_more')),
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              TextButton(
+                onPressed: () => _loadTransactions(loadMore: true),
+                child: Text(Translator.t('btn_load_more')),
+              ),
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: () => _loadTransactions(loadAll: true),
+                child: Text(Translator.t('btn_load_all')),
+              ),
+            ],
+          ),
         );
       },
     );

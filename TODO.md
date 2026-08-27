@@ -13,15 +13,11 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-- Recurring transactions now appears in the `To come` section 5 days ahead
-- You can now filter by accounts in the transaction view !
+- Adds a `Load All` button in the transaction view
 
 ### Fixes
 
-- Reduced the borders on mobile
-- Translated *untagged* segments of the pie charts
-- Fixed a flaw were transfers appeared in tag-based pie charts
-- Future transactions are now excluded from the dashboard
+- Fixed the duplicate transaction when clicking on `Load more` (transaction view)
 
 ## Future Improvements
 

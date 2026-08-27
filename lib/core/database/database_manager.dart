@@ -1436,10 +1436,7 @@ void setUserId(String userId) {
       if (limit != null && results.length >= limit + offset) break;
     }
 
-    if (limit != null) {
-      return results.skip(offset).take(limit).toList();
-    }
-    return results;
+    return results.skip(offset).take(limit ?? results.length).toList();
   }
 
   Future<List<TransactionWithDetails>> getTransactionsByKeys(

@@ -35,6 +35,7 @@ dependencies:
   mdns_dart: ^2.2.1
   qr_flutter: ^4.1.0
   mobile_scanner: ^7.4.0
+  flutter_markdown_plus: ^1.0.12
 
 dev_dependencies:
   flutter_test:

@@ -14,6 +14,7 @@ This document presents future changes and wanted improvements.
 ### New
 
 - Adds a `Load All` button in the transaction view
+- Support Markdown format for the Release note
 
 ### Fixes
 

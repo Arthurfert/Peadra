@@ -13,7 +13,7 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-
+- Recurring transactions now appears in the `To come` section 5 days ahead
 
 ### Fixes
 

@@ -1,3 +1,5 @@
+import 'package:decimal/decimal.dart';
+
 class Account {
   final String? id;
   final String userId;
@@ -5,7 +7,7 @@ class Account {
   final String type;
   final String color;
   final String currency;
-  final double startingAmount;
+  final Decimal startingAmount;
   final String? createdAt;
 
   Account({
@@ -15,9 +17,9 @@ class Account {
     this.type = 'savings',
     this.color = '#1976D2',
     this.currency = 'EUR',
-    this.startingAmount = 0.0,
+    Decimal? startingAmount,
     this.createdAt,
-  });
+  }) : startingAmount = startingAmount ?? Decimal.zero;
 
   bool get isChecking => type == 'checking';
   bool get isSavings => type == 'savings';
@@ -29,7 +31,7 @@ class Account {
     String? type,
     String? color,
     String? currency,
-    double? startingAmount,
+    Decimal? startingAmount,
     String? createdAt,
   }) =>
       Account(
@@ -61,13 +63,20 @@ class Account {
         type: map['type'] as String? ?? 'savings',
         color: map['color'] as String? ?? '#1976D2',
         currency: map['currency'] as String? ?? 'EUR',
-        startingAmount: (map['starting_amount'] as num?)?.toDouble() ?? 0.0,
+        startingAmount: parseDecimal(map['starting_amount']),
         createdAt: map['created_at'] as String?,
       );
+
+  static Decimal parseDecimal(dynamic value) {
+    if (value == null) return Decimal.zero;
+    if (value is Decimal) return value;
+    if (value is num) return Decimal.parse(value.toString());
+    return Decimal.tryParse(value.toString()) ?? Decimal.zero;
+  }
 }
 
 class AccountWithBalance extends Account {
-  final double balance;
+  final Decimal balance;
 
   AccountWithBalance({
     required super.id,
@@ -78,8 +87,8 @@ class AccountWithBalance extends Account {
     required super.currency,
     super.startingAmount,
     super.createdAt,
-    this.balance = 0.0,
-  });
+    Decimal? balance,
+  }) : balance = balance ?? Decimal.zero;
 
   factory AccountWithBalance.fromMap(Map<String, dynamic> map) =>
       AccountWithBalance(
@@ -89,8 +98,8 @@ class AccountWithBalance extends Account {
         type: map['type'] as String? ?? 'savings',
         color: map['color'] as String? ?? '#1976D2',
         currency: map['currency'] as String? ?? 'EUR',
-        startingAmount: (map['starting_amount'] as num?)?.toDouble() ?? 0.0,
+        startingAmount: Account.parseDecimal(map['starting_amount']),
         createdAt: map['created_at'] as String?,
-        balance: (map['balance'] as num?)?.toDouble() ?? 0.0,
+        balance: Account.parseDecimal(map['balance']),
       );
 }

@@ -27,7 +27,7 @@ class ExportService {
       ...transactions.map((t) => [
         t.date,
         t.descriptionName ?? '',
-        t.amount.toStringAsFixed(2),
+        t.amount.toString(),
         t.transactionType,
         t.accountId.toString(),
         t.currency,

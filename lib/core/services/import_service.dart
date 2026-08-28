@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:csv/csv.dart';
+import 'package:decimal/decimal.dart';
 
 import '../database/database_manager.dart';
 
@@ -263,7 +264,7 @@ class ImportService {
   static final _dateFormats = ['%d/%m/%Y', '%m/%d/%Y'];
 
   /// Parse a number from various formats (US/European).
-  double? _parseNumber(String s) {
+  Decimal? _parseNumber(String s) {
     s = s.trim();
     if (s.isEmpty) return null;
 
@@ -295,7 +296,7 @@ class ImportService {
       }
     }
 
-    return double.tryParse(s);
+    return Decimal.tryParse(s);
   }
 
   /// Parse a date from various formats.
@@ -390,7 +391,7 @@ class ImportService {
       try {
         String? dateStr;
         String? description;
-        double? amount;
+        Decimal? amount;
         String? type;
 
         for (int col = 0; col < row.length; col++) {
@@ -410,19 +411,19 @@ class ImportService {
               final parsedAmount = _parseNumber(value);
               if (parsedAmount != null) {
                 amount = parsedAmount.abs();
-                type ??= parsedAmount >= 0 ? 'income' : 'expense';
+                type ??= parsedAmount >= Decimal.zero ? 'income' : 'expense';
               }
               break;
             case ColumnMapping.credit:
               final creditAmount = _parseNumber(value);
-              if (creditAmount != null && creditAmount > 0) {
+              if (creditAmount != null && creditAmount > Decimal.zero) {
                 amount = creditAmount;
                 type ??= 'income';
               }
               break;
             case ColumnMapping.debit:
               final debitAmount = _parseNumber(value);
-              if (debitAmount != null && debitAmount > 0) {
+              if (debitAmount != null && debitAmount > Decimal.zero) {
                 amount = debitAmount.abs();
                 type ??= 'expense';
               }
@@ -453,7 +454,7 @@ class ImportService {
         final resolvedType = type ?? transactionType;
 
         // Skip zero amounts
-        if (amount.abs() < 0.01) {
+        if (amount.abs() < Decimal.parse('0.01')) {
           skipped++;
           continue;
         }

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:decimal/decimal.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/i18n/translator.dart';
@@ -202,7 +203,7 @@ class _AccountsViewState extends State<AccountsView> {
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: acct.balance >= 0 ? colors.success : colors.error,
+                  color: acct.balance >= Decimal.zero ? colors.success : colors.error,
                 ),
               ),
             ),
@@ -342,7 +343,7 @@ class _AccountsViewState extends State<AccountsView> {
             ElevatedButton(
               onPressed: () async {
                 if (nameCtrl.text.trim().isEmpty) return;
-                final startingAmount = double.tryParse(startingAmountCtrl.text) ?? 0.0;
+                final startingAmount = Decimal.tryParse(startingAmountCtrl.text) ?? Decimal.zero;
                 await _db.addAccount(nameCtrl.text.trim(), color, type, currency, startingAmount: startingAmount);
                 Navigator.pop(ctx);
                 _loadAccounts();
@@ -439,7 +440,7 @@ class _AccountsViewState extends State<AccountsView> {
             ElevatedButton(
               onPressed: () async {
                 if (nameCtrl.text.trim().isEmpty) return;
-                final startingAmount = double.tryParse(startingAmountCtrl.text) ?? 0.0;
+                final startingAmount = Decimal.tryParse(startingAmountCtrl.text) ?? Decimal.zero;
                 await _db.updateAccount(
                   acct.id!,
                   nameCtrl.text.trim(),

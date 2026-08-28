@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:decimal/decimal.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/i18n/translator.dart';
@@ -62,7 +63,7 @@ class _TransactionModalState extends State<TransactionModal> {
   List<String> _suggestions = [];
   bool _showSuggestions = false;
   double? _exchangeRate;
-  double? _convertedAmount;
+  Decimal? _convertedAmount;
   List<Tag> _tags = [];
   String? _selectedTagId;
   Timer? _suggestionDebounce;
@@ -185,10 +186,10 @@ class _TransactionModalState extends State<TransactionModal> {
       return;
     }
 
-    final amount = double.tryParse(_amountController.text);
-    if (amount != null && amount > 0) {
+    final amount = Decimal.tryParse(_amountController.text);
+    if (amount != null && amount > Decimal.zero) {
       setState(() {
-        _convertedAmount = amount * _exchangeRate!;
+        _convertedAmount = amount * Decimal.parse(_exchangeRate!.toString());
       });
     } else {
       setState(() {
@@ -275,8 +276,8 @@ class _TransactionModalState extends State<TransactionModal> {
     if (_transactionType != 'transfer' && _descController.text.trim().isEmpty) {
       return false;
     }
-    final amount = double.tryParse(_amountController.text);
-    if (amount == null || amount <= 0) return false;
+    final amount = Decimal.tryParse(_amountController.text);
+    if (amount == null || amount <= Decimal.zero) return false;
     if (_transactionType == 'transfer' && _sourceAccountId == _destAccountId) {
       return false;
     }
@@ -293,7 +294,7 @@ class _TransactionModalState extends State<TransactionModal> {
   void _save() {
     if (!_validate()) return;
 
-    final amount = double.tryParse(_amountController.text) ?? 0;
+    final amount = Decimal.tryParse(_amountController.text) ?? Decimal.zero;
     final data = <String, dynamic>{
       'date': _dateController.text,
       'description': _descController.text.trim(),
@@ -680,7 +681,7 @@ class _TransactionModalState extends State<TransactionModal> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${CurrencyService.formatAmount(double.tryParse(_amountController.text) ?? 0, _getSourceCurrency())} = ${CurrencyService.formatAmount(_convertedAmount!, _getDestCurrency())}',
+                        '${CurrencyService.formatAmount(Decimal.tryParse(_amountController.text) ?? Decimal.zero, _getSourceCurrency())} = ${CurrencyService.formatAmount(_convertedAmount!, _getDestCurrency())}',
                         style: TextStyle(
                           color: colors.accent,
                           fontSize: 14,

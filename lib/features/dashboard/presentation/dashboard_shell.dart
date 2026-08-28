@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+import 'package:decimal/decimal.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/i18n/translator.dart';
@@ -32,7 +33,7 @@ class DashboardShell extends StatefulWidget {
 
 class _DashboardShellState extends State<DashboardShell> {
   int _selectedIndex = 0;
-  double _totalPatrimony = 0;
+  Decimal _totalPatrimony = Decimal.zero;
   int _dashboardRefreshSignal = 0;
   String _lastCurrency = '';
   bool _updateBannerDismissed = false;

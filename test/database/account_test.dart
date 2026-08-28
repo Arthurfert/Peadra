@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:decimal/decimal.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'package:peadra/core/models/account.dart';
@@ -222,7 +223,7 @@ void main() {
         'balance': 150.5,
       };
       final awb = AccountWithBalance.fromMap(map);
-      expect(awb.balance, 150.5);
+      expect(awb.balance, Decimal.parse('150.5'));
       expect(awb.name, 'Checking');
       expect(awb.id, '1');
     });
@@ -234,7 +235,7 @@ void main() {
         'name': 'Test',
       };
       final awb = AccountWithBalance.fromMap(map);
-      expect(awb.balance, 0.0);
+      expect(awb.balance, Decimal.zero);
     });
 
     test('fromMap defaults currency to EUR when missing', () {

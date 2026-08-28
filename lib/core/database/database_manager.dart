@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:cryptography/cryptography.dart';
+import 'package:decimal/decimal.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
@@ -101,18 +102,19 @@ class DatabaseManager {
     return _decrypt(value.toString());
   }
 
-  Future<double> _decryptAmount(dynamic encrypted) async {
-    if (encrypted == null) return 0.0;
-    if (encrypted is num) return encrypted.toDouble();
+  Future<Decimal> _decryptAmount(dynamic encrypted) async {
+    if (encrypted == null) return Decimal.zero;
+    if (encrypted is Decimal) return encrypted;
+    if (encrypted is num) return Decimal.parse(encrypted.toString());
     final s = encrypted.toString();
     if (s.isEmpty || _encryptionKey == null) {
-      return double.tryParse(s) ?? 0.0;
+      return Decimal.tryParse(s) ?? Decimal.zero;
     }
     try {
       final decrypted = await _decrypt(s);
-      return double.tryParse(decrypted ?? '') ?? 0.0;
+      return Decimal.tryParse(decrypted ?? '') ?? Decimal.zero;
     } catch (_) {
-      return double.tryParse(s) ?? 0.0;
+      return Decimal.tryParse(s) ?? Decimal.zero;
     }
   }
 
@@ -899,7 +901,7 @@ void setUserId(String userId) {
     for (final acctRow in acctRows) {
       final startingAmount = await _decryptAmount(acctRow['starting_amount']);
 
-      double balance = startingAmount;
+      Decimal balance = startingAmount;
       for (final txn in txnByAccount[acctRow['id']] ?? const <Map<String, Object?>>[]) {
         final amount = await _decryptAmount(txn['amount']);
         final type = txn['transaction_type'] as String;
@@ -925,11 +927,11 @@ void setUserId(String userId) {
     return results;
   }
 
-  Future<String?> addAccount(String name, String color, String type, String currency, {double startingAmount = 0.0}) async {
+  Future<String?> addAccount(String name, String color, String type, String currency, {Decimal? startingAmount}) async {
     final db = await database;
     try {
       final encryptedName = await _encrypt(name);
-      final encryptedAmount = await _encrypt(startingAmount.toString());
+      final encryptedAmount = await _encrypt((startingAmount ?? Decimal.zero).toString());
       final id = _newId();
       await db.execute(
         'INSERT INTO accounts (id, user_id, name, color, type, currency, starting_amount) '
@@ -943,7 +945,7 @@ void setUserId(String userId) {
   }
 
   Future<bool> updateAccount(String accountId, String name, String color,
-      {String? type, String? currency, double? startingAmount, bool updateNameInTransactions = false}) async {
+      {String? type, String? currency, Decimal? startingAmount, bool updateNameInTransactions = false}) async {
     final db = await database;
     final existing = await db.query(
       'SELECT * FROM accounts WHERE id = ? AND user_id = ? AND is_deleted = 0',
@@ -1262,7 +1264,7 @@ void setUserId(String userId) {
   Future<String?> addTransaction({
     required String date,
     required String description,
-    required double amount,
+    required Decimal amount,
     required String transactionType,
     String? accountId,
     String? tagId,
@@ -1293,7 +1295,7 @@ void setUserId(String userId) {
   Future<bool> updateTransaction(String transactionId, {
     String? date,
     String? description,
-    double? amount,
+    Decimal? amount,
     String? transactionType,
     String? accountId,
     String? tagId,
@@ -1544,7 +1546,7 @@ void setUserId(String userId) {
 
   Future<String?> addRecurringTransaction({
     required String description,
-    required double amount,
+    required Decimal amount,
     required String transactionType,
     required String frequency,
     required String startDate,
@@ -1600,7 +1602,7 @@ void setUserId(String userId) {
 
   Future<bool> updateRecurringTransaction(String recurringId, {
     String? description,
-    double? amount,
+    Decimal? amount,
     String? transactionType,
     String? frequency,
     String? startDate,
@@ -1792,7 +1794,7 @@ void setUserId(String userId) {
       accountId: row['account_id'] as String?,
       descriptionId: row['description_id'] as String?,
       tagId: row['tag_id'] as String?,
-      amount: (row['amount'] is num) ? (row['amount'] as num).toDouble() : 0,
+      amount: Account.parseDecimal(row['amount']),
       transactionType: row['transaction_type'] as String,
       currency: row['currency'] as String? ?? 'EUR',
       notes: row['notes'] is String ? (row['notes'] as String) : null,
@@ -2021,29 +2023,29 @@ void setUserId(String userId) {
     if (s.isEmpty) return false;
     final decrypted = await _decrypt(s);
     if (decrypted != null && decrypted != s) return false;
-    final v = double.tryParse(s);
-    return v != null && v == 0.0;
+    final v = Decimal.tryParse(s);
+    return v != null && v == Decimal.zero;
   }
 
   // ==================== STATISTICS ====================
 
-  Future<double> getTotalPatrimony({String targetCurrency = 'EUR'}) async {
+  Future<Decimal> getTotalPatrimony({String targetCurrency = 'EUR'}) async {
     final db = await database;
     final acctRows = await db.query(
       'SELECT starting_amount, currency FROM accounts WHERE user_id = ? AND is_deleted = 0',
       [_userId],
     );
 
-    double total = 0.0;
+    Decimal total = Decimal.zero;
     for (final row in acctRows) {
       final amount = await _decryptAmount(row['starting_amount']);
       final acctCurrency = (row['currency'] as String?) ?? 'EUR';
-      if (amount == 0) continue;
+      if (amount == Decimal.zero) continue;
       if (acctCurrency == targetCurrency) {
         total += amount;
       } else {
         final rate = await getExchangeRate(acctCurrency, targetCurrency);
-        total += amount * (rate ?? 1.0);
+        total += amount * Decimal.parse((rate ?? 1.0).toString());
       }
     }
 
@@ -2059,19 +2061,19 @@ void setUserId(String userId) {
       final amount = await _decryptAmount(row['amount']);
       final type = row['transaction_type'] as String;
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
-      final signedAmount = type == 'income' ? amount : (type == 'expense' ? -amount : 0.0);
-      if (signedAmount == 0) continue;
+      final signedAmount = type == 'income' ? amount : (type == 'expense' ? -amount : Decimal.zero);
+      if (signedAmount == Decimal.zero) continue;
       if (txnCurrency == targetCurrency) {
         total += signedAmount;
       } else {
         final rate = await getExchangeRate(txnCurrency, targetCurrency);
-        total += signedAmount * (rate ?? 1.0);
+        total += signedAmount * Decimal.parse((rate ?? 1.0).toString());
       }
     }
     return total;
   }
 
-  Future<double> getBalance({String targetCurrency = 'EUR', String? before}) async {
+  Future<Decimal> getBalance({String targetCurrency = 'EUR', String? before}) async {
     final db = await database;
 
     final acctRows = await db.query(
@@ -2079,16 +2081,16 @@ void setUserId(String userId) {
       ['checking', _userId],
     );
 
-    double total = 0.0;
+    Decimal total = Decimal.zero;
     for (final row in acctRows) {
       final amount = await _decryptAmount(row['starting_amount']);
       final acctCurrency = (row['currency'] as String?) ?? 'EUR';
-      if (amount == 0) continue;
+      if (amount == Decimal.zero) continue;
       if (acctCurrency == targetCurrency) {
         total += amount;
       } else {
         final rate = await getExchangeRate(acctCurrency, targetCurrency);
-        total += amount * (rate ?? 1.0);
+        total += amount * Decimal.parse((rate ?? 1.0).toString());
       }
     }
 
@@ -2110,19 +2112,19 @@ void setUserId(String userId) {
       final amount = await _decryptAmount(row['amount']);
       final type = row['transaction_type'] as String;
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
-      final signedAmount = type == 'income' ? amount : (type == 'expense' ? -amount : 0.0);
-      if (signedAmount == 0) continue;
+      final signedAmount = type == 'income' ? amount : (type == 'expense' ? -amount : Decimal.zero);
+      if (signedAmount == Decimal.zero) continue;
       if (txnCurrency == targetCurrency) {
         total += signedAmount;
       } else {
         final rate = await getExchangeRate(txnCurrency, targetCurrency);
-        total += signedAmount * (rate ?? 1.0);
+        total += signedAmount * Decimal.parse((rate ?? 1.0).toString());
       }
     }
     return total;
   }
 
-  Future<double> getSavingsTotal({String targetCurrency = 'EUR', String? before}) async {
+  Future<Decimal> getSavingsTotal({String targetCurrency = 'EUR', String? before}) async {
     final db = await database;
 
     final acctRows = await db.query(
@@ -2130,16 +2132,16 @@ void setUserId(String userId) {
       ['savings', _userId],
     );
 
-    double total = 0.0;
+    Decimal total = Decimal.zero;
     for (final row in acctRows) {
       final amount = await _decryptAmount(row['starting_amount']);
       final acctCurrency = (row['currency'] as String?) ?? 'EUR';
-      if (amount == 0) continue;
+      if (amount == Decimal.zero) continue;
       if (acctCurrency == targetCurrency) {
         total += amount;
       } else {
         final rate = await getExchangeRate(acctCurrency, targetCurrency);
-        total += amount * (rate ?? 1.0);
+        total += amount * Decimal.parse((rate ?? 1.0).toString());
       }
     }
 
@@ -2157,19 +2159,19 @@ void setUserId(String userId) {
       final amount = await _decryptAmount(row['amount']);
       final type = row['transaction_type'] as String;
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
-      final signedAmount = type == 'income' ? amount : (type == 'expense' ? -amount : 0.0);
-      if (signedAmount == 0) continue;
+      final signedAmount = type == 'income' ? amount : (type == 'expense' ? -amount : Decimal.zero);
+      if (signedAmount == Decimal.zero) continue;
       if (txnCurrency == targetCurrency) {
         total += signedAmount;
       } else {
         final rate = await getExchangeRate(txnCurrency, targetCurrency);
-        total += signedAmount * (rate ?? 1.0);
+        total += signedAmount * Decimal.parse((rate ?? 1.0).toString());
       }
     }
     return total;
   }
 
-  Future<Map<String, double>> getMonthlySummary({int? year, int? month, String targetCurrency = 'EUR'}) async {
+  Future<Map<String, Decimal>> getMonthlySummary({int? year, int? month, String targetCurrency = 'EUR'}) async {
     final now = DateTime.now();
     final y = year ?? now.year;
     final m = month ?? now.month;
@@ -2189,8 +2191,8 @@ void setUserId(String userId) {
       [startDate, endDate, _userId],
     );
 
-    double income = 0.0;
-    double expenses = 0.0;
+    Decimal income = Decimal.zero;
+    Decimal expenses = Decimal.zero;
     for (final row in txnRows) {
       final accountType = row['account_type'] as String?;
       final hasAccount = row['account_id'] != null;
@@ -2203,12 +2205,12 @@ void setUserId(String userId) {
       final type = row['transaction_type'] as String;
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
 
-      double convertedAmount;
+      Decimal convertedAmount;
       if (txnCurrency == targetCurrency) {
         convertedAmount = amount;
       } else {
         final rate = await getExchangeRate(txnCurrency, targetCurrency);
-        convertedAmount = amount * (rate ?? 1.0);
+        convertedAmount = amount * Decimal.parse((rate ?? 1.0).toString());
       }
 
       if (type == 'income') {
@@ -2220,7 +2222,7 @@ void setUserId(String userId) {
     return {'income': income, 'expenses': expenses, 'balance': income - expenses};
   }
 
-  Future<Map<String, double>> getRollingSummary({int days = 30, String targetCurrency = 'EUR'}) async {
+  Future<Map<String, Decimal>> getRollingSummary({int days = 30, String targetCurrency = 'EUR'}) async {
     final now = DateTime.now();
     final endDate = now.toIso8601String().substring(0, 10);
     final startDate = now.subtract(Duration(days: days)).toIso8601String().substring(0, 10);
@@ -2236,8 +2238,8 @@ void setUserId(String userId) {
       [startDate, endDate, _userId],
     );
 
-    double income = 0.0;
-    double expenses = 0.0;
+    Decimal income = Decimal.zero;
+    Decimal expenses = Decimal.zero;
     for (final row in txnRows) {
       final accountType = row['account_type'] as String?;
       final hasAccount = row['account_id'] != null;
@@ -2250,12 +2252,12 @@ void setUserId(String userId) {
       final type = row['transaction_type'] as String;
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
 
-      double convertedAmount;
+      Decimal convertedAmount;
       if (txnCurrency == targetCurrency) {
         convertedAmount = amount;
       } else {
         final rate = await getExchangeRate(txnCurrency, targetCurrency);
-        convertedAmount = amount * (rate ?? 1.0);
+        convertedAmount = amount * Decimal.parse((rate ?? 1.0).toString());
       }
 
       if (type == 'income') {
@@ -2289,7 +2291,7 @@ void setUserId(String userId) {
     for (final acctRow in acctRows) {
       final startingAmount = await _decryptAmount(acctRow['starting_amount']);
 
-      double balance = startingAmount;
+      Decimal balance = startingAmount;
       for (final txn in txnByAccount[acctRow['id']] ?? const <Map<String, Object?>>[]) {
         final amount = await _decryptAmount(txn['amount']);
         final type = txn['transaction_type'] as String;
@@ -2302,19 +2304,19 @@ void setUserId(String userId) {
 
       final acctCurrency = (acctRow['currency'] as String?) ?? 'EUR';
 
-      double convertedBalance;
+      Decimal convertedBalance;
       if (acctCurrency == targetCurrency) {
         convertedBalance = balance;
       } else {
         final rate = await getExchangeRate(acctCurrency, targetCurrency);
-        convertedBalance = balance * (rate ?? 1.0);
+        convertedBalance = balance * Decimal.parse((rate ?? 1.0).toString());
       }
 
       results.add({
         'name': await _decryptValue(acctRow['name']),
         'color': acctRow['color'],
-        'value': convertedBalance,
-        'nativeValue': balance,
+        'value': convertedBalance.toDouble(),
+        'nativeValue': balance.toDouble(),
         'currency': acctCurrency,
       });
     }
@@ -2342,14 +2344,14 @@ void setUserId(String userId) {
       if (_isTransferDescription(desc)) continue;
 
       result.putIfAbsent(desc, () => {});
-      result[desc]!.putIfAbsent(month, () => {'income': 0, 'expense': 0, 'total': 0});
+      result[desc]!.putIfAbsent(month, () => {'income': 0.0, 'expense': 0.0, 'total': 0.0});
 
       if (type == 'income') {
-        result[desc]![month]!['income'] = result[desc]![month]!['income']! + total;
+        result[desc]![month]!['income'] = result[desc]![month]!['income']! + total.toDouble();
       } else if (type == 'expense') {
-        result[desc]![month]!['expense'] = result[desc]![month]!['expense']! + total;
+        result[desc]![month]!['expense'] = result[desc]![month]!['expense']! + total.toDouble();
       }
-      result[desc]![month]!['total'] = result[desc]![month]!['total']! + total;
+      result[desc]![month]!['total'] = result[desc]![month]!['total']! + total.toDouble();
     }
     return result;
   }
@@ -2379,19 +2381,19 @@ void setUserId(String userId) {
       final amount = await _decryptAmount(row['amount']);
 
       if (!byDesc.containsKey(desc)) {
-        byDesc[desc] = {'total': 0.0, 'count': 0};
+        byDesc[desc] = {'total': Decimal.zero, 'count': 0};
       }
-      byDesc[desc]!['total'] = (byDesc[desc]!['total'] as double) + amount;
+      byDesc[desc]!['total'] = (byDesc[desc]!['total'] as Decimal) + amount;
       byDesc[desc]!['count'] = (byDesc[desc]!['count'] as int) + 1;
     }
 
     final sorted = byDesc.entries.toList()
-      ..sort((a, b) => (b.value['total'] as double).compareTo(a.value['total'] as double));
+      ..sort((a, b) => (b.value['total'] as Decimal).compareTo(a.value['total'] as Decimal));
 
     final results = <Map<String, dynamic>>[];
     for (final entry in sorted) {
       if ((entry.value['count'] as int) >= minCount) {
-        results.add({'description': entry.key, 'total': entry.value['total'], 'count': entry.value['count']});
+        results.add({'description': entry.key, 'total': (entry.value['total'] as Decimal).toDouble(), 'count': entry.value['count']});
         if (limit > 0 && results.length >= limit) break;
       }
     }
@@ -2432,19 +2434,19 @@ void setUserId(String userId) {
       final amount = await _decryptAmount(row['amount']);
 
       if (!byTag.containsKey(tag)) {
-        byTag[tag] = {'total': 0.0, 'count': 0};
+        byTag[tag] = {'total': Decimal.zero, 'count': 0};
       }
-      byTag[tag]!['total'] = (byTag[tag]!['total'] as double) + amount;
+      byTag[tag]!['total'] = (byTag[tag]!['total'] as Decimal) + amount;
       byTag[tag]!['count'] = (byTag[tag]!['count'] as int) + 1;
     }
 
     final sorted = byTag.entries.toList()
-      ..sort((a, b) => (b.value['total'] as double).compareTo(a.value['total'] as double));
+      ..sort((a, b) => (b.value['total'] as Decimal).compareTo(a.value['total'] as Decimal));
 
     final results = <Map<String, dynamic>>[];
     for (final entry in sorted) {
       if ((entry.value['count'] as int) >= minCount) {
-        results.add({'tag': entry.key, 'total': entry.value['total'], 'count': entry.value['count']});
+        results.add({'tag': entry.key, 'total': (entry.value['total'] as Decimal).toDouble(), 'count': entry.value['count']});
         if (limit > 0 && results.length >= limit) break;
       }
     }
@@ -2474,14 +2476,14 @@ void setUserId(String userId) {
       final total = await _decryptAmount(row['amount']);
 
       result.putIfAbsent(tag, () => {});
-      result[tag]!.putIfAbsent(month, () => {'income': 0, 'expense': 0, 'total': 0});
+      result[tag]!.putIfAbsent(month, () => {'income': 0.0, 'expense': 0.0, 'total': 0.0});
 
       if (type == 'income') {
-        result[tag]![month]!['income'] = result[tag]![month]!['income']! + total;
+        result[tag]![month]!['income'] = result[tag]![month]!['income']! + total.toDouble();
       } else if (type == 'expense') {
-        result[tag]![month]!['expense'] = result[tag]![month]!['expense']! + total;
+        result[tag]![month]!['expense'] = result[tag]![month]!['expense']! + total.toDouble();
       }
-      result[tag]![month]!['total'] = result[tag]![month]!['total']! + total;
+      result[tag]![month]!['total'] = result[tag]![month]!['total']! + total.toDouble();
     }
     return result;
   }
@@ -2507,7 +2509,7 @@ void setUserId(String userId) {
       [startDate, today, _userId],
     );
 
-    final monthMap = <String, Map<String, double>>{};
+    final monthMap = <String, Map<String, Decimal>>{};
     for (final r in rows) {
       final desc = await _decryptValue(r['description_name']);
       if (desc != null && _isTransferDescription(desc)) continue;
@@ -2517,16 +2519,16 @@ void setUserId(String userId) {
       final amount = await _decryptAmount(r['amount']);
       final txnCurrency = (r['currency'] as String?) ?? 'EUR';
 
-      double convertedAmount;
+      Decimal convertedAmount;
       if (txnCurrency == targetCurrency) {
         convertedAmount = amount;
       } else {
         final rate = await getExchangeRate(txnCurrency, targetCurrency);
-        convertedAmount = amount * (rate ?? 1.0);
+        convertedAmount = amount * Decimal.parse((rate ?? 1.0).toString());
       }
 
       monthMap.putIfAbsent(monthKey, () => {});
-      monthMap[monthKey]![type] = (monthMap[monthKey]![type] ?? 0) + convertedAmount;
+      monthMap[monthKey]![type] = (monthMap[monthKey]![type] ?? Decimal.zero) + convertedAmount;
     }
 
     final results = <Map<String, dynamic>>[];
@@ -2535,7 +2537,7 @@ void setUserId(String userId) {
         results.add({
           'month': entry.key,
           'type': typeEntry.key,
-          'amount': typeEntry.value,
+          'amount': typeEntry.value.toDouble(),
         });
       }
     }
@@ -2572,16 +2574,16 @@ void setUserId(String userId) {
       [_userId],
     );
 
-    double startingTotal = 0.0;
+    Decimal startingTotal = Decimal.zero;
     for (final row in acctRows) {
       final amount = await _decryptAmount(row['starting_amount']);
       final acctCurrency = (row['currency'] as String?) ?? 'EUR';
-      if (amount == 0) continue;
+      if (amount == Decimal.zero) continue;
       if (acctCurrency == targetCurrency) {
         startingTotal += amount;
       } else {
         final rate = await getExchangeRate(acctCurrency, targetCurrency);
-        startingTotal += amount * (rate ?? 1.0);
+        startingTotal += amount * Decimal.parse((rate ?? 1.0).toString());
       }
     }
 
@@ -2596,20 +2598,20 @@ void setUserId(String userId) {
       [nowNextMonth, _userId],
     );
 
-    final contributions = <(String, double)>[];
+    final contributions = <(String, Decimal)>[];
     for (final row in txnRows) {
       final amount = await _decryptAmount(row['amount']);
       final type = row['transaction_type'] as String;
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
-      final signedAmount = type == 'income' ? amount : (type == 'expense' ? -amount : 0.0);
-      if (signedAmount == 0) continue;
+      final signedAmount = type == 'income' ? amount : (type == 'expense' ? -amount : Decimal.zero);
+      if (signedAmount == Decimal.zero) continue;
 
-      double converted;
+      Decimal converted;
       if (txnCurrency == targetCurrency) {
         converted = signedAmount;
       } else {
         final rate = await getExchangeRate(txnCurrency, targetCurrency);
-        converted = signedAmount * (rate ?? 1.0);
+        converted = signedAmount * Decimal.parse((rate ?? 1.0).toString());
       }
       contributions.add((row['date'] as String, converted));
     }
@@ -2626,7 +2628,7 @@ void setUserId(String userId) {
     }
 
     final results = <Map<String, dynamic>>[];
-    double cumulative = startingTotal;
+    Decimal cumulative = startingTotal;
     int idx = 0;
     for (int m = 0; m < monthStarts.length; m++) {
       final month = monthStarts[m];
@@ -2641,7 +2643,7 @@ void setUserId(String userId) {
       results.add({
         'month': month,
         'label': _getMonthLabel(month.month),
-        'value': cumulative,
+        'value': cumulative.toDouble(),
       });
     }
 
@@ -2649,13 +2651,13 @@ void setUserId(String userId) {
   }
 
   List<Map<String, dynamic>> _buildDailyAssetsHistory(
-      DateTime now, int effectiveMonths, double startingTotal,
-      List<(String, double)> contributions) {
+      DateTime now, int effectiveMonths, Decimal startingTotal,
+      List<(String, Decimal)> contributions) {
     final startDate = DateTime(now.year, now.month - effectiveMonths + 1, 1);
     final todayEnd = DateTime(now.year, now.month, now.day + 1);
 
     final results = <Map<String, dynamic>>[];
-    double cumulative = startingTotal;
+    Decimal cumulative = startingTotal;
     int idx = 0;
     var day = startDate;
     while (day.isBefore(todayEnd)) {
@@ -2670,7 +2672,7 @@ void setUserId(String userId) {
         'date': day.toIso8601String().substring(0, 10),
         'label': day.day == 1 ? _getMonthLabel(day.month) : '',
         'tooltipLabel': '${day.day} ${_getMonthLabel(day.month)}',
-        'value': cumulative,
+        'value': cumulative.toDouble(),
       });
       day = nextDay;
     }
@@ -2684,7 +2686,7 @@ void setUserId(String userId) {
     return Translator.t(keys[(month - 1).clamp(0, 11)]);
   }
 
-  Future<Map<String, double>> getCurrentMonthDistribution({
+  Future<Map<String, Decimal>> getCurrentMonthDistribution({
     required String transactionType,
     String targetCurrency = 'EUR',
   }) async {
@@ -2702,27 +2704,27 @@ void setUserId(String userId) {
       [transactionType, startDate, endDate, _userId],
     );
 
-    final result = <String, double>{};
+    final result = <String, Decimal>{};
     for (final row in rows) {
       final category = await _decryptValue(row['description_name']) ?? 'Uncategorized';
       if (_isTransferDescription(category)) continue;
       final rawAmount = await _decryptAmount(row['amount']);
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
 
-      double convertedAmount;
+      Decimal convertedAmount;
       if (txnCurrency == targetCurrency) {
         convertedAmount = rawAmount;
       } else {
         final rate = await getExchangeRate(txnCurrency, targetCurrency);
-        convertedAmount = rawAmount * (rate ?? 1.0);
+        convertedAmount = rawAmount * Decimal.parse((rate ?? 1.0).toString());
       }
 
-      result[category] = (result[category] ?? 0) + convertedAmount;
+      result[category] = (result[category] ?? Decimal.zero) + convertedAmount;
     }
     return result;
   }
 
-  Future<Map<String, double>> getRollingMonthDistribution({
+  Future<Map<String, Decimal>> getRollingMonthDistribution({
     required String transactionType,
     int days = 30,
     String targetCurrency = 'EUR',
@@ -2739,27 +2741,27 @@ void setUserId(String userId) {
       [transactionType, startDate, endDate, _userId],
     );
 
-    final result = <String, double>{};
+    final result = <String, Decimal>{};
     for (final row in rows) {
       final category = await _decryptValue(row['description_name']) ?? 'Uncategorized';
       if (_isTransferDescription(category)) continue;
       final rawAmount = await _decryptAmount(row['amount']);
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
 
-      double convertedAmount;
+      Decimal convertedAmount;
       if (txnCurrency == targetCurrency) {
         convertedAmount = rawAmount;
       } else {
         final rate = await getExchangeRate(txnCurrency, targetCurrency);
-        convertedAmount = rawAmount * (rate ?? 1.0);
+        convertedAmount = rawAmount * Decimal.parse((rate ?? 1.0).toString());
       }
 
-      result[category] = (result[category] ?? 0) + convertedAmount;
+      result[category] = (result[category] ?? Decimal.zero) + convertedAmount;
     }
     return result;
   }
 
-  Future<Map<String, double>> getCurrentMonthTagDistribution({
+  Future<Map<String, Decimal>> getCurrentMonthTagDistribution({
     required String transactionType,
     String targetCurrency = 'EUR',
   }) async {
@@ -2778,7 +2780,7 @@ void setUserId(String userId) {
       [transactionType, startDate, endDate, _userId],
     );
 
-    final result = <String, double>{};
+    final result = <String, Decimal>{};
     for (final row in rows) {
       final desc = await _decryptValue(row['description_name']);
       if (_isTransferDescription(desc)) continue;
@@ -2786,20 +2788,20 @@ void setUserId(String userId) {
       final rawAmount = await _decryptAmount(row['amount']);
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
 
-      double convertedAmount;
+      Decimal convertedAmount;
       if (txnCurrency == targetCurrency) {
         convertedAmount = rawAmount;
       } else {
         final rate = await getExchangeRate(txnCurrency, targetCurrency);
-        convertedAmount = rawAmount * (rate ?? 1.0);
+        convertedAmount = rawAmount * Decimal.parse((rate ?? 1.0).toString());
       }
 
-      result[tag] = (result[tag] ?? 0) + convertedAmount;
+      result[tag] = (result[tag] ?? Decimal.zero) + convertedAmount;
     }
     return result;
   }
 
-  Future<Map<String, double>> getRollingMonthTagDistribution({
+  Future<Map<String, Decimal>> getRollingMonthTagDistribution({
     required String transactionType,
     int days = 30,
     String targetCurrency = 'EUR',
@@ -2817,7 +2819,7 @@ void setUserId(String userId) {
       [transactionType, startDate, endDate, _userId],
     );
 
-    final result = <String, double>{};
+    final result = <String, Decimal>{};
     for (final row in rows) {
       final desc = await _decryptValue(row['description_name']);
       if (_isTransferDescription(desc)) continue;
@@ -2825,15 +2827,15 @@ void setUserId(String userId) {
       final rawAmount = await _decryptAmount(row['amount']);
       final txnCurrency = (row['currency'] as String?) ?? 'EUR';
 
-      double convertedAmount;
+      Decimal convertedAmount;
       if (txnCurrency == targetCurrency) {
         convertedAmount = rawAmount;
       } else {
         final rate = await getExchangeRate(txnCurrency, targetCurrency);
-        convertedAmount = rawAmount * (rate ?? 1.0);
+        convertedAmount = rawAmount * Decimal.parse((rate ?? 1.0).toString());
       }
 
-      result[tag] = (result[tag] ?? 0) + convertedAmount;
+      result[tag] = (result[tag] ?? Decimal.zero) + convertedAmount;
     }
     return result;
   }

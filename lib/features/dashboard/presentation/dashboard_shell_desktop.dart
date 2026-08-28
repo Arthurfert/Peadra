@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:decimal/decimal.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/i18n/translator.dart';
@@ -9,7 +10,7 @@ import '../../../core/responsive/responsive_layout.dart';
 
 class DashboardShellDesktop extends StatelessWidget {
   final int selectedIndex;
-  final double totalPatrimony;
+  final Decimal totalPatrimony;
   final Widget? updateBanner;
   final List<Widget> views;
   final ValueChanged<int> onNavTap;

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
+import 'package:decimal/decimal.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/i18n/translator.dart';
@@ -367,7 +368,7 @@ class _TransactionsViewState extends State<TransactionsView> {
       // Create transfer
       final srcId = data['source_id'] as String;
       final destId = data['dest_id'] as String;
-      final amount = data['amount'] as double;
+      final amount = data['amount'] as Decimal;
       final date = data['date'] as String;
       final srcName = data['source_name'] as String;
       final destName = data['dest_name'] as String;
@@ -376,11 +377,11 @@ class _TransactionsViewState extends State<TransactionsView> {
       final srcCurrency = await _db.getAccountCurrency(srcId);
       final destCurrency = await _db.getAccountCurrency(destId);
 
-      double destAmount = amount;
+      Decimal destAmount = amount;
       if (srcCurrency != null && destCurrency != null && srcCurrency != destCurrency) {
         final rate = await _db.getExchangeRate(srcCurrency, destCurrency);
         if (rate != null) {
-          destAmount = amount * rate;
+          destAmount = amount * Decimal.parse(rate.toString());
         }
       }
 

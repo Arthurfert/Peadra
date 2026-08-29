@@ -22,6 +22,7 @@ class TransactionModal extends StatefulWidget {
   final OnTransactionSaved onSave;
   final String transactionType;
   final TransactionWithDetails? editTransaction;
+  final TransactionWithDetails? editPairedTransaction;
   final RecurringTransactionWithDetails? editRecurring;
   final bool defaultRecurring;
 
@@ -31,6 +32,7 @@ class TransactionModal extends StatefulWidget {
     required this.onSave,
     this.transactionType = 'expense',
     this.editTransaction,
+    this.editPairedTransaction,
     this.editRecurring,
     this.defaultRecurring = false,
   });
@@ -77,9 +79,11 @@ class _TransactionModalState extends State<TransactionModal> {
   @override
   void initState() {
     super.initState();
-    _transactionType = widget.editTransaction?.transactionType ??
-        widget.editRecurring?.transactionType ??
-        widget.transactionType;
+    _transactionType = widget.editPairedTransaction != null
+        ? 'transfer'
+        : widget.editTransaction?.transactionType ??
+            widget.editRecurring?.transactionType ??
+            widget.transactionType;
     _isRecurring = widget.editRecurring != null || widget.defaultRecurring;
 
     if (widget.editRecurring != null) {
@@ -107,12 +111,19 @@ class _TransactionModalState extends State<TransactionModal> {
       _selectedCurrency = tx.currency.isNotEmpty ? tx.currency : 'EUR';
       // Tags are not allowed on transfers
       _selectedTagId = _transactionType == 'transfer' ? null : tx.tagId;
+      if (_transactionType == 'transfer') {
+        _sourceAccountId = tx.accountId;
+        final paired = widget.editPairedTransaction;
+        if (paired != null) {
+          _destAccountId = paired.accountId;
+        }
+      }
     }
 
     if (widget.accounts.isNotEmpty) {
       _selectedAccountId ??= widget.accounts.first.id;
       _sourceAccountId ??= widget.accounts.first.id;
-      _destAccountId = widget.accounts.length > 1
+      _destAccountId ??= widget.accounts.length > 1
           ? widget.accounts[1].id
           : widget.accounts.first.id;
     }
@@ -373,7 +384,7 @@ class _TransactionModalState extends State<TransactionModal> {
           const SizedBox(height: 16),
 
           // Type selector
-          _buildTypeSelector(colors, enabled: widget.editTransaction == null || widget.editTransaction!.transactionType != 'transfer'),
+          _buildTypeSelector(colors, enabled: widget.editPairedTransaction == null && (widget.editTransaction == null || widget.editTransaction!.transactionType != 'transfer')),
           const SizedBox(height: 16),
 
           // Date

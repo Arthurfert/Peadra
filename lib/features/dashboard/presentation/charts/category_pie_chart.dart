@@ -103,7 +103,7 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
       final radius = isTouched ? 55.0 : 45.0;
 
       final itemCurrency = (d['currency'] as String?) ?? widget.currency;
-      final displayAmount = _toDouble(d['nativeValue'] != null ? d['nativeValue'] : d['amount']);
+      final displayAmount = _toDouble(d['nativeValue'] ?? d['amount']);
 
       sections.add(
         PieChartSectionData(
@@ -181,7 +181,7 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
                             : chartColors[i % chartColors.length],
                         label: processedData[i]['label'] ?? '',
                         amount: _toDouble(processedData[i]['amount']),
-                        displayAmount: _toDouble(processedData[i]['nativeValue'] != null ? processedData[i]['nativeValue'] : processedData[i]['amount']),
+                        displayAmount: _toDouble(processedData[i]['nativeValue'] ?? processedData[i]['amount']),
                         itemCurrency:
                             (processedData[i]['currency'] as String?) ??
                                 widget.currency,

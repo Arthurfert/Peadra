@@ -19,7 +19,8 @@ This document presents future changes and wanted improvements.
 ### Fixes
 
 - Fixed the duplicate transaction when clicking on `Load more` (transaction view)
-- Prevent rare arithmetic bugs with double by using decimal plugin
+- Fixed the transfer modification flow bugs, it is now working
+- Prevent rare arithmetic bugs with double usage (dev stuff)
 
 ## Future Improvements
 

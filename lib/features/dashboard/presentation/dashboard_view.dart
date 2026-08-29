@@ -508,7 +508,7 @@ class _DashboardViewState extends State<DashboardView> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          Translator.t('dash_title'),
+          Translator.t('dash_title', params: {'user': username}),
           style: TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.bold,
@@ -517,7 +517,7 @@ class _DashboardViewState extends State<DashboardView> {
         ),
         const SizedBox(height: 4),
         Text(
-          '${Translator.t("dash_welcome")}$username${Translator.t("dash_overview")}',
+          Translator.t('dash_welcome'),
           style: TextStyle(
             fontSize: 14,
             color: colors.textSecondary,

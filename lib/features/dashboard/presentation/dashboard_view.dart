@@ -119,10 +119,14 @@ class _DashboardViewState extends State<DashboardView> {
                     transactionType: 'income', targetCurrency: currency)
                 : _db.getCurrentMonthDistribution(
                     transactionType: 'income', targetCurrency: currency))),
-        _safeQuery(() => _db.getMonthlySummary(
-            year: now.year,
-            month: now.month - 1,
-            targetCurrency: currency)),
+        _safeQuery(() {
+          final prevMonth = now.month == 1 ? 12 : now.month - 1;
+          final prevYear = now.month == 1 ? now.year - 1 : now.year;
+          return _db.getMonthlySummary(
+              year: prevYear,
+              month: prevMonth,
+              targetCurrency: currency);
+        }),
         _safeQuery(() => _db.getSavingsTotal(
             targetCurrency: currency, before: thisMonthStart)),
         _safeQuery(() => isTagMode

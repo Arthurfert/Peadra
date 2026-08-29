@@ -2176,18 +2176,25 @@ void setUserId(String userId) {
     final y = year ?? now.year;
     final m = month ?? now.month;
     final startDate = '$y-${m.toString().padLeft(2, '0')}-01';
-    final endMonth = m == 12 ? 1 : m + 1;
-    final endYear = m == 12 ? y + 1 : y;
-    final endDate = '$endYear-${endMonth.toString().padLeft(2, '0')}-01';
+    final bool isCurrentMonth = y == now.year && m == now.month;
+    final String endDate;
+    if (isCurrentMonth) {
+      endDate = now.toIso8601String().substring(0, 10);
+    } else {
+      final endMonth = m == 12 ? 1 : m + 1;
+      final endYear = m == 12 ? y + 1 : y;
+      endDate = '$endYear-${endMonth.toString().padLeft(2, '0')}-01';
+    }
 
     final db = await database;
+    final op = isCurrentMonth ? '<=' : '<';
     final txnRows = await db.query(
       'SELECT t.amount, t.transaction_type, t.account_id, '
       'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency, a.type as account_type, '
       'd.name as description_name '
       'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
       'LEFT JOIN descriptions d ON t.description_id = d.id AND d.is_deleted = 0 '
-      'WHERE t.date >= ? AND t.date < ? AND t.user_id = ? AND t.is_deleted = 0',
+      'WHERE t.date >= ? AND t.date $op ? AND t.user_id = ? AND t.is_deleted = 0',
       [startDate, endDate, _userId],
     );
 

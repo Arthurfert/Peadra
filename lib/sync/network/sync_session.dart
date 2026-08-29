@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
-import 'package:flutter/foundation.dart';
 
+import '../../core/services/log_service.dart';
 import '../security/auth_challenge.dart';
 import 'framing.dart';
 import 'sync_messages.dart';
@@ -77,7 +78,6 @@ class SyncSession {
 
   /// Responder role: validates the client's HELLO and its HMAC proof.
   Future<HandshakeResult> handshakeAsServer() async {
-    debugPrint('[peadra-sync] handshake[server]: awaiting HELLO');
     final hello = await _readNext();
     if (hello == null) throw SyncProtocolException('EOF during handshake');
     if (hello['type'] != SyncMessageTypes.hello) {
@@ -98,13 +98,10 @@ class SyncSession {
     }
     final secret = await _secretResolver?.call(peerNodeId);
     if (secret == null) {
-      debugPrint('[peadra-sync] handshake[server]: unknown peer $peerNodeId');
+      LogService().warn('Sync: unknown peer $peerNodeId');
       await _send({'type': SyncMessageTypes.error, 'code': 'unknown_peer'});
       throw SyncAuthenticationException('Unknown peer node $peerNodeId');
     }
-    debugPrint('[peadra-sync] handshake[server]: HELLO from '
-        '$peerNodeId ($peerDeviceName), sending CHALLENGE_A');
-
     final nonceA = AuthChallenge.generateNonce();
     await _send({'type': SyncMessageTypes.challengeA, 'nonce_a': nonceA});
 
@@ -115,7 +112,7 @@ class SyncSession {
     if (hmacA == null ||
         nonceB == null ||
         !await AuthChallenge.verify(secret, nonceA, hmacA)) {
-      debugPrint('[peadra-sync] handshake[server]: HMAC verification failed');
+      LogService().error('Sync: HMAC verification failed');
       await _send({'type': SyncMessageTypes.error, 'code': 'auth_failed'});
       throw SyncAuthenticationException('Invalid HMAC response');
     }
@@ -127,7 +124,6 @@ class SyncSession {
       'node_id': _nodeId,
       'device_name': _deviceName,
     });
-    debugPrint('[peadra-sync] handshake[server]: authenticated $peerNodeId');
 
     final (clientKey, serverKey) = await AuthChallenge.deriveSessionKeys(
       sharedSecret: secret,
@@ -150,8 +146,6 @@ class SyncSession {
     required String sharedSecret,
     String? expectedPeerNodeId,
   }) async {
-    debugPrint('[peadra-sync] handshake[client]: sending HELLO to '
-        'expected peer $expectedPeerNodeId');
     await _send({
       'type': SyncMessageTypes.hello,
       'node_id': _nodeId,
@@ -159,7 +153,6 @@ class SyncSession {
       'protocol_version': _protocolVersion,
     });
 
-    debugPrint('[peadra-sync] handshake[client]: awaiting CHALLENGE_A');
     final challengeA = await _readNext();
     if (challengeA == null) throw SyncProtocolException('EOF during handshake');
     if (challengeA['type'] == SyncMessageTypes.error) {
@@ -172,7 +165,6 @@ class SyncSession {
     }
     final nonceA = challengeA['nonce_a'] as String?;
     if (nonceA == null) throw SyncProtocolException('Missing nonce_a');
-    debugPrint('[peadra-sync] handshake[client]: received CHALLENGE_A');
 
     final nonceB = AuthChallenge.generateNonce();
     final hmacA = await AuthChallenge.sign(sharedSecret, nonceA);
@@ -181,9 +173,7 @@ class SyncSession {
       'hmac_a': hmacA,
       'nonce_b': nonceB,
     });
-    debugPrint('[peadra-sync] handshake[client]: sent responseA');
 
-    debugPrint('[peadra-sync] handshake[client]: awaiting responseB');
     final responseB = await _readNext();
     if (responseB == null) throw SyncProtocolException('EOF during handshake');
     if (responseB['type'] == SyncMessageTypes.error) {
@@ -194,7 +184,7 @@ class SyncSession {
     final hmacB = responseB['hmac_b'] as String?;
     if (hmacB == null ||
         !await AuthChallenge.verify(sharedSecret, nonceB, hmacB)) {
-      debugPrint('[peadra-sync] handshake[client]: server HMAC failed');
+      LogService().error('Sync: peer HMAC verification failed');
       throw SyncAuthenticationException('Invalid HMAC response from server');
     }
 
@@ -205,14 +195,12 @@ class SyncSession {
     final serverNodeId = ok['node_id'] as String?;
     final serverDeviceName = ok['device_name'] as String? ?? 'unknown';
     if (expectedPeerNodeId != null && serverNodeId != expectedPeerNodeId) {
-      debugPrint('[peadra-sync] handshake[client]: identity mismatch '
+      LogService().warn('Sync: peer identity mismatch '
           'expected $expectedPeerNodeId, got $serverNodeId');
       throw SyncAuthenticationException(
         'Peer identity mismatch: expected $expectedPeerNodeId, got $serverNodeId',
       );
     }
-    debugPrint('[peadra-sync] handshake[client]: authenticated server '
-        '$serverNodeId');
 
     final (clientKey, serverKey) = await AuthChallenge.deriveSessionKeys(
       sharedSecret: sharedSecret,

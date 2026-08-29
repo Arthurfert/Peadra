@@ -1,8 +1,8 @@
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:mdns_dart/mdns_dart.dart';
 
+import '../../core/services/log_service.dart';
 import 'discovered_service.dart';
 
 /// Builds a unique mDNS service instance name for this device.
@@ -69,17 +69,15 @@ class MDnsSyncServiceAdvertiser implements SyncServiceAdvertiser {
       zone: zone,
       reusePort: !Platform.isAndroid,
       reuseAddress: true,
-      logger: (m) => debugPrint('[peadra-sync] advertiser: $m'),
     ));
     try {
       await server.start();
     } catch (e) {
-      debugPrint('[peadra-sync] advertiser FAILED to start: $e');
+      LogService().error('FAILED to start advertising: $e');
       rethrow;
     }
     _server = server;
     _advertising = true;
-    debugPrint('[peadra-sync] advertiser up on port 5353 (service $syncServiceType, port $port)');
   }
 
   @override

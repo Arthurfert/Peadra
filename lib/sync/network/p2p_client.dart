@@ -1,7 +1,5 @@
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
-
 import 'sync_session.dart';
 
 /// Connects to a remote [P2pServer] and performs the initiator role of the
@@ -16,10 +14,7 @@ class P2pClient {
     required String sharedSecret,
     Duration timeout = const Duration(seconds: 15),
   }) async {
-    debugPrint('[peadra-sync] client: TCP connect to $host:$port '
-        '(expecting peer $peerNodeId)');
     final socket = await Socket.connect(host, port, timeout: timeout);
-    debugPrint('[peadra-sync] client: TCP connected to $host:$port');
     try {
       final session = SyncSession(
         socket: socket,
@@ -30,7 +25,6 @@ class P2pClient {
         sharedSecret: sharedSecret,
         expectedPeerNodeId: peerNodeId,
       );
-      debugPrint('[peadra-sync] client: handshake OK with $peerNodeId');
       return session;
     } catch (_) {
       try {

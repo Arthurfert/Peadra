@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:mdns_dart/mdns_dart.dart';
 
+import '../../core/services/log_service.dart';
 import 'discovered_service.dart';
 
 /// Browses the local network for Peadra sync services via mDNS.
@@ -52,16 +52,11 @@ class MDnsSyncServiceBrowser implements SyncServiceBrowser {
 
   Future<void> _startQuery() async {
     final gen = _generation;
-    debugPrint('[peadra-sync] browser: starting query session (timeout $queryTimeout)');
     final stream = await MDNSClient.query(QueryParams(
       service: syncServiceType,
       timeout: queryTimeout,
-      // The Dart VM rejects reusePort on Android; there SO_REUSEADDR (default)
-      // alone lets multiple sockets bind 5353 and receive the mDNS multicast.
       reusePort: !Platform.isAndroid,
-      logger: (m) => debugPrint('[peadra-sync] browser: $m'),
     ));
-    debugPrint('[peadra-sync] browser: query session ready');
     if (gen != _generation) {
       // Stopped while the query session was being set up. Let it expire on
       // its own; its onDone is guarded by the generation check and will not
@@ -79,18 +74,15 @@ class MDnsSyncServiceBrowser implements SyncServiceBrowser {
           infoFields: entry.infoFields,
         );
         if (service != null) {
-          debugPrint('[peadra-sync] browser: discovered ${service.nodeId} '
-              '(${service.deviceName}) @ ${service.host}:${service.port}');
           _controller.add(service);
         }
       },
       onError: (Object e, StackTrace st) {
-        debugPrint('[peadra-sync] browser: query error: $e');
+        LogService().error('mDNS query error: $e');
         _controller.addError(e, st);
       },
       onDone: () {
         _subscription = null;
-        debugPrint('[peadra-sync] browser: query session ended');
         if (_started && gen == _generation) {
           _scheduleRequery();
         }
@@ -110,7 +102,7 @@ class MDnsSyncServiceBrowser implements SyncServiceBrowser {
     try {
       await _startQuery();
     } catch (e, st) {
-      debugPrint('[peadra-sync] browser: requery failed: $e');
+      LogService().error('mDNS requery failed: $e');
       _controller.addError(e, st);
       if (_started) {
         _scheduleRequery();

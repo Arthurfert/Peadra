@@ -20,6 +20,7 @@ This document presents future changes and wanted improvements.
 
 - Fixed the duplicate transaction when clicking on `Load more` (transaction view)
 - Fixed the transfer modification flow bugs, it is now working
+- Fixed the tag list no being scrollable
 - Prevent rare arithmetic bugs with double usage (dev stuff)
 
 ## Future Improvements

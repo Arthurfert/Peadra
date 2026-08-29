@@ -795,31 +795,60 @@ class _ManageTagsDialogState extends State<_ManageTagsDialog> {
   Widget build(BuildContext context) {
     final colors = widget.colors;
 
-    return AlertDialog(
+    final isPhone = ResponsiveLayout.isPhone(context);
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final dialogWidth = isPhone ? (screenWidth * 0.95 < 450 ? screenWidth * 0.95 : 450.0) : 450.0;
+
+    return Dialog(
       backgroundColor: colors.surface,
-      title: Text(Translator.t('tag_manage'),
-          style: TextStyle(color: colors.text)),
-      content: SizedBox(
-        width: 400,
-        child: _tags.isEmpty
-            ? Text(Translator.t('tag_no_tags'),
-                style: TextStyle(color: colors.placeholderColor))
-            : Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (final tag in _tags) ...[
-                    _buildTagTile(tag, colors),
-                    if (tag != _tags.last) const Divider(height: 1),
-                  ],
-                ],
+      insetPadding: isPhone ? const EdgeInsets.symmetric(horizontal: 16) : const EdgeInsets.symmetric(horizontal: 40),
+      child: SizedBox(
+        width: dialogWidth,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(Translator.t('tag_manage'),
+                  style: TextStyle(
+                    color: colors.text,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                  )),
+              const SizedBox(height: 16),
+              _tags.isEmpty
+                  ? Text(Translator.t('tag_no_tags'),
+                      style: TextStyle(color: colors.placeholderColor))
+                  : Flexible(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 400),
+                        child: SingleChildScrollView(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              for (final tag in _tags) ...[
+                                _buildTagTile(tag, colors),
+                                if (tag != _tags.last)
+                                  const Divider(height: 1),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(Translator.t('btn_close')),
+                ),
               ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(Translator.t('btn_close')),
+            ],
+          ),
         ),
-      ],
+      ),
     );
   }
 

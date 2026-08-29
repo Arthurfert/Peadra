@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:crdt/crdt.dart';
 import 'package:cryptography/cryptography.dart';
-import 'package:flutter/foundation.dart';
 
 import '../../core/database/database_manager.dart';
 import '../../core/services/log_service.dart';
@@ -115,7 +114,6 @@ class SyncManager {
     await discovery.startBrowsing(localNodeId: _nodeId!);
     _discoverySub = discovery.onServiceFound.listen(_onDiscovered);
     _changeSub = db.onTablesChanged.listen(_onLocalChange);
-    debugPrint('[peadra-sync] SyncManager started (node ${_nodeId!} on port $port)');
     LogService().log('SyncManager started on port $port');
   }
 
@@ -222,8 +220,6 @@ class SyncManager {
   }) async {
     await _ensureIdentity();
     _emitStatus(SyncSessionStatus.connecting);
-    debugPrint('[peadra-sync] pairing: connecting to $deviceName '
-        '($peerId) at $host:$port');
     final session = await client.connect(
       host: host,
       port: port,
@@ -246,7 +242,6 @@ class SyncManager {
           lastSeen: now,
         ),
       );
-      debugPrint('[peadra-sync] pairing: complete with $deviceName ($peerId)');
       LogService().log('Paired with $deviceName ($peerId)');
     } catch (_) {
       _emitStatus(SyncSessionStatus.failed);
@@ -404,7 +399,6 @@ class SyncManager {
     required bool isInitiator,
   }) async {
     String? remoteKey;
-    debugPrint('[peadra-sync] pairing: step 1/3 encryption key exchange');
     _emitStatus(SyncSessionStatus.exchangingKeys);
     await runEncryptionKeyExchange(
       session: session,
@@ -412,14 +406,12 @@ class SyncManager {
       onRemoteKey: (key) => remoteKey = key,
       isInitiator: isInitiator,
     );
-    debugPrint('[peadra-sync] pairing: step 2/3 user reconciliation');
     _emitStatus(SyncSessionStatus.reconcilingUsers);
     await runUserReconciliation(
       session: session,
       db: db,
       isInitiator: isInitiator,
     );
-    debugPrint('[peadra-sync] pairing: step 3/3 sync exchange');
     _emitStatus(SyncSessionStatus.syncing);
     final watermark = await runSyncExchange(
       session: session,
@@ -427,8 +419,6 @@ class SyncManager {
       since: null,
       isInitiator: isInitiator,
     );
-    debugPrint('[peadra-sync] pairing: steps complete, watermark=$watermark, '
-        'remoteKey=${remoteKey == null ? 'null' : 'set'}');
     _emitStatus(SyncSessionStatus.completed);
     return (watermark: watermark, remoteKey: remoteKey);
   }

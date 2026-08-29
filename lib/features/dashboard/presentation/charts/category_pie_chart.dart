@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:decimal/decimal.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 import '../../../../core/theme/peadra_colors.dart';
@@ -28,11 +29,17 @@ class CategoryPieChart extends StatefulWidget {
 class _CategoryPieChartState extends State<CategoryPieChart> {
   int? _touchedIndex;
 
+  double _toDouble(dynamic v) {
+    if (v is Decimal) return v.toDouble();
+    if (v is num) return v.toDouble();
+    return 0.0;
+  }
+
   @override
   Widget build(BuildContext context) {
     final total = widget.data.fold<double>(
-        0, (sum, d) => sum + (d['amount'] as double));
-    if (widget.data.isEmpty || total == 0) {
+        0.0, (sum, d) => sum + _toDouble(d['amount']));
+    if (widget.data.isEmpty || total == 0.0) {
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -67,20 +74,20 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
 
     final sortedData = List<Map<String, dynamic>>.from(widget.data)
       ..sort((a, b) =>
-          (b['amount'] as double).compareTo(a['amount'] as double));
+          _toDouble(b['amount']).compareTo(_toDouble(a['amount'])));
 
     final processedData = <Map<String, dynamic>>[];
-    double otherAmount = 0;
+    double otherAmount = 0.0;
     for (int i = 0; i < sortedData.length; i++) {
       final d = sortedData[i];
-      final amount = d['amount'] as double;
+      final amount = _toDouble(d['amount']);
       if (i < widget.maxCategories) {
         processedData.add(d);
       } else {
         otherAmount += amount;
       }
     }
-    if (otherAmount > 0) {
+    if (otherAmount > 0.0) {
       processedData.add(
           {'label': Translator.t('dash_other'), 'amount': otherAmount});
     }
@@ -88,7 +95,7 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
     final sections = <PieChartSectionData>[];
     for (int i = 0; i < processedData.length; i++) {
       final d = processedData[i];
-      final amount = d['amount'] as double;
+      final amount = _toDouble(d['amount']);
       final color = d.containsKey('color') && d['color'] != null
           ? PeadraTheme.hexToColor(d['color'] as String)
           : chartColors[i % chartColors.length];
@@ -96,13 +103,13 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
       final radius = isTouched ? 55.0 : 45.0;
 
       final itemCurrency = (d['currency'] as String?) ?? widget.currency;
-      final displayAmount = (d['nativeValue'] as double?) ?? amount;
+      final displayAmount = _toDouble(d['nativeValue'] ?? d['amount']);
 
       sections.add(
         PieChartSectionData(
           value: amount,
           title: isTouched
-              ? CurrencyService.formatAmount(displayAmount, itemCurrency)
+              ? CurrencyService.formatAmount(Decimal.parse(displayAmount.toStringAsFixed(2)), itemCurrency)
               : '',
           color: color,
           radius: radius,
@@ -173,14 +180,12 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
                                 processedData[i]['color'] as String)
                             : chartColors[i % chartColors.length],
                         label: processedData[i]['label'] ?? '',
-                        amount: processedData[i]['amount'] as double,
-                        displayAmount:
-                            (processedData[i]['nativeValue'] as double?) ??
-                                (processedData[i]['amount'] as double),
+                        amount: _toDouble(processedData[i]['amount']),
+                        displayAmount: _toDouble(processedData[i]['nativeValue'] ?? processedData[i]['amount']),
                         itemCurrency:
                             (processedData[i]['currency'] as String?) ??
                                 widget.currency,
-                        pct: (processedData[i]['amount'] as double) /
+                        pct: _toDouble(processedData[i]['amount']) /
                             total *
                             100,
                       ),
@@ -223,7 +228,7 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
           ),
         ),
         Text(
-          CurrencyService.formatAmount(displayAmount, itemCurrency),
+          CurrencyService.formatAmount(Decimal.parse(displayAmount.toStringAsFixed(2)), itemCurrency),
           style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
         ),
       ],

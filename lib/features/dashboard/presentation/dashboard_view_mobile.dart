@@ -189,7 +189,7 @@ class DashboardViewMobile extends StatelessWidget {
       final m = d['month'] as String;
       if (displayMonthSet.contains(m)) {
         expenseByMonth[m] =
-            (expenseByMonth[m] ?? 0) + (d['amount'] as double);
+            (expenseByMonth[m] ?? 0.0) + (d['amount'] as num).toDouble();
       }
     }
 
@@ -198,24 +198,24 @@ class DashboardViewMobile extends StatelessWidget {
       final m = d['month'] as String;
       if (displayMonthSet.contains(m)) {
         incomeByMonth[m] =
-            (incomeByMonth[m] ?? 0) + (d['amount'] as double);
+            (incomeByMonth[m] ?? 0.0) + (d['amount'] as num).toDouble();
       }
     }
 
-    double maxY = 0;
+    double maxY = 0.0;
     for (final m in displayMonths) {
-      final e = expenseByMonth[m] ?? 0;
-      final i = incomeByMonth[m] ?? 0;
+      final e = expenseByMonth[m] ?? 0.0;
+      final i = incomeByMonth[m] ?? 0.0;
       if (e > maxY) maxY = e;
       if (i > maxY) maxY = i;
     }
-    if (maxY == 0) maxY = 1;
+    if (maxY == 0.0) maxY = 1.0;
 
     final barGroups = <BarChartGroupData>[];
     for (int i = 0; i < displayMonths.length; i++) {
       final m = displayMonths[i];
-      final expense = expenseByMonth[m] ?? 0;
-      final income = incomeByMonth[m] ?? 0;
+      final expense = expenseByMonth[m] ?? 0.0;
+      final income = incomeByMonth[m] ?? 0.0;
 
       barGroups.add(
         BarChartGroupData(
@@ -333,7 +333,7 @@ class DashboardViewMobile extends StatelessWidget {
 
     for (int i = 0; i < assetsHistory.length; i++) {
       spots.add(FlSpot(
-          i.toDouble(), assetsHistory[i]['value'] as double));
+          i.toDouble(), (assetsHistory[i]['value'] as num).toDouble()));
       labels.add(assetsHistory[i]['label'] as String);
     }
 

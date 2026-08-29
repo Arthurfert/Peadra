@@ -1,10 +1,12 @@
+import 'package:decimal/decimal.dart';
+
 class RecurringTransaction {
   final String? id;
   final String userId;
   final String? accountId;
   final String? descriptionId;
   final String? tagId;
-  final double amount;
+  final Decimal amount;
   final String transactionType;
   final String currency;
   final String? notes;
@@ -51,7 +53,7 @@ class RecurringTransaction {
     String? descriptionId,
     String? tagId,
     bool clearTag = false,
-    double? amount,
+    Decimal? amount,
     String? transactionType,
     String? currency,
     String? notes,
@@ -114,7 +116,7 @@ class RecurringTransaction {
         accountId: map['account_id'] as String?,
         descriptionId: map['description_id'] as String?,
         tagId: map['tag_id'] as String?,
-        amount: (map['amount'] as num).toDouble(),
+        amount: _parseDecimal(map['amount']),
         transactionType: map['transaction_type'] as String,
         currency: map['currency'] as String? ?? 'EUR',
         notes: map['notes'] as String?,
@@ -129,6 +131,13 @@ class RecurringTransaction {
         createdAt: map['created_at'] as String?,
         updatedAt: map['updated_at'] as String?,
       );
+
+  static Decimal _parseDecimal(dynamic value) {
+    if (value == null) return Decimal.zero;
+    if (value is Decimal) return value;
+    if (value is num) return Decimal.parse(value.toString());
+    return Decimal.tryParse(value.toString()) ?? Decimal.zero;
+  }
 }
 
 class RecurringTransactionWithDetails extends RecurringTransaction {
@@ -176,7 +185,7 @@ class RecurringTransactionWithDetails extends RecurringTransaction {
         accountId: map['account_id'] as String?,
         descriptionId: map['description_id'] as String?,
         tagId: map['tag_id'] as String?,
-        amount: (map['amount'] as num).toDouble(),
+        amount: _parseDecimal(map['amount']),
         transactionType: map['transaction_type'] as String,
         currency: map['currency'] as String? ?? 'EUR',
         notes: map['notes'] as String?,
@@ -198,4 +207,11 @@ class RecurringTransactionWithDetails extends RecurringTransaction {
         tagColor: map['tag_color'] as String?,
         generatedCount: map['generated_count'] as int? ?? 0,
       );
+
+  static Decimal _parseDecimal(dynamic value) {
+    if (value == null) return Decimal.zero;
+    if (value is Decimal) return value;
+    if (value is num) return Decimal.parse(value.toString());
+    return Decimal.tryParse(value.toString()) ?? Decimal.zero;
+  }
 }

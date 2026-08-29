@@ -1,3 +1,4 @@
+import 'package:decimal/decimal.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:peadra/core/models/account.dart';
 import 'package:peadra/core/models/tag.dart';
@@ -133,7 +134,7 @@ void main() {
       };
       final account = AccountWithBalance.fromMap(map);
       expect(account.id, '1');
-      expect(account.balance, 1234.56);
+      expect(account.balance, Decimal.parse('1234.56'));
       expect(account.name, 'Main');
       expect(account.type, 'checking');
     });
@@ -147,7 +148,7 @@ void main() {
         color: '#000',
         currency: 'EUR',
       );
-      expect(account.balance, 0.0);
+      expect(account.balance, Decimal.zero);
     });
 
     test('fromMap defaults balance to 0.0 when missing', () {
@@ -160,7 +161,7 @@ void main() {
         'currency': 'EUR',
       };
       final account = AccountWithBalance.fromMap(map);
-      expect(account.balance, 0.0);
+      expect(account.balance, Decimal.zero);
     });
 
     test('fromMap handles integer balance', () {
@@ -174,7 +175,7 @@ void main() {
         'balance': 100,
       };
       final account = AccountWithBalance.fromMap(map);
-      expect(account.balance, 100.0);
+      expect(account.balance, Decimal.parse('100'));
     });
   });
 
@@ -183,7 +184,7 @@ void main() {
       final tx = Transaction(
         userId: '1',
         date: '2026-06-01',
-        amount: 50.0,
+        amount: Decimal.parse('50.0'),
         transactionType: 'expense',
       );
       expect(tx.id, isNull);
@@ -192,7 +193,7 @@ void main() {
       expect(tx.descriptionId, isNull);
       expect(tx.tagId, isNull);
       expect(tx.date, '2026-06-01');
-      expect(tx.amount, 50.0);
+      expect(tx.amount, Decimal.parse('50.0'));
       expect(tx.transactionType, 'expense');
       expect(tx.currency, 'EUR');
       expect(tx.notes, isNull);
@@ -208,7 +209,7 @@ void main() {
         descriptionId: '3',
         tagId: '5',
         date: '2026-06-01',
-        amount: 100.0,
+        amount: Decimal.parse('100.0'),
         transactionType: 'income',
         currency: 'USD',
         notes: 'Salary',
@@ -227,7 +228,7 @@ void main() {
       final income = Transaction(
         userId: '1',
         date: 'd',
-        amount: 1,
+        amount: Decimal.one,
         transactionType: 'income',
       );
       expect(income.isIncome, isTrue);
@@ -237,7 +238,7 @@ void main() {
       final expense = Transaction(
         userId: '1',
         date: 'd',
-        amount: 1,
+        amount: Decimal.one,
         transactionType: 'expense',
       );
       expect(expense.isExpense, isTrue);
@@ -247,7 +248,7 @@ void main() {
       final transfer = Transaction(
         userId: '1',
         date: 'd',
-        amount: 1,
+        amount: Decimal.one,
         transactionType: 'transfer',
       );
       expect(transfer.isTransfer, isTrue);
@@ -263,7 +264,7 @@ void main() {
         descriptionId: '3',
         tagId: '4',
         date: '2026-06-15',
-        amount: 42.99,
+        amount: Decimal.parse('42.99'),
         transactionType: 'expense',
         currency: 'USD',
         notes: 'Lunch',
@@ -287,7 +288,7 @@ void main() {
       final tx = Transaction(
         userId: '1',
         date: 'd',
-        amount: 1,
+        amount: Decimal.one,
         transactionType: 'expense',
       );
       final map = tx.toMap();
@@ -313,7 +314,7 @@ void main() {
         'transaction_type': 'expense',
       };
       final tx = Transaction.fromMap(map);
-      expect(tx.amount, 50.0);
+      expect(tx.amount, Decimal.parse('50'));
     });
 
     test('copyWith overrides specified fields', () {
@@ -321,12 +322,12 @@ void main() {
         id: '1',
         userId: '1',
         date: '2026-01-01',
-        amount: 10.0,
+        amount: Decimal.parse('10.0'),
         transactionType: 'expense',
       );
-      final copied = original.copyWith(amount: 20.0, notes: 'Updated');
+      final copied = original.copyWith(amount: Decimal.parse('20.0'), notes: 'Updated');
 
-      expect(copied.amount, 20.0);
+      expect(copied.amount, Decimal.parse('20.0'));
       expect(copied.notes, 'Updated');
       expect(copied.id, '1');
       expect(copied.userId, '1');
@@ -337,12 +338,12 @@ void main() {
       final original = Transaction(
         userId: '1',
         date: 'd',
-        amount: 1,
+        amount: Decimal.one,
         transactionType: 'expense',
         createdAt: '2026-01-01',
         updatedAt: '2026-06-01',
       );
-      final copied = original.copyWith(amount: 99);
+      final copied = original.copyWith(amount: Decimal.parse('99'));
       expect(copied.createdAt, '2026-01-01');
       expect(copied.updatedAt, '2026-06-01');
     });
@@ -351,7 +352,7 @@ void main() {
       final original = Transaction(
         userId: '1',
         date: 'd',
-        amount: 1,
+        amount: Decimal.one,
         transactionType: 'expense',
         tagId: '5',
       );
@@ -394,7 +395,7 @@ void main() {
       expect(tx.accountId, '2');
       expect(tx.descriptionId, '3');
       expect(tx.tagId, '5');
-      expect(tx.amount, 100.0);
+      expect(tx.amount, Decimal.parse('100.0'));
       expect(tx.accountName, 'Main Checking');
       expect(tx.accountColor, '#4CAF50');
       expect(tx.accountCurrency, 'EUR');
@@ -429,7 +430,7 @@ void main() {
         descriptionId: '3',
         tagId: '5',
         date: '2026-06-01',
-        amount: 75.0,
+        amount: Decimal.parse('75.0'),
         transactionType: 'transfer',
         currency: 'USD',
         notes: 'Between accounts',

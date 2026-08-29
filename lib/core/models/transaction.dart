@@ -1,3 +1,5 @@
+import 'package:decimal/decimal.dart';
+
 class Transaction {
   final String? id;
   final String userId;
@@ -5,7 +7,7 @@ class Transaction {
   final String? descriptionId;
   final String? tagId;
   final String date;
-  final double amount;
+  final Decimal amount;
   final String transactionType;
   final String currency;
   final String? notes;
@@ -41,7 +43,7 @@ class Transaction {
     String? tagId,
     bool clearTag = false,
     String? date,
-    double? amount,
+    Decimal? amount,
     String? transactionType,
     String? currency,
     String? notes,
@@ -86,7 +88,7 @@ class Transaction {
         descriptionId: map['description_id'] as String?,
         tagId: map['tag_id'] as String?,
         date: map['date'] as String,
-        amount: (map['amount'] as num).toDouble(),
+        amount: _parseDecimal(map['amount']),
         transactionType: map['transaction_type'] as String,
         currency: map['currency'] as String? ?? 'EUR',
         notes: map['notes'] as String?,
@@ -94,6 +96,13 @@ class Transaction {
         createdAt: map['created_at'] as String?,
         updatedAt: map['updated_at'] as String?,
       );
+
+  static Decimal _parseDecimal(dynamic value) {
+    if (value == null) return Decimal.zero;
+    if (value is Decimal) return value;
+    if (value is num) return Decimal.parse(value.toString());
+    return Decimal.tryParse(value.toString()) ?? Decimal.zero;
+  }
 }
 
 class TransactionWithDetails extends Transaction {
@@ -136,7 +145,7 @@ class TransactionWithDetails extends Transaction {
         descriptionId: map['description_id'] as String?,
         tagId: map['tag_id'] as String?,
         date: map['date'] as String,
-        amount: (map['amount'] as num).toDouble(),
+        amount: _parseDecimal(map['amount']),
         transactionType: map['transaction_type'] as String,
         currency: map['currency'] as String? ?? 'EUR',
         notes: map['notes'] as String?,
@@ -151,4 +160,11 @@ class TransactionWithDetails extends Transaction {
         tagColor: map['tag_color'] as String?,
         recurringFrequency: map['recurring_frequency'] as String?,
       );
+
+  static Decimal _parseDecimal(dynamic value) {
+    if (value == null) return Decimal.zero;
+    if (value is Decimal) return value;
+    if (value is num) return Decimal.parse(value.toString());
+    return Decimal.tryParse(value.toString()) ?? Decimal.zero;
+  }
 }

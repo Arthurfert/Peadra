@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:decimal/decimal.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/i18n/translator.dart';
@@ -23,19 +24,19 @@ class DashboardView extends StatefulWidget {
 
 class _DashboardViewState extends State<DashboardView> {
   final _db = DatabaseManager.instance;
-  double _balance = 0;
-  double _savings = 0;
-  double _totalAssets = 0;
-  double _previousBalance = 0;
-  double _previousIncome = 0;
-  double _previousExpenses = 0;
-  double _previousSavings = 0;
-  Map<String, double> _monthlySummary = {};
+  Decimal _balance = Decimal.zero;
+  Decimal _savings = Decimal.zero;
+  Decimal _totalAssets = Decimal.zero;
+  Decimal _previousBalance = Decimal.zero;
+  Decimal _previousIncome = Decimal.zero;
+  Decimal _previousExpenses = Decimal.zero;
+  Decimal _previousSavings = Decimal.zero;
+  Map<String, Decimal> _monthlySummary = {};
   List<Map<String, dynamic>> _accountsDistribution = [];
   List<Map<String, dynamic>> _cashFlowData = [];
   List<Map<String, dynamic>> _assetsHistory = [];
-  Map<String, double> _monthlyExpenses = {};
-  Map<String, double> _monthlyIncomes = {};
+  Map<String, Decimal> _monthlyExpenses = {};
+  Map<String, Decimal> _monthlyIncomes = {};
   Map<String, String> _tagColors = {};
   bool _loading = true;
   int _selectedMonths = 6;
@@ -118,10 +119,14 @@ class _DashboardViewState extends State<DashboardView> {
                     transactionType: 'income', targetCurrency: currency)
                 : _db.getCurrentMonthDistribution(
                     transactionType: 'income', targetCurrency: currency))),
-        _safeQuery(() => _db.getMonthlySummary(
-            year: now.year,
-            month: now.month - 1,
-            targetCurrency: currency)),
+        _safeQuery(() {
+          final prevMonth = now.month == 1 ? 12 : now.month - 1;
+          final prevYear = now.month == 1 ? now.year - 1 : now.year;
+          return _db.getMonthlySummary(
+              year: prevYear,
+              month: prevMonth,
+              targetCurrency: currency);
+        }),
         _safeQuery(() => _db.getSavingsTotal(
             targetCurrency: currency, before: thisMonthStart)),
         _safeQuery(() => isTagMode
@@ -133,20 +138,20 @@ class _DashboardViewState extends State<DashboardView> {
 
       if (mounted) {
         setState(() {
-          _balance = (results[0] as double?) ?? 0;
-          _savings = (results[1] as double?) ?? 0;
-          _totalAssets = (results[2] as double?) ?? 0;
-          _monthlySummary = (results[3] as Map<String, double>?) ?? {};
+          _balance = (results[0] as Decimal?) ?? Decimal.zero;
+          _savings = (results[1] as Decimal?) ?? Decimal.zero;
+          _totalAssets = (results[2] as Decimal?) ?? Decimal.zero;
+          _monthlySummary = (results[3] as Map<String, Decimal>?) ?? {};
           _accountsDistribution = (results[4] as List<Map<String, dynamic>>?) ?? [];
           _cashFlowData = (results[5] as List<Map<String, dynamic>>?) ?? [];
           _assetsHistory = (results[6] as List<Map<String, dynamic>>?) ?? [];
-          _monthlyExpenses = (results[7] as Map<String, double>?) ?? {};
-          _monthlyIncomes = (results[8] as Map<String, double>?) ?? {};
-          final prevSummary = (results[9] as Map<String, double>?) ?? {};
-          _previousIncome = prevSummary['income'] ?? 0;
-          _previousExpenses = prevSummary['expenses'] ?? 0;
-          _previousBalance = (results[12] as double?) ?? 0;
-          _previousSavings = (results[10] as double?) ?? 0;
+          _monthlyExpenses = (results[7] as Map<String, Decimal>?) ?? {};
+          _monthlyIncomes = (results[8] as Map<String, Decimal>?) ?? {};
+          final prevSummary = (results[9] as Map<String, Decimal>?) ?? {};
+          _previousIncome = prevSummary['income'] ?? Decimal.zero;
+          _previousExpenses = prevSummary['expenses'] ?? Decimal.zero;
+          _previousBalance = (results[12] as Decimal?) ?? Decimal.zero;
+          _previousSavings = (results[10] as Decimal?) ?? Decimal.zero;
           _tagColors = (results[11] as Map<String, String>?) ?? {};
           _loading = false;
         });
@@ -190,20 +195,20 @@ class _DashboardViewState extends State<DashboardView> {
   }
 
   Widget _buildStatCards(PeadraColors colors, String currency) {
-    final currentIncome = _monthlySummary['income'] ?? 0;
-    final currentExpenses = _monthlySummary['expenses'] ?? 0;
+    final currentIncome = _monthlySummary['income'] ?? Decimal.zero;
+    final currentExpenses = _monthlySummary['expenses'] ?? Decimal.zero;
 
-    final balanceChange = _previousBalance > 0
-        ? ((_balance - _previousBalance) / _previousBalance * 100)
+    final balanceChange = _previousBalance > Decimal.zero
+        ? (((_balance - _previousBalance) * Decimal.fromInt(100)) / _previousBalance).toDouble()
         : 0.0;
-    final incomeChange = _previousIncome > 0
-        ? ((currentIncome - _previousIncome) / _previousIncome * 100)
+    final incomeChange = _previousIncome > Decimal.zero
+        ? (((currentIncome - _previousIncome) * Decimal.fromInt(100)) / _previousIncome).toDouble()
         : 0.0;
-    final expensesChange = _previousExpenses > 0
-        ? ((currentExpenses - _previousExpenses) / _previousExpenses * 100)
+    final expensesChange = _previousExpenses > Decimal.zero
+        ? (((currentExpenses - _previousExpenses) * Decimal.fromInt(100)) / _previousExpenses).toDouble()
         : 0.0;
-    final savingsChange = _previousSavings > 0
-        ? ((_savings - _previousSavings) / _previousSavings * 100)
+    final savingsChange = _previousSavings > Decimal.zero
+        ? (((_savings - _previousSavings) * Decimal.fromInt(100)) / _previousSavings).toDouble()
         : 0.0;
 
     final cards = [
@@ -428,7 +433,7 @@ class _DashboardViewState extends State<DashboardView> {
   }
 
   Widget _buildPieChartCard(PeadraColors colors, String title,
-      Map<String, double> data, String currency, int maxCategories,
+      Map<String, Decimal> data, String currency, int maxCategories,
       {Map<String, String> itemColors = const {}}) {
     final pieData = data.entries.map((e) {
       final entryColor = itemColors[e.key];
@@ -507,7 +512,7 @@ class _DashboardViewState extends State<DashboardView> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          Translator.t('dash_title'),
+          Translator.t('dash_title', params: {'user': username}),
           style: TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.bold,
@@ -516,7 +521,7 @@ class _DashboardViewState extends State<DashboardView> {
         ),
         const SizedBox(height: 4),
         Text(
-          '${Translator.t("dash_welcome")}$username${Translator.t("dash_overview")}',
+          Translator.t('dash_welcome'),
           style: TextStyle(
             fontSize: 14,
             color: colors.textSecondary,

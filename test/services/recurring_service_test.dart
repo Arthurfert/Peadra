@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:decimal/decimal.dart';
 import 'package:peadra/core/models/recurring_transaction.dart';
 import 'package:peadra/core/services/recurring_service.dart';
 
@@ -10,11 +11,11 @@ RecurringTransaction _make({
   String startDate = '2025-01-15',
   String? endDate,
   String nextDueDate = '2025-01-15',
-  double amount = 100,
+  Decimal? amount,
 }) {
   return RecurringTransaction(
     userId: '1',
-    amount: amount,
+    amount: amount ?? Decimal.parse('100'),
     transactionType: 'expense',
     currency: 'EUR',
     frequency: frequency,

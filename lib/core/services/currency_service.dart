@@ -1,3 +1,5 @@
+import 'package:decimal/decimal.dart';
+
 class CurrencyData {
   final String code;
   final String symbol;
@@ -44,7 +46,7 @@ class CurrencyService {
     'SAR': CurrencyData(code: 'SAR', symbol: '\ufdfc', name: 'Saudi Riyal', nameFr: 'Riyal saoudien'),
     'MYR': CurrencyData(code: 'MYR', symbol: 'RM', name: 'Malaysian Ringgit', nameFr: 'Ringgit malaisien'),
     'PHP': CurrencyData(code: 'PHP', symbol: '\u20b1', name: 'Philippine Peso', nameFr: 'Peso philippin'),
-    'IDR': CurrencyData(code: 'IDR', symbol: 'Rp', name: 'Indonesian Rupiah', nameFr: 'Rupiah indon\u00e9sienne'),
+    'IDR': CurrencyData(code: 'IDR', symbol: 'Rp', name: 'Indonesian Rupiah', nameFr: 'Roupie indon\u00e9sienne'),
     'VND': CurrencyData(code: 'VND', symbol: '\u20ab', name: 'Vietnamese Dong', nameFr: 'Dong vietnamien'),
     'ILS': CurrencyData(code: 'ILS', symbol: '\u20aa', name: 'Israeli Shekel', nameFr: 'Shekel isra\u00e9lien'),
     'CLP': CurrencyData(code: 'CLP', symbol: 'CLP\$', name: 'Chilean Peso', nameFr: 'Peso chilien'),
@@ -62,11 +64,28 @@ class CurrencyService {
 
   static List<String> get allCodes => currencies.keys.toList();
 
-  static String formatAmount(double amount, String currencyCode) {
+  static String formatAmount(Decimal amount, String currencyCode) {
     final symbol = getSymbol(currencyCode);
-    final prefix = amount < 0 ? '-' : '';
+    final prefix = amount < Decimal.zero ? '-' : '';
     final abs = amount.abs();
-    final formatted = abs.toStringAsFixed(2).replaceAllMapped(
+
+    // Format with exactly 2 decimal places
+    var str = abs.toString();
+    if (!str.contains('.')) {
+      str = '$str.00';
+    } else {
+      final parts = str.split('.');
+      var decimals = parts[1];
+      if (decimals.length > 2) {
+        // Round to 2 decimal places by truncating (Decimal already represents exactly)
+        decimals = decimals.substring(0, 2);
+      } else {
+        decimals = decimals.padRight(2, '0');
+      }
+      str = '${parts[0]}.$decimals';
+    }
+
+    final formatted = str.replaceAllMapped(
           RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
           (m) => '${m[1]},',
         );

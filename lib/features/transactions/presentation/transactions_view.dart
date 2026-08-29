@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
+import 'package:decimal/decimal.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/i18n/translator.dart';
@@ -183,8 +184,9 @@ class _TransactionsViewState extends State<TransactionsView> {
     await _loadTransactions();
   }
 
-  Future<void> _loadTransactions({bool loadMore = false}) async {
-    final limit = loadMore ? null : _displayLimit;
+  Future<void> _loadTransactions(
+      {bool loadMore = false, bool loadAll = false}) async {
+    final limit = (loadMore || loadAll) ? null : _displayLimit;
     final offset = loadMore ? _lastRawFetchCount : 0;
     var txns = await _db.getTransactions(
       limit: limit,
@@ -194,6 +196,8 @@ class _TransactionsViewState extends State<TransactionsView> {
           _selectedAccountIds.isEmpty ? null : _selectedAccountIds,
       tagIds: _selectedTagIds.isEmpty ? null : _selectedTagIds,
     );
+
+    final rawCount = txns.length;
 
     if (_selectedAccountIds.isNotEmpty) {
       // Collect needed paired account IDs by date and opposite type.
@@ -249,8 +253,8 @@ class _TransactionsViewState extends State<TransactionsView> {
         } else {
           _displayItems = newItems;
         }
-        _lastRawFetchCount = txns.length;
-        _hasMore = txns.length == (_displayLimit);
+        _lastRawFetchCount = rawCount;
+        _hasMore = !loadAll && rawCount == _displayLimit;
         _loading = false;
       });
     }
@@ -258,6 +262,7 @@ class _TransactionsViewState extends State<TransactionsView> {
 
   void _showTransactionModal(
       {TransactionWithDetails? editTxn,
+      TransactionWithDetails? editPairedTxn,
       RecurringTransactionWithDetails? editRecurring}) async {
     final accounts = await _db.getAllAccounts();
     if (!mounted) return;
@@ -265,9 +270,11 @@ class _TransactionsViewState extends State<TransactionsView> {
     final isPhone = ResponsiveLayout.isPhone(context);
     final modal = TransactionModal(
       accounts: accounts,
-      onSave: (data) =>
-          _handleSave(data, editTxn: editTxn, editRecurring: editRecurring),
+      onSave: (data) => _handleSave(data,
+          editTxn: editTxn, editPairedTxn: editPairedTxn,
+          editRecurring: editRecurring),
       editTransaction: editTxn,
+      editPairedTransaction: editPairedTxn,
       editRecurring: editRecurring,
       transactionType: editTxn?.transactionType ??
           editRecurring?.transactionType ??
@@ -292,6 +299,7 @@ class _TransactionsViewState extends State<TransactionsView> {
 
   Future<void> _handleSave(Map<String, dynamic> data,
       {TransactionWithDetails? editTxn,
+      TransactionWithDetails? editPairedTxn,
       RecurringTransactionWithDetails? editRecurring}) async {
     final isTransfer = data['transaction_type'] == 'transfer';
     final tagId = data['tag_id'] as String?;
@@ -323,18 +331,64 @@ class _TransactionsViewState extends State<TransactionsView> {
       }
     } else if (editTxn != null) {
       // Update existing
-      await _db.updateTransaction(
-        editTxn.id!,
-        date: data['date'],
-        amount: data['amount'],
-        description: data['description'],
-        transactionType: data['transaction_type'],
-        notes: data['notes'],
-        currency: data['currency'],
-        accountId: data['category_id'],
-        tagId: isTransfer ? null : tagId,
-        clearTag: isTransfer || tagId == null,
-      );
+      if (isTransfer) {
+        final srcId = data['source_id'] as String;
+        final destId = data['dest_id'] as String;
+        final srcName = data['source_name'] as String;
+        final destName = data['dest_name'] as String;
+        final amount = data['amount'] as Decimal;
+        final date = data['date'] as String;
+
+        if (editPairedTxn != null) {
+          await _db.deleteTransaction(editTxn.id!);
+          await _db.deleteTransaction(editPairedTxn.id!);
+        } else {
+          await _db.deleteTransaction(editTxn.id!);
+        }
+
+        final srcCurrency = await _db.getAccountCurrency(srcId);
+        final destCurrency = await _db.getAccountCurrency(destId);
+
+        Decimal destAmount = amount;
+        if (srcCurrency != null && destCurrency != null && srcCurrency != destCurrency) {
+          final rate = await _db.getExchangeRate(srcCurrency, destCurrency);
+          if (rate != null) {
+            destAmount = amount * Decimal.parse(rate.toString());
+          }
+        }
+
+        await _db.addTransaction(
+          date: date,
+          amount: amount,
+          description: 'Transfer to $destName',
+          transactionType: 'expense',
+          currency: srcCurrency ?? 'EUR',
+          accountId: srcId,
+          notes: 'Transfer to $destName',
+        );
+        await _db.addTransaction(
+          date: date,
+          amount: destAmount,
+          description: 'Transfer from $srcName',
+          transactionType: 'income',
+          currency: destCurrency ?? 'EUR',
+          accountId: destId,
+          notes: 'Transfer from $srcName',
+        );
+      } else {
+        await _db.updateTransaction(
+          editTxn.id!,
+          date: data['date'],
+          amount: data['amount'],
+          description: data['description'],
+          transactionType: data['transaction_type'],
+          notes: data['notes'],
+          currency: data['currency'],
+          accountId: data['category_id'],
+          tagId: tagId,
+          clearTag: tagId == null,
+        );
+      }
       if (mounted) {
         PeadraNotification.show(context, message: Translator.t('msg_transaction_modified'));
       }
@@ -364,7 +418,7 @@ class _TransactionsViewState extends State<TransactionsView> {
       // Create transfer
       final srcId = data['source_id'] as String;
       final destId = data['dest_id'] as String;
-      final amount = data['amount'] as double;
+      final amount = data['amount'] as Decimal;
       final date = data['date'] as String;
       final srcName = data['source_name'] as String;
       final destName = data['dest_name'] as String;
@@ -373,11 +427,11 @@ class _TransactionsViewState extends State<TransactionsView> {
       final srcCurrency = await _db.getAccountCurrency(srcId);
       final destCurrency = await _db.getAccountCurrency(destId);
 
-      double destAmount = amount;
+      Decimal destAmount = amount;
       if (srcCurrency != null && destCurrency != null && srcCurrency != destCurrency) {
         final rate = await _db.getExchangeRate(srcCurrency, destCurrency);
         if (rate != null) {
-          destAmount = amount * rate;
+          destAmount = amount * Decimal.parse(rate.toString());
         }
       }
 
@@ -510,10 +564,11 @@ class _TransactionsViewState extends State<TransactionsView> {
     }
   }
 
-  Future<void> _editTransaction(TransactionWithDetails txn) async {
+  Future<void> _editTransaction(TransactionWithDetails txn,
+      {TransactionWithDetails? pairedTxn}) async {
     final recurringId = txn.recurringId;
     if (recurringId == null) {
-      _showTransactionModal(editTxn: txn);
+      _showTransactionModal(editTxn: txn, editPairedTxn: pairedTxn);
       return;
     }
 
@@ -546,7 +601,7 @@ class _TransactionsViewState extends State<TransactionsView> {
     if (scope == null || !mounted) return;
 
     if (scope == 'this') {
-      _showTransactionModal(editTxn: txn);
+      _showTransactionModal(editTxn: txn, editPairedTxn: pairedTxn);
     } else {
       final rec = await _db.getRecurringTransaction(recurringId);
       if (rec != null) {
@@ -706,7 +761,7 @@ class _TransactionsViewState extends State<TransactionsView> {
           FilledButton(
             onPressed: () {
               Navigator.pop(ctx);
-              _editTransaction(txn);
+              _editTransaction(txn, pairedTxn: pairedTxn);
             },
             style: FilledButton.styleFrom(
               backgroundColor: colors.accent,
@@ -1047,9 +1102,22 @@ class _TransactionsViewState extends State<TransactionsView> {
           return _buildTransactionTile(
               currentItems[itemIndex], colors, defaultCurrency);
         }
-        return TextButton(
-          onPressed: () => _loadTransactions(loadMore: true),
-          child: Text(Translator.t('btn_load_more')),
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              TextButton(
+                onPressed: () => _loadTransactions(loadMore: true),
+                child: Text(Translator.t('btn_load_more')),
+              ),
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: () => _loadTransactions(loadAll: true),
+                child: Text(Translator.t('btn_load_all')),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -1344,7 +1412,7 @@ class _TransactionsViewState extends State<TransactionsView> {
           ),
         ),
         onTap: isPhone
-            ? () => _editTransaction(txn)
+            ? () => _editTransaction(txn, pairedTxn: pairedTxn)
             : () => _showTransactionPreview(txn, pairedTxn: pairedTxn),
       ),
     );

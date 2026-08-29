@@ -1,7 +1,8 @@
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+
+import '../../core/services/log_service.dart';
 
 /// Acquires the Android `WifiManager.MulticastLock` so the device keeps
 /// receiving mDNS multicast packets while browsing (many devices filter them
@@ -16,14 +17,10 @@ class AndroidMulticastLock {
     }
     try {
       await _channel.invokeMethod('acquire');
-      debugPrint('[peadra-sync] MulticastLock acquired');
     } on PlatformException catch (e) {
-      // Browsing can still work without the lock on some devices.
-      debugPrint('[peadra-sync] MulticastLock acquire failed: ${e.message}');
-      _log(e);
+      LogService().warn('MulticastLock acquire failed: ${e.message}');
     } on MissingPluginException {
       // MethodChannel not registered (e.g. during tests).
-      debugPrint('[peadra-sync] MulticastLock channel missing');
     }
   }
 
@@ -33,17 +30,10 @@ class AndroidMulticastLock {
     }
     try {
       await _channel.invokeMethod('release');
-      debugPrint('[peadra-sync] MulticastLock released');
     } on PlatformException catch (e) {
-      debugPrint('[peadra-sync] MulticastLock release failed: ${e.message}');
-      _log(e);
+      LogService().warn('MulticastLock release failed: ${e.message}');
     } on MissingPluginException {
       // Ignored.
     }
-  }
-
-  void _log(PlatformException e) {
-    // ignore: avoid_print
-    print('MulticastLock: ${e.message}');
   }
 }

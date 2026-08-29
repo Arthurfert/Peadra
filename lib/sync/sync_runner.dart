@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:crdt/crdt.dart';
-import 'package:flutter/foundation.dart';
 
 import '../../core/database/database_manager.dart';
 import 'network/sync_messages.dart';
@@ -37,40 +36,22 @@ Future<Hlc?> runSyncExchange({
       'type': SyncMessageTypes.syncRequest,
       'since_hlc': since?.toString(),
     });
-    debugPrint('[peadra-sync] sync: initiator sent SYNC_REQUEST since=$since');
     final inbound = await _expect(session, SyncMessageTypes.syncResponse);
-    debugPrint('[peadra-sync] sync: initiator got SYNC_RESPONSE '
-        '(${_countChangeset(inbound['changeset'])} records)');
     final applied = await _applyInbound(db, inbound, since);
-    debugPrint('[peadra-sync] sync: initiator applied, watermark=$applied');
     final request = await _expect(session, SyncMessageTypes.syncRequest);
     await _sendOutbound(session, db, request);
-    debugPrint('[peadra-sync] sync: initiator sent SYNC_RESPONSE');
     return applied;
   } else {
     final request = firstRequest ??
         await _expect(session, SyncMessageTypes.syncRequest);
     await _sendOutbound(session, db, request);
-    debugPrint('[peadra-sync] sync: responder sent SYNC_RESPONSE for '
-        'since=${request['since_hlc']}');
     await session.send({
       'type': SyncMessageTypes.syncRequest,
       'since_hlc': since?.toString(),
     });
-    debugPrint('[peadra-sync] sync: responder sent SYNC_REQUEST since=$since');
     final inbound = await _expect(session, SyncMessageTypes.syncResponse);
-    debugPrint('[peadra-sync] sync: responder got SYNC_RESPONSE '
-        '(${_countChangeset(inbound['changeset'])} records)');
     return _applyInbound(db, inbound, since);
   }
-}
-
-int _countChangeset(dynamic changeset) {
-  if (changeset is! Map<String, dynamic>) return 0;
-  return changeset.values.fold<int>(
-    0,
-    (sum, rows) => sum + ((rows as List<dynamic>?)?.length ?? 0),
-  );
 }
 
 Future<void> _sendOutbound(
@@ -80,8 +61,6 @@ Future<void> _sendOutbound(
 ) async {
   final since = _parseSince(request['since_hlc']);
   final changeset = await db.getChangeset(since: since);
-  debugPrint('[peadra-sync] sync: building outbound changeset since=$since '
-      '(${_countChangeset(changeset)} records)');
   await session.send({
     'type': SyncMessageTypes.syncResponse,
     'since_hlc': request['since_hlc'],

@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+import 'package:decimal/decimal.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/i18n/translator.dart';
@@ -31,7 +33,7 @@ class DashboardShell extends StatefulWidget {
 
 class _DashboardShellState extends State<DashboardShell> {
   int _selectedIndex = 0;
-  double _totalPatrimony = 0;
+  Decimal _totalPatrimony = Decimal.zero;
   int _dashboardRefreshSignal = 0;
   String _lastCurrency = '';
   bool _updateBannerDismissed = false;
@@ -219,11 +221,42 @@ class _DashboardShellState extends State<DashboardShell> {
               const Divider(),
               Flexible(
                 child: notes.isNotEmpty
-                    ? SingleChildScrollView(
+                    ? Markdown(
+                        data: notes,
                         padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                        child: SelectableText(
-                          notes,
-                          style: TextStyle(color: colors.text, fontSize: 14, height: 1.5),
+                        selectable: true,
+                        styleSheet: MarkdownStyleSheet(
+                          p: TextStyle(color: colors.text, fontSize: 14, height: 1.5),
+                          h1: TextStyle(color: colors.text, fontSize: 22, fontWeight: FontWeight.bold),
+                          h2: TextStyle(color: colors.text, fontSize: 18, fontWeight: FontWeight.bold),
+                          h3: TextStyle(color: colors.text, fontSize: 16, fontWeight: FontWeight.w600),
+                          h4: TextStyle(color: colors.text, fontSize: 14, fontWeight: FontWeight.w600),
+                          h5: TextStyle(color: colors.text, fontSize: 13, fontWeight: FontWeight.w600),
+                          h6: TextStyle(color: colors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
+                          blockquote: TextStyle(color: colors.textSecondary, fontSize: 14, height: 1.5),
+                          blockquoteDecoration: BoxDecoration(
+                            border: Border(
+                              left: BorderSide(color: colors.accent, width: 3),
+                            ),
+                          ),
+                          code: TextStyle(
+                            color: colors.textSecondary,
+                            fontSize: 13,
+                            fontFamily: 'monospace',
+                            backgroundColor: colors.bg,
+                          ),
+                          codeblockDecoration: BoxDecoration(
+                            color: colors.bg,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          listBullet: TextStyle(color: colors.text, fontSize: 14),
+                          listIndent: 24,
+                          horizontalRuleDecoration: BoxDecoration(
+                            border: Border(
+                              top: BorderSide(color: colors.borderColor, width: 1),
+                            ),
+                          ),
+                          a: TextStyle(color: colors.accent, decoration: TextDecoration.underline),
                         ),
                       )
                     : Padding(

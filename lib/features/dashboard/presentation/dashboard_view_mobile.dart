@@ -4,6 +4,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../../../core/i18n/translator.dart';
 import '../../../core/theme/peadra_colors.dart';
 import '../../../core/responsive/responsive_layout.dart';
+import '../../../core/utils/chart_utils.dart';
 
 const _monthAbbrKeys = [
   'month_jan_abbr',
@@ -343,15 +344,7 @@ class DashboardViewMobile extends StatelessWidget {
       if (s.y < minY) minY = s.y;
       if (s.y > maxY) maxY = s.y;
     }
-
-    final range = maxY - minY;
-    if (range == 0) {
-      minY -= 1;
-      maxY += 1;
-    } else {
-      minY -= range * 0.1;
-      maxY += range * 0.1;
-    }
+    final axis = niceAxisScale(minY, maxY);
 
     final lineColor = colors.chartAsset;
     final showLabelIndices = _computeLabelIndices(labels);
@@ -360,8 +353,8 @@ class DashboardViewMobile extends StatelessWidget {
       LineChartData(
         minX: 0,
         maxX: (spots.length - 1).toDouble(),
-        minY: minY,
-        maxY: maxY,
+        minY: axis.min,
+        maxY: axis.max,
         lineTouchData: LineTouchData(
           touchTooltipData: LineTouchTooltipData(
             getTooltipItems: (spots) {
@@ -408,6 +401,7 @@ class DashboardViewMobile extends StatelessWidget {
             sideTitles: SideTitles(
               showTitles: true,
               reservedSize: 50,
+              interval: axis.interval,
               getTitlesWidget: (value, meta) {
                 if (value == 0) return const Text('');
                 return Text(

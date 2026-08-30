@@ -708,7 +708,7 @@ class _TransactionsViewState extends State<TransactionsView> {
                         : Translator.t('trans_expense'),
                 colors,
               ),
-              _previewRow(Translator.t('trans_date'), txn.date, colors),
+              _previewRow(Translator.t('trans_date'), Translator.formatDate(txn.date), colors),
               _previewRow(
                 Translator.t('trans_amount'),
                 '$sign${CurrencyService.formatAmount(txn.amount, displayCurrency)}',
@@ -1241,7 +1241,7 @@ class _TransactionsViewState extends State<TransactionsView> {
           children: [
             Expanded(
               child: Text(
-                '${txn.date}${txn.accountName != null ? " · ${txn.accountName}" : ""}',
+                '${Translator.formatDate(txn.date)}${txn.accountName != null ? " · ${txn.accountName}" : ""}',
                 style: TextStyle(
                   color: colors.placeholderColor,
                   fontSize: 12,
@@ -1397,7 +1397,7 @@ class _TransactionsViewState extends State<TransactionsView> {
           overflow: TextOverflow.ellipsis,
         ),
         subtitle: Text(
-          txn.date,
+          Translator.formatDate(txn.date),
           style: TextStyle(
             color: colors.placeholderColor,
             fontSize: 12,

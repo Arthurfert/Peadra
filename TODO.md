@@ -15,6 +15,7 @@ This document presents future changes and wanted improvements.
 
 - You are now able to **restore a backup database** in-app
 - Dates are now displayed naturally (12 august 2026)
+- You can now dismiss notifications on mobile by simply swiping them
 
 ### Fixes
 

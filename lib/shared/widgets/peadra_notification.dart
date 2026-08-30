@@ -96,6 +96,7 @@ class _NotificationWidgetState extends State<_NotificationWidget>
   late final Animation<Offset> _slideAnimation;
   late final Animation<double> _fadeAnimation;
   bool _disposed = false;
+  double _dragOffset = 0;
 
   @override
   void initState() {
@@ -136,6 +137,13 @@ class _NotificationWidgetState extends State<_NotificationWidget>
     super.dispose();
   }
 
+  void _dismiss() {
+    _controller.stop();
+    _controller.reverse().then((_) {
+      if (!_disposed) widget.onDismiss();
+    });
+  }
+
   double get _bottomOffset => 24.0 + widget.offsetIndex * 72.0;
 
   @override
@@ -147,42 +155,57 @@ class _NotificationWidgetState extends State<_NotificationWidget>
         position: _slideAnimation,
         child: FadeTransition(
           opacity: _fadeAnimation,
-          child: Material(
-            color: Colors.transparent,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: widget.backgroundColor,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: widget.backgroundColor.withValues(alpha: 0.4),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(widget.icon, color: widget.iconColor, size: 20),
-                  const SizedBox(width: 10),
-                  Flexible(
-                    child: Text(
-                      widget.message,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
+          child: GestureDetector(
+            onHorizontalDragUpdate: (details) {
+              setState(() => _dragOffset += details.delta.dx);
+            },
+            onHorizontalDragEnd: (details) {
+              if (_dragOffset.abs() > 100) {
+                _dismiss();
+              } else {
+                setState(() => _dragOffset = 0);
+              }
+            },
+            child: Transform.translate(
+              offset: Offset(_dragOffset, 0),
+              child: Material(
+                color: Colors.transparent,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: widget.backgroundColor,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: widget.backgroundColor.withValues(alpha: 0.4),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
                       ),
-                    ),
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
-                ],
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(widget.icon, color: widget.iconColor, size: 20),
+                      const SizedBox(width: 10),
+                      Flexible(
+                        child: Text(
+                          widget.message,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),

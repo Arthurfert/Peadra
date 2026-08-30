@@ -140,8 +140,7 @@ class _ParametersViewState extends State<ParametersView> {
             _buildMaxBackupsTile(settings, colors),
             if (!Platform.isAndroid && !Platform.isIOS)
               _buildLocateDatabaseTile(colors),
-            if (!Platform.isAndroid && !Platform.isIOS)
-              _buildSwitchBackupTile(colors),
+            _buildSwitchBackupTile(colors),
           ], icon: Icons.storage),
           const SizedBox(height: 8),
           _buildSection(Translator.t('param_security'), colors, [

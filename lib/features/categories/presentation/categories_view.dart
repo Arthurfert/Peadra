@@ -11,6 +11,7 @@ import '../../../core/database/database_manager.dart';
 import '../../../core/models/tag.dart';
 import '../../../core/theme/peadra_colors.dart';
 import '../../../core/responsive/responsive_layout.dart';
+import '../../../core/utils/chart_utils.dart';
 import '../../../shared/widgets/peadra_notification.dart';
 
 class CategoriesView extends StatefulWidget {
@@ -445,20 +446,12 @@ class _CategoriesViewState extends State<CategoriesView> {
       if (s.y < minY) minY = s.y;
       if (s.y > maxY) maxY = s.y;
     }
-
-    final range = maxY - minY;
-    if (range == 0) {
-      minY -= 1;
-      maxY += 1;
-    } else {
-      minY -= range * 0.1;
-      maxY += range * 0.1;
-    }
+    final axis = niceAxisScale(minY, maxY);
 
     return LineChart(
       LineChartData(
-        minY: minY,
-        maxY: maxY,
+        minY: axis.min,
+        maxY: axis.max,
         lineTouchData: LineTouchData(
           touchTooltipData: LineTouchTooltipData(
             getTooltipItems: (touchedSpots) {
@@ -499,6 +492,7 @@ class _CategoriesViewState extends State<CategoriesView> {
             sideTitles: SideTitles(
               showTitles: true,
               reservedSize: 36,
+              interval: axis.interval,
               getTitlesWidget: (value, meta) {
                 if (value == 0) return const Text('');
                 return Text(

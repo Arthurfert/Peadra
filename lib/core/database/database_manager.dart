@@ -1913,6 +1913,17 @@ void setUserId(String userId) {
     if (_userId == null) return;
     if (_encryptionKey == null) return;
     final db = await database;
+
+    // Deduplicate any previously duplicated recurring occurrences.
+    // Keeps the row with the smallest id for each (recurring_id, date) pair.
+    await db.execute('''
+      DELETE FROM transactions WHERE id NOT IN (
+        SELECT MIN(id) FROM transactions
+        WHERE recurring_id IS NOT NULL AND user_id = ? AND is_deleted = 0
+        GROUP BY recurring_id, date
+      ) AND recurring_id IS NOT NULL AND user_id = ? AND is_deleted = 0
+    ''', [_userId, _userId]);
+
     final rows = await db.query(
       'SELECT * FROM recurring_transactions WHERE user_id = ? AND active = 1 AND is_deleted = 0',
       [_userId],
@@ -1981,7 +1992,16 @@ void setUserId(String userId) {
       lookAheadDays: 5,
     );
 
+    // Re-query existing dates right before inserting to close the race window
+    // caused by concurrent calls to generateDueRecurring().
+    final freshRows = await db.query(
+      'SELECT date FROM transactions WHERE recurring_id = ? AND user_id = ? AND is_deleted = 0',
+      [id, _userId],
+    );
+    final freshDates = freshRows.map((r) => r['date'] as String).toSet();
+
     for (final dateStr in plan.dueDates) {
+      if (freshDates.contains(dateStr)) continue;
       await db.execute(
         'INSERT INTO transactions (id, user_id, account_id, description_id, tag_id, date, amount, transaction_type, currency, notes, recurring_id) '
         'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)',
@@ -3101,5 +3121,60 @@ void setUserId(String userId) {
     for (final file in toDelete) {
       file.deleteSync();
     }
+  }
+
+  /// Returns a list of backup files sorted by date (newest first).
+  List<File> getBackups() {
+    final path = _dbPath;
+    if (path == null) return [];
+    final dir = Directory(File(path).parent.path);
+    if (!dir.existsSync()) return [];
+
+    final backups = dir.listSync().whereType<File>().where((f) {
+      final name = f.path.split(Platform.pathSeparator).last;
+      return name.startsWith('peadra_') && name.endsWith('.db');
+    }).toList();
+
+    backups.sort((a, b) => b.path.compareTo(a.path));
+    return backups;
+  }
+
+  /// Switches to a backup database.
+  /// 1. Closes the current database
+  /// 2. Deletes the current peadra.db
+  /// 3. Renames the backup to peadra.db
+  Future<void> switchToBackup(String backupPath) async {
+    final path = _dbPath;
+    if (path == null) throw Exception('Database path not resolved');
+
+    final dbFile = File(path);
+    final backupFile = File(backupPath);
+
+    if (!backupFile.existsSync()) {
+      throw Exception('Backup file does not exist');
+    }
+
+    // Close the current database
+    await close();
+
+    // Delete the current database
+    if (dbFile.existsSync()) {
+      await dbFile.delete();
+    }
+
+    // Rename the backup to peadra.db
+    await backupFile.rename(path);
+
+    // Clear caches
+    _settingCache.clear();
+    _appSettingCache.clear();
+    _descriptionCache.clear();
+    _exchangeRateCache.clear();
+    _userId = null;
+    _encryptionKey = null;
+
+    // Reopen the database
+    _database = null;
+    await database;
   }
 }

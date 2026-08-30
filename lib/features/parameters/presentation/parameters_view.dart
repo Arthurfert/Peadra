@@ -140,6 +140,7 @@ class _ParametersViewState extends State<ParametersView> {
             _buildMaxBackupsTile(settings, colors),
             if (!Platform.isAndroid && !Platform.isIOS)
               _buildLocateDatabaseTile(colors),
+            _buildSwitchBackupTile(colors),
           ], icon: Icons.storage),
           const SizedBox(height: 8),
           _buildSection(Translator.t('param_security'), colors, [
@@ -660,6 +661,161 @@ class _ParametersViewState extends State<ParametersView> {
             await Process.run('explorer', [dir]);
           }
         },
+      ),
+    );
+  }
+
+  Widget _buildSwitchBackupTile(PeadraColors colors) {
+    return ListTile(
+      title: Text(Translator.t('param_switch_backup'),
+          style: TextStyle(color: colors.text)),
+      subtitle: Text(Translator.t('param_switch_backup_desc'),
+          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+      trailing: ElevatedButton.icon(
+        icon: const Icon(Icons.restore, color: Colors.white, size: 16),
+        label: Text(Translator.t('param_switch_backup'),
+            style: const TextStyle(color: Colors.white, fontSize: 12)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: colors.warning,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        onPressed: () => _showSwitchBackupDialog(colors),
+      ),
+    );
+  }
+
+  void _showSwitchBackupDialog(PeadraColors colors) {
+    final backups = _db.getBackups();
+
+    if (backups.isEmpty) {
+      PeadraNotification.show(context,
+          message: Translator.t('param_switch_backup_no_backups'),
+          type: NotificationType.warning);
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: colors.surface,
+        title: Text(Translator.t('param_switch_backup_title'),
+            style: TextStyle(color: colors.text)),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: backups.length,
+            itemBuilder: (context, index) {
+              final backup = backups[index];
+              final fileName = backup.path.split(Platform.pathSeparator).last;
+              final date = backup.lastModifiedSync();
+              final dateStr = '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+
+              return Card(
+                color: colors.bg,
+                child: ListTile(
+                  leading: Icon(Icons.storage, color: colors.accent),
+                  title: Text(dateStr,
+                      style: TextStyle(color: colors.text, fontSize: 14)),
+                  subtitle: Text(fileName,
+                      style: TextStyle(color: colors.placeholderColor, fontSize: 11)),
+                  trailing: Icon(Icons.chevron_right, color: colors.placeholderColor),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _confirmSwitchBackup(backup, colors);
+                  },
+                ),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(Translator.t('btn_cancel'),
+                style: TextStyle(color: colors.placeholderColor)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmSwitchBackup(File backup, PeadraColors colors) {
+    final fileName = backup.path.split(Platform.pathSeparator).last;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: colors.surface,
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: colors.warning),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(Translator.t('param_switch_backup_confirm'),
+                  style: TextStyle(color: colors.text)),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(Translator.t('param_switch_backup_warning'),
+                style: TextStyle(color: colors.text)),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: colors.bg,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.storage, color: colors.accent, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(fileName,
+                        style: TextStyle(color: colors.text, fontSize: 12)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(Translator.t('btn_cancel'),
+                style: TextStyle(color: colors.placeholderColor)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              try {
+                await _db.switchToBackup(backup.path);
+                if (mounted) {
+                  PeadraNotification.show(context,
+                      message: Translator.t('param_switch_backup_success'));
+                  // Restart the app
+                  exit(0);
+                }
+              } catch (e) {
+                if (mounted) {
+                  PeadraNotification.show(context,
+                      message: e.toString(), type: NotificationType.error);
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: colors.warning,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(Translator.t('param_switch_backup_confirm')),
+          ),
+        ],
       ),
     );
   }

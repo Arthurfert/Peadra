@@ -182,6 +182,18 @@ class Translator {
       'month_oct_abbr': 'Oct',
       'month_nov_abbr': 'Nov',
       'month_dec_abbr': 'Dec',
+      'month_jan': 'January',
+      'month_feb': 'February',
+      'month_mar': 'March',
+      'month_apr': 'April',
+      'month_may': 'May',
+      'month_jun': 'June',
+      'month_jul': 'July',
+      'month_aug': 'August',
+      'month_sep': 'September',
+      'month_oct': 'October',
+      'month_nov': 'November',
+      'month_dec': 'December',
       'param_title': 'Settings',
       'param_language_en': 'English',
       'param_language_fr': 'Fran\u00e7ais',
@@ -239,6 +251,13 @@ class Translator {
       'param_max_backups_desc': 'Maximum number of backup files to keep.',
       'param_locate_database': 'Locate database',
       'param_locate_database_desc': 'Open the folder containing the database.',
+      'param_switch_backup': 'Switch to backup',
+      'param_switch_backup_desc': 'Replace the current database with a backup.',
+      'param_switch_backup_confirm': 'Switch to backup',
+      'param_switch_backup_warning': 'This will replace your current database with the selected backup. The current database will be deleted.',
+      'param_switch_backup_success': 'Database switched successfully. The app will restart.',
+      'param_switch_backup_no_backups': 'No backups available.',
+      'param_switch_backup_title': 'Select a backup',
       'param_security': 'Security',
       'param_username': 'User Name',
       'param_username_desc': 'Your login username.',
@@ -565,6 +584,18 @@ class Translator {
       'month_oct_abbr': 'oct.',
       'month_nov_abbr': 'nov.',
       'month_dec_abbr': 'd\u00e9c.',
+      'month_jan': 'janvier',
+      'month_feb': 'f\u00e9vrier',
+      'month_mar': 'mars',
+      'month_apr': 'avril',
+      'month_may': 'mai',
+      'month_jun': 'juin',
+      'month_jul': 'juillet',
+      'month_aug': 'ao\u00fbt',
+      'month_sep': 'septembre',
+      'month_oct': 'octobre',
+      'month_nov': 'novembre',
+      'month_dec': 'd\u00e9cembre',
       'param_title': 'Param\u00e8tres',
       'param_language_en': 'English',
       'param_language_fr': 'Fran\u00e7ais',
@@ -630,6 +661,13 @@ class Translator {
       'param_max_backups_desc': 'Nombre maximum de fichiers de sauvegarde \u00e0 conserver.',
       'param_locate_database': 'Localiser la base',
       'param_locate_database_desc': 'Ouvrir le dossier contenant la base de donn\u00e9es.',
+      'param_switch_backup': 'Restaurer une sauvegarde',
+      'param_switch_backup_desc': 'Remplacer la base actuelle par une sauvegarde.',
+      'param_switch_backup_confirm': 'Restaurer la sauvegarde',
+      'param_switch_backup_warning': 'Cela remplacera votre base actuelle par la sauvegarde s\u00e9lectionn\u00e9e. La base actuelle sera supprim\u00e9e.',
+      'param_switch_backup_success': 'Base restaur\u00e9e avec succ\u00e8s. L\'application va red\u00e9marrer.',
+      'param_switch_backup_no_backups': 'Aucune sauvegarde disponible.',
+      'param_switch_backup_title': 'S\u00e9lectionnez une sauvegarde',
       'param_security': 'S\u00e9curit\u00e9',
       'param_username': "Nom d'utilisateur",
       'param_username_desc':
@@ -800,6 +838,25 @@ class Translator {
     }
     return text;
   }
+
+  static const _monthKeys = [
+    'month_jan', 'month_feb', 'month_mar', 'month_apr',
+    'month_may', 'month_jun', 'month_jul', 'month_aug',
+    'month_sep', 'month_oct', 'month_nov', 'month_dec',
+  ];
+
+  /// Formats a "YYYY-MM-DD" date string to a localized human-readable form
+  /// such as "12 August 2026" or "12 août 2026".
+  static String formatDate(String dateStr) {
+    final parts = dateStr.split('-');
+    if (parts.length != 3) return dateStr;
+    final day = int.tryParse(parts[2]) ?? 0;
+    final month = int.tryParse(parts[1]) ?? 1;
+    final year = parts[0];
+    final monthName = t(_monthKeys[(month - 1).clamp(0, 11)]);
+    return '$day $monthName $year';
+  }
+
   static Map<String, String> get availableLanguages => {
         'en': t('param_language_en'),
         'fr': t('param_language_fr'),

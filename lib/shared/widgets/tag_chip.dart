@@ -28,8 +28,8 @@ class TagChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final pillColor =
-        Color.alphaBlend(color.withValues(alpha: 0.3), surface);
-    final textColor = readableTextColor(pillColor);
+        Color.alphaBlend(color.withValues(alpha: 0.85), surface);
+    final textColor = _readableTextColor(pillColor);
 
     return Container(
       padding: padding,
@@ -49,11 +49,12 @@ class TagChip extends StatelessWidget {
     );
   }
 
-  /// Returns a color that keeps a contrast ratio above 4.5:1 on [background].
-  static Color readableTextColor(Color background) {
-    // WCAG relative luminance threshold for 4.5:1 with pure black text.
-    return background.computeLuminance() > 0.179
-        ? Colors.black
-        : Colors.white;
+  /// Returns black or white, whichever has a higher WCAG contrast ratio
+  /// (>= 4.5:1) against [background].
+  static Color _readableTextColor(Color background) {
+    final lum = background.computeLuminance();
+    final whiteRatio = (1.05) / (lum + 0.05);
+    final blackRatio = (lum + 0.05) / 0.05;
+    return whiteRatio >= blackRatio ? Colors.white : Colors.black;
   }
 }

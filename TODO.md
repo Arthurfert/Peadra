@@ -18,6 +18,7 @@ This document presents future changes and wanted improvements.
 ### Fixes
 
 - Fixed a bug were duplicate transactions could be displayed in the `To come` section
+- Enhanced the tag pills colors in transactions rows
 
 ## Future Improvements
 

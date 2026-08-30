@@ -1913,6 +1913,17 @@ void setUserId(String userId) {
     if (_userId == null) return;
     if (_encryptionKey == null) return;
     final db = await database;
+
+    // Deduplicate any previously duplicated recurring occurrences.
+    // Keeps the row with the smallest id for each (recurring_id, date) pair.
+    await db.execute('''
+      DELETE FROM transactions WHERE id NOT IN (
+        SELECT MIN(id) FROM transactions
+        WHERE recurring_id IS NOT NULL AND user_id = ? AND is_deleted = 0
+        GROUP BY recurring_id, date
+      ) AND recurring_id IS NOT NULL AND user_id = ? AND is_deleted = 0
+    ''', [_userId, _userId]);
+
     final rows = await db.query(
       'SELECT * FROM recurring_transactions WHERE user_id = ? AND active = 1 AND is_deleted = 0',
       [_userId],
@@ -1981,7 +1992,16 @@ void setUserId(String userId) {
       lookAheadDays: 5,
     );
 
+    // Re-query existing dates right before inserting to close the race window
+    // caused by concurrent calls to generateDueRecurring().
+    final freshRows = await db.query(
+      'SELECT date FROM transactions WHERE recurring_id = ? AND user_id = ? AND is_deleted = 0',
+      [id, _userId],
+    );
+    final freshDates = freshRows.map((r) => r['date'] as String).toSet();
+
     for (final dateStr in plan.dueDates) {
+      if (freshDates.contains(dateStr)) continue;
       await db.execute(
         'INSERT INTO transactions (id, user_id, account_id, description_id, tag_id, date, amount, transaction_type, currency, notes, recurring_id) '
         'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)',

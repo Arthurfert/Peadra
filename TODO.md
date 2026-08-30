@@ -13,16 +13,11 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-- Adds a `Load All` button in the transaction view
-- Support Markdown format for the Release note
+
 
 ### Fixes
 
-- Fixed the duplicate transaction when clicking on `Load more` (transaction view)
-- Fixed the transfer modification flow bugs, it is now working
-- Fixed the tag list no being scrollable
-- Checking account balance stat card's amount is now *up to today* instead of the full month (included future transactions)
-- Prevent rare arithmetic bugs with double usage (dev stuff)
+- Fixed a bug were duplicate transactions could be displayed in the `To come` section
 
 ## Future Improvements
 

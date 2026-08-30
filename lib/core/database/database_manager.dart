@@ -3122,4 +3122,59 @@ void setUserId(String userId) {
       file.deleteSync();
     }
   }
+
+  /// Returns a list of backup files sorted by date (newest first).
+  List<File> getBackups() {
+    final path = _dbPath;
+    if (path == null) return [];
+    final dir = Directory(File(path).parent.path);
+    if (!dir.existsSync()) return [];
+
+    final backups = dir.listSync().whereType<File>().where((f) {
+      final name = f.path.split(Platform.pathSeparator).last;
+      return name.startsWith('peadra_') && name.endsWith('.db');
+    }).toList();
+
+    backups.sort((a, b) => b.path.compareTo(a.path));
+    return backups;
+  }
+
+  /// Switches to a backup database.
+  /// 1. Closes the current database
+  /// 2. Deletes the current peadra.db
+  /// 3. Renames the backup to peadra.db
+  Future<void> switchToBackup(String backupPath) async {
+    final path = _dbPath;
+    if (path == null) throw Exception('Database path not resolved');
+
+    final dbFile = File(path);
+    final backupFile = File(backupPath);
+
+    if (!backupFile.existsSync()) {
+      throw Exception('Backup file does not exist');
+    }
+
+    // Close the current database
+    await close();
+
+    // Delete the current database
+    if (dbFile.existsSync()) {
+      await dbFile.delete();
+    }
+
+    // Rename the backup to peadra.db
+    await backupFile.rename(path);
+
+    // Clear caches
+    _settingCache.clear();
+    _appSettingCache.clear();
+    _descriptionCache.clear();
+    _exchangeRateCache.clear();
+    _userId = null;
+    _encryptionKey = null;
+
+    // Reopen the database
+    _database = null;
+    await database;
+  }
 }

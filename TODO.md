@@ -13,7 +13,7 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-
+- You are now able to restore a backup database in-app
 
 ### Fixes
 

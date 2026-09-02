@@ -666,23 +666,45 @@ class _ParametersViewState extends State<ParametersView> {
   }
 
   Widget _buildSwitchBackupTile(PeadraColors colors) {
+    final isPhone = ResponsiveLayout.isPhone(context);
+
+    final button = ElevatedButton.icon(
+      icon: const Icon(Icons.restore, color: Colors.white, size: 16),
+      label: Text(Translator.t('param_switch_backup'),
+          style: const TextStyle(color: Colors.white, fontSize: 12)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: colors.warning,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+      onPressed: () => _showSwitchBackupDialog(colors),
+    );
+
+    if (isPhone) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(Translator.t('param_switch_backup'),
+                style: TextStyle(color: colors.text)),
+            const SizedBox(height: 4),
+            Text(Translator.t('param_switch_backup_desc'),
+                style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+            const SizedBox(height: 12),
+            button,
+          ],
+        ),
+      );
+    }
+
     return ListTile(
       title: Text(Translator.t('param_switch_backup'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_switch_backup_desc'),
           style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
-      trailing: ElevatedButton.icon(
-        icon: const Icon(Icons.restore, color: Colors.white, size: 16),
-        label: Text(Translator.t('param_switch_backup'),
-            style: const TextStyle(color: Colors.white, fontSize: 12)),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: colors.warning,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-        onPressed: () => _showSwitchBackupDialog(colors),
-      ),
+      trailing: button,
     );
   }
 

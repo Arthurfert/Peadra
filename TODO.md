@@ -13,15 +13,11 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-- You are now able to **restore a backup database** in-app
-- Dates are now displayed naturally (12 august 2026)
-- You can now dismiss notifications on mobile by simply swiping them
+
 
 ### Fixes
 
-- Fixed a bug were duplicate transactions could be displayed in the `To come` section
-- Enhanced the tag pills colors in transactions rows
-- Line graph axis are now correctly rendered, with *nice numbers*
+- Fixed the backup parameters section layout for mobile
 
 ## Future Improvements
 

@@ -389,52 +389,114 @@ class _ParametersViewState extends State<ParametersView> {
   }
 
   Widget _buildCategoriesViewTile(SettingsProvider settings, PeadraColors colors) {
+    final isPhone = ResponsiveLayout.isPhone(context);
+
+    final modeButtons = Container(
+      decoration: BoxDecoration(
+        color: colors.bg,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildToggleButton(
+            label: Translator.t('param_categories_descriptions'),
+            icon: Icons.description,
+            isSelected: settings.categoriesView == 'descriptions',
+            colors: colors,
+            onTap: () => settings.setCategoriesView('descriptions', _db),
+          ),
+          _buildToggleButton(
+            label: Translator.t('param_categories_tags'),
+            icon: Icons.tag,
+            isSelected: settings.categoriesView == 'tags',
+            colors: colors,
+            onTap: () => settings.setCategoriesView('tags', _db),
+          ),
+        ],
+      ),
+    );
+
+    if (isPhone) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(Translator.t('param_categories_view'),
+                style: TextStyle(color: colors.text)),
+            const SizedBox(height: 4),
+            Text(Translator.t('param_categories_view_desc'),
+                style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+            const SizedBox(height: 12),
+            modeButtons,
+          ],
+        ),
+      );
+    }
+
     return ListTile(
       title: Text(Translator.t('param_categories_view'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_categories_view_desc'),
           style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
-      trailing: DropdownButton<String>(
-        value: settings.categoriesView,
-        dropdownColor: colors.surface,
-        style: TextStyle(color: colors.text),
-        items: [
-          DropdownMenuItem(
-              value: 'descriptions',
-              child: Text(Translator.t('param_categories_descriptions'))),
-          DropdownMenuItem(
-              value: 'tags',
-              child: Text(Translator.t('param_categories_tags'))),
-        ],
-        onChanged: (v) async {
-          if (v != null) settings.setCategoriesView(v, _db);
-        },
-      ),
+      trailing: modeButtons,
     );
   }
 
   Widget _buildDashboardPieViewTile(SettingsProvider settings, PeadraColors colors) {
+    final isPhone = ResponsiveLayout.isPhone(context);
+
+    final modeButtons = Container(
+      decoration: BoxDecoration(
+        color: colors.bg,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildToggleButton(
+            label: Translator.t('param_categories_descriptions'),
+            icon: Icons.description,
+            isSelected: settings.dashboardPieView == 'descriptions',
+            colors: colors,
+            onTap: () => settings.setDashboardPieView('descriptions', _db),
+          ),
+          _buildToggleButton(
+            label: Translator.t('param_categories_tags'),
+            icon: Icons.tag,
+            isSelected: settings.dashboardPieView == 'tags',
+            colors: colors,
+            onTap: () => settings.setDashboardPieView('tags', _db),
+          ),
+        ],
+      ),
+    );
+
+    if (isPhone) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(Translator.t('param_dashboard_pie_view'),
+                style: TextStyle(color: colors.text)),
+            const SizedBox(height: 4),
+            Text(Translator.t('param_dashboard_pie_view_desc'),
+                style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+            const SizedBox(height: 12),
+            modeButtons,
+          ],
+        ),
+      );
+    }
+
     return ListTile(
       title: Text(Translator.t('param_dashboard_pie_view'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_dashboard_pie_view_desc'),
           style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
-      trailing: DropdownButton<String>(
-        value: settings.dashboardPieView,
-        dropdownColor: colors.surface,
-        style: TextStyle(color: colors.text),
-        items: [
-          DropdownMenuItem(
-              value: 'descriptions',
-              child: Text(Translator.t('param_categories_descriptions'))),
-          DropdownMenuItem(
-              value: 'tags',
-              child: Text(Translator.t('param_categories_tags'))),
-        ],
-        onChanged: (v) async {
-          if (v != null) settings.setDashboardPieView(v, _db);
-        },
-      ),
+      trailing: modeButtons,
     );
   }
 
@@ -476,27 +538,58 @@ class _ParametersViewState extends State<ParametersView> {
 
   Widget _buildAssetsGranularityTile(
       SettingsProvider settings, PeadraColors colors) {
+    final isPhone = ResponsiveLayout.isPhone(context);
+
+    final modeButtons = Container(
+      decoration: BoxDecoration(
+        color: colors.bg,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildToggleButton(
+            label: Translator.t('param_assets_monthly'),
+            icon: Icons.calendar_month,
+            isSelected: settings.assetsGranularity == 'monthly',
+            colors: colors,
+            onTap: () => settings.setAssetsGranularity('monthly', _db),
+          ),
+          _buildToggleButton(
+            label: Translator.t('param_assets_daily'),
+            icon: Icons.today,
+            isSelected: settings.assetsGranularity == 'daily',
+            colors: colors,
+            onTap: () => settings.setAssetsGranularity('daily', _db),
+          ),
+        ],
+      ),
+    );
+
+    if (isPhone) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(Translator.t('param_assets_granularity'),
+                style: TextStyle(color: colors.text)),
+            const SizedBox(height: 4),
+            Text(Translator.t('param_assets_granularity_desc'),
+                style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+            const SizedBox(height: 12),
+            modeButtons,
+          ],
+        ),
+      );
+    }
+
     return ListTile(
       title: Text(Translator.t('param_assets_granularity'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_assets_granularity_desc'),
           style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
-      trailing: DropdownButton<String>(
-        value: settings.assetsGranularity,
-        dropdownColor: colors.surface,
-        style: TextStyle(color: colors.text),
-        items: [
-          DropdownMenuItem(
-              value: 'monthly',
-              child: Text(Translator.t('param_assets_monthly'))),
-          DropdownMenuItem(
-              value: 'daily',
-              child: Text(Translator.t('param_assets_daily'))),
-        ],
-        onChanged: (v) async {
-          if (v != null) settings.setAssetsGranularity(v, _db);
-        },
-      ),
+      trailing: modeButtons,
     );
   }
 
@@ -558,6 +651,41 @@ class _ParametersViewState extends State<ParametersView> {
   }
 
   Widget _buildMonthModeButton({
+    required String label,
+    required IconData icon,
+    required bool isSelected,
+    required PeadraColors colors,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? colors.accent : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon,
+                size: 14,
+                color: isSelected ? Colors.white : colors.placeholderColor),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                color: isSelected ? Colors.white : colors.placeholderColor,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildToggleButton({
     required String label,
     required IconData icon,
     required bool isSelected,

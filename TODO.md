@@ -13,7 +13,7 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-
+- Dropdown with 2 choices in settings now match existing UI
 
 ### Fixes
 

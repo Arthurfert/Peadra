@@ -18,18 +18,3 @@ This document presents future changes and wanted improvements.
 ### Fixes
 
 - Fixed the backup parameters section layout for mobile
-
-## Future Improvements
-
-**New features :**
-- Budget view, linked to tags
-- Tools view (composed interests, simulations...)
-- Compute trends/forecast
-
-**UX :**
-- Ability to dismiss the *notifications*
-- More translations
-- More parameters
-
-**UI :**
-- Add themes : Sakura, High-Contrast (light and dark)

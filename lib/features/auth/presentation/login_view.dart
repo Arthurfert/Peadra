@@ -420,7 +420,6 @@ class _LoginViewState extends State<LoginView> {
                   TextField(
                     controller: _passwordController,
                     obscureText: true,
-                    maxLength: 128,
                     autofillHints: const [AutofillHints.password],
                     onSubmitted: (_) => _submit(),
                     decoration: InputDecoration(

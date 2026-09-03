@@ -18,3 +18,4 @@ This document presents future changes and wanted improvements.
 ### Fixes
 
 - Fixed the backup parameters section layout for mobile
+- Arrows in transactions view now match user expectations

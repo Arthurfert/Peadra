@@ -647,10 +647,10 @@ class _TransactionsViewState extends State<TransactionsView> {
             ? colors.transferIcon
             : colors.expenseIcon;
     final icon = isIncome
-        ? Icons.arrow_downward
+        ? Icons.arrow_outward
         : isTransfer
             ? Icons.swap_horiz
-            : Icons.arrow_upward;
+            : Icons.south_east;
     final sign = isIncome ? '+' : isTransfer ? '' : '-';
 
     final title = pairedTxn != null
@@ -1189,10 +1189,10 @@ class _TransactionsViewState extends State<TransactionsView> {
             ? colors.transferIcon
             : colors.expenseIcon;
     final icon = isIncome
-        ? Icons.arrow_downward
+        ? Icons.arrow_outward
         : isTransfer
             ? Icons.swap_horiz
-            : Icons.arrow_upward;
+            : Icons.south_east;
     final sign = isIncome ? '+' : isTransfer ? '' : '-';
 
     final displayCurrency =

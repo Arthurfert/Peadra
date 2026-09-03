@@ -383,7 +383,7 @@ class _RecurringViewState extends State<RecurringView> {
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(
-            isIncome ? Icons.arrow_downward : Icons.arrow_upward,
+            isIncome ? Icons.arrow_outward : Icons.south_east,
             color: iconColor,
             size: 20,
           ),

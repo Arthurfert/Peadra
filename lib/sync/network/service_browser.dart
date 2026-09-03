@@ -52,11 +52,20 @@ class MDnsSyncServiceBrowser implements SyncServiceBrowser {
 
   Future<void> _startQuery() async {
     final gen = _generation;
-    final stream = await MDNSClient.query(QueryParams(
-      service: syncServiceType,
-      timeout: queryTimeout,
-      reusePort: !Platform.isAndroid,
-    ));
+    Stream<ServiceEntry> stream;
+    try {
+      stream = await MDNSClient.query(QueryParams(
+        service: syncServiceType,
+        timeout: queryTimeout,
+        reusePort: !Platform.isAndroid,
+      ));
+    } on SocketException catch (e) {
+      LogService().warn('mDNS query socket error (network may be unavailable): $e');
+      if (_started && gen == _generation) {
+        _scheduleRequery();
+      }
+      return;
+    }
     if (gen != _generation) {
       // Stopped while the query session was being set up. Let it expire on
       // its own; its onDone is guarded by the generation check and will not

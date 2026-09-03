@@ -22,3 +22,4 @@ This document presents future changes and wanted improvements.
 
 - Fixed the backup parameters section layout for mobile
 - Arrows in transactions view now match user expectations
+- Sync service now detects when WI-FI is enabled, fixing the *wi-fi enabled after the app startup* inconvenience

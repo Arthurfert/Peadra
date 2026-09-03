@@ -335,6 +335,12 @@ class _ParametersViewState extends State<ParametersView> {
           DropdownMenuItem(
               value: 'spring',
               child: Text(Translator.t('param_spring_theme'))),
+          DropdownMenuItem(
+              value: 'high_contrast_light',
+              child: Text(Translator.t('param_high_contrast_light_theme'))),
+          DropdownMenuItem(
+              value: 'high_contrast_dark',
+              child: Text(Translator.t('param_high_contrast_dark_theme'))),
         ],
         onChanged: (v) async {
           if (v != null) {

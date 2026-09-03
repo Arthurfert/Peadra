@@ -213,6 +213,8 @@ class Translator {
       'param_autumn_theme': 'Autumn Theme',
       'param_summer_theme': 'Summer Theme',
       'param_spring_theme': 'Spring Theme',
+      'param_high_contrast_light_theme': 'High Contrast (Light)',
+      'param_high_contrast_dark_theme': 'High Contrast (Dark)',
       'param_import': 'Import',
       'param_export_logs': 'Export Logs',
       'param_export_logs_desc': 'Export the current session log file for debugging.',
@@ -615,6 +617,8 @@ class Translator {
       'param_autumn_theme': 'Th\u00e8me Automne',
       'param_summer_theme': 'Th\u00e8me \u00c9t\u00e9',
       'param_spring_theme': 'Th\u00e8me Printemps',
+      'param_high_contrast_light_theme': 'Contraste \u00e9lev\u00e9 (Clair)',
+      'param_high_contrast_dark_theme': 'Contraste \u00e9lev\u00e9 (Sombre)',
       'param_import': 'Importer',
       'param_export_logs': 'Exporter les logs',
       'param_export_logs_desc':

@@ -647,10 +647,10 @@ class _TransactionsViewState extends State<TransactionsView> {
             ? colors.transferIcon
             : colors.expenseIcon;
     final icon = isIncome
-        ? Icons.arrow_downward
+        ? Icons.arrow_outward
         : isTransfer
             ? Icons.swap_horiz
-            : Icons.arrow_upward;
+            : Icons.south_east;
     final sign = isIncome ? '+' : isTransfer ? '' : '-';
 
     final title = pairedTxn != null
@@ -895,7 +895,6 @@ class _TransactionsViewState extends State<TransactionsView> {
                 _loadTransactions();
               });
             },
-            maxLength: 100,
             decoration: InputDecoration(
               hintText: Translator.t('trans_search_placeholder'),
               prefixIcon: Icon(Icons.search, color: colors.placeholderColor),
@@ -1189,10 +1188,10 @@ class _TransactionsViewState extends State<TransactionsView> {
             ? colors.transferIcon
             : colors.expenseIcon;
     final icon = isIncome
-        ? Icons.arrow_downward
+        ? Icons.arrow_outward
         : isTransfer
             ? Icons.swap_horiz
-            : Icons.arrow_upward;
+            : Icons.south_east;
     final sign = isIncome ? '+' : isTransfer ? '' : '-';
 
     final displayCurrency =

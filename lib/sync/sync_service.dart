@@ -2,6 +2,7 @@ import 'dart:async';
 
 import '../../core/database/database_manager.dart';
 import '../../core/services/log_service.dart';
+import '../../core/services/wifi_monitor.dart';
 import 'models/trusted_peer.dart';
 import 'models/sync_session_status.dart';
 import 'network/discovered_service.dart';
@@ -27,8 +28,10 @@ class SyncService {
 
   final SecurePeerStorage _peerStorage = SecurePeerStorage();
   final NodeIdentity _identity = NodeIdentity.instance;
+  final WifiMonitor _wifiMonitor = WifiMonitor();
 
   SyncManager? _manager;
+  StreamSubscription<bool>? _wifiSub;
 
   /// The live manager, or null before [start] / after [stop].
   SyncManager? get manager => _manager;
@@ -42,6 +45,9 @@ class SyncService {
   Future<List<TrustedPeer>> getPeers() => _peerStorage.getAll();
 
   Future<void> forgetPeer(String peerId) => _peerStorage.delete(peerId);
+
+  /// Whether Wi-Fi is currently available.
+  bool get isWifiAvailable => _wifiMonitor.isWifiAvailable;
 
   /// Emits devices seen on the local network (used while scanning a QR).
   Stream<DiscoveredService> get onPeerDiscovered =>
@@ -72,7 +78,26 @@ class SyncService {
 
   /// Starts advertisement, browsing and the sync server. Safe to call
   /// multiple times; failures are logged rather than thrown.
+  /// Also starts monitoring Wi-Fi connectivity to auto-start sync when
+  /// Wi-Fi becomes available.
   Future<void> start() async {
+    _wifiMonitor.start();
+    _wifiSub?.cancel();
+    _wifiSub = _wifiMonitor.onWifiChanged.listen((hasWifi) {
+      if (hasWifi) {
+        _ensureSyncRunning();
+      } else {
+        _stopSyncQuietly();
+      }
+    });
+    final hasWifi = await _wifiMonitor.checkWifi();
+    if (hasWifi) {
+      await _ensureSyncRunning();
+    }
+  }
+
+  Future<void> _ensureSyncRunning() async {
+    if (isRunning) return;
     try {
       final manager = await ensureStarted();
       await manager.start();
@@ -81,8 +106,16 @@ class SyncService {
     }
   }
 
-  /// Stops the sync server, advertisement and in-flight sessions.
+  void _stopSyncQuietly() {
+    _manager?.stop();
+  }
+
+  /// Stops the sync server, advertisement, in-flight sessions, and
+  /// the Wi-Fi monitor.
   Future<void> stop() async {
+    _wifiSub?.cancel();
+    _wifiSub = null;
+    _wifiMonitor.stop();
     try {
       await _manager?.stop();
     } catch (e) {

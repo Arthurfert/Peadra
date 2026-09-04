@@ -13,27 +13,13 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-- You are now able to **restore a backup database** in-app
-- Dates are now displayed naturally (12 august 2026)
-- You can now dismiss notifications on mobile by simply swiping them
+- Dropdown with 2 choices in settings now match existing UI
+- Added new themes :
+    - High contrast (light)
+    - High contrast (dark)
 
 ### Fixes
 
-- Fixed a bug were duplicate transactions could be displayed in the `To come` section
-- Enhanced the tag pills colors in transactions rows
-- Line graph axis are now correctly rendered, with *nice numbers*
-
-## Future Improvements
-
-**New features :**
-- Budget view, linked to tags
-- Tools view (composed interests, simulations...)
-- Compute trends/forecast
-
-**UX :**
-- Ability to dismiss the *notifications*
-- More translations
-- More parameters
-
-**UI :**
-- Add themes : Sakura, High-Contrast (light and dark)
+- Fixed the backup parameters section layout for mobile
+- Arrows in transactions view now match user expectations
+- Sync service now detects when WI-FI is enabled, fixing the *wi-fi enabled after the app startup* inconvenience

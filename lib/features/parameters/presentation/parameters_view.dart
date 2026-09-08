@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/i18n/translator.dart';
 import '../../../core/providers/auth_provider.dart';
@@ -171,7 +172,34 @@ class _ParametersViewState extends State<ParametersView> {
           _buildSection(Translator.t('param_danger_zone'), colors, [
             _buildDeleteAccountTile(colors),
           ], icon: Icons.warning_amber, iconColor: colors.error),
+          const SizedBox(height: 16),
+          _buildPrivacyPolicyLink(colors),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPrivacyPolicyLink(PeadraColors colors) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: InkWell(
+          onTap: () async {
+            final uri = Uri.parse('https://arthurfert.com/privacy/peadra');
+            if (await canLaunchUrl(uri)) {
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
+            }
+          },
+          child: Text(
+            Translator.t('param_privacy_policy'),
+            style: TextStyle(
+              fontSize: 12,
+              color: colors.accent,
+              decoration: TextDecoration.underline,
+              decorationColor: colors.placeholderColor,
+            ),
+          ),
+        ),
       ),
     );
   }

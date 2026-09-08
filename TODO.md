@@ -13,13 +13,9 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-- Dropdown with 2 choices in settings now match existing UI
-- Added new themes :
-    - High contrast (light)
-    - High contrast (dark)
+- Privacy policy link at the bottom of settings
+- Play Store package release (**Peadra will soon be available there !**)
 
 ### Fixes
 
-- Fixed the backup parameters section layout for mobile
-- Arrows in transactions view now match user expectations
-- Sync service now detects when WI-FI is enabled, fixing the *wi-fi enabled after the app startup* inconvenience
+- Fixed critical bugs regarding the data importation service

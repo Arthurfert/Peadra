@@ -1272,7 +1272,11 @@ void setUserId(String userId) {
     String? currency,
   }) async {
     final db = await database;
-    final descId = await getOrCreateDescription(description);
+    // Never create a junk empty-string description row (e.g. from imports
+    // with no description column); description_id is nullable.
+    final descId = description.trim().isEmpty
+        ? null
+        : await getOrCreateDescription(description);
 
     String effectiveCurrency = currency ?? defaultCurrency;
     if (accountId != null) {

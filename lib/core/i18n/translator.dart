@@ -282,6 +282,7 @@ class Translator {
       'param_delete_confirm': 'Delete Account',
       'param_delete_warning': 'This action is permanent and cannot be undone.',
       'param_delete_password_prompt': 'Enter your password to confirm:',
+      'param_privacy_policy': 'Privacy Policy',
       'param_delete_password_required': 'Password is required',
       'param_delete_password_incorrect': 'Incorrect password',
       'sync_title': 'Sync',
@@ -699,6 +700,7 @@ class Translator {
           'Cette action est permanente et ne peut pas \u00eatre annul\u00e9e.',
       'param_delete_password_prompt':
           'Entrez votre mot de passe pour confirmer :',
+      'param_privacy_policy': 'Politique de confidentialité',
       'param_delete_password_required': 'Le mot de passe est requis',
       'param_delete_password_incorrect': 'Mot de passe incorrect',
       'sync_title': 'Synchroniser',

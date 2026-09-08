@@ -181,6 +181,9 @@ class _ImportDataViewState extends State<ImportDataView> {
         accountId: _selectedAccountId!,
         currency: account.currency,
         delimiter: _selectedDelimiter,
+        // Refuse to import if the file changed since the preview, so the
+        // confirmed column mapping is never applied to different content.
+        expectedFileHash: _preview!.fileHash,
       );
 
       setState(() {
@@ -586,13 +589,17 @@ class _ImportDataViewState extends State<ImportDataView> {
   Widget _buildResultStep(PeadraColors colors) {
     if (_result == null) return const SizedBox.shrink();
 
+    final fatal = _result!.fatalError != null;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.check_circle, size: 64, color: colors.incomeIcon),
+            Icon(fatal ? Icons.error_outline : Icons.check_circle,
+                size: 64,
+                color: fatal ? colors.expenseIcon : colors.incomeIcon),
             const SizedBox(height: 16),
             Text(
               Translator.t('import_complete'),
@@ -601,6 +608,14 @@ class _ImportDataViewState extends State<ImportDataView> {
                   fontWeight: FontWeight.w600,
                   color: colors.text),
             ),
+            if (fatal) ...[
+              const SizedBox(height: 8),
+              Text(
+                _result!.fatalError!,
+                style: TextStyle(fontSize: 13, color: colors.expenseIcon),
+                textAlign: TextAlign.center,
+              ),
+            ],
             const SizedBox(height: 16),
             _resultStat(Translator.t('import_total'), _result!.totalRows, colors),
             _resultStat(Translator.t('import_imported'), _result!.imported, colors, color: colors.incomeIcon),

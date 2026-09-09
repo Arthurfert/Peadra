@@ -7,6 +7,7 @@ import 'package:decimal/decimal.dart';
 import 'package:flutter/foundation.dart';
 
 import '../database/database_manager.dart';
+import 'export_service.dart';
 
 /// Column mapping keys from CSV headers to internal fields.
 enum ColumnMapping {
@@ -822,6 +823,37 @@ class ImportService {
       ),
       error: null,
     );
+  }
+
+  /// Round-trip contract: verify that one exported data row (in
+  /// [ExportService.exportHeaders] column order) is accepted by the import
+  /// pipeline. Returns an error message, or null when the row would import
+  /// cleanly. Used by tests to prove every export output re-imports.
+  @visibleForTesting
+  String? validateExportRow(List<String> row) {
+    final mappings = [
+      ImportMapping(0, ColumnMapping.date),
+      ImportMapping(1, ColumnMapping.description),
+      ImportMapping(2, ColumnMapping.amount),
+      ImportMapping(3, ColumnMapping.type),
+    ];
+    final mappingErrors =
+        validateMappings(mappings, ExportService.exportHeaders.length);
+    if (mappingErrors.isNotEmpty) return mappingErrors.join('; ');
+    final result = _parseRow(
+      row: row,
+      rowNum: 2,
+      mappingByCol: {
+        0: ColumnMapping.date,
+        1: ColumnMapping.description,
+        2: ColumnMapping.amount,
+        3: ColumnMapping.type,
+      },
+      fallbackType: 'expense',
+    );
+    if (result.row != null) return null;
+    final err = result.error ?? 'invalid row';
+    return err.isEmpty ? 'zero amount (skipped by design)' : err;
   }
 
   /// Import transactions from a CSV file with given mappings.

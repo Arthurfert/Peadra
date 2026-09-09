@@ -12,6 +12,7 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/language_provider.dart';
 import '../../../core/providers/update_provider.dart';
 import '../../../core/database/database_manager.dart';
+import '../../../core/models/account.dart';
 import '../../../core/theme/peadra_colors.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/biometric_service.dart';
@@ -1365,27 +1366,118 @@ class _ParametersViewState extends State<ParametersView> {
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('btn_export_desc'),
           style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
-      onTap: () async {
-        try {
-          final exportService = ExportService();
-          final content = await exportService.exportToCsv();
-          final path =
-              await exportService.saveToFile(content: content, format: 'csv');
-          if (mounted && path != null) {
-            LogService().log('CSV exported to: $path');
-            final isMobile = Platform.isAndroid || Platform.isIOS;
-            final message = isMobile
-                ? Translator.t('msg_export_success_mobile')
-                : Translator.t('msg_export_success').replaceAll('{file_path}', path);
-            PeadraNotification.show(context, message: message);
-          }
-        } catch (e) {
-          if (mounted) {
-            PeadraNotification.show(context, message: Translator.t('msg_export_error'), type: NotificationType.error);
-          }
-        }
+      onTap: () => _showExportAccountDialog(colors),
+    );
+  }
+
+  /// Account picker for CSV export. The import handles a single account, so
+  /// the export is scoped to one account to keep the round-trip exact.
+  Future<void> _showExportAccountDialog(PeadraColors colors) async {
+    List<Account> accounts;
+    try {
+      accounts = await _db.getAllAccounts();
+    } catch (e) {
+      if (mounted) {
+        PeadraNotification.show(context, message: Translator.t('msg_export_error'), type: NotificationType.error);
+      }
+      return;
+    }
+    if (!mounted) return;
+
+    if (accounts.isEmpty) {
+      PeadraNotification.show(context,
+          message: Translator.t('export_no_accounts'),
+          type: NotificationType.warning);
+      return;
+    }
+
+    String selectedId = accounts.first.id!;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        String localSelected = selectedId;
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            backgroundColor: colors.surface,
+            title: Text('${Translator.t('btn_export')} CSV',
+                style: TextStyle(color: colors.text)),
+            content: DropdownButtonFormField<String>(
+              initialValue: localSelected,
+              isExpanded: true,
+              decoration: InputDecoration(
+                labelText: Translator.t('export_select_account'),
+                labelStyle: TextStyle(color: colors.placeholderColor),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                filled: true,
+                fillColor: colors.bg,
+              ),
+              dropdownColor: colors.surface,
+              style: TextStyle(color: colors.text),
+              items: accounts
+                  .map((a) => DropdownMenuItem(
+                        value: a.id,
+                        child: Text(a.name,
+                            overflow: TextOverflow.ellipsis),
+                      ))
+                  .toList(),
+              onChanged: (v) {
+                if (v != null) {
+                  setDialogState(() => localSelected = v);
+                  selectedId = v;
+                }
+              },
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: Text(Translator.t('btn_cancel'),
+                    style: TextStyle(color: colors.placeholderColor)),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: colors.accent,
+                  foregroundColor: Colors.white,
+                ),
+                child: Text(Translator.t('btn_export')),
+              ),
+            ],
+          ),
+        );
       },
     );
+
+    if (confirmed != true || !mounted) return;
+
+    final account = accounts.firstWhere((a) => a.id == selectedId,
+        orElse: () => accounts.first);
+    try {
+      final exportService = ExportService();
+      final content =
+          await exportService.exportToCsv(accountId: account.id!);
+      final timestamp =
+          DateTime.now().toIso8601String().substring(0, 19).replaceAll(':', '-');
+      final path = await exportService.saveToFile(
+        content: content,
+        format: 'csv',
+        fileName: exportService.exportFileName(account.name, timestamp),
+      );
+      if (mounted && path != null) {
+        LogService().log('CSV exported to: $path');
+        final isMobile = Platform.isAndroid || Platform.isIOS;
+        final message = isMobile
+            ? Translator.t('msg_export_success_mobile')
+            : Translator.t('msg_export_success').replaceAll('{file_path}', path);
+        PeadraNotification.show(context, message: message);
+      }
+    } catch (e) {
+      if (mounted) {
+        PeadraNotification.show(context, message: Translator.t('msg_export_error'), type: NotificationType.error);
+      }
+    }
   }
 
   Widget _buildExportLogsTile(PeadraColors colors) {

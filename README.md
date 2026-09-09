@@ -20,7 +20,7 @@
 
 ## Overview
 
-Peadra ("*wealth*" in Breton) is a secure, privacy-focused cross-platform application designed to streamline personal finance and asset management.
+Peadra ("*wealth*" in Breton) is a free, secure, privacy-focused cross-platform application designed to streamline personal finance and asset management.
 
 Built with **Flutter & Dart**, it runs natively on **Linux, Windows and Android**.  
 Your financial data stays **100% local**.  
@@ -53,7 +53,13 @@ Track your assets, manage transactions across multiple accounts and currencies, 
 
 ## Install
 
-To install the app, please download your designated installer in the `Release` section.
+To install the app, please download your designated installer in the `Release` section :
+
+|  Device | Installer |
+| :----------------: | :-----------------: |
+| Android | peadra-*version*-android.apk |
+| Windows | peadra-*version*-windows.msix + .cer |
+| Linux (debian-based) | peadra-*version*-linux.deb |
 
 > [!NOTE]
 > For **Windows users**, you will need to download and install the `peadra.cer` file (certificates for windows to trust Peadra).

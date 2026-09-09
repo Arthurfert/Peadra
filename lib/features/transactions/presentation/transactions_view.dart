@@ -659,6 +659,186 @@ class _TransactionsViewState extends State<TransactionsView> {
             .replaceAll('{dest}', pairedTxn.accountName ?? '?')
         : (txn.descriptionName ?? '-');
 
+    final previewRows = <Widget>[
+      Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: iconColor, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                color: colors.text,
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 20),
+      _previewRow(Translator.t('trans_account'), txn.accountName ?? '-', colors),
+      _previewRow(
+        Translator.t('trans_type'),
+        isIncome
+            ? Translator.t('trans_income')
+            : isTransfer
+                ? Translator.t('trans_transfer')
+                : Translator.t('trans_expense'),
+        colors,
+      ),
+      _previewRow(Translator.t('trans_date'), Translator.formatDate(txn.date), colors),
+      _previewRow(
+        Translator.t('trans_amount'),
+        '$sign${CurrencyService.formatAmount(txn.amount, displayCurrency)}',
+        colors,
+        valueColor: isIncome
+            ? colors.success
+            : isTransfer
+                ? colors.transferColor
+                : colors.error,
+      ),
+      if (pairedTxn != null) ...[
+        _previewRow(
+          '${Translator.t('trans_amount')} (${pairedTxn.accountName ?? '-'})',
+          '+${CurrencyService.formatAmount(pairedTxn.amount, displayCurrency)}',
+          colors,
+          valueColor: colors.success,
+        ),
+      ],
+      if (txn.tagName != null)
+        _previewRow(
+          Translator.t('trans_tag'),
+          txn.tagName!,
+          colors,
+          valueColor: Color(int.parse(
+              (txn.tagColor ?? '#1976D2').replaceFirst('#', '0xFF'))),
+        ),
+      if (txn.notes != null && txn.notes!.isNotEmpty)
+        _previewRow(Translator.t('trans_notes'), txn.notes!, colors),
+    ];
+
+    final isPhone = ResponsiveLayout.isPhone(context);
+
+    if (isPhone) {
+      await showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (ctx) => Container(
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: EdgeInsets.fromLTRB(
+            24,
+            12,
+            24,
+            24 + MediaQuery.of(ctx).viewInsets.bottom,
+          ),
+          child: SafeArea(
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: colors.placeholderColor.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ...previewRows,
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(Translator.t('btn_cancel'),
+                                maxLines: 1, softWrap: false, style: const TextStyle(fontSize: 13)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () async {
+                            Navigator.pop(ctx);
+                            await _deleteTransaction(txn);
+                            if (pairedTxn != null) {
+                              await _db.deleteTransaction(pairedTxn.id!);
+                            }
+                            _loadTransactions();
+                            widget.onDataChanged?.call();
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: colors.error,
+                            side: BorderSide(color: colors.error),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(Translator.t('btn_delete'),
+                                maxLines: 1, softWrap: false, style: const TextStyle(fontSize: 13)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _editTransaction(txn, pairedTxn: pairedTxn);
+                          },
+                          style: FilledButton.styleFrom(
+                            backgroundColor: colors.accent,
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(Translator.t('btn_edit'),
+                                maxLines: 1, softWrap: false, style: const TextStyle(fontSize: 13)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -670,74 +850,7 @@ class _TransactionsViewState extends State<TransactionsView> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: bgColor,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(icon, color: iconColor, size: 20),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: TextStyle(
-                        color: colors.text,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              _previewRow(Translator.t('trans_account'), txn.accountName ?? '-', colors),
-              _previewRow(
-                Translator.t('trans_type'),
-                isIncome
-                    ? Translator.t('trans_income')
-                    : isTransfer
-                        ? Translator.t('trans_transfer')
-                        : Translator.t('trans_expense'),
-                colors,
-              ),
-              _previewRow(Translator.t('trans_date'), Translator.formatDate(txn.date), colors),
-              _previewRow(
-                Translator.t('trans_amount'),
-                '$sign${CurrencyService.formatAmount(txn.amount, displayCurrency)}',
-                colors,
-                valueColor: isIncome
-                    ? colors.success
-                    : isTransfer
-                        ? colors.transferColor
-                        : colors.error,
-              ),
-              if (pairedTxn != null) ...[
-                _previewRow(
-                  '${Translator.t('trans_amount')} (${pairedTxn.accountName ?? '-'})',
-                  '+${CurrencyService.formatAmount(pairedTxn.amount, displayCurrency)}',
-                  colors,
-                  valueColor: colors.success,
-                ),
-              ],
-              if (txn.tagName != null)
-                _previewRow(
-                  Translator.t('trans_tag'),
-                  txn.tagName!,
-                  colors,
-                  valueColor: Color(int.parse(
-                      (txn.tagColor ?? '#1976D2').replaceFirst('#', '0xFF'))),
-                ),
-              if (txn.notes != null && txn.notes!.isNotEmpty)
-                _previewRow(Translator.t('trans_notes'), txn.notes!, colors),
-            ],
+            children: previewRows,
           ),
         ),
         actions: [
@@ -1309,9 +1422,7 @@ class _TransactionsViewState extends State<TransactionsView> {
             ),
           ],
         ),
-        onTap: isPhone
-            ? () => _editTransaction(txn)
-            : () => _showTransactionPreview(txn),
+        onTap: () => _showTransactionPreview(txn),
       ),
     );
 
@@ -1410,9 +1521,7 @@ class _TransactionsViewState extends State<TransactionsView> {
             fontSize: isSameCurrency ? 14 : 12,
           ),
         ),
-        onTap: isPhone
-            ? () => _editTransaction(txn, pairedTxn: pairedTxn)
-            : () => _showTransactionPreview(txn, pairedTxn: pairedTxn),
+        onTap: () => _showTransactionPreview(txn, pairedTxn: pairedTxn),
       ),
     );
 

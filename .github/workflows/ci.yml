@@ -127,6 +127,11 @@ jobs:
     needs: test
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    env:
+      # Safeguard: versionCode = OFFSET + github.run_number.
+      # Bump OFFSET if Play already contains a higher versionCode
+      # (e.g. from a manual upload) — future CI builds stay above it.
+      ANDROID_VERSION_CODE_OFFSET: "1000"
 
     steps:
       - uses: actions/checkout@v4
@@ -146,8 +151,18 @@ jobs:
       - name: Generate launcher icons
         run: dart run flutter_launcher_icons
 
+      - name: Resolve Android version
+        id: android_version
+        run: |
+          version=$(grep '^version:' pubspec.yaml | head -1 | awk '{print $2}')
+          version_name=${version%%+*}
+          build_number=$((ANDROID_VERSION_CODE_OFFSET + ${{ github.run_number }}))
+          echo "version_name=$version_name" >> "$GITHUB_OUTPUT"
+          echo "build_number=$build_number" >> "$GITHUB_OUTPUT"
+          echo "Android versionName=$version_name versionCode=$build_number (offset=$ANDROID_VERSION_CODE_OFFSET run_number=${{ github.run_number }})"
+
       - name: Build APK
-        run: flutter build apk --release
+        run: flutter build apk --release --build-name=${{ steps.android_version.outputs.version_name }} --build-number=${{ steps.android_version.outputs.build_number }}
         env:
           ANDROID_SIGNING_STOREFILE: "peadra-release.keystore"
           ANDROID_SIGNING_STOREPASSWORD: "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}"
@@ -155,7 +170,7 @@ jobs:
           ANDROID_SIGNING_KEYPASSWORD: "${{ secrets.ANDROID_KEY_PASSWORD }}"
 
       - name: Build App Bundle (AAB)
-        run: flutter build appbundle --release
+        run: flutter build appbundle --release --build-name=${{ steps.android_version.outputs.version_name }} --build-number=${{ steps.android_version.outputs.build_number }}
         env:
           ANDROID_SIGNING_STOREFILE: "peadra-release.keystore"
           ANDROID_SIGNING_STOREPASSWORD: "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}"

@@ -13,9 +13,7 @@ This document presents future changes and wanted improvements.
 
 ### New
 
-- Privacy policy link at the bottom of settings
-- Play Store package release (**Peadra will soon be available there !**)
+- Removed the *Swipe to delete transaction* feature on mobile following new transaction details modal.
 
 ### Fixes
 
-- Fixed critical bugs regarding the data importation service

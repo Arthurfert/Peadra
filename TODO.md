@@ -17,3 +17,4 @@ This document presents future changes and wanted improvements.
 
 ### Fixes
 
+- Fixed the transaction view being a little lower than the others on mobile

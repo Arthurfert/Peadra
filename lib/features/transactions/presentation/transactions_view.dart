@@ -951,11 +951,7 @@ class _TransactionsViewState extends State<TransactionsView> {
     final currency = context.watch<SettingsProvider>().currency;
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(
-          ResponsiveLayout.isPhone(context) ? 16 : 24,
-          24,
-          ResponsiveLayout.isPhone(context) ? 16 : 24,
-          0),
+      padding: ResponsiveLayout.pagePaddingAll(context).copyWith(bottom: 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

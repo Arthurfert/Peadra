@@ -43,6 +43,8 @@ class _LoginViewState extends State<LoginView> {
   String? _selectedUser;
   bool _biometricAvailable = false;
   bool _biometricEnabled = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirm = true;
 
   @override
   void initState() {
@@ -419,7 +421,7 @@ class _LoginViewState extends State<LoginView> {
                   const SizedBox(height: 12),
                   TextField(
                     controller: _passwordController,
-                    obscureText: true,
+                    obscureText: _obscurePassword,
                     autofillHints: const [AutofillHints.password],
                     onSubmitted: (_) => _submit(),
                     decoration: InputDecoration(
@@ -429,6 +431,13 @@ class _LoginViewState extends State<LoginView> {
                       ),
                       filled: true,
                       fillColor: colors.bg,
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                          color: colors.placeholderColor,
+                        ),
+                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                      ),
                     ),
                   ),
 
@@ -436,7 +445,7 @@ class _LoginViewState extends State<LoginView> {
                     const SizedBox(height: 12),
                     TextField(
                       controller: _confirmController,
-                      obscureText: true,
+                      obscureText: _obscureConfirm,
                       maxLength: 128,
                       autofillHints: const [AutofillHints.newPassword],
                       onSubmitted: (_) => _submit(),
@@ -447,6 +456,13 @@ class _LoginViewState extends State<LoginView> {
                         ),
                         filled: true,
                         fillColor: colors.bg,
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscureConfirm ? Icons.visibility_off : Icons.visibility,
+                            color: colors.placeholderColor,
+                          ),
+                          onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                        ),
                       ),
                     ),
                   ],

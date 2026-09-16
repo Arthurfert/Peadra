@@ -951,11 +951,7 @@ class _TransactionsViewState extends State<TransactionsView> {
     final currency = context.watch<SettingsProvider>().currency;
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(
-          ResponsiveLayout.isPhone(context) ? 16 : 24,
-          24,
-          ResponsiveLayout.isPhone(context) ? 16 : 24,
-          0),
+      padding: ResponsiveLayout.pagePaddingAll(context).copyWith(bottom: 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1319,7 +1315,7 @@ class _TransactionsViewState extends State<TransactionsView> {
     final card = Card(
       color: upcoming ? _upcomingBackground(colors) : colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: isPhone ? null : EdgeInsets.zero,
+      margin: EdgeInsets.zero,
       child: ListTile(
         leading: Container(
           width: 40,
@@ -1426,30 +1422,6 @@ class _TransactionsViewState extends State<TransactionsView> {
       ),
     );
 
-    if (isPhone) {
-      return Dismissible(
-        key: ValueKey(txn.id),
-        direction: DismissDirection.endToStart,
-        background: Container(
-          alignment: Alignment.centerRight,
-          padding: const EdgeInsets.only(right: 20),
-          margin: const EdgeInsets.only(bottom: 8),
-          decoration: BoxDecoration(
-            color: colors.error,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Icon(Icons.delete, color: Colors.white),
-        ),
-        confirmDismiss: (direction) async {
-          await _deleteTransaction(txn);
-          _loadTransactions();
-          widget.onDataChanged?.call();
-          return false;
-        },
-        child: card,
-      );
-    }
-
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: card,
@@ -1481,12 +1453,10 @@ class _TransactionsViewState extends State<TransactionsView> {
         ? CurrencyService.formatAmount(txn.amount, srcCurrency)
         : '${CurrencyService.formatAmount(txn.amount, srcCurrency)} → ${CurrencyService.formatAmount(pairedTxn?.amount ?? txn.amount, destCurrency)}';
 
-    final isPhone = ResponsiveLayout.isPhone(context);
-
     final card = Card(
       color: upcoming ? _upcomingBackground(colors) : colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: isPhone ? null : EdgeInsets.zero,
+      margin: EdgeInsets.zero,
       child: ListTile(
         leading: Container(
           width: 40,
@@ -1524,33 +1494,6 @@ class _TransactionsViewState extends State<TransactionsView> {
         onTap: () => _showTransactionPreview(txn, pairedTxn: pairedTxn),
       ),
     );
-
-    if (isPhone) {
-      return Dismissible(
-        key: ValueKey('transfer-${txn.id}'),
-        direction: DismissDirection.endToStart,
-        background: Container(
-          alignment: Alignment.centerRight,
-          padding: const EdgeInsets.only(right: 20),
-          margin: const EdgeInsets.only(bottom: 8),
-          decoration: BoxDecoration(
-            color: colors.error,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Icon(Icons.delete, color: Colors.white),
-        ),
-        confirmDismiss: (direction) async {
-          await _deleteTransaction(txn);
-          if (item.pairedTransaction != null) {
-            await _db.deleteTransaction(item.pairedTransaction!.id!);
-          }
-          _loadTransactions();
-          widget.onDataChanged?.call();
-          return false;
-        },
-        child: card,
-      );
-    }
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),

@@ -238,6 +238,7 @@ class _DashboardViewState extends State<DashboardView> {
         iconColor: colors.error,
         bgColor: colors.expenseBg,
         colors: colors,
+        invertChange: true,
       ),
       _buildStatCard(
         title: Translator.t('dash_savings_outside'),
@@ -294,6 +295,7 @@ class _DashboardViewState extends State<DashboardView> {
     required Color iconColor,
     required Color bgColor,
     required PeadraColors colors,
+    bool invertChange = false,
   }) {
     return Card(
       color: colors.surface,
@@ -315,7 +317,7 @@ class _DashboardViewState extends State<DashboardView> {
                   ),
                   child: Icon(icon, color: iconColor, size: 20),
                 ),
-                _buildChangeIndicator(change, colors),
+                _buildChangeIndicator(change, colors, invert: invertChange),
               ],
             ),
             const SizedBox(height: 12),
@@ -345,9 +347,10 @@ class _DashboardViewState extends State<DashboardView> {
     );
   }
 
-  Widget _buildChangeIndicator(double change, PeadraColors colors) {
+  Widget _buildChangeIndicator(double change, PeadraColors colors, {bool invert = false}) {
     final isPositive = change >= 0;
-    final color = isPositive ? colors.success : colors.error;
+    final isGood = invert ? change <= 0 : change >= 0;
+    final color = isGood ? colors.success : colors.error;
     final icon = isPositive ? Icons.arrow_upward : Icons.arrow_downward;
 
     return Row(

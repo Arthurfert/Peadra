@@ -14,6 +14,8 @@ This document presents future changes and wanted improvements.
 ### New
 
 - Added a *view password* toggle in login view and change password parameter.
+- Removed the *Swipe to delete transaction* feature on mobile following new transaction details modal.
 
 ### Fixes
 
+- Fixed the transaction view being a little lower than the others on mobile

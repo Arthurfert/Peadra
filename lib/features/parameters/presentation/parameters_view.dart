@@ -1129,110 +1129,140 @@ class _ParametersViewState extends State<ParametersView> {
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: colors.surface,
-        title: Text(Translator.t('param_change_password'),
-            style: TextStyle(color: colors.text)),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: oldPasswordController,
-                obscureText: true,
-                maxLength: 128,
-                style: TextStyle(color: colors.text),
-                decoration: InputDecoration(
-                  labelText: Translator.t('param_old_password'),
-                  labelStyle: TextStyle(color: colors.placeholderColor),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  filled: true,
-                  fillColor: colors.bg,
+      builder: (ctx) {
+        bool obscureOld = true;
+        bool obscureNew = true;
+        bool obscureConfirm = true;
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return AlertDialog(
+              backgroundColor: colors.surface,
+              title: Text(Translator.t('param_change_password'),
+                  style: TextStyle(color: colors.text)),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: oldPasswordController,
+                      obscureText: obscureOld,
+                      maxLength: 128,
+                      style: TextStyle(color: colors.text),
+                      decoration: InputDecoration(
+                        labelText: Translator.t('param_old_password'),
+                        labelStyle: TextStyle(color: colors.placeholderColor),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        filled: true,
+                        fillColor: colors.bg,
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            obscureOld ? Icons.visibility_off : Icons.visibility,
+                            color: colors.placeholderColor,
+                          ),
+                          onPressed: () => setDialogState(() => obscureOld = !obscureOld),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: newPasswordController,
+                      obscureText: obscureNew,
+                      maxLength: 128,
+                      style: TextStyle(color: colors.text),
+                      decoration: InputDecoration(
+                        labelText: Translator.t('param_new_password'),
+                        labelStyle: TextStyle(color: colors.placeholderColor),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        filled: true,
+                        fillColor: colors.bg,
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            obscureNew ? Icons.visibility_off : Icons.visibility,
+                            color: colors.placeholderColor,
+                          ),
+                          onPressed: () => setDialogState(() => obscureNew = !obscureNew),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: confirmPasswordController,
+                      obscureText: obscureConfirm,
+                      maxLength: 128,
+                      style: TextStyle(color: colors.text),
+                      decoration: InputDecoration(
+                        labelText: Translator.t('param_password_confirm'),
+                        labelStyle: TextStyle(color: colors.placeholderColor),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        filled: true,
+                        fillColor: colors.bg,
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            obscureConfirm ? Icons.visibility_off : Icons.visibility,
+                            color: colors.placeholderColor,
+                          ),
+                          onPressed: () => setDialogState(() => obscureConfirm = !obscureConfirm),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: newPasswordController,
-                obscureText: true,
-                maxLength: 128,
-                style: TextStyle(color: colors.text),
-                decoration: InputDecoration(
-                  labelText: Translator.t('param_new_password'),
-                  labelStyle: TextStyle(color: colors.placeholderColor),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  filled: true,
-                  fillColor: colors.bg,
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: Text(Translator.t('btn_cancel'),
+                      style: TextStyle(color: colors.placeholderColor)),
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: confirmPasswordController,
-                obscureText: true,
-                maxLength: 128,
-                style: TextStyle(color: colors.text),
-                decoration: InputDecoration(
-                  labelText: Translator.t('param_password_confirm'),
-                  labelStyle: TextStyle(color: colors.placeholderColor),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  filled: true,
-                  fillColor: colors.bg,
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(Translator.t('btn_cancel'),
-                style: TextStyle(color: colors.placeholderColor)),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final oldPass = oldPasswordController.text;
-              final newPass = newPasswordController.text;
-              final confirmPass = confirmPasswordController.text;
+                ElevatedButton(
+                  onPressed: () async {
+                    final oldPass = oldPasswordController.text;
+                    final newPass = newPasswordController.text;
+                    final confirmPass = confirmPasswordController.text;
 
-              if (oldPass.isEmpty || newPass.isEmpty) {
-                PeadraNotification.show(context, message: Translator.t('param_password_empty'), type: NotificationType.warning);
-                return;
-              }
-              if (newPass != confirmPass) {
-                PeadraNotification.show(context, message: Translator.t('param_password_mismatch'), type: NotificationType.warning);
-                return;
-              }
+                    if (oldPass.isEmpty || newPass.isEmpty) {
+                      PeadraNotification.show(context, message: Translator.t('param_password_empty'), type: NotificationType.warning);
+                      return;
+                    }
+                    if (newPass != confirmPass) {
+                      PeadraNotification.show(context, message: Translator.t('param_password_mismatch'), type: NotificationType.warning);
+                      return;
+                    }
 
-              try {
-                final auth = context.read<AuthProvider>();
-                final settings = context.read<SettingsProvider>();
-                final success = await _authService.updatePassword(
-                    auth.userId!, oldPass, newPass);
-                if (success && mounted) {
-                  await _biometricService.clearCredentials();
-                  await settings.setBiometricEnabled(false, _db);
-                  Navigator.of(ctx).pop();
-                  PeadraNotification.show(context, message: Translator.t('param_biometric_re_enable'), type: NotificationType.warning);
-                }
-              } catch (e) {
-                if (mounted) {
-                  PeadraNotification.show(context, message: Translator.t('param_old_password_incorrect'), type: NotificationType.error);
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: colors.accent,
-              foregroundColor: Colors.white,
-            ),
-            child: Text(Translator.t('param_btn_save')),
-          ),
-        ],
-      ),
+                    try {
+                      final auth = context.read<AuthProvider>();
+                      final settings = context.read<SettingsProvider>();
+                      final success = await _authService.updatePassword(
+                          auth.userId!, oldPass, newPass);
+                      if (success && mounted) {
+                        await _biometricService.clearCredentials();
+                        await settings.setBiometricEnabled(false, _db);
+                        Navigator.of(ctx).pop();
+                        PeadraNotification.show(context, message: Translator.t('param_biometric_re_enable'), type: NotificationType.warning);
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        PeadraNotification.show(context, message: Translator.t('param_old_password_incorrect'), type: NotificationType.error);
+                      }
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colors.accent,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: Text(Translator.t('param_btn_save')),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -1752,45 +1782,56 @@ class _ParametersViewState extends State<ParametersView> {
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: colors.surface,
-        title: Row(
-          children: [
-            Icon(Icons.warning, color: colors.error),
-            const SizedBox(width: 8),
-            Text(Translator.t('param_delete_confirm'),
-                style: TextStyle(color: colors.error)),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(Translator.t('param_delete_warning'),
-                  style: TextStyle(color: colors.text)),
-              const SizedBox(height: 16),
-              Text(Translator.t('param_delete_password_prompt'),
-                  style: TextStyle(color: colors.text)),
-              const SizedBox(height: 8),
-              TextField(
-                controller: passwordController,
-                obscureText: true,
-                maxLength: 128,
-                style: TextStyle(color: colors.text),
-                decoration: InputDecoration(
-                  labelText: Translator.t('param_password'),
-                  labelStyle: TextStyle(color: colors.placeholderColor),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  filled: true,
-                  fillColor: colors.bg,
+      builder: (ctx) {
+        bool obscureDelete = true;
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return AlertDialog(
+              backgroundColor: colors.surface,
+              title: Row(
+                children: [
+                  Icon(Icons.warning, color: colors.error),
+                  const SizedBox(width: 8),
+                  Text(Translator.t('param_delete_confirm'),
+                      style: TextStyle(color: colors.error)),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(Translator.t('param_delete_warning'),
+                        style: TextStyle(color: colors.text)),
+                    const SizedBox(height: 16),
+                    Text(Translator.t('param_delete_password_prompt'),
+                        style: TextStyle(color: colors.text)),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: passwordController,
+                      obscureText: obscureDelete,
+                      maxLength: 128,
+                      style: TextStyle(color: colors.text),
+                      decoration: InputDecoration(
+                        labelText: Translator.t('param_password'),
+                        labelStyle: TextStyle(color: colors.placeholderColor),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        filled: true,
+                        fillColor: colors.bg,
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            obscureDelete ? Icons.visibility_off : Icons.visibility,
+                            color: colors.placeholderColor,
+                          ),
+                          onPressed: () => setDialogState(() => obscureDelete = !obscureDelete),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
@@ -1831,7 +1872,10 @@ class _ParametersViewState extends State<ParametersView> {
             child: Text(Translator.t('param_delete_confirm')),
           ),
         ],
-      ),
+            );
+          },
+        );
+      },
     );
   }
 }

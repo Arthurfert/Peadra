@@ -170,6 +170,10 @@ class _ParametersViewState extends State<ParametersView> {
               _buildUpdateAvailableTile(colors, updateProvider.availableUpdate!),
           ], icon: Icons.system_update),
           const SizedBox(height: 8),
+          _buildSection(Translator.t('param_feedback'), colors, [
+            _buildFeedbackTile(colors),
+          ], icon: Icons.feedback_outlined),
+          const SizedBox(height: 8),
           _buildSection(Translator.t('param_danger_zone'), colors, [
             _buildDeleteAccountTile(colors),
           ], icon: Icons.warning_amber, iconColor: colors.error),
@@ -177,6 +181,57 @@ class _ParametersViewState extends State<ParametersView> {
           _buildPrivacyPolicyLink(colors),
         ],
       ),
+    );
+  }
+
+  Widget _buildFeedbackTile(PeadraColors colors) {
+    final isPhone = ResponsiveLayout.isPhone(context);
+
+    final button = ElevatedButton.icon(
+      icon: const Icon(Icons.mail_outline, color: Colors.white, size: 16),
+      label: Text(Translator.t('param_feedback_mail_me'),
+          style: const TextStyle(color: Colors.white, fontSize: 12)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: colors.accent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+      onPressed: () async {
+        final uri = Uri(
+          scheme: 'mailto',
+          path: 'peadra@arthurfert.com',
+        );
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri);
+        }
+      },
+    );
+
+    if (isPhone) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(Translator.t('param_feedback_mail_me'),
+                style: TextStyle(color: colors.text)),
+            const SizedBox(height: 4),
+            Text(Translator.t('param_feedback_text'),
+                style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+            const SizedBox(height: 12),
+            button,
+          ],
+        ),
+      );
+    }
+
+    return ListTile(
+      title: Text(Translator.t('param_feedback_mail_me'),
+          style: TextStyle(color: colors.text)),
+      subtitle: Text(Translator.t('param_feedback_text'),
+          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+      trailing: button,
     );
   }
 

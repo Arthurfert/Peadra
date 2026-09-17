@@ -14,6 +14,7 @@ This document presents future changes and wanted improvements.
 ### New
 
 - Months in transaction view are now compact on mobile only
+- *Mail me* feature so you can send me feedback/bugs
 
 ### Fixes
 

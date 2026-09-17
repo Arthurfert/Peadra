@@ -855,15 +855,23 @@ class Translator {
     'month_sep', 'month_oct', 'month_nov', 'month_dec',
   ];
 
+  static const _monthAbbrKeys = [
+    'month_jan_abbr', 'month_feb_abbr', 'month_mar_abbr', 'month_apr_abbr',
+    'month_may_abbr', 'month_jun_abbr', 'month_jul_abbr', 'month_aug_abbr',
+    'month_sep_abbr', 'month_oct_abbr', 'month_nov_abbr', 'month_dec_abbr',
+  ];
+
   /// Formats a "YYYY-MM-DD" date string to a localized human-readable form
   /// such as "12 August 2026" or "12 août 2026".
-  static String formatDate(String dateStr) {
+  /// With [compact] true, uses abbreviated months: "12 Aug 2026".
+  static String formatDate(String dateStr, {bool compact = false}) {
     final parts = dateStr.split('-');
     if (parts.length != 3) return dateStr;
     final day = int.tryParse(parts[2]) ?? 0;
     final month = int.tryParse(parts[1]) ?? 1;
     final year = parts[0];
-    final monthName = t(_monthKeys[(month - 1).clamp(0, 11)]);
+    final keys = compact ? _monthAbbrKeys : _monthKeys;
+    final monthName = t(keys[(month - 1).clamp(0, 11)]);
     return '$day $monthName $year';
   }
 

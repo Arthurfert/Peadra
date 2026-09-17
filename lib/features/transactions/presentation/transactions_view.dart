@@ -697,7 +697,7 @@ class _TransactionsViewState extends State<TransactionsView> {
                 : Translator.t('trans_expense'),
         colors,
       ),
-      _previewRow(Translator.t('trans_date'), Translator.formatDate(txn.date), colors),
+      _previewRow(Translator.t('trans_date'), Translator.formatDate(txn.date, compact: ResponsiveLayout.isPhone(context)), colors),
       _previewRow(
         Translator.t('trans_amount'),
         '$sign${CurrencyService.formatAmount(txn.amount, displayCurrency)}',
@@ -1349,7 +1349,7 @@ class _TransactionsViewState extends State<TransactionsView> {
           children: [
             Expanded(
               child: Text(
-                '${Translator.formatDate(txn.date)}${txn.accountName != null ? " · ${txn.accountName}" : ""}',
+                '${Translator.formatDate(txn.date, compact: isPhone)}${txn.accountName != null ? " · ${txn.accountName}" : ""}',
                 style: TextStyle(
                   color: colors.placeholderColor,
                   fontSize: 12,
@@ -1477,7 +1477,7 @@ class _TransactionsViewState extends State<TransactionsView> {
           overflow: TextOverflow.ellipsis,
         ),
         subtitle: Text(
-          Translator.formatDate(txn.date),
+          Translator.formatDate(txn.date, compact: ResponsiveLayout.isPhone(context)),
           style: TextStyle(
             color: colors.placeholderColor,
             fontSize: 12,

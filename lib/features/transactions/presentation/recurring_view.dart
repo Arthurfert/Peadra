@@ -273,8 +273,7 @@ class _RecurringViewState extends State<RecurringView> {
                         child: Text(
                           Translator.t('rec_no_data'),
                           textAlign: TextAlign.center,
-                          style: TextStyle(
-                              color: colors.placeholderColor, fontSize: 16),
+                          style: TextStyle(color: colors.textSecondary, fontSize: 16),
                         ),
                       ),
                     )
@@ -298,7 +297,7 @@ class _RecurringViewState extends State<RecurringView> {
       children: [
         Text(
           Translator.t('rec_sort_by'),
-          style: TextStyle(color: colors.placeholderColor, fontSize: 13),
+          style: TextStyle(color: colors.textSecondary, fontSize: 13),
         ),
         const SizedBox(width: 8),
         Container(
@@ -408,8 +407,7 @@ class _RecurringViewState extends State<RecurringView> {
                 Expanded(
                   child: Text(
                     _frequencyLabel(rec),
-                    style: TextStyle(
-                        color: colors.placeholderColor, fontSize: 12),
+                    style: TextStyle(color: colors.textSecondary, fontSize: 12),
                   ),
                 ),
               ],
@@ -421,7 +419,7 @@ class _RecurringViewState extends State<RecurringView> {
                   child: Text(
                     '${Translator.t('rec_next_due')}: ${rec.nextDueDate}',
                     style:
-                        TextStyle(color: colors.placeholderColor, fontSize: 12),
+                        TextStyle(color: colors.textSecondary, fontSize: 12),
                   ),
                 ),
                 if (rec.tagName != null) ...[
@@ -441,7 +439,7 @@ class _RecurringViewState extends State<RecurringView> {
               Text(
                 Translator.t('rec_generated_count',
                     params: {'count': '${rec.generatedCount}'}),
-                style: TextStyle(color: colors.placeholderColor, fontSize: 12),
+                style: TextStyle(color: colors.textSecondary, fontSize: 12),
               ),
             ],
           ],

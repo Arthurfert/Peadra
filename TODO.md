@@ -18,3 +18,4 @@ This document presents future changes and wanted improvements.
 
 ### Fixes
 
+- Augmented the contrast for secondary texts

@@ -212,7 +212,7 @@ class _PeersListScreenState extends State<PeersListScreen> {
             const SizedBox(height: 16),
             Text(
               Translator.t('sync_peers_empty'),
-              style: TextStyle(color: colors.placeholderColor, height: 1.4),
+              style: TextStyle(color: colors.textSecondary, height: 1.4),
               textAlign: TextAlign.center,
             ),
           ],
@@ -235,7 +235,7 @@ class _PeersListScreenState extends State<PeersListScreen> {
         title: Text(peer.deviceName, style: TextStyle(color: colors.text)),
         subtitle: Text(
           _formatLastSeen(peer),
-          style: TextStyle(color: colors.placeholderColor, fontSize: 12),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12),
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,

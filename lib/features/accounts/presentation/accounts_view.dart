@@ -85,8 +85,7 @@ class _AccountsViewState extends State<AccountsView> {
                     ? Center(
                         child: Text(
                           Translator.t('dash_no_assets'),
-                          style: TextStyle(
-                              color: colors.placeholderColor, fontSize: 16),
+                          style: TextStyle(color: colors.textSecondary, fontSize: 16),
                         ),
                       )
                     : GridView.builder(
@@ -192,7 +191,7 @@ class _AccountsViewState extends State<AccountsView> {
               acct.isChecking ? Translator.t('acc_checking') : Translator.t('acc_savings'),
               style: TextStyle(
                 fontSize: 12,
-                color: colors.placeholderColor,
+                color: colors.textSecondary,
               ),
             ),
             const SizedBox(height: 4),

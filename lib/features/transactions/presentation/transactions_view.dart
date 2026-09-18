@@ -897,7 +897,7 @@ class _TransactionsViewState extends State<TransactionsView> {
             child: Text(
               label,
               style: TextStyle(
-                color: colors.placeholderColor,
+                color: colors.textSecondary,
                 fontSize: 13,
               ),
             ),
@@ -972,8 +972,7 @@ class _TransactionsViewState extends State<TransactionsView> {
                     const SizedBox(height: 4),
                     Text(
                       Translator.t('trans_subtitle'),
-                      style: TextStyle(
-                          color: colors.placeholderColor, fontSize: 14),
+                      style: TextStyle(color: colors.textSecondary, fontSize: 14),
                     ),
                   ],
                 ),
@@ -1167,8 +1166,7 @@ class _TransactionsViewState extends State<TransactionsView> {
                     ? Center(
                         child: Text(
                           Translator.t('trans_no_recent'),
-                          style: TextStyle(
-                              color: colors.placeholderColor, fontSize: 16),
+                          style: TextStyle(color: colors.textSecondary, fontSize: 16),
                         ),
                       )
                     : RefreshIndicator(
@@ -1260,7 +1258,7 @@ class _TransactionsViewState extends State<TransactionsView> {
           subtitle: Text(
             Translator.t('trans_upcoming_count',
                 params: {'count': '$count'}),
-            style: TextStyle(color: colors.placeholderColor, fontSize: 12),
+            style: TextStyle(color: colors.textSecondary, fontSize: 12),
           ),
           trailing: Icon(
             _showUpcoming ? Icons.expand_less : Icons.expand_more,
@@ -1350,9 +1348,7 @@ class _TransactionsViewState extends State<TransactionsView> {
             Expanded(
               child: Text(
                 '${Translator.formatDate(txn.date, compact: isPhone)}${txn.accountName != null ? " · ${txn.accountName}" : ""}',
-                style: TextStyle(
-                  color: colors.placeholderColor,
-                  fontSize: 12,
+                style: TextStyle(color: colors.textSecondary, fontSize: 12,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -1478,9 +1474,7 @@ class _TransactionsViewState extends State<TransactionsView> {
         ),
         subtitle: Text(
           Translator.formatDate(txn.date, compact: ResponsiveLayout.isPhone(context)),
-          style: TextStyle(
-            color: colors.placeholderColor,
-            fontSize: 12,
+          style: TextStyle(color: colors.textSecondary, fontSize: 12,
           ),
         ),
         trailing: Text(

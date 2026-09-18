@@ -360,7 +360,7 @@ class _LoginViewState extends State<LoginView> {
                     Translator.t('login_subtitle'),
                     style: TextStyle(
                       fontSize: 14,
-                      color: colors.placeholderColor,
+                      color: colors.textSecondary,
                     ),
                   ),
                   const SizedBox(height: 32),

@@ -15,3 +15,4 @@
 ### Fixes
 
 - Augmented the contrast for secondary texts
+- Fixed the dashboard amounts being different from the account view values

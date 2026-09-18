@@ -886,9 +886,10 @@ void setUserId(String userId) {
       [_userId],
     );
 
+    final today = DateTime.now().toIso8601String().substring(0, 10);
     final txnRows = await db.query(
-      'SELECT transaction_type, amount, account_id FROM transactions WHERE user_id = ? AND is_deleted = 0',
-      [_userId],
+      'SELECT transaction_type, amount, account_id FROM transactions WHERE user_id = ? AND is_deleted = 0 AND date <= ?',
+      [_userId, today],
     );
     final txnByAccount = <String, List<Map<String, Object?>>>{};
     for (final t in txnRows) {
@@ -2130,8 +2131,7 @@ void setUserId(String userId) {
 
     for (final row in txnRows) {
       final accountType = row['account_type'] as String?;
-      final hasAccount = row['account_id'] != null;
-      if (accountType != 'checking' && hasAccount) continue;
+      if (accountType != 'checking') continue;
 
       final amount = await _decryptAmount(row['amount']);
       final type = row['transaction_type'] as String;

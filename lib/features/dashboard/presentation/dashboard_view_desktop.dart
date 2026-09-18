@@ -23,6 +23,7 @@ const _monthAbbrKeys = [
 
 class DashboardViewDesktop extends StatelessWidget {
   final Widget header;
+  final Widget totalAsset;
   final Widget statCards;
   final Widget cashFlowSection;
   final Widget expensePie;
@@ -36,6 +37,7 @@ class DashboardViewDesktop extends StatelessWidget {
   const DashboardViewDesktop({
     super.key,
     required this.header,
+    required this.totalAsset,
     required this.statCards,
     required this.cashFlowSection,
     required this.expensePie,
@@ -54,7 +56,17 @@ class DashboardViewDesktop extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          header,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(child: header),
+              const SizedBox(width: 24),
+              ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 280, maxWidth: 380),
+                child: totalAsset,
+              ),
+            ],
+          ),
           const SizedBox(height: 24),
           statCards,
           const SizedBox(height: 24),

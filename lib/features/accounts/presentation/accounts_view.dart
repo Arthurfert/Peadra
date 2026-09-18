@@ -23,17 +23,29 @@ class AccountsView extends StatefulWidget {
 class _AccountsViewState extends State<AccountsView> {
   final _db = DatabaseManager.instance;
   List<AccountWithBalance> _accounts = [];
+  Decimal _checkingConverted = Decimal.zero;
+  Decimal _savingsConverted = Decimal.zero;
   bool _loading = true;
+  String _lastCurrency = '';
   StreamSubscription<void>? _remoteDataSub;
 
   @override
   void initState() {
     super.initState();
-    _loadAccounts();
     _remoteDataSub =
         DatabaseManager.instance.onRemoteDataApplied.listen((_) {
       _loadAccounts();
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final currency = context.watch<SettingsProvider>().currency;
+    if (currency != _lastCurrency) {
+      _lastCurrency = currency;
+      _loadAccounts();
+    }
   }
 
   @override
@@ -43,10 +55,17 @@ class _AccountsViewState extends State<AccountsView> {
   }
 
   Future<void> _loadAccounts() async {
-    final accounts = await _db.getAccountsWithBalances();
+    final currency = _lastCurrency.isNotEmpty ? _lastCurrency : context.read<SettingsProvider>().currency;
+    final results = await Future.wait([
+      _db.getAccountsWithBalances(),
+      _db.getBalance(targetCurrency: currency),
+      _db.getSavingsTotal(targetCurrency: currency),
+    ]);
     if (mounted) {
       setState(() {
-        _accounts = accounts;
+        _accounts = results[0] as List<AccountWithBalance>;
+        _checkingConverted = results[1] as Decimal;
+        _savingsConverted = results[2] as Decimal;
         _loading = false;
       });
     }
@@ -78,6 +97,7 @@ class _AccountsViewState extends State<AccountsView> {
             ],
           ),
           const SizedBox(height: 16),
+          if (!_loading && _accounts.isNotEmpty) _buildConvertedTotals(colors, currency),
           Expanded(
             child: _loading
                 ? Center(child: CircularProgressIndicator(color: colors.accent))
@@ -85,8 +105,7 @@ class _AccountsViewState extends State<AccountsView> {
                     ? Center(
                         child: Text(
                           Translator.t('dash_no_assets'),
-                          style: TextStyle(
-                              color: colors.placeholderColor, fontSize: 16),
+                          style: TextStyle(color: colors.textSecondary, fontSize: 16),
                         ),
                       )
                     : GridView.builder(
@@ -192,7 +211,7 @@ class _AccountsViewState extends State<AccountsView> {
               acct.isChecking ? Translator.t('acc_checking') : Translator.t('acc_savings'),
               style: TextStyle(
                 fontSize: 12,
-                color: colors.placeholderColor,
+                color: colors.textSecondary,
               ),
             ),
             const SizedBox(height: 4),
@@ -207,6 +226,48 @@ class _AccountsViewState extends State<AccountsView> {
                 ),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildConvertedTotals(PeadraColors colors, String targetCurrency) {
+    final checkingAccounts = _accounts.where((a) => a.isChecking).toList();
+    final savingsAccounts = _accounts.where((a) => a.isSavings).toList();
+    final checkingCurrencies = checkingAccounts.map((a) => a.currency).toSet();
+    final savingsCurrencies = savingsAccounts.map((a) => a.currency).toSet();
+    final showChecking = checkingAccounts.isNotEmpty && checkingCurrencies.length > 1;
+    final showSavings = savingsAccounts.isNotEmpty && savingsCurrencies.length > 1;
+    if (!showChecking && !showSavings) return const SizedBox.shrink();
+    return Card(
+      color: colors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          children: [
+            if (showChecking)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(Translator.t('acc_checking_total'),
+                      style: TextStyle(fontSize: 12, color: colors.textSecondary)),
+                  Text(CurrencyService.formatAmount(_checkingConverted, targetCurrency),
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: colors.text)),
+                ],
+              ),
+            if (showChecking && showSavings) const SizedBox(height: 8),
+            if (showSavings)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(Translator.t('acc_savings_total'),
+                      style: TextStyle(fontSize: 12, color: colors.textSecondary)),
+                  Text(CurrencyService.formatAmount(_savingsConverted, targetCurrency),
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: colors.text)),
+                ],
+              ),
           ],
         ),
       ),

@@ -164,6 +164,8 @@ class Translator {
       'acc_type': 'Account Type',
       'acc_checking': 'Checking Account',
       'acc_savings': 'Savings Account',
+      'acc_checking_total': 'Checking total',
+      'acc_savings_total': 'Savings total',
       'acc_color': 'Color',
       'acc_starting_amount': 'Starting Amount',
       'acc_create_account': 'Create an account',
@@ -283,6 +285,9 @@ class Translator {
       'param_delete_warning': 'This action is permanent and cannot be undone.',
       'param_delete_password_prompt': 'Enter your password to confirm:',
       'param_privacy_policy': 'Privacy Policy',
+      'param_feedback': 'Feedback',
+      'param_feedback_text': 'An issue to report or general feedback?',
+      'param_feedback_mail_me': 'Mail me',
       'param_delete_password_required': 'Password is required',
       'param_delete_password_incorrect': 'Incorrect password',
       'sync_title': 'Sync',
@@ -571,6 +576,8 @@ class Translator {
       'acc_type': 'Type de compte',
       'acc_checking': 'Compte courant',
       'acc_savings': "Compte d'\u00e9pargne",
+      'acc_checking_total': 'Total courant',
+      'acc_savings_total': 'Total \u00e9pargne',
       'acc_color': 'Couleur',
       'acc_starting_amount': 'Montant de d\u00e9part',
       'acc_create_account': 'Cr\u00e9er un compte',
@@ -703,6 +710,9 @@ class Translator {
       'param_delete_password_prompt':
           'Entrez votre mot de passe pour confirmer :',
       'param_privacy_policy': 'Politique de confidentialité',
+      'param_feedback': 'Retour',
+      'param_feedback_text': 'Un probl\u00e8me \u00e0 signaler ou un retour g\u00e9n\u00e9ral ?',
+      'param_feedback_mail_me': '\u00c9crivez-moi',
       'param_delete_password_required': 'Le mot de passe est requis',
       'param_delete_password_incorrect': 'Mot de passe incorrect',
       'sync_title': 'Synchroniser',
@@ -855,15 +865,23 @@ class Translator {
     'month_sep', 'month_oct', 'month_nov', 'month_dec',
   ];
 
+  static const _monthAbbrKeys = [
+    'month_jan_abbr', 'month_feb_abbr', 'month_mar_abbr', 'month_apr_abbr',
+    'month_may_abbr', 'month_jun_abbr', 'month_jul_abbr', 'month_aug_abbr',
+    'month_sep_abbr', 'month_oct_abbr', 'month_nov_abbr', 'month_dec_abbr',
+  ];
+
   /// Formats a "YYYY-MM-DD" date string to a localized human-readable form
   /// such as "12 August 2026" or "12 août 2026".
-  static String formatDate(String dateStr) {
+  /// With [compact] true, uses abbreviated months: "12 Aug 2026".
+  static String formatDate(String dateStr, {bool compact = false}) {
     final parts = dateStr.split('-');
     if (parts.length != 3) return dateStr;
     final day = int.tryParse(parts[2]) ?? 0;
     final month = int.tryParse(parts[1]) ?? 1;
     final year = parts[0];
-    final monthName = t(_monthKeys[(month - 1).clamp(0, 11)]);
+    final keys = compact ? _monthAbbrKeys : _monthKeys;
+    final monthName = t(keys[(month - 1).clamp(0, 11)]);
     return '$day $monthName $year';
   }
 

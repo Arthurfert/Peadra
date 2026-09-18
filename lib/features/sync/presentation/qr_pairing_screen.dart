@@ -274,7 +274,7 @@ class _QrPairingScreenState extends State<QrPairingScreen> {
                     _nodeId!.split('-').first,
                     style: TextStyle(
                       fontSize: 12,
-                      color: colors.placeholderColor,
+                      color: colors.textSecondary,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -282,7 +282,7 @@ class _QrPairingScreenState extends State<QrPairingScreen> {
                 const SizedBox(height: 16),
                 Text(
                   Translator.t('sync_qr_instructions'),
-                  style: TextStyle(color: colors.placeholderColor, height: 1.4),
+                  style: TextStyle(color: colors.textSecondary, height: 1.4),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 24),

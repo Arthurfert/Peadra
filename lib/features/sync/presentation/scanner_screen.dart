@@ -183,7 +183,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
           const SizedBox(height: 6),
           Text(
             _controller.expectedName ?? '',
-            style: TextStyle(color: colors.placeholderColor),
+            style: TextStyle(color: colors.textSecondary),
           ),
         ],
       ),
@@ -289,7 +289,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
               padding: const EdgeInsets.all(24),
               child: Text(
                 Translator.t('sync_scan_prompt'),
-                style: TextStyle(color: colors.placeholderColor, height: 1.4),
+                style: TextStyle(color: colors.textSecondary, height: 1.4),
                 textAlign: TextAlign.center,
               ),
             ),

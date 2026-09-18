@@ -170,6 +170,10 @@ class _ParametersViewState extends State<ParametersView> {
               _buildUpdateAvailableTile(colors, updateProvider.availableUpdate!),
           ], icon: Icons.system_update),
           const SizedBox(height: 8),
+          _buildSection(Translator.t('param_feedback'), colors, [
+            _buildFeedbackTile(colors),
+          ], icon: Icons.feedback_outlined),
+          const SizedBox(height: 8),
           _buildSection(Translator.t('param_danger_zone'), colors, [
             _buildDeleteAccountTile(colors),
           ], icon: Icons.warning_amber, iconColor: colors.error),
@@ -177,6 +181,57 @@ class _ParametersViewState extends State<ParametersView> {
           _buildPrivacyPolicyLink(colors),
         ],
       ),
+    );
+  }
+
+  Widget _buildFeedbackTile(PeadraColors colors) {
+    final isPhone = ResponsiveLayout.isPhone(context);
+
+    final button = ElevatedButton.icon(
+      icon: const Icon(Icons.mail_outline, color: Colors.white, size: 16),
+      label: Text(Translator.t('param_feedback_mail_me'),
+          style: const TextStyle(color: Colors.white, fontSize: 12)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: colors.accent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+      onPressed: () async {
+        final uri = Uri(
+          scheme: 'mailto',
+          path: 'peadra@arthurfert.com',
+        );
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri);
+        }
+      },
+    );
+
+    if (isPhone) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(Translator.t('param_feedback_mail_me'),
+                style: TextStyle(color: colors.text)),
+            const SizedBox(height: 4),
+            Text(Translator.t('param_feedback_text'),
+                style: TextStyle(color: colors.textSecondary, fontSize: 12)),
+            const SizedBox(height: 12),
+            button,
+          ],
+        ),
+      );
+    }
+
+    return ListTile(
+      title: Text(Translator.t('param_feedback_mail_me'),
+          style: TextStyle(color: colors.text)),
+      subtitle: Text(Translator.t('param_feedback_text'),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
+      trailing: button,
     );
   }
 
@@ -295,7 +350,7 @@ class _ParametersViewState extends State<ParametersView> {
       title: Text(Translator.t('param_language_label'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_language_desc'),
-          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
       trailing: DropdownButton<String>(
         value: lang.language,
         dropdownColor: colors.surface,
@@ -319,7 +374,7 @@ class _ParametersViewState extends State<ParametersView> {
       title: Text(Translator.t('param_currency'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_currency_desc'),
-          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
       trailing: DropdownButton<String>(
         value: settings.currency,
         dropdownColor: colors.surface,
@@ -343,7 +398,7 @@ class _ParametersViewState extends State<ParametersView> {
       title: Text(Translator.t('param_theme_label'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_theme_desc'),
-          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
       trailing: DropdownButton<String>(
         value: themeProvider.themeName,
         dropdownColor: colors.surface,
@@ -391,7 +446,7 @@ class _ParametersViewState extends State<ParametersView> {
               style: TextStyle(color: colors.text)),
           const SizedBox(height: 4),
           Text(Translator.t('param_nav_labels_desc'),
-              style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+              style: TextStyle(color: colors.textSecondary, fontSize: 12)),
           const SizedBox(height: 12),
           Switch(
             value: settings.showNavLabels,
@@ -408,7 +463,7 @@ class _ParametersViewState extends State<ParametersView> {
       title: Text(Translator.t('param_display_limit'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_display_limit_desc'),
-          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
       trailing: DropdownButton<int>(
         value: settings.displayLimit,
         dropdownColor: colors.surface,
@@ -462,7 +517,7 @@ class _ParametersViewState extends State<ParametersView> {
                 style: TextStyle(color: colors.text)),
             const SizedBox(height: 4),
             Text(Translator.t('param_categories_view_desc'),
-                style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+                style: TextStyle(color: colors.textSecondary, fontSize: 12)),
             const SizedBox(height: 12),
             modeButtons,
           ],
@@ -474,7 +529,7 @@ class _ParametersViewState extends State<ParametersView> {
       title: Text(Translator.t('param_categories_view'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_categories_view_desc'),
-          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
       trailing: modeButtons,
     );
   }
@@ -518,7 +573,7 @@ class _ParametersViewState extends State<ParametersView> {
                 style: TextStyle(color: colors.text)),
             const SizedBox(height: 4),
             Text(Translator.t('param_dashboard_pie_view_desc'),
-                style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+                style: TextStyle(color: colors.textSecondary, fontSize: 12)),
             const SizedBox(height: 12),
             modeButtons,
           ],
@@ -530,7 +585,7 @@ class _ParametersViewState extends State<ParametersView> {
       title: Text(Translator.t('param_dashboard_pie_view'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_dashboard_pie_view_desc'),
-          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
       trailing: modeButtons,
     );
   }
@@ -554,7 +609,7 @@ class _ParametersViewState extends State<ParametersView> {
                 style: TextStyle(color: colors.text)),
             const SizedBox(height: 4),
             Text(Translator.t('param_line_chart_dots_desc'),
-                style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+                style: TextStyle(color: colors.textSecondary, fontSize: 12)),
             const SizedBox(height: 12),
             toggle,
           ],
@@ -566,7 +621,7 @@ class _ParametersViewState extends State<ParametersView> {
       title: Text(Translator.t('param_line_chart_dots'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_line_chart_dots_desc'),
-          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
       trailing: toggle,
     );
   }
@@ -611,7 +666,7 @@ class _ParametersViewState extends State<ParametersView> {
                 style: TextStyle(color: colors.text)),
             const SizedBox(height: 4),
             Text(Translator.t('param_assets_granularity_desc'),
-                style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+                style: TextStyle(color: colors.textSecondary, fontSize: 12)),
             const SizedBox(height: 12),
             modeButtons,
           ],
@@ -623,7 +678,7 @@ class _ParametersViewState extends State<ParametersView> {
       title: Text(Translator.t('param_assets_granularity'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_assets_granularity_desc'),
-          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
       trailing: modeButtons,
     );
   }
@@ -668,7 +723,7 @@ class _ParametersViewState extends State<ParametersView> {
                 style: TextStyle(color: colors.text)),
             const SizedBox(height: 4),
             Text(Translator.t('param_month_mode_desc'),
-                style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+                style: TextStyle(color: colors.textSecondary, fontSize: 12)),
             const SizedBox(height: 12),
             modeButtons,
           ],
@@ -680,7 +735,7 @@ class _ParametersViewState extends State<ParametersView> {
       title: Text(Translator.t('param_month_mode'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_month_mode_desc'),
-          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
       trailing: modeButtons,
     );
   }
@@ -761,7 +816,7 @@ class _ParametersViewState extends State<ParametersView> {
       title: Text(Translator.t('param_max_categories'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_max_categories_desc'),
-          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
       trailing: DropdownButton<int>(
         value: settings.maxPieCategories,
         dropdownColor: colors.surface,
@@ -781,7 +836,7 @@ class _ParametersViewState extends State<ParametersView> {
       title: Text(Translator.t('param_max_backups'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_max_backups_desc'),
-          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
       trailing: DropdownButton<int>(
         value: settings.maxBackups,
         dropdownColor: colors.surface,
@@ -801,7 +856,7 @@ class _ParametersViewState extends State<ParametersView> {
       title: Text(Translator.t('param_locate_database'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_locate_database_desc'),
-          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
       trailing: ElevatedButton.icon(
         icon: const Icon(Icons.folder_open, color: Colors.white, size: 16),
         label: Text(Translator.t('param_locate_database'),
@@ -854,7 +909,7 @@ class _ParametersViewState extends State<ParametersView> {
                 style: TextStyle(color: colors.text)),
             const SizedBox(height: 4),
             Text(Translator.t('param_switch_backup_desc'),
-                style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+                style: TextStyle(color: colors.textSecondary, fontSize: 12)),
             const SizedBox(height: 12),
             button,
           ],
@@ -866,7 +921,7 @@ class _ParametersViewState extends State<ParametersView> {
       title: Text(Translator.t('param_switch_backup'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_switch_backup_desc'),
-          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
       trailing: button,
     );
   }
@@ -905,7 +960,7 @@ class _ParametersViewState extends State<ParametersView> {
                   title: Text(dateStr,
                       style: TextStyle(color: colors.text, fontSize: 14)),
                   subtitle: Text(fileName,
-                      style: TextStyle(color: colors.placeholderColor, fontSize: 11)),
+                      style: TextStyle(color: colors.textSecondary, fontSize: 11)),
                   trailing: Icon(Icons.chevron_right, color: colors.placeholderColor),
                   onTap: () {
                     Navigator.of(ctx).pop();
@@ -920,7 +975,7 @@ class _ParametersViewState extends State<ParametersView> {
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
             child: Text(Translator.t('btn_cancel'),
-                style: TextStyle(color: colors.placeholderColor)),
+                style: TextStyle(color: colors.textSecondary)),
           ),
         ],
       ),
@@ -974,7 +1029,7 @@ class _ParametersViewState extends State<ParametersView> {
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
             child: Text(Translator.t('btn_cancel'),
-                style: TextStyle(color: colors.placeholderColor)),
+                style: TextStyle(color: colors.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -1062,7 +1117,7 @@ class _ParametersViewState extends State<ParametersView> {
                 style: TextStyle(color: colors.text)),
             const SizedBox(height: 4),
             Text(Translator.t('param_username_desc'),
-                style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+                style: TextStyle(color: colors.textSecondary, fontSize: 12)),
             const SizedBox(height: 12),
             usernameField,
           ],
@@ -1074,7 +1129,7 @@ class _ParametersViewState extends State<ParametersView> {
       title: Text(Translator.t('param_username'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_username_desc'),
-          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
       trailing: usernameField,
     );
   }
@@ -1105,7 +1160,7 @@ class _ParametersViewState extends State<ParametersView> {
                 style: TextStyle(color: colors.text)),
             const SizedBox(height: 4),
             Text(Translator.t('param_password_desc'),
-                style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+                style: TextStyle(color: colors.textSecondary, fontSize: 12)),
             const SizedBox(height: 12),
             changeButton,
           ],
@@ -1117,7 +1172,7 @@ class _ParametersViewState extends State<ParametersView> {
       title: Text(Translator.t('param_password'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_password_desc'),
-          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
       trailing: changeButton,
     );
   }
@@ -1150,7 +1205,7 @@ class _ParametersViewState extends State<ParametersView> {
                       style: TextStyle(color: colors.text),
                       decoration: InputDecoration(
                         labelText: Translator.t('param_old_password'),
-                        labelStyle: TextStyle(color: colors.placeholderColor),
+                        labelStyle: TextStyle(color: colors.textSecondary),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
@@ -1159,7 +1214,7 @@ class _ParametersViewState extends State<ParametersView> {
                         suffixIcon: IconButton(
                           icon: Icon(
                             obscureOld ? Icons.visibility_off : Icons.visibility,
-                            color: colors.placeholderColor,
+                            color: colors.textSecondary,
                           ),
                           onPressed: () => setDialogState(() => obscureOld = !obscureOld),
                         ),
@@ -1173,7 +1228,7 @@ class _ParametersViewState extends State<ParametersView> {
                       style: TextStyle(color: colors.text),
                       decoration: InputDecoration(
                         labelText: Translator.t('param_new_password'),
-                        labelStyle: TextStyle(color: colors.placeholderColor),
+                        labelStyle: TextStyle(color: colors.textSecondary),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
@@ -1182,7 +1237,7 @@ class _ParametersViewState extends State<ParametersView> {
                         suffixIcon: IconButton(
                           icon: Icon(
                             obscureNew ? Icons.visibility_off : Icons.visibility,
-                            color: colors.placeholderColor,
+                            color: colors.textSecondary,
                           ),
                           onPressed: () => setDialogState(() => obscureNew = !obscureNew),
                         ),
@@ -1196,7 +1251,7 @@ class _ParametersViewState extends State<ParametersView> {
                       style: TextStyle(color: colors.text),
                       decoration: InputDecoration(
                         labelText: Translator.t('param_password_confirm'),
-                        labelStyle: TextStyle(color: colors.placeholderColor),
+                        labelStyle: TextStyle(color: colors.textSecondary),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
@@ -1205,7 +1260,7 @@ class _ParametersViewState extends State<ParametersView> {
                         suffixIcon: IconButton(
                           icon: Icon(
                             obscureConfirm ? Icons.visibility_off : Icons.visibility,
-                            color: colors.placeholderColor,
+                            color: colors.textSecondary,
                           ),
                           onPressed: () => setDialogState(() => obscureConfirm = !obscureConfirm),
                         ),
@@ -1218,7 +1273,7 @@ class _ParametersViewState extends State<ParametersView> {
                 TextButton(
                   onPressed: () => Navigator.of(ctx).pop(),
                   child: Text(Translator.t('btn_cancel'),
-                      style: TextStyle(color: colors.placeholderColor)),
+                      style: TextStyle(color: colors.textSecondary)),
                 ),
                 ElevatedButton(
                   onPressed: () async {
@@ -1313,7 +1368,7 @@ class _ParametersViewState extends State<ParametersView> {
                 style: TextStyle(color: colors.text)),
             const SizedBox(height: 4),
             Text(Translator.t('param_biometric_desc'),
-                style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+                style: TextStyle(color: colors.textSecondary, fontSize: 12)),
             const SizedBox(height: 12),
             toggle,
           ],
@@ -1325,7 +1380,7 @@ class _ParametersViewState extends State<ParametersView> {
       title: Text(Translator.t('param_biometric'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_biometric_desc'),
-          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
       trailing: toggle,
     );
   }
@@ -1335,7 +1390,7 @@ class _ParametersViewState extends State<ParametersView> {
       title: Text(Translator.t('sync_pair'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('sync_pair_desc'),
-          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
       trailing: Icon(Icons.chevron_right, color: colors.placeholderColor),
       onTap: () {
         Navigator.of(context).push(
@@ -1350,7 +1405,7 @@ class _ParametersViewState extends State<ParametersView> {
       title: Text(Translator.t('sync_scan'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('sync_scan_desc'),
-          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
       trailing: Icon(Icons.chevron_right, color: colors.placeholderColor),
       onTap: () {
         Navigator.of(context).push(
@@ -1365,7 +1420,7 @@ class _ParametersViewState extends State<ParametersView> {
       title: Text(Translator.t('sync_manage'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('sync_manage_desc'),
-          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
       trailing: Icon(Icons.chevron_right, color: colors.placeholderColor),
       onTap: () {
         Navigator.of(context).push(
@@ -1380,7 +1435,7 @@ class _ParametersViewState extends State<ParametersView> {
       title: Text(Translator.t('btn_import'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('import_select_csv_desc'),
-          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
       trailing: Icon(Icons.chevron_right, color: colors.placeholderColor),
       onTap: () {
         Navigator.of(context).push(
@@ -1395,7 +1450,7 @@ class _ParametersViewState extends State<ParametersView> {
       title: Text('${Translator.t('btn_export')} CSV',
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('btn_export_desc'),
-          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
       onTap: () => _showExportAccountDialog(colors),
     );
   }
@@ -1464,7 +1519,7 @@ class _ParametersViewState extends State<ParametersView> {
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(false),
                 child: Text(Translator.t('btn_cancel'),
-                    style: TextStyle(color: colors.placeholderColor)),
+                    style: TextStyle(color: colors.textSecondary)),
               ),
               ElevatedButton(
                 onPressed: () => Navigator.of(ctx).pop(true),
@@ -1515,7 +1570,7 @@ class _ParametersViewState extends State<ParametersView> {
       title: Text(Translator.t('param_export_logs'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_export_logs_desc'),
-          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
       onTap: () async {
         try {
           final isMobile = Platform.isAndroid || Platform.isIOS;
@@ -1570,7 +1625,7 @@ class _ParametersViewState extends State<ParametersView> {
                 style: TextStyle(color: colors.error)),
             const SizedBox(height: 4),
             Text(Translator.t('param_delete_account_desc'),
-                style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+                style: TextStyle(color: colors.textSecondary, fontSize: 12)),
             const SizedBox(height: 12),
             deleteButton,
           ],
@@ -1582,7 +1637,7 @@ class _ParametersViewState extends State<ParametersView> {
       title: Text(Translator.t('param_delete_account'),
           style: TextStyle(color: colors.error)),
       subtitle: Text(Translator.t('param_delete_account_desc'),
-          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
       trailing: deleteButton,
     );
   }
@@ -1608,7 +1663,7 @@ class _ParametersViewState extends State<ParametersView> {
       title: Text(Translator.t('param_check_updates'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(_updateStatusText(colors),
-          style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
       trailing: isChecking
           ? SizedBox(
               width: 20,

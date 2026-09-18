@@ -318,7 +318,7 @@ class _CategoriesViewState extends State<CategoriesView> {
                   color: colors.text)),
           const SizedBox(height: 12),
           Text(Translator.t('cat_no_data_period'),
-              style: TextStyle(color: colors.placeholderColor)),
+              style: TextStyle(color: colors.textSecondary)),
         ],
       );
     }
@@ -392,8 +392,7 @@ class _CategoriesViewState extends State<CategoriesView> {
                         const SizedBox(height: 2),
                         Text(
                           '${Translator.t('cat_transactions_count').replaceAll('{count}', count.toString())} - ${Translator.t('cat_avg_per_month')}: ${avg.toStringAsFixed(2)}',
-                          style: TextStyle(
-                              color: colors.placeholderColor, fontSize: 11),
+                          style: TextStyle(color: colors.textSecondary, fontSize: 11),
                         ),
                         const SizedBox(height: 8),
                         Expanded(
@@ -580,7 +579,7 @@ class _CategoriesViewState extends State<CategoriesView> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(Translator.t('cat_merge_hint'),
-                    style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+                    style: TextStyle(color: colors.textSecondary, fontSize: 12)),
                 const SizedBox(height: 16),
                 Text(Translator.t('cat_merge_from'),
                     style: TextStyle(color: colors.text, fontWeight: FontWeight.w500)),
@@ -678,7 +677,7 @@ class _CategoriesViewState extends State<CategoriesView> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(Translator.t('cat_rename_hint'),
-                    style: TextStyle(color: colors.placeholderColor, fontSize: 12)),
+                    style: TextStyle(color: colors.textSecondary, fontSize: 12)),
                 const SizedBox(height: 16),
                 Text(Translator.t('cat_select_description_to_rename'),
                     style: TextStyle(color: colors.text, fontWeight: FontWeight.w500)),
@@ -813,7 +812,7 @@ class _ManageTagsDialogState extends State<_ManageTagsDialog> {
               const SizedBox(height: 16),
               _tags.isEmpty
                   ? Text(Translator.t('tag_no_tags'),
-                      style: TextStyle(color: colors.placeholderColor))
+                      style: TextStyle(color: colors.textSecondary))
                   : Flexible(
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxHeight: 400),

@@ -9,6 +9,7 @@
 
 ### New
 
+- Total assets evolution percentage + changed widget place in desktop
 - Months in transaction view are now compact on mobile only
 - *Mail me* feature so you can send me feedback/bugs
 

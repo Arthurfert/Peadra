@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:decimal/decimal.dart';
-import 'package:provider/provider.dart';
 
 import '../../../core/i18n/translator.dart';
-import '../../../core/providers/settings_provider.dart';
 import '../../../core/theme/peadra_colors.dart';
-import '../../../core/services/currency_service.dart';
 import '../../../core/responsive/responsive_layout.dart';
 
 class DashboardShellDesktop extends StatelessWidget {
@@ -131,71 +128,9 @@ class DashboardShellDesktop extends StatelessWidget {
             );
           }),
           const Spacer(),
-          _buildTotalAssets(context, isCompact),
           const SizedBox(height: 16),
         ],
       ),
-    );
-  }
-
-  Widget _buildTotalAssets(BuildContext context, bool isCompact) {
-    final currency = context.watch<SettingsProvider>().currency;
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.symmetric(
-        horizontal: isCompact ? 8 : 20,
-        vertical: 16,
-      ),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: const BorderRadius.only(
-          topRight: Radius.circular(12),
-        ),
-      ),
-      child: isCompact
-          ? Column(
-              children: [
-                Icon(Icons.account_balance_wallet,
-                    color: colors.accent, size: 24),
-                const SizedBox(height: 6),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    CurrencyService.formatAmount(totalPatrimony, currency),
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: colors.text,
-                    ),
-                  ),
-                ),
-              ],
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  Translator.t('dash_total_assets'),
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: colors.textSecondary,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    CurrencyService.formatAmount(totalPatrimony, currency),
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: colors.text,
-                    ),
-                  ),
-                ),
-              ],
-            ),
     );
   }
 

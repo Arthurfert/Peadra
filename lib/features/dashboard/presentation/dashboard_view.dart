@@ -553,11 +553,13 @@ class _DashboardViewState extends State<DashboardView> {
     final assetsPie = _buildAssetsDistributionPieChart(
         colors, currency, maxPieCategories);
 
+    final totalAsset = _buildTotalAssetCard(colors, currency);
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth > 800) {
           return DashboardViewDesktop(
             header: header,
+            totalAsset: totalAsset,
             statCards: statCards,
             cashFlowSection: cashFlowSection,
             expensePie: expensePie,
@@ -571,7 +573,7 @@ class _DashboardViewState extends State<DashboardView> {
         } else {
           return DashboardViewMobile(
             header: header,
-            totalAsset: _buildTotalAssetCard(colors, currency),
+            totalAsset: totalAsset,
             statCards: statCards,
             cashFlowSection: cashFlowSection,
             expensePie: expensePie,
@@ -588,54 +590,43 @@ class _DashboardViewState extends State<DashboardView> {
   }
 
   Widget _buildTotalAssetCard(PeadraColors colors, String currency) {
+    final previousTotal = _previousBalance + _previousSavings;
+    final totalChange = previousTotal > Decimal.zero
+        ? ((_totalAssets - previousTotal) * Decimal.fromInt(100) / previousTotal).toDouble()
+        : 0.0;
     return Card(
       color: colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: colors.surface,
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
-        child: Row(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: colors.chartAsset.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(Icons.account_balance_rounded,
-                  color: colors.chartAsset, size: 28),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  Translator.t('dash_total_assets'),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                _buildChangeIndicator(totalChange, colors),
+              ],
             ),
-            const SizedBox(width: 20),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    Translator.t('dash_total_assets'),
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: colors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      CurrencyService.formatAmount(_totalAssets, currency),
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w700,
-                        color: colors.text,
-                        height: 1.1,
-                      ),
-                    ),
-                  ),
-                ],
+            const SizedBox(height: 8),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                CurrencyService.formatAmount(_totalAssets, currency),
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: colors.accent,
+                ),
               ),
             ),
           ],

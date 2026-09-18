@@ -1,9 +1,5 @@
 # TODO
 
-This document presents future changes and wanted improvements.
-
-*All Todo's may not be implemented in the end.*
-
 **The application is not intended to become cloud-based, and will stay local.**
 
 > [!NOTE]

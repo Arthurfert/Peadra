@@ -28,26 +28,30 @@ Track your assets, manage transactions across multiple accounts and currencies, 
 
 ## Features
 
-**Portfolio & Asset Management**
-- Track your current balance, asset distribution, and financial evolution over time.
-- Bar charts, pie charts, and line charts for visual insights into spending patterns and trends.
-- Organize transactions into categories with the ability to dynamically rename, merge, and restructure them.
-- Create recurring transactions to avoid entering multiple times the same transactions.
+**Privacy & Bank-Grade Security**
+* **100% Local Storage:** Local SQLite database encrypted with AES-256-GCM.
+* **Your Data Stays Yours:** Sensitive information never leaves your machine.
+* **Multi-User Security:** SHA-256 password hashing for safe local multi-user access.
 
-**Account & Transaction Management**
-- Easily add, modify, or delete transactions (expense, income, transfer), in any of 36 supported currencies with automatic exchange rate conversion.
-- Manage multiple distinct accounts with independent tracking and color coding.
-- Secure access control for different users on the same device, with SHA-256 password hashing.
-- Transaction descriptions are auto-suggested from your history as you type.
+**Portfolio & Visual Insights**
+* Track your net worth, asset distribution, and financial progress over time.
+* Interactive bar charts, pie charts, and line graphs to decode your spending habits.
+* Dynamic categories: easily rename, merge, and organize your categories.
+* Set up recurring transactions to automate your monthly budgeting.
 
-**Data Control & System**
-- Powered by a local SQLite database with AES-256-GCM encryption. Sensitive fields are encrypted at rest. Your financial data never leaves your machine.
-- Import data via CSV files with automatic column detection and dialect parsing, and export your history in CSV format.
-- Synchronize your data across multiple devices *on the same network*.
-- Four built-in themes - Light, Dark, Autumn, and Summer.
+**Multi-Account & Multi-Currency Management**
+* Manage distinct accounts with custom color-coding and independent tracking.
+* Supports **36 currencies** with automated exchange rate conversions.
+* Fast entry: smart auto-suggestions based on your transaction history.
+* Easily log expenses, incomes, and inter-account transfers.
 
-**Supported platforms:** Linux, Windows, Android. (*The Apple ecosystem is theoretically supported, but has not been tested*).  
-**Supported languages:** English, French.
+**Local Sync & Easy Import/Export**
+* **Cross-Device Local Sync:** Sync seamlessly across Android, Windows, and Linux devices *over your home Wi-Fi network*.
+* Smart CSV import & export for effortless backups and data migration.
+
+**Tailored to You**
+* Available in **French** and **English**.
+* 4 vibrant built-in themes: Light, Dark, Autumn, and Summer.
 
 > ...and many more features [to come](TODO.md) !
 

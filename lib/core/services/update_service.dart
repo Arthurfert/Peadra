@@ -121,4 +121,14 @@ class UpdateService {
     final uri = Uri.parse(url);
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
+
+  /// Google Play Store listing, used as the primary install source on Android.
+  static const String playStoreUrl =
+      'https://play.google.com/store/apps/details?id=com.peadra.peadra';
+
+  /// Open the Play Store listing in the store app / browser.
+  Future<void> openPlayStore() async {
+    final uri = Uri.parse(playStoreUrl);
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
 }

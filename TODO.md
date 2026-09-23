@@ -9,11 +9,7 @@
 
 ### New
 
-- Total assets evolution percentage + changed widget place in desktop
-- Months in transaction view are now compact on mobile only
-- *Mail me* feature so you can send me feedback/bugs
+- Play store redirect for mobile update, with github apk installation still possible
 
 ### Fixes
 
-- Augmented the contrast for secondary texts
-- Fixed the dashboard amounts being different from the account view values

@@ -1719,10 +1719,24 @@ class _ParametersViewState extends State<ParametersView> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                onPressed: () => _updateService.openDownloadUrl(update.downloadUrl),
+                onPressed: () => Platform.isAndroid
+                    ? _updateService.openPlayStore()
+                    : _updateService.openDownloadUrl(update.downloadUrl),
               ),
             ],
           ),
+          if (Platform.isAndroid) ...[
+            const SizedBox(height: 4),
+            TextButton.icon(
+              icon: Icon(Icons.download_outlined,
+                  color: colors.placeholderColor, size: 16),
+              label: Text(Translator.t('param_install_apk_github'),
+                  style: TextStyle(
+                      color: colors.placeholderColor, fontSize: 12)),
+              onPressed: () =>
+                  _updateService.openDownloadUrl(update.downloadUrl),
+            ),
+          ],
         ],
       ),
     );

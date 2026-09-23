@@ -13,3 +13,9 @@
 
 ### Fixes
 
+/
+
+## Known issues
+
+- On linux, graphs *can* have aliasing. It is a known issues of flutter dependencies, and I cannot fix it myself.
+- Local sync (seen between 2 phones) can be quicker in one way than in the other. (will be fixed)

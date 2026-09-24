@@ -969,11 +969,6 @@ class _TransactionsViewState extends State<TransactionsView> {
                         color: colors.text,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      Translator.t('trans_subtitle'),
-                      style: TextStyle(color: colors.textSecondary, fontSize: 14),
-                    ),
                   ],
                 ),
               ),

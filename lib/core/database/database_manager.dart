@@ -2871,6 +2871,83 @@ void setUserId(String userId) {
     return result;
   }
 
+  Future<Map<String, Decimal>> _getTagDescriptionBreakdown({
+    required String transactionType,
+    required String tag,
+    required String startDate,
+    required String endDate,
+    String targetCurrency = 'EUR',
+  }) async {
+    final db = await database;
+
+    final rows = await db.query(
+      'SELECT t.amount, t.currency, tg.name as tag_name, d.name as description_name '
+      'FROM transactions t LEFT JOIN tags tg ON t.tag_id = tg.id AND tg.is_deleted = 0 '
+      'LEFT JOIN descriptions d ON t.description_id = d.id '
+      'WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ? AND t.is_deleted = 0',
+      [transactionType, startDate, endDate, _userId],
+    );
+
+    final result = <String, Decimal>{};
+    for (final row in rows) {
+      final desc = await _decryptValue(row['description_name']);
+      if (_isTransferDescription(desc)) continue;
+      final rowTag = row['tag_name'] as String? ?? Translator.t('tag_untagged');
+      if (rowTag != tag) continue;
+      final category = desc ?? 'Uncategorized';
+      final rawAmount = await _decryptAmount(row['amount']);
+      final txnCurrency = (row['currency'] as String?) ?? 'EUR';
+
+      Decimal convertedAmount;
+      if (txnCurrency == targetCurrency) {
+        convertedAmount = rawAmount;
+      } else {
+        final rate = await getExchangeRate(txnCurrency, targetCurrency);
+        convertedAmount = rawAmount * Decimal.parse((rate ?? 1.0).toString());
+      }
+
+      result[category] = (result[category] ?? Decimal.zero) + convertedAmount;
+    }
+    return result;
+  }
+
+  Future<Map<String, Decimal>> getCurrentMonthTagDescriptionBreakdown({
+    required String transactionType,
+    required String tag,
+    String targetCurrency = 'EUR',
+  }) async {
+    final now = DateTime.now();
+    final startDate = DateTime(now.year, now.month, 1)
+        .toIso8601String()
+        .substring(0, 10);
+    final endDate = now.toIso8601String().substring(0, 10);
+    return _getTagDescriptionBreakdown(
+      transactionType: transactionType,
+      tag: tag,
+      startDate: startDate,
+      endDate: endDate,
+      targetCurrency: targetCurrency,
+    );
+  }
+
+  Future<Map<String, Decimal>> getRollingMonthTagDescriptionBreakdown({
+    required String transactionType,
+    required String tag,
+    int days = 30,
+    String targetCurrency = 'EUR',
+  }) async {
+    final now = DateTime.now();
+    final endDate = now.toIso8601String().substring(0, 10);
+    final startDate = now.subtract(Duration(days: days)).toIso8601String().substring(0, 10);
+    return _getTagDescriptionBreakdown(
+      transactionType: transactionType,
+      tag: tag,
+      startDate: startDate,
+      endDate: endDate,
+      targetCurrency: targetCurrency,
+    );
+  }
+
   Future<Map<String, String>> getTagColors() async {
     if (_userId == null) return {};
     final db = await database;

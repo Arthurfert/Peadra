@@ -1542,6 +1542,92 @@ void main() {
   });
 
   // =========================================================================
+  // Tag description breakdown (pie drill-down)
+  // =========================================================================
+  group('Tag description breakdown SQL', () {
+    test('returns only descriptions for the requested tag', () async {
+      final now = DateTime.now();
+      final endDate = now.toIso8601String().substring(0, 10);
+      final startDate = DateTime(now.year, now.month, 1).toIso8601String().substring(0, 10);
+
+      final foodId = await seedTestDescription(db, userId, 'Food');
+      final rentId = await seedTestDescription(db, userId, 'Rent');
+      final tagA = await seedTestTag(db, userId, 'TagA');
+      final tagB = await seedTestTag(db, userId, 'TagB');
+
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: foodId, tagId: tagA,
+          date: endDate, amount: 80, transactionType: 'expense', currency: 'EUR');
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: rentId, tagId: tagA,
+          date: endDate, amount: 120, transactionType: 'expense', currency: 'EUR');
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: foodId, tagId: tagB,
+          date: endDate, amount: 999, transactionType: 'expense', currency: 'EUR');
+
+      final rows = await db.rawQuery('''
+        SELECT t.amount, tg.name as tag_name, d.name as description_name
+        FROM transactions t
+        LEFT JOIN tags tg ON t.tag_id = tg.id
+        LEFT JOIN descriptions d ON t.description_id = d.id
+        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
+      ''', ['expense', startDate, endDate, userId]);
+
+      final breakdown = <String, double>{};
+      for (final row in rows) {
+        if ((row['tag_name'] as String?) != 'TagA') continue;
+        final desc = row['description_name'] as String;
+        breakdown[desc] = (breakdown[desc] ?? 0.0) + (row['amount'] as num).toDouble();
+      }
+
+      expect(breakdown.length, 2);
+      expect(breakdown['Food'], 80.0);
+      expect(breakdown['Rent'], 120.0);
+    });
+
+    test('excludes transfer descriptions from breakdown', () async {
+      final now = DateTime.now();
+      final endDate = now.toIso8601String().substring(0, 10);
+      final startDate = DateTime(now.year, now.month, 1).toIso8601String().substring(0, 10);
+
+      final transferId = await seedTestDescription(db, userId, 'Transfer to Savings');
+      final foodId = await seedTestDescription(db, userId, 'Food');
+      final tagA = await seedTestTag(db, userId, 'TagA');
+
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: transferId, tagId: tagA,
+          date: endDate, amount: 500, transactionType: 'expense', currency: 'EUR');
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: foodId, tagId: tagA,
+          date: endDate, amount: 50, transactionType: 'expense', currency: 'EUR');
+
+      final rows = await db.rawQuery('''
+        SELECT t.amount, tg.name as tag_name, d.name as description_name
+        FROM transactions t
+        LEFT JOIN tags tg ON t.tag_id = tg.id
+        LEFT JOIN descriptions d ON t.description_id = d.id
+        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
+      ''', ['expense', startDate, endDate, userId]);
+
+      bool isTransfer(String? desc) {
+        final d = (desc ?? '').trim().toLowerCase();
+        return d.startsWith('transfer to ') || d.startsWith('transfer from ');
+      }
+
+      final breakdown = <String, double>{};
+      for (final row in rows) {
+        if ((row['tag_name'] as String?) != 'TagA') continue;
+        final desc = row['description_name'] as String;
+        if (isTransfer(desc)) continue;
+        breakdown[desc] = (breakdown[desc] ?? 0.0) + (row['amount'] as num).toDouble();
+      }
+
+      expect(breakdown.length, 1);
+      expect(breakdown['Food'], 50.0);
+    });
+  });
+
+  // =========================================================================
   // getPreviousMonthTotal
   // =========================================================================
   group('getPreviousMonthTotal SQL', () {

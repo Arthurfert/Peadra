@@ -9,6 +9,7 @@
 
 ### New
 
+- You can now click on a pie chart tag section to view the descriptions pie chart related to this tag !
 - Play store redirect for mobile update, with github apk installation still possible
 
 ### Fixes

@@ -331,4 +331,104 @@ void main() {
     final aUsers = await a.query('SELECT id FROM users WHERE is_deleted = 0');
     expect(aUsers.single['id'], 'user-a');
   });
+
+  test('sync suppressed by the cooldown is retried automatically', () async {
+    final a = SyncTestDevice(id: 'device-a', name: 'Device A', secret: secret);
+    final b = SyncTestDevice(
+      id: 'device-b',
+      name: 'Device B',
+      secret: secret,
+      reconnectCooldown: const Duration(milliseconds: 200),
+    );
+    addTearDown(a.dispose);
+    addTearDown(b.dispose);
+    await a.setUp();
+    await b.setUp();
+
+    await seedAUser(a, 'user-a', 'alice');
+    await a.crdt.execute(
+      'INSERT INTO accounts (id, user_id, name) VALUES (?1, ?2, ?3)',
+      ['acct-a1', 'user-a', 'A account 1'],
+    );
+    await a.trust(b);
+    await b.trust(a);
+    await a.start();
+    await b.start();
+
+    Future<void> syncNow() =>
+        b.manager.syncNow(a.id, host: 'localhost', port: a.manager.serverPort!);
+
+    await syncNow();
+    expect(b.client.connectCount, 1);
+
+    await a.crdt.execute(
+      'INSERT INTO accounts (id, user_id, name) VALUES (?1, ?2, ?3)',
+      ['acct-a2', 'user-a', 'A account 2'],
+    );
+
+    // Let the cooldown from the first sync lapse so the next trigger runs
+    // while its twin lands inside the cooldown: dropped before, now deferred
+    // and retried once the cooldown lapses.
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    await Future.wait([syncNow(), syncNow()]);
+    final bAccounts = await b.crdt.query('SELECT * FROM accounts WHERE is_deleted = 0');
+    expect(bAccounts, hasLength(2));
+
+    await waitUntil(() async => b.client.connectCount == 3);
+    expect(b.client.connectCount, 3);
+  });
+
+  test('stale cached address is refreshed from the latest sighting', () async {
+    final a = SyncTestDevice(id: 'device-a', name: 'Device A', secret: secret);
+    final b = SyncTestDevice(id: 'device-b', name: 'Device B', secret: secret);
+    addTearDown(a.dispose);
+    addTearDown(b.dispose);
+    await a.setUp();
+    await b.setUp();
+
+    await seedAUser(a, 'user-a', 'alice');
+    await a.crdt.execute(
+      'INSERT INTO accounts (id, user_id, name) VALUES (?1, ?2, ?3)',
+      ['acct-a', 'user-a', 'A account'],
+    );
+    await a.trust(b);
+    await b.trust(a);
+    await a.start();
+    await b.start();
+
+    DiscoveredService sighting({required int port}) => DiscoveredService(
+          nodeId: a.id,
+          deviceName: a.name,
+          protocolVersion: SyncSession.currentProtocolVersion,
+          host: 'localhost',
+          port: port,
+        );
+
+    final tmp = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    final deadPort = tmp.port;
+    await tmp.close();
+
+    // B first hears A at a dead address: cached, and the auto-sync fails.
+    b.browser.emit(sighting(port: deadPort));
+    await waitUntil(() async => b.client.connectCount == 1);
+
+    // B hears A again at the live port, but inside the dedup window: no new
+    // auto-sync fires, yet the fresh address must be remembered.
+    b.browser.emit(sighting(port: a.manager.serverPort!));
+    await waitUntil(
+      () async => b.manager.discovery.latestFor(a.id)?.port == a.manager.serverPort,
+    );
+    expect(b.client.connectCount, 1);
+
+    // A manual sync without an address must use the refreshed sighting,
+    // not the stale cached one.
+    await b.manager.syncNow(a.id);
+    await waitUntil(
+      () async =>
+          (await b.crdt.query('SELECT * FROM accounts WHERE is_deleted = 0')).isNotEmpty,
+    );
+    final bAccounts = await b.crdt.query('SELECT * FROM accounts WHERE is_deleted = 0');
+    expect(bAccounts, hasLength(1));
+    expect(bAccounts.single['name'], 'A account');
+  });
 }

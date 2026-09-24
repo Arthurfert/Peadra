@@ -32,6 +32,11 @@ class MDnsDiscoveryService {
   StreamSubscription<DiscoveredService>? _browserSubscription;
   final Map<String, DateTime> _lastEmitted = {};
 
+  /// The most recently heard advertisement per node, including sightings
+  /// swallowed by the dedup window below. Dialers use it to refresh a cached
+  /// address (the peer may have a new IP/port) without triggering a new sync.
+  final Map<String, DiscoveredService> _latestByNode = {};
+
   /// Emits peers discovered on the local network, minus the local node.
   Stream<DiscoveredService> get onServiceFound => _controller.stream;
 
@@ -71,7 +76,12 @@ class MDnsDiscoveryService {
     );
   }
 
+  /// The latest advertisement heard for [nodeId], or null if never seen.
+  /// Includes sightings suppressed by the dedup window.
+  DiscoveredService? latestFor(String nodeId) => _latestByNode[nodeId];
+
   void _onService(DiscoveredService service) {
+    _latestByNode[service.nodeId] = service;
     if (service.nodeId == _localNodeId) {
       return;
     }
@@ -94,5 +104,6 @@ class MDnsDiscoveryService {
     await stopAdvertising();
     await _multicastLock.release();
     _lastEmitted.clear();
+    _latestByNode.clear();
   }
 }

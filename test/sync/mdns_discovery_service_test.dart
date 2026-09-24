@@ -182,6 +182,17 @@ void main() {
       await sub.cancel();
     });
 
+    test('latestFor tracks sightings swallowed by the dedup window', () async {
+      await discovery.startBrowsing(localNodeId: 'local');
+      browser.emit(_service('peer-1', port: 1111));
+      await Future<void>.delayed(Duration.zero);
+      browser.emit(_service('peer-1', port: 2222));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(discovery.latestFor('peer-1')?.port, 2222);
+      expect(discovery.latestFor('unknown'), isNull);
+    });
+
     test('does not de-duplicate distinct peers', () async {
       final seen = <DiscoveredService>[];
       final sub = discovery.onServiceFound.listen(seen.add);

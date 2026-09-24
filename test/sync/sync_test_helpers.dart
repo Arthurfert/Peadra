@@ -97,11 +97,15 @@ class SyncTestDevice {
     required this.name,
     required this.secret,
     this.key,
+    this.syncDebounce = const Duration(milliseconds: 50),
+    this.reconnectCooldown = Duration.zero,
   });
 
   final String id;
   final String name;
   final String secret;
+  final Duration syncDebounce;
+  final Duration reconnectCooldown;
 
   /// The device's database encryption key. Mutable so tests can simulate a
   /// password change (the manager resolves it lazily via the constructor).
@@ -133,8 +137,8 @@ class SyncTestDevice {
         advertiser: FakeSyncAdvertiser(),
         browser: browser,
       ),
-      syncDebounce: const Duration(milliseconds: 50),
-      reconnectCooldown: Duration.zero,
+      syncDebounce: syncDebounce,
+      reconnectCooldown: reconnectCooldown,
       localDbKeyResolver: () => key,
     );
   }

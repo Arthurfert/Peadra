@@ -274,7 +274,25 @@ class PeadraTheme {
     ),
   };
 
+  /// Name of the theme that follows the OS brightness (light/dark).
+  static const String systemThemeName = 'system';
+
+  /// Whether the OS is currently in dark mode. Safe to call even when no
+  /// Flutter binding is initialized (e.g. in unit tests): falls back to dark.
+  static bool get isSystemDark {
+    try {
+      return WidgetsBinding
+              .instance.platformDispatcher.platformBrightness ==
+          Brightness.dark;
+    } catch (_) {
+      return true;
+    }
+  }
+
   static PeadraColors getColors(String themeName) {
+    if (themeName == systemThemeName) {
+      return isSystemDark ? themes['dark']! : themes['light']!;
+    }
     return themes[themeName] ?? themes['dark']!;
   }
 

@@ -405,6 +405,9 @@ class _ParametersViewState extends State<ParametersView> {
         style: TextStyle(color: colors.text),
         items: [
           DropdownMenuItem(
+              value: 'system',
+              child: Text(Translator.t('param_system_theme'))),
+          DropdownMenuItem(
               value: 'light',
               child: Text(Translator.t('param_light_theme'))),
           DropdownMenuItem(

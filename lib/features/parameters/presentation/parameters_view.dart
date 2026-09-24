@@ -1699,42 +1699,47 @@ class _ParametersViewState extends State<ParametersView> {
             ],
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              TextButton(
-                onPressed: () => _showChangelogDialog(colors, update),
-                child: Text(
-                  Translator.t('param_see_whats_new'),
-                  style: TextStyle(color: colors.success, fontSize: 12),
-                ),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.open_in_new, color: Colors.white, size: 16),
-                label: Text(Translator.t('param_install_update'),
-                    style: const TextStyle(color: Colors.white, fontSize: 12)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: colors.success,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+          Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextButton(
+                  onPressed: () => _showChangelogDialog(colors, update),
+                  child: Text(
+                    Translator.t('param_see_whats_new'),
+                    style: TextStyle(color: colors.success, fontSize: 12),
                   ),
                 ),
-                onPressed: () => Platform.isAndroid
-                    ? _updateService.openPlayStore()
-                    : _updateService.openDownloadUrl(update.downloadUrl),
-              ),
-            ],
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.open_in_new, color: Colors.white, size: 16),
+                  label: Text(Translator.t('param_install_update'),
+                      style: const TextStyle(color: Colors.white, fontSize: 12)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colors.success,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  onPressed: () => Platform.isAndroid
+                      ? _updateService.openPlayStore()
+                      : _updateService.openDownloadUrl(update.downloadUrl),
+                ),
+              ],
+            ),
           ),
           if (Platform.isAndroid) ...[
             const SizedBox(height: 4),
-            TextButton.icon(
-              icon: Icon(Icons.download_outlined,
-                  color: colors.placeholderColor, size: 16),
-              label: Text(Translator.t('param_install_apk_github'),
-                  style: TextStyle(
-                      color: colors.placeholderColor, fontSize: 12)),
-              onPressed: () =>
-                  _updateService.openDownloadUrl(update.downloadUrl),
+            Center(
+              child: TextButton.icon(
+                icon: Icon(Icons.download_outlined,
+                    color: colors.success, size: 16),
+                label: Text(Translator.t('param_install_apk_github'),
+                    style: TextStyle(
+                        color: colors.success, fontSize: 12)),
+                onPressed: () =>
+                    _updateService.openDownloadUrl(update.downloadUrl),
+              ),
             ),
           ],
         ],

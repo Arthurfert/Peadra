@@ -10,16 +10,20 @@ class CategoryPieChart extends StatefulWidget {
   final List<Map<String, dynamic>> data;
   final PeadraColors colors;
   final String title;
+  final VoidCallback? onTitleBack;
   final String currency;
   final int maxCategories;
+  final ValueChanged<String>? onSectionTap;
 
   const CategoryPieChart({
     super.key,
     required this.data,
     required this.colors,
     this.title = '',
+    this.onTitleBack,
     this.currency = 'EUR',
     this.maxCategories = 5,
+    this.onSectionTap,
   });
 
   @override
@@ -35,6 +39,55 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
     return 0.0;
   }
 
+  Widget _backButton({bool ignore = false}) {
+    final button = InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: ignore ? null : widget.onTitleBack,
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.arrow_back, size: 16, color: widget.colors.accent),
+            const SizedBox(width: 4),
+            Text(
+              Translator.t('btn_back'),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: widget.colors.accent,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!ignore) return button;
+    return IgnorePointer(
+      child: ExcludeSemantics(
+        child: Opacity(opacity: 0, child: button),
+      ),
+    );
+  }
+
+  Widget _buildTitle() {
+    final text = Text(widget.title,
+        textAlign: TextAlign.center,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: widget.colors.text));
+    if (widget.onTitleBack == null) return text;
+    return Row(
+      children: [
+        _backButton(),
+        Expanded(child: text),
+        _backButton(ignore: true),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final total = widget.data.fold<double>(
@@ -44,11 +97,7 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (widget.title.isNotEmpty) ...[
-            Text(widget.title,
-                style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: widget.colors.text)),
+            _buildTitle(),
             const SizedBox(height: 8),
           ],
           Expanded(
@@ -126,11 +175,7 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (widget.title.isNotEmpty) ...[
-          Text(widget.title,
-              style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: widget.colors.text)),
+          _buildTitle(),
           const SizedBox(height: 8),
         ],
         Expanded(
@@ -143,6 +188,20 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
                     pieTouchData: PieTouchData(
                       touchCallback:
                           (FlTouchEvent event, pieTouchResponse) {
+                        if (event is FlTapUpEvent &&
+                            pieTouchResponse?.touchedSection != null &&
+                            widget.onSectionTap != null) {
+                          final tapIdx = pieTouchResponse!
+                              .touchedSection!.touchedSectionIndex;
+                          if (tapIdx >= 0 && tapIdx < processedData.length) {
+                            final label =
+                                processedData[tapIdx]['label'] as String? ?? '';
+                            if (label.isNotEmpty &&
+                                label != Translator.t('dash_other')) {
+                              widget.onSectionTap!(label);
+                            }
+                          }
+                        }
                         setState(() {
                           if (!event.isInterestedForInteractions ||
                               pieTouchResponse == null ||
@@ -173,21 +232,36 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
                         i < processedData.length &&
                             i < widget.maxCategories + 1;
                         i++) ...[
-                      _legendItem(
-                        color: processedData[i].containsKey('color') &&
-                                processedData[i]['color'] != null
-                            ? PeadraTheme.hexToColor(
-                                processedData[i]['color'] as String)
-                            : chartColors[i % chartColors.length],
-                        label: processedData[i]['label'] ?? '',
-                        amount: _toDouble(processedData[i]['amount']),
-                        displayAmount: _toDouble(processedData[i]['nativeValue'] ?? processedData[i]['amount']),
-                        itemCurrency:
-                            (processedData[i]['currency'] as String?) ??
-                                widget.currency,
-                        pct: _toDouble(processedData[i]['amount']) /
-                            total *
-                            100,
+                      Builder(
+                        builder: (context) {
+                          final legendLabel =
+                              processedData[i]['label'] as String? ?? '';
+                          final tappable = widget.onSectionTap != null &&
+                              legendLabel.isNotEmpty &&
+                              legendLabel != Translator.t('dash_other');
+                          final item = _legendItem(
+                            color: processedData[i].containsKey('color') &&
+                                    processedData[i]['color'] != null
+                                ? PeadraTheme.hexToColor(
+                                    processedData[i]['color'] as String)
+                                : chartColors[i % chartColors.length],
+                            label: legendLabel,
+                            amount: _toDouble(processedData[i]['amount']),
+                            displayAmount: _toDouble(processedData[i]['nativeValue'] ?? processedData[i]['amount']),
+                            itemCurrency:
+                                (processedData[i]['currency'] as String?) ??
+                                    widget.currency,
+                            pct: _toDouble(processedData[i]['amount']) /
+                                total *
+                                100,
+                          );
+                          if (!tappable) return item;
+                          return InkWell(
+                            borderRadius: BorderRadius.circular(4),
+                            onTap: () => widget.onSectionTap!(legendLabel),
+                            child: item,
+                          );
+                        },
                       ),
                       const SizedBox(height: 4),
                     ],

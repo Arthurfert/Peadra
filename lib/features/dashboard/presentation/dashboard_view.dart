@@ -38,6 +38,12 @@ class _DashboardViewState extends State<DashboardView> {
   Map<String, Decimal> _monthlyExpenses = {};
   Map<String, Decimal> _monthlyIncomes = {};
   Map<String, String> _tagColors = {};
+  String? _expenseDrillTag;
+  String? _incomeDrillTag;
+  Map<String, Decimal> _expenseDrillData = {};
+  Map<String, Decimal> _incomeDrillData = {};
+  bool _expenseDrillLoading = false;
+  bool _incomeDrillLoading = false;
   bool _loading = true;
   int _selectedMonths = 6;
   String _lastCurrency = '';
@@ -153,6 +159,12 @@ class _DashboardViewState extends State<DashboardView> {
           _previousBalance = (results[12] as Decimal?) ?? Decimal.zero;
           _previousSavings = (results[10] as Decimal?) ?? Decimal.zero;
           _tagColors = (results[11] as Map<String, String>?) ?? {};
+          _expenseDrillTag = null;
+          _incomeDrillTag = null;
+          _expenseDrillData = {};
+          _incomeDrillData = {};
+          _expenseDrillLoading = false;
+          _incomeDrillLoading = false;
           _loading = false;
         });
       }
@@ -192,6 +204,69 @@ class _DashboardViewState extends State<DashboardView> {
         });
       }
     } catch (_) {}
+  }
+
+  Future<void> _drillIntoPie({required bool isExpense, required String tag}) async {
+    if (isExpense) {
+      if (_expenseDrillTag == tag) return;
+      setState(() {
+        _expenseDrillTag = tag;
+        _expenseDrillData = {};
+        _expenseDrillLoading = true;
+      });
+    } else {
+      if (_incomeDrillTag == tag) return;
+      setState(() {
+        _incomeDrillTag = tag;
+        _incomeDrillData = {};
+        _incomeDrillLoading = true;
+      });
+    }
+    try {
+      final currency = context.read<SettingsProvider>().currency;
+      final isRolling = context.read<SettingsProvider>().monthMode == 'rolling';
+      final transactionType = isExpense ? 'expense' : 'income';
+      final Map<String, Decimal> data = isRolling
+          ? await _db.getRollingMonthTagDescriptionBreakdown(
+              transactionType: transactionType, tag: tag, targetCurrency: currency)
+          : await _db.getCurrentMonthTagDescriptionBreakdown(
+              transactionType: transactionType, tag: tag, targetCurrency: currency);
+      if (!mounted) return;
+      setState(() {
+        if (isExpense) {
+          if (_expenseDrillTag != tag) return;
+          _expenseDrillData = data;
+          _expenseDrillLoading = false;
+        } else {
+          if (_incomeDrillTag != tag) return;
+          _incomeDrillData = data;
+          _incomeDrillLoading = false;
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        if (isExpense) {
+          _expenseDrillLoading = false;
+        } else {
+          _incomeDrillLoading = false;
+        }
+      });
+    }
+  }
+
+  void _exitPieDrill({required bool isExpense}) {
+    setState(() {
+      if (isExpense) {
+        _expenseDrillTag = null;
+        _expenseDrillData = {};
+        _expenseDrillLoading = false;
+      } else {
+        _incomeDrillTag = null;
+        _incomeDrillData = {};
+        _incomeDrillLoading = false;
+      }
+    });
   }
 
   Widget _buildStatCards(PeadraColors colors, String currency) {
@@ -437,9 +512,16 @@ class _DashboardViewState extends State<DashboardView> {
 
   Widget _buildPieChartCard(PeadraColors colors, String title,
       Map<String, Decimal> data, String currency, int maxCategories,
-      {Map<String, String> itemColors = const {}}) {
-    final pieData = data.entries.map((e) {
-      final entryColor = itemColors[e.key];
+      {Map<String, String> itemColors = const {},
+      String? drillTag,
+      Map<String, Decimal>? drillData,
+      bool drillLoading = false,
+      ValueChanged<String>? onSectionTap,
+      VoidCallback? onBack}) {
+    final drilled = drillTag != null;
+    final effectiveData = drilled ? (drillData ?? <String, Decimal>{}) : data;
+    final pieData = effectiveData.entries.map((e) {
+      final entryColor = drilled ? null : itemColors[e.key];
       return {
         'label': e.key,
         'amount': e.value,
@@ -454,13 +536,36 @@ class _DashboardViewState extends State<DashboardView> {
         padding: const EdgeInsets.all(20),
         child: SizedBox(
           height: 220,
-          child: CategoryPieChart(
-            data: pieData,
-            colors: colors,
-            title: title,
-            currency: currency,
-            maxCategories: maxCategories,
-          ),
+          child: drillLoading
+              ? Center(
+                  child: CircularProgressIndicator(color: colors.accent),
+                )
+              : AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 350),
+                  switchInCurve: Curves.easeOut,
+                  switchOutCurve: Curves.easeIn,
+                  transitionBuilder: (child, animation) {
+                    return FadeTransition(
+                      opacity: animation,
+                      child: ScaleTransition(
+                        scale: Tween<double>(begin: 0.96, end: 1.0)
+                            .animate(animation),
+                        child: child,
+                      ),
+                    );
+                  },
+                    child: CategoryPieChart(
+                      key: ValueKey<String>(
+                          drilled ? 'drill:$drillTag' : 'tags'),
+                      data: pieData,
+                      colors: colors,
+                      title: drilled ? drillTag : title,
+                      onTitleBack: drilled ? onBack : null,
+                      currency: currency,
+                      maxCategories: maxCategories,
+                      onSectionTap: drilled ? null : onSectionTap,
+                    ),
+                ),
         ),
       ),
     );
@@ -503,6 +608,7 @@ class _DashboardViewState extends State<DashboardView> {
     final maxPieCategories =
         context.watch<SettingsProvider>().maxPieCategories;
     final lineChartDots = context.watch<SettingsProvider>().lineChartDots;
+    final isTagMode = context.watch<SettingsProvider>().dashboardPieView == 'tags';
     final username = context.watch<AuthProvider>().username;
 
     if (_loading) {
@@ -537,19 +643,33 @@ class _DashboardViewState extends State<DashboardView> {
 
     final cashFlowSection = _buildCashFlowSection(colors);
     final expensePie = _buildPieChartCard(
-        colors,
-        Translator.t('dash_this_month_expenses'),
-        _monthlyExpenses,
-        currency,
-        maxPieCategories,
-        itemColors: _tagColors);
+      colors,
+      Translator.t('dash_this_month_expenses'),
+      _monthlyExpenses,
+      currency,
+      maxPieCategories,
+      itemColors: _tagColors,
+      drillTag: _expenseDrillTag,
+      drillData: _expenseDrillData,
+      drillLoading: _expenseDrillLoading,
+      onSectionTap:
+          isTagMode ? (tag) => _drillIntoPie(isExpense: true, tag: tag) : null,
+      onBack: () => _exitPieDrill(isExpense: true),
+    );
     final incomePie = _buildPieChartCard(
-        colors,
-        Translator.t('dash_this_month_incomes'),
-        _monthlyIncomes,
-        currency,
-        maxPieCategories,
-        itemColors: _tagColors);
+      colors,
+      Translator.t('dash_this_month_incomes'),
+      _monthlyIncomes,
+      currency,
+      maxPieCategories,
+      itemColors: _tagColors,
+      drillTag: _incomeDrillTag,
+      drillData: _incomeDrillData,
+      drillLoading: _incomeDrillLoading,
+      onSectionTap:
+          isTagMode ? (tag) => _drillIntoPie(isExpense: false, tag: tag) : null,
+      onBack: () => _exitPieDrill(isExpense: false),
+    );
     final assetsPie = _buildAssetsDistributionPieChart(
         colors, currency, maxPieCategories);
 

@@ -8,16 +8,6 @@
   <img src="https://img.shields.io/github/v/release/Arthurfert/Peadra">
 </div>
 
-## Screenshots
-
-|                 Dashboard                 |                  Transactions                  |
-| :---------------------------------------: | :--------------------------------------------: |
-| ![Peadra dashboard](assets/Dashboard.png) | ![Peadra transaction](assets/Transactions.png) |
-
-|                  Accounts                 |                 Subscriptions               |
-| :---------------------------------------: | :-----------------------------------------: |
-| ![Peadra Accounts](assets/Accounts.png)   | ![Peadra Categories](assets/Categories.png) |
-
 ## Overview
 
 Peadra ("*wealth*" in Breton) is a free, secure, privacy-focused cross-platform application designed to streamline personal finance and asset management.

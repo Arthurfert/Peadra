@@ -28,8 +28,11 @@ import 'sync_runner.dart';
 ///    sharing + initial full sync) for a freshly scanned device.
 ///
 /// A single session per peer is guaranteed by a per-peer mutex and reconnect
-/// attempts are throttled by [reconnectCooldown]. Failures are logged and
-/// retried on the next mDNS event; they never crash the UI.
+/// attempts are throttled by [reconnectCooldown]. Attempts suppressed by the
+/// cooldown are retried once it lapses, and dial addresses are refreshed from
+/// the latest mDNS sighting so a peer that changed IP/port stays reachable.
+/// Failures are logged and retried on the next mDNS event; they never crash
+/// the UI.
 class SyncManager {
   SyncManager({
     required this.db,
@@ -61,6 +64,7 @@ class SyncManager {
   Timer? _syncTimer;
   final Map<String, Future<void>> _locks = {};
   final Map<String, DateTime> _lastAttempt = {};
+  final Map<String, Timer> _retryTimers = {};
   final Map<String, DiscoveredService> _knownPeers = {};
   final Map<String, String> _pendingPairingSecrets = {};
   final Set<Future<void>> _inFlight = {};
@@ -126,6 +130,10 @@ class SyncManager {
     _changeSub = null;
     _syncTimer?.cancel();
     _syncTimer = null;
+    for (final timer in _retryTimers.values) {
+      timer.cancel();
+    }
+    _retryTimers.clear();
     await discovery.stop();
     await server.stop();
     if (_inFlight.isNotEmpty) {
@@ -144,14 +152,14 @@ class SyncManager {
     _deviceName ??= await identity.deviceName;
   }
 
-  /// Manual sync trigger from the peers list. Falls back to the last address
-  /// seen via discovery when [host]/[port] are not supplied.
+  /// Manual sync trigger from the peers list. Falls back to the freshest
+  /// address seen via discovery when [host]/[port] are not supplied.
   Future<void> syncNow(String peerId, {String? host, int? port}) async {
-    final known = _knownPeers[peerId];
+    final resolved = _resolvePeerAddress(peerId, host: host, port: port);
     await _syncPeer(
       peerId,
-      host: host ?? known?.host,
-      port: port ?? known?.port,
+      host: resolved.host,
+      port: resolved.port,
     );
   }
 
@@ -170,6 +178,9 @@ class SyncManager {
   Future<void> _refreshPeerKey(String peerId, {String? host, int? port}) async {
     final peer = await peerStorage.getById(peerId);
     if (peer == null) return;
+    final resolved = _resolvePeerAddress(peerId, host: host, port: port);
+    host = resolved.host;
+    port = resolved.port;
     if (host == null || port == null) return;
 
     SyncSession? session;
@@ -278,6 +289,7 @@ class SyncManager {
   }
 
   Future<void> _syncAllKnown() async {
+    _refreshKnownAddresses();
     final services = Map.of(_knownPeers).values;
     for (final service in services) {
       await _syncPeer(service.nodeId, host: service.host, port: service.port);
@@ -288,18 +300,69 @@ class SyncManager {
     if (!_running) return;
     final now = _now();
     final last = _lastAttempt[peerId];
-    if (last != null && now.difference(last) < reconnectCooldown) return;
+    if (last != null && now.difference(last) < reconnectCooldown) {
+      _scheduleCooldownRetry(peerId, host: host, port: port);
+      return;
+    }
     _lastAttempt[peerId] = now;
+    final resolved = _resolvePeerAddress(peerId, host: host, port: port);
 
     final previous = _locks[peerId] ?? Future<void>.value();
     final done = Completer<void>();
     _locks[peerId] = previous.then((_) => done.future);
     await previous;
     try {
-      await _doSync(peerId, host: host, port: port);
+      await _doSync(peerId, host: resolved.host, port: resolved.port);
     } finally {
       done.complete();
     }
+  }
+
+  /// Picks the address to dial: an explicitly supplied host/port always wins,
+  /// otherwise the freshest mDNS sighting (which includes advertisements
+  /// swallowed by the discovery dedup window), otherwise the last address
+  /// that triggered a sync.
+  ({String? host, int? port}) _resolvePeerAddress(
+    String peerId, {
+    String? host,
+    int? port,
+  }) {
+    if (host != null && port != null) return (host: host, port: port);
+    final latest = discovery.latestFor(peerId);
+    if (latest != null) return (host: latest.host, port: latest.port);
+    final known = _knownPeers[peerId];
+    return (host: known?.host, port: known?.port);
+  }
+
+  /// Refreshes cached dial addresses from the latest mDNS sightings so peers
+  /// that changed IP/port stay reachable. Only the address cache is updated;
+  /// no sync is triggered here.
+  void _refreshKnownAddresses() {
+    for (final entry in Map.of(_knownPeers).entries) {
+      final latest = discovery.latestFor(entry.key);
+      if (latest != null && latest != entry.value) {
+        _knownPeers[entry.key] = latest;
+      }
+    }
+  }
+
+  /// Defers a cooldown-suppressed sync instead of dropping it. At most one
+  /// retry is pending per peer; it re-reads the peer state when it fires, so
+  /// repeated triggers while one retry is pending cannot starve it. The
+  /// suppressed attempt's address is carried over (with nulls refreshed from
+  /// the latest sighting at fire time) so the retry dials the same peer.
+  void _scheduleCooldownRetry(String peerId, {String? host, int? port}) {
+    if (_retryTimers.containsKey(peerId)) return;
+    final last = _lastAttempt[peerId];
+    if (last == null) return;
+    final wait = reconnectCooldown - _now().difference(last);
+    final delay = wait.isNegative ? Duration.zero : wait;
+    LogService().log('Sync with $peerId deferred by cooldown; retrying shortly');
+    _retryTimers[peerId] = Timer(delay, () {
+      _retryTimers.remove(peerId);
+      if (!_running) return;
+      unawaited(_syncPeer(peerId, host: host, port: port));
+    });
   }
 
   Future<void> _doSync(String peerId, {String? host, int? port}) async {

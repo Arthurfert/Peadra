@@ -2307,9 +2307,10 @@ void setUserId(String userId) {
       [_userId],
     );
 
+    final today = DateTime.now().toIso8601String().substring(0, 10);
     final txnRows = await db.query(
-      'SELECT transaction_type, amount, account_id FROM transactions WHERE user_id = ? AND is_deleted = 0',
-      [_userId],
+      'SELECT transaction_type, amount, account_id FROM transactions WHERE user_id = ? AND is_deleted = 0 AND date <= ?',
+      [_userId, today],
     );
     final txnByAccount = <String, List<Map<String, Object?>>>{};
     for (final t in txnRows) {

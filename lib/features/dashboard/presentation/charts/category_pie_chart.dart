@@ -196,8 +196,7 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
                           if (tapIdx >= 0 && tapIdx < processedData.length) {
                             final label =
                                 processedData[tapIdx]['label'] as String? ?? '';
-                            if (label.isNotEmpty &&
-                                label != Translator.t('dash_other')) {
+                            if (label.isNotEmpty) {
                               widget.onSectionTap!(label);
                             }
                           }
@@ -224,10 +223,11 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
               const SizedBox(width: 12),
               Expanded(
                 flex: 2,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                     for (int i = 0;
                         i < processedData.length &&
                             i < widget.maxCategories + 1;
@@ -237,8 +237,7 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
                           final legendLabel =
                               processedData[i]['label'] as String? ?? '';
                           final tappable = widget.onSectionTap != null &&
-                              legendLabel.isNotEmpty &&
-                              legendLabel != Translator.t('dash_other');
+                              legendLabel.isNotEmpty;
                           final item = _legendItem(
                             color: processedData[i].containsKey('color') &&
                                     processedData[i]['color'] != null
@@ -265,7 +264,8 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
                       ),
                       const SizedBox(height: 4),
                     ],
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ],

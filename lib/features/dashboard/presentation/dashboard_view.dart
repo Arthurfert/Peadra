@@ -40,6 +40,8 @@ class _DashboardViewState extends State<DashboardView> {
   Map<String, String> _tagColors = {};
   String? _expenseDrillTag;
   String? _incomeDrillTag;
+  bool _expenseShowAll = false;
+  bool _incomeShowAll = false;
   Map<String, Decimal> _expenseDrillData = {};
   Map<String, Decimal> _incomeDrillData = {};
   bool _expenseDrillLoading = false;
@@ -161,6 +163,8 @@ class _DashboardViewState extends State<DashboardView> {
           _tagColors = (results[11] as Map<String, String>?) ?? {};
           _expenseDrillTag = null;
           _incomeDrillTag = null;
+          _expenseShowAll = false;
+          _incomeShowAll = false;
           _expenseDrillData = {};
           _incomeDrillData = {};
           _expenseDrillLoading = false;
@@ -253,6 +257,35 @@ class _DashboardViewState extends State<DashboardView> {
         }
       });
     }
+  }
+
+  void _onPieSectionTap({required bool isExpense, required String tag}) {
+    if (tag == Translator.t('dash_other')) {
+      setState(() {
+        if (isExpense) {
+          _expenseShowAll = true;
+        } else {
+          _incomeShowAll = true;
+        }
+      });
+      return;
+    }
+    _drillIntoPie(isExpense: isExpense, tag: tag);
+  }
+
+  void _onPieBack({required bool isExpense}) {
+    final drilled = isExpense ? _expenseDrillTag != null : _incomeDrillTag != null;
+    if (drilled) {
+      _exitPieDrill(isExpense: isExpense);
+      return;
+    }
+    setState(() {
+      if (isExpense) {
+        _expenseShowAll = false;
+      } else {
+        _incomeShowAll = false;
+      }
+    });
   }
 
   void _exitPieDrill({required bool isExpense}) {
@@ -516,10 +549,13 @@ class _DashboardViewState extends State<DashboardView> {
       String? drillTag,
       Map<String, Decimal>? drillData,
       bool drillLoading = false,
+      bool showAll = false,
       ValueChanged<String>? onSectionTap,
       VoidCallback? onBack}) {
     final drilled = drillTag != null;
+    final expanded = drilled || showAll;
     final effectiveData = drilled ? (drillData ?? <String, Decimal>{}) : data;
+    final effectiveMax = showAll && !drilled ? effectiveData.length : maxCategories;
     final pieData = effectiveData.entries.map((e) {
       final entryColor = drilled ? null : itemColors[e.key];
       return {
@@ -555,14 +591,15 @@ class _DashboardViewState extends State<DashboardView> {
                     );
                   },
                     child: CategoryPieChart(
-                      key: ValueKey<String>(
-                          drilled ? 'drill:$drillTag' : 'tags'),
+                      key: ValueKey<String>(drilled
+                          ? 'drill:$drillTag'
+                          : (showAll ? 'all' : 'tags')),
                       data: pieData,
                       colors: colors,
                       title: drilled ? drillTag : title,
-                      onTitleBack: drilled ? onBack : null,
+                      onTitleBack: expanded ? onBack : null,
                       currency: currency,
-                      maxCategories: maxCategories,
+                      maxCategories: effectiveMax,
                       onSectionTap: drilled ? null : onSectionTap,
                     ),
                 ),
@@ -652,9 +689,11 @@ class _DashboardViewState extends State<DashboardView> {
       drillTag: _expenseDrillTag,
       drillData: _expenseDrillData,
       drillLoading: _expenseDrillLoading,
-      onSectionTap:
-          isTagMode ? (tag) => _drillIntoPie(isExpense: true, tag: tag) : null,
-      onBack: () => _exitPieDrill(isExpense: true),
+      showAll: _expenseShowAll,
+      onSectionTap: isTagMode
+          ? (tag) => _onPieSectionTap(isExpense: true, tag: tag)
+          : null,
+      onBack: () => _onPieBack(isExpense: true),
     );
     final incomePie = _buildPieChartCard(
       colors,
@@ -666,9 +705,11 @@ class _DashboardViewState extends State<DashboardView> {
       drillTag: _incomeDrillTag,
       drillData: _incomeDrillData,
       drillLoading: _incomeDrillLoading,
-      onSectionTap:
-          isTagMode ? (tag) => _drillIntoPie(isExpense: false, tag: tag) : null,
-      onBack: () => _exitPieDrill(isExpense: false),
+      showAll: _incomeShowAll,
+      onSectionTap: isTagMode
+          ? (tag) => _onPieSectionTap(isExpense: false, tag: tag)
+          : null,
+      onBack: () => _onPieBack(isExpense: false),
     );
     final assetsPie = _buildAssetsDistributionPieChart(
         colors, currency, maxPieCategories);

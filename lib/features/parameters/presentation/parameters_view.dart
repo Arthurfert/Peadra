@@ -894,7 +894,7 @@ class _ParametersViewState extends State<ParametersView> {
       label: Text(Translator.t('param_switch_backup'),
           style: const TextStyle(color: Colors.white, fontSize: 12)),
       style: ElevatedButton.styleFrom(
-        backgroundColor: colors.warning,
+        backgroundColor: colors.accent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
         ),

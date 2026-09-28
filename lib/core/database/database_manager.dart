@@ -1288,11 +1288,15 @@ void setUserId(String userId) {
     final id = _newId();
     final encryptedAmount = await _encrypt(amount.toString());
     final encryptedNotes = await _encrypt(notes);
+    // Explicit ISO timestamps so lexical SQL ordering matches chronological
+    // order (SQLite CURRENT_TIMESTAMP uses a space separator, while updates
+    // use ISO with 'T' — mixing both breaks string comparison).
+    final nowIso = DateTime.now().toIso8601String();
 
     await db.execute(
-      'INSERT INTO transactions (id, user_id, account_id, description_id, tag_id, date, amount, transaction_type, currency, notes) '
-      'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)',
-      [id, _userId, accountId, descId, tagId, date, encryptedAmount, transactionType, effectiveCurrency, encryptedNotes],
+      'INSERT INTO transactions (id, user_id, account_id, description_id, tag_id, date, amount, transaction_type, currency, notes, created_at, updated_at) '
+      'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)',
+      [id, _userId, accountId, descId, tagId, date, encryptedAmount, transactionType, effectiveCurrency, encryptedNotes, nowIso, nowIso],
     );
     return id;
   }
@@ -1396,7 +1400,7 @@ void setUserId(String userId) {
       LEFT JOIN tags tg ON t.tag_id = tg.id AND tg.is_deleted = 0
       LEFT JOIN recurring_transactions rt ON t.recurring_id = rt.id AND rt.is_deleted = 0
       WHERE ${where.join(' AND ')}
-      ORDER BY t.date DESC, t.id DESC
+      ORDER BY t.date DESC, COALESCE(t.updated_at, t.created_at) DESC, t.id DESC
     ''';
 
     final rows = await db.query(query, args);
@@ -2007,9 +2011,10 @@ void setUserId(String userId) {
 
     for (final dateStr in plan.dueDates) {
       if (freshDates.contains(dateStr)) continue;
+      final nowIso = DateTime.now().toIso8601String();
       await db.execute(
-        'INSERT INTO transactions (id, user_id, account_id, description_id, tag_id, date, amount, transaction_type, currency, notes, recurring_id) '
-        'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)',
+        'INSERT INTO transactions (id, user_id, account_id, description_id, tag_id, date, amount, transaction_type, currency, notes, recurring_id, created_at, updated_at) '
+        'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)',
         [
           _newId(),
           rec.userId,
@@ -2022,6 +2027,8 @@ void setUserId(String userId) {
           rec.currency,
           await _encrypt(rec.notes),
           id,
+          nowIso,
+          nowIso,
         ],
       );
     }

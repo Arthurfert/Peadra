@@ -150,6 +150,24 @@ class _TransactionsViewState extends State<TransactionsView> {
     return result;
   }
 
+  /// Orders by day (newest first), then by last edit (newest first), so a
+  /// brand-new or just-edited transaction tops its day. Falls back to id for
+  /// stability. Parses timestamps so legacy `CURRENT_TIMESTAMP` rows
+  /// ("YYYY-MM-DD HH:MM:SS") compare correctly against ISO rows.
+  static int _compareByDayThenEdit(
+      TransactionWithDetails a, TransactionWithDetails b) {
+    final dateCmp = b.date.compareTo(a.date);
+    if (dateCmp != 0) return dateCmp;
+    final editCmp = _lastEditOf(b).compareTo(_lastEditOf(a));
+    if (editCmp != 0) return editCmp;
+    return (b.id ?? '').compareTo(a.id ?? '');
+  }
+
+  static DateTime _lastEditOf(TransactionWithDetails t) =>
+      DateTime.tryParse(t.updatedAt ?? '') ??
+      DateTime.tryParse(t.createdAt ?? '') ??
+      DateTime.fromMillisecondsSinceEpoch(0);
+
   TransactionWithDetails? _findPaired(
     List<int> candidates,
     int i,
@@ -244,6 +262,11 @@ class _TransactionsViewState extends State<TransactionsView> {
         txns = [...txns, ...paired];
       }
     }
+
+    // Day-grouped, last-edited-first ordering. SQL already orders this way,
+    // but paired halves are appended after the main fetch and legacy rows mix
+    // timestamp formats, so re-sort here with parsed timestamps.
+    txns.sort(_compareByDayThenEdit);
 
     if (mounted) {
       setState(() {

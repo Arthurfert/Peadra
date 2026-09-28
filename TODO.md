@@ -14,6 +14,7 @@
 ### Fixes
 
 - Fixed the assets distribution pie chart taking future transactions
+- Transactions are now sorted by last edit per day (fixing the previous odd order)
 
 ## Known issues
 

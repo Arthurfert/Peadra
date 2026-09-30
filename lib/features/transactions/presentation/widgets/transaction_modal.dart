@@ -237,21 +237,13 @@ class _TransactionModalState extends State<TransactionModal> {
       return;
     }
     _suggestionDebounce = Timer(const Duration(milliseconds: 300), () async {
-      final results = await _db.getTopDescriptions(
-        transactionType: _transactionType == 'transfer' ? 'expense' : _transactionType,
-        numMonths: 12,
-        limit: 20,
-      );
+      final query = value.trim();
+      if (query.isEmpty) return;
+      final results = await _db.searchDescriptions(query, limit: 20);
       if (!mounted) return;
-      final filtered = results
-          .where((r) => (r['description'] as String)
-              .toLowerCase()
-              .contains(value.toLowerCase()))
-          .map((r) => r['description'] as String)
-          .toList();
       setState(() {
-        _suggestions = filtered;
-        _showSuggestions = filtered.isNotEmpty;
+        _suggestions = results;
+        _showSuggestions = results.isNotEmpty;
       });
     });
   }

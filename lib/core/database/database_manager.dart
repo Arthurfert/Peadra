@@ -1101,6 +1101,55 @@ void setUserId(String userId) {
     return descriptions;
   }
 
+  /// Searches all of the user's descriptions by name (descriptions table
+  /// only — tags are never involved). Matches [query] case-insensitively,
+  /// excludes transfer descriptions, and ranks prefix matches first, then by
+  /// most-recent use, then alphabetically.
+  Future<List<String>> searchDescriptions(String query,
+      {int limit = 20}) async {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return [];
+    final db = await database;
+
+    final lastUsedRows = await db.query(
+      'SELECT description_id, MAX(date) as last_used FROM transactions '
+      'WHERE user_id = ? AND is_deleted = 0 AND description_id IS NOT NULL '
+      'GROUP BY description_id',
+      [_userId],
+    );
+    final lastUsed = <String, String>{
+      for (final r in lastUsedRows)
+        (r['description_id'] as String): (r['last_used'] as String? ?? ''),
+    };
+
+    final rows = await db.query(
+      'SELECT id, name FROM descriptions WHERE user_id = ? AND is_deleted = 0',
+      [_userId],
+    );
+    final matches = <({String name, String lastUsed})>[];
+    for (final row in rows) {
+      final name = await _decryptValue(row['name']);
+      if (name == null || name.trim().isEmpty) continue;
+      if (_isTransferDescription(name)) continue;
+      if (!name.toLowerCase().contains(q)) continue;
+      matches.add((
+        name: name,
+        lastUsed: lastUsed[row['id'] as String] ?? '',
+      ));
+    }
+
+    matches.sort((a, b) {
+      final aPrefix = a.name.toLowerCase().startsWith(q) ? 0 : 1;
+      final bPrefix = b.name.toLowerCase().startsWith(q) ? 0 : 1;
+      if (aPrefix != bPrefix) return aPrefix - bPrefix;
+      final recency = b.lastUsed.compareTo(a.lastUsed);
+      if (recency != 0) return recency;
+      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+
+    return matches.take(limit).map((m) => m.name).toList();
+  }
+
   Future<String> getOrCreateDescription(String name) async {
     final normalized = name.trim();
     final cacheKey = normalized.toLowerCase();

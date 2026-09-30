@@ -44,6 +44,10 @@ class SyncService {
 
   Future<List<TrustedPeer>> getPeers() => _peerStorage.getAll();
 
+  /// True once if unreadable peer data was reset since the last call, so the
+  /// UI can tell the user their devices must be paired again.
+  bool consumePeerRecoveryFlag() => _peerStorage.consumeRecoveryFlag();
+
   Future<void> forgetPeer(String peerId) => _peerStorage.delete(peerId);
 
   /// Whether Wi-Fi is currently available.

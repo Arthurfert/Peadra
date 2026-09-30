@@ -176,7 +176,13 @@ class SyncManager {
   }
 
   Future<void> _refreshPeerKey(String peerId, {String? host, int? port}) async {
-    final peer = await peerStorage.getById(peerId);
+    TrustedPeer? peer;
+    try {
+      peer = await peerStorage.getById(peerId);
+    } catch (e) {
+      LogService().warn('Key re-share with $peerId failed: $e');
+      return;
+    }
     if (peer == null) return;
     final resolved = _resolvePeerAddress(peerId, host: host, port: port);
     host = resolved.host;
@@ -263,9 +269,16 @@ class SyncManager {
   }
 
   Future<String?> _resolveSecret(String nodeId) async {
-    final peer = await peerStorage.getById(nodeId);
-    if (peer != null) {
-      return peer.sharedSecret;
+    try {
+      final peer = await peerStorage.getById(nodeId);
+      if (peer != null) {
+        return peer.sharedSecret;
+      }
+    } catch (e) {
+      // A failing peer store must reject the handshake cleanly (unknown
+      // peer) rather than crash the server session with an unhandled error.
+      LogService().warn('Sync: cannot read peer secret for $nodeId: $e');
+      return null;
     }
     if (_pendingPairingSecrets.isNotEmpty) {
       return _pendingPairingSecrets.values.first;
@@ -276,7 +289,13 @@ class SyncManager {
   Future<void> _onDiscovered(DiscoveredService service) async {
     if (!_running) return;
     _knownPeers[service.nodeId] = service;
-    final peer = await peerStorage.getById(service.nodeId);
+    TrustedPeer? peer;
+    try {
+      peer = await peerStorage.getById(service.nodeId);
+    } catch (e) {
+      LogService().warn('Sync: cannot read peer ${service.nodeId}: $e');
+      return;
+    }
     if (peer == null) return;
     unawaited(_syncPeer(service.nodeId, host: service.host, port: service.port));
   }
@@ -366,12 +385,15 @@ class SyncManager {
   }
 
   Future<void> _doSync(String peerId, {String? host, int? port}) async {
-    final peer = await peerStorage.getById(peerId);
-    if (peer == null) return;
-    if (host == null || port == null) return;
-
     SyncSession? session;
     try {
+      // Storage reads stay inside the try: a failing peer store (locked or
+      // damaged keystore) must surface as a logged sync failure, never as an
+      // unhandled async error.
+      final peer = await peerStorage.getById(peerId);
+      if (peer == null) return;
+      if (host == null || port == null) return;
+
       session = await client.connect(
         host: host,
         port: port,
@@ -391,7 +413,7 @@ class SyncManager {
       );
       LogService().log('Sync with ${peer.deviceName} complete');
     } catch (e) {
-      LogService().warn('Sync with ${peer.deviceName} failed: $e');
+      LogService().warn('Sync with $peerId failed: $e');
     } finally {
       await session?.close();
     }
@@ -408,7 +430,15 @@ class SyncManager {
     final peerInfo = session.peer;
     if (peerInfo == null) return;
 
-    final existing = await peerStorage.getById(peerInfo.nodeId);
+    TrustedPeer? existing;
+    try {
+      existing = await peerStorage.getById(peerInfo.nodeId);
+    } catch (e) {
+      LogService().warn(
+        'Sync session with ${peerInfo.deviceName} failed: $e',
+      );
+      return;
+    }
     final isPairing = existing == null && _pendingPairingSecrets.isNotEmpty;
     if (isPairing) {
       _emitStatus(SyncSessionStatus.connecting);

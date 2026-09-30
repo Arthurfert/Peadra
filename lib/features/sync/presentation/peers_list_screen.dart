@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../../core/i18n/translator.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../../core/responsive/responsive_layout.dart';
+import '../../../core/services/log_service.dart';
 import '../../../core/theme/peadra_colors.dart';
 import '../../../shared/widgets/peadra_notification.dart';
 import '../../../sync/models/trusted_peer.dart';
@@ -18,6 +19,7 @@ class PeersListScreen extends StatefulWidget {
     this.syncPeer,
     this.forgetPeer,
     this.updatePeerKey,
+    this.consumeRecoveryNotice,
   });
 
   /// Injectable data sources, defaulting to the live [SyncService].
@@ -26,6 +28,10 @@ class PeersListScreen extends StatefulWidget {
   final Future<void> Function(String peerId)? forgetPeer;
   final Future<void> Function(String peerId)? updatePeerKey;
 
+  /// Reports once whether unreadable peer data was reset, defaulting to the
+  /// live [SyncService], so the page can tell the user to pair again.
+  final bool Function()? consumeRecoveryNotice;
+
   @override
   State<PeersListScreen> createState() => _PeersListScreenState();
 }
@@ -33,6 +39,8 @@ class PeersListScreen extends StatefulWidget {
 class _PeersListScreenState extends State<PeersListScreen> {
   List<TrustedPeer> _peers = [];
   bool _loading = true;
+  bool _loadFailed = false;
+  bool _showRecoveryNotice = false;
   String? _syncingPeerId;
 
   @override
@@ -42,12 +50,35 @@ class _PeersListScreenState extends State<PeersListScreen> {
   }
 
   Future<void> _load() async {
-    final peers =
-        await (widget.loadPeers?.call() ?? SyncService.instance.getPeers());
-    if (mounted) {
+    // Only a retry from the error screen re-arms the spinner. The initial
+    // call already starts in loading state, and background refreshes after a
+    // sync/forget action keep the current list visible (no flicker).
+    if (mounted && _loadFailed) {
+      setState(() {
+        _loading = true;
+        _loadFailed = false;
+      });
+    }
+    try {
+      final peers =
+          await (widget.loadPeers?.call() ?? SyncService.instance.getPeers());
+      final recovered = widget.consumeRecoveryNotice?.call() ??
+          SyncService.instance.consumePeerRecoveryFlag();
+      if (!mounted) return;
       setState(() {
         _peers = peers;
         _loading = false;
+        _loadFailed = false;
+        _showRecoveryNotice = recovered;
+      });
+    } catch (e) {
+      LogService().error('Failed to load paired devices: $e');
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        // Keep a previously loaded list visible; the error screen is only
+        // for when there is nothing to show.
+        _loadFailed = _peers.isEmpty;
       });
     }
   }
@@ -182,22 +213,83 @@ class _PeersListScreenState extends State<PeersListScreen> {
               ),
             ),
           ),
+        if (_showRecoveryNotice) _buildRecoveryNotice(colors),
         Expanded(
           child: _loading
               ? Center(
                   child: CircularProgressIndicator(color: colors.accent),
                 )
-              : _peers.isEmpty
-                  ? _buildEmpty(colors)
-                  : ListView.separated(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: _peers.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
-                      itemBuilder: (context, index) =>
-                          _buildPeerTile(colors, _peers[index]),
-                    ),
+              : _loadFailed && _peers.isEmpty
+                  ? _buildLoadError(colors)
+                  : _peers.isEmpty
+                      ? _buildEmpty(colors)
+                      : ListView.separated(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: _peers.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 8),
+                          itemBuilder: (context, index) =>
+                              _buildPeerTile(colors, _peers[index]),
+                        ),
         ),
       ],
+    );
+  }
+
+  Widget _buildRecoveryNotice(PeadraColors colors) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      child: Material(
+        color: colors.accent.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Icon(Icons.info_outline, color: colors.accent, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  Translator.t('sync_peers_reset_notice'),
+                  style: TextStyle(color: colors.text, fontSize: 13, height: 1.4),
+                ),
+              ),
+              IconButton(
+                icon: Icon(Icons.close,
+                    color: colors.placeholderColor, size: 18),
+                onPressed: () =>
+                    setState(() => _showRecoveryNotice = false),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoadError(PeadraColors colors) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.devices_other,
+                color: colors.placeholderColor, size: 48),
+            const SizedBox(height: 16),
+            Text(
+              Translator.t('sync_peers_load_failed'),
+              style: TextStyle(color: colors.textSecondary, height: 1.4),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: _load,
+              child: Text(Translator.t('sync_retry')),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

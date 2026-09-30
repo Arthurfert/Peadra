@@ -19,4 +19,7 @@ class InMemoryStorageBackend implements StorageBackend {
 
   @override
   Future<Map<String, String>> readAll() async => Map.of(_data);
+
+  @override
+  bool consumeRecoveryFlag() => false;
 }

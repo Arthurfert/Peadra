@@ -16,6 +16,7 @@
 - Fixed the assets distribution pie chart taking future transactions
 - Transactions are now sorted by last edit per day (fixing the previous odd order)
 - Fixed the description proposals to fetch all descriptions
+- Fix critical *bad decrypt* issue blocking the user in a forever unable to sync state
 
 ## Known issues
 

@@ -10,6 +10,7 @@
 ### New
 
 - You can now click on the "others" section of a pie chart to unveil all categories !
+- The assets distribution pie chart is now double layered : global account types into details
 
 ### Fixes
 

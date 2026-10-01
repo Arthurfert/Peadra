@@ -2403,6 +2403,7 @@ void setUserId(String userId) {
       results.add({
         'name': await _decryptValue(acctRow['name']),
         'color': acctRow['color'],
+        'type': acctRow['type'],
         'value': convertedBalance.toDouble(),
         'nativeValue': balance.toDouble(),
         'currency': acctCurrency,

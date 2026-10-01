@@ -42,6 +42,8 @@ class _DashboardViewState extends State<DashboardView> {
   String? _incomeDrillTag;
   bool _expenseShowAll = false;
   bool _incomeShowAll = false;
+  String? _assetsDrillType;
+  bool _assetsShowAll = false;
   Map<String, Decimal> _expenseDrillData = {};
   Map<String, Decimal> _incomeDrillData = {};
   bool _expenseDrillLoading = false;
@@ -165,6 +167,8 @@ class _DashboardViewState extends State<DashboardView> {
           _incomeDrillTag = null;
           _expenseShowAll = false;
           _incomeShowAll = false;
+          _assetsDrillType = null;
+          _assetsShowAll = false;
           _expenseDrillData = {};
           _incomeDrillData = {};
           _expenseDrillLoading = false;
@@ -608,32 +612,94 @@ class _DashboardViewState extends State<DashboardView> {
     );
   }
 
+  String _colorToHex(Color color) {
+    return '#${color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}';
+  }
+
+  void _onAssetsSectionTap({required String label}) {
+    if (label == Translator.t('dash_other')) {
+      setState(() => _assetsShowAll = true);
+      return;
+    }
+    if (label == Translator.t('acc_checking') ||
+        label == Translator.t('acc_savings')) {
+      final type = label == Translator.t('acc_checking') ? 'checking' : 'savings';
+      if (_assetsDrillType == type) return;
+      setState(() {
+        _assetsDrillType = type;
+        _assetsShowAll = false;
+      });
+    }
+  }
+
+  void _onAssetsBack() {
+    setState(() {
+      if (_assetsDrillType != null) {
+        _assetsDrillType = null;
+        _assetsShowAll = false;
+      } else {
+        _assetsShowAll = false;
+      }
+    });
+  }
+
   Widget _buildAssetsDistributionPieChart(
       PeadraColors colors, String currency, int maxCategories) {
-    final pieData = _accountsDistribution.map((a) => {
-      'label': a['name'] as String,
-      'amount': ((a['value'] as num).toDouble()).clamp(0.0, double.infinity),
-      'nativeValue': (a['nativeValue'] as num?)?.toDouble(),
-      'currency': a['currency'] as String?,
-      'color': a['color'] as String,
-    }).toList();
+    final checkingLabel = Translator.t('acc_checking');
+    final savingsLabel = Translator.t('acc_savings');
 
-    return Card(
-      color: colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: SizedBox(
-          height: 220,
-          child: CategoryPieChart(
-            data: pieData,
-            colors: colors,
-            title: Translator.t('dash_assets_distribution'),
-            currency: currency,
-            maxCategories: maxCategories,
-          ),
-        ),
-      ),
+    Decimal clampPositive(num v) =>
+        Decimal.parse(v.clamp(0.0, double.infinity).toString());
+
+    final Map<String, Decimal> typeData = {
+      checkingLabel: Decimal.zero,
+      savingsLabel: Decimal.zero,
+    };
+    for (final a in _accountsDistribution) {
+      final t = a['type'] as String?;
+      final amount = clampPositive((a['value'] as num?)?.toDouble() ?? 0.0);
+      if (t == 'checking') {
+        typeData[checkingLabel] = typeData[checkingLabel]! + amount;
+      } else if (t == 'savings') {
+        typeData[savingsLabel] = typeData[savingsLabel]! + amount;
+      }
+    }
+    typeData.removeWhere((_, v) => v <= Decimal.zero);
+
+    final typeColors = {
+      checkingLabel: _colorToHex(colors.info),
+      savingsLabel: _colorToHex(colors.savingsIcon),
+    };
+
+    final drilled = _assetsDrillType != null;
+    final drillLabel =
+        _assetsDrillType == 'checking' ? checkingLabel : savingsLabel;
+    final Map<String, Decimal> drillData = {};
+    final Map<String, String> drillColors = {};
+    if (drilled) {
+      for (final a in _accountsDistribution) {
+        if ((a['type'] as String?) != _assetsDrillType) continue;
+        final name = a['name'] as String? ?? '';
+        if (name.isEmpty) continue;
+        drillData[name] =
+            clampPositive((a['value'] as num?)?.toDouble() ?? 0.0);
+        drillColors[name] = (a['color'] as String?) ?? '#1976D2';
+      }
+      drillData.removeWhere((_, v) => v <= Decimal.zero);
+    }
+
+    return _buildPieChartCard(
+      colors,
+      Translator.t('dash_assets_distribution'),
+      typeData,
+      currency,
+      maxCategories,
+      itemColors: drilled ? drillColors : typeColors,
+      drillTag: drilled ? drillLabel : null,
+      drillData: drillData,
+      showAll: _assetsShowAll,
+      onSectionTap: (label) => _onAssetsSectionTap(label: label),
+      onBack: _onAssetsBack,
     );
   }
 

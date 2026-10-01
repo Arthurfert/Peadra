@@ -561,7 +561,7 @@ class _DashboardViewState extends State<DashboardView> {
     final effectiveData = drilled ? (drillData ?? <String, Decimal>{}) : data;
     final effectiveMax = showAll && !drilled ? effectiveData.length : maxCategories;
     final pieData = effectiveData.entries.map((e) {
-      final entryColor = drilled ? null : itemColors[e.key];
+      final entryColor = itemColors[e.key];
       return {
         'label': e.key,
         'amount': e.value,
@@ -612,18 +612,14 @@ class _DashboardViewState extends State<DashboardView> {
     );
   }
 
-  String _colorToHex(Color color) {
-    return '#${color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}';
-  }
-
   void _onAssetsSectionTap({required String label}) {
     if (label == Translator.t('dash_other')) {
       setState(() => _assetsShowAll = true);
       return;
     }
-    if (label == Translator.t('acc_checking') ||
-        label == Translator.t('acc_savings')) {
-      final type = label == Translator.t('acc_checking') ? 'checking' : 'savings';
+    if (label == Translator.t('acc_type_checking') ||
+        label == Translator.t('acc_type_savings')) {
+      final type = label == Translator.t('acc_type_checking') ? 'checking' : 'savings';
       if (_assetsDrillType == type) return;
       setState(() {
         _assetsDrillType = type;
@@ -645,8 +641,8 @@ class _DashboardViewState extends State<DashboardView> {
 
   Widget _buildAssetsDistributionPieChart(
       PeadraColors colors, String currency, int maxCategories) {
-    final checkingLabel = Translator.t('acc_checking');
-    final savingsLabel = Translator.t('acc_savings');
+    final checkingLabel = Translator.t('acc_type_checking');
+    final savingsLabel = Translator.t('acc_type_savings');
 
     Decimal clampPositive(num v) =>
         Decimal.parse(v.clamp(0.0, double.infinity).toString());
@@ -665,11 +661,6 @@ class _DashboardViewState extends State<DashboardView> {
       }
     }
     typeData.removeWhere((_, v) => v <= Decimal.zero);
-
-    final typeColors = {
-      checkingLabel: _colorToHex(colors.info),
-      savingsLabel: _colorToHex(colors.savingsIcon),
-    };
 
     final drilled = _assetsDrillType != null;
     final drillLabel =
@@ -694,7 +685,7 @@ class _DashboardViewState extends State<DashboardView> {
       typeData,
       currency,
       maxCategories,
-      itemColors: drilled ? drillColors : typeColors,
+      itemColors: drilled ? drillColors : const {},
       drillTag: drilled ? drillLabel : null,
       drillData: drillData,
       showAll: _assetsShowAll,

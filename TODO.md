@@ -9,14 +9,15 @@
 
 ### New
 
-- You can now click on the "others" section of a pie chart to unveil all categories !
+- You can now click on the "others" section of a pie chart to unveil all categories
 - The assets distribution pie chart is now double layered : global account types into details
+- New setting : Hide update notifications
 
 ### Fixes
 
 - Fixed the assets distribution pie chart taking future transactions
 - Transactions are now sorted by last edit per day (fixing the previous odd order)
-- Fixed the description proposals to fetch all descriptions
+- Fixed the description proposals in transaction modals to fetch all descriptions
 - Fixed critical *bad decrypt* issue blocking the user in a forever unable to sync state
 - Fixed the links not being redirected on mobile
 

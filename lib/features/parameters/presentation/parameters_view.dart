@@ -167,6 +167,7 @@ class _ParametersViewState extends State<ParametersView> {
           _buildSection(Translator.t('param_updates'), colors, [
             _buildVersionTile(colors),
             _buildCheckUpdateTile(colors),
+            _buildHideUpdateNotificationsTile(settings, colors),
             if (updateProvider.availableUpdate != null)
               _buildUpdateAvailableTile(colors, updateProvider.availableUpdate!),
           ], icon: Icons.system_update),
@@ -1714,6 +1715,42 @@ class _ParametersViewState extends State<ParametersView> {
               icon: Icon(Icons.refresh, color: colors.accent),
               onPressed: _checkForUpdate,
             ),
+    );
+  }
+
+  Widget _buildHideUpdateNotificationsTile(SettingsProvider settings, PeadraColors colors) {
+    final isPhone = ResponsiveLayout.isPhone(context);
+
+    final toggle = Switch(
+      value: settings.hideUpdateNotifications,
+      onChanged: (value) => settings.setHideUpdateNotifications(value, _db),
+      activeThumbColor: colors.accent,
+    );
+
+    if (isPhone) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(Translator.t('param_hide_update_notifications'),
+                style: TextStyle(color: colors.text)),
+            const SizedBox(height: 4),
+            Text(Translator.t('param_hide_update_notifications_desc'),
+                style: TextStyle(color: colors.textSecondary, fontSize: 12)),
+            const SizedBox(height: 12),
+            toggle,
+          ],
+        ),
+      );
+    }
+
+    return ListTile(
+      title: Text(Translator.t('param_hide_update_notifications'),
+          style: TextStyle(color: colors.text)),
+      subtitle: Text(Translator.t('param_hide_update_notifications_desc'),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
+      trailing: toggle,
     );
   }
 

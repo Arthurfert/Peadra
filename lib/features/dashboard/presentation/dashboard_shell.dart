@@ -281,8 +281,12 @@ class _DashboardShellState extends State<DashboardShell> {
     final isDark = context.watch<ThemeProvider>().isDark;
     final showNavLabels = context.watch<SettingsProvider>().showNavLabels;
     final availableUpdate = context.watch<UpdateProvider>().availableUpdate;
+    final hideUpdateNotifications =
+        context.watch<SettingsProvider>().hideUpdateNotifications;
 
-    final updateBanner = (availableUpdate != null && !_updateBannerDismissed)
+    final updateBanner = (availableUpdate != null &&
+            !_updateBannerDismissed &&
+            !hideUpdateNotifications)
         ? _buildUpdateBanner(colors, availableUpdate)
         : null;
 

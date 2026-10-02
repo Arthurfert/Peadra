@@ -15,6 +15,7 @@ class SettingsProvider extends ChangeNotifier {
   bool _lineChartDots = defaultLineChartDots;
   String _assetsGranularity = defaultAssetsGranularity;
   bool _showNavLabels = defaultShowNavLabels;
+  bool _hideUpdateNotifications = defaultHideUpdateNotifications;
 
   int get displayLimit => _displayLimit;
   int get maxPieCategories => _maxPieCategories;
@@ -27,6 +28,7 @@ class SettingsProvider extends ChangeNotifier {
   bool get lineChartDots => _lineChartDots;
   String get assetsGranularity => _assetsGranularity;
   bool get showNavLabels => _showNavLabels;
+  bool get hideUpdateNotifications => _hideUpdateNotifications;
 
   Future<void> loadFromSettings(DatabaseManager db) async {
     _displayLimit = int.tryParse(
@@ -49,6 +51,7 @@ class SettingsProvider extends ChangeNotifier {
     _lineChartDots = (await db.getSetting('line_chart_dots', defaultValue: defaultLineChartDots.toString())) == 'true';
     _assetsGranularity = await db.getSetting('assets_granularity', defaultValue: defaultAssetsGranularity) ?? defaultAssetsGranularity;
     _showNavLabels = (await db.getSetting('show_nav_labels', defaultValue: defaultShowNavLabels.toString())) == 'true';
+    _hideUpdateNotifications = (await db.getSetting('hide_update_notifications', defaultValue: defaultHideUpdateNotifications.toString())) == 'true';
     notifyListeners();
   }
 
@@ -126,6 +129,13 @@ class SettingsProvider extends ChangeNotifier {
     _showNavLabels = show;
     await db.setSetting('show_nav_labels', show.toString());
     LogService().log('Show nav labels set to $show');
+    notifyListeners();
+  }
+
+  Future<void> setHideUpdateNotifications(bool hide, DatabaseManager db) async {
+    _hideUpdateNotifications = hide;
+    await db.setSetting('hide_update_notifications', hide.toString());
+    LogService().log('Hide update notifications set to $hide');
     notifyListeners();
   }
 }

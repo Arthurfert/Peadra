@@ -236,6 +236,8 @@ class Translator {
       'param_update_status_available': 'A new version is available: {version}',
       'param_update_status_up_to_date': 'You are using the latest version.',
       'param_update_status_error': 'Update error: {error}',
+      'param_hide_update_notifications': 'Hide update notifications',
+      'param_hide_update_notifications_desc': 'Hide the update banner when a new version is available.',
       'param_transactions': 'Transactions',
       'param_display_limit': 'Display limit',
       'param_display_limit_desc': 'Number of transactions loaded by default.',
@@ -660,6 +662,8 @@ class Translator {
       'param_update_status_up_to_date':
           'Vous utilisez d\u00e9j\u00e0 la derni\u00e8re version.',
       'param_update_status_error': 'Erreur de mise \u00e0 jour : {error}',
+      'param_hide_update_notifications': 'Masquer les notifications de mise \u00e0 jour',
+      'param_hide_update_notifications_desc': 'Masquer la banni\u00e8re lorsqu\'une nouvelle version est disponible.',
       'param_transactions': 'Transactions',
       'param_display_limit': "Limite d'affichage",
       'param_display_limit_desc': 'Nombre de transactions charg\u00e9es par d\u00e9faut.',

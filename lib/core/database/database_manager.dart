@@ -3233,7 +3233,10 @@ void setUserId(String userId) {
 
   // ==================== BACKUP ====================
 
-  Future<void> backup({int maxBackups = 5}) async {
+  /// Number of most recent backups always kept.
+  static const int rollingBackups = 3;
+
+  Future<void> backup() async {
     final path = _dbPath;
     if (path == null) return;
     final dbFile = File(path);
@@ -3243,22 +3246,83 @@ void setUserId(String userId) {
     final backupPath = join(dbFile.parent.path, 'peadra_$timestamp.db');
     await dbFile.copy(backupPath);
 
-    _cleanupOldBackups(dbFile.parent.path, maxBackups);
+    _cleanupOldBackups(dbFile.parent.path);
   }
 
-  void _cleanupOldBackups(String dirPath, int maxBackups) {
+  /// Retention policy: keep the [rollingBackups] newest backups, plus two
+  /// protected restore points (unless already covered):
+  /// * the newest backup dated strictly before today ("yesterday"),
+  /// * the newest backup dated at least 7 days ago ("last week").
+  /// The protected backups survive repeated restarts piling up fresh (and
+  /// possibly already corrupt) backups of the current day.
+  void _cleanupOldBackups(String dirPath) {
     final dir = Directory(dirPath);
     final backups = dir.listSync().whereType<File>().where((f) {
       final name = f.path.split(Platform.pathSeparator).last;
       return name.startsWith('peadra_') && name.endsWith('.db');
     }).toList();
 
-    if (backups.length <= maxBackups) return;
+    if (backups.isEmpty) return;
 
-    backups.sort((a, b) => a.path.compareTo(b.path));
-    final toDelete = backups.sublist(0, backups.length - maxBackups);
-    for (final file in toDelete) {
-      file.deleteSync();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final weekAgo = today.subtract(const Duration(days: 7));
+
+    DateTime fileDate(File f) => _backupDate(f) ?? today;
+
+    backups.sort((a, b) {
+      final cmp = fileDate(a).compareTo(fileDate(b));
+      return cmp != 0 ? cmp : a.path.compareTo(b.path);
+    });
+
+    final keep = <String>{};
+    // Rolling window: the newest backups.
+    for (final f in backups.reversed.take(rollingBackups)) {
+      keep.add(f.path);
+    }
+    // Newest backup from a previous day.
+    for (final f in backups.reversed) {
+      final d = fileDate(f);
+      if (d.isBefore(today)) {
+        keep.add(f.path);
+        break;
+      }
+    }
+    // Newest backup at least a week old.
+    for (final f in backups.reversed) {
+      final d = fileDate(f);
+      if (!d.isAfter(weekAgo)) {
+        keep.add(f.path);
+        break;
+      }
+    }
+
+    for (final file in backups) {
+      if (!keep.contains(file.path)) {
+        file.deleteSync();
+      }
+    }
+  }
+
+  /// Calendar date a backup file was taken, parsed from its
+  /// `peadra_YYYY-MM-DDTHH-MM-SS.db` name. Falls back to the file's
+  /// modification time, or null if neither is available.
+  DateTime? _backupDate(File file) {
+    final name = file.path.split(Platform.pathSeparator).last;
+    final match = RegExp(r'peadra_(\d{4})-(\d{2})-(\d{2})T').firstMatch(name);
+    if (match != null) {
+      final y = int.tryParse(match.group(1)!);
+      final m = int.tryParse(match.group(2)!);
+      final d = int.tryParse(match.group(3)!);
+      if (y != null && m != null && d != null && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+        return DateTime(y, m, d);
+      }
+    }
+    try {
+      final modified = file.lastModifiedSync();
+      return DateTime(modified.year, modified.month, modified.day);
+    } catch (_) {
+      return null;
     }
   }
 

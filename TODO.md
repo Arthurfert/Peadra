@@ -12,6 +12,7 @@
 - You can now click on the "others" section of a pie chart to unveil all categories
 - The assets distribution pie chart is now double layered : global account types into details
 - New setting : Hide update notifications
+- New backup policy in order to keep one from yersteday and one from last week, plus the 3 last app opening
 
 ### Fixes
 

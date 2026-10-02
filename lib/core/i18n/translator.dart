@@ -257,8 +257,6 @@ class Translator {
       'param_nav_labels': 'Navigation labels',
       'param_nav_labels_desc': 'Show text below the navigation bar icons.',
       'param_database': 'Database',
-      'param_max_backups': 'Number of backups',
-      'param_max_backups_desc': 'Maximum number of backup files to keep.',
       'param_locate_database': 'Locate database',
       'param_locate_database_desc': 'Open the folder containing the database.',
       'param_switch_backup': 'Switch to backup',
@@ -688,8 +686,6 @@ class Translator {
       'param_nav_labels_desc':
           'Afficher le texte sous les ic\u00f4nes de la barre de navigation.',
       'param_database': 'Base de donn\u00e9es',
-      'param_max_backups': 'Nombre de sauvegardes',
-      'param_max_backups_desc': 'Nombre maximum de fichiers de sauvegarde \u00e0 conserver.',
       'param_locate_database': 'Localiser la base',
       'param_locate_database_desc': 'Ouvrir le dossier contenant la base de donn\u00e9es.',
       'param_switch_backup': 'Restaurer une sauvegarde',

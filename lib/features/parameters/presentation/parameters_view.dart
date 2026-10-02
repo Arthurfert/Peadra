@@ -140,7 +140,6 @@ class _ParametersViewState extends State<ParametersView> {
           ], icon: Icons.bar_chart),
           const SizedBox(height: 8),
           _buildSection(Translator.t('param_database'), colors, [
-            _buildMaxBackupsTile(settings, colors),
             if (!Platform.isAndroid && !Platform.isIOS)
               _buildLocateDatabaseTile(colors),
             _buildSwitchBackupTile(colors),
@@ -864,26 +863,6 @@ class _ParametersViewState extends State<ParametersView> {
             .toList(),
         onChanged: (v) async {
           if (v != null) settings.setMaxPieCategories(v, _db);
-        },
-      ),
-    );
-  }
-
-  Widget _buildMaxBackupsTile(SettingsProvider settings, PeadraColors colors) {
-    return ListTile(
-      title: Text(Translator.t('param_max_backups'),
-          style: TextStyle(color: colors.text)),
-      subtitle: Text(Translator.t('param_max_backups_desc'),
-          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-      trailing: DropdownButton<int>(
-        value: settings.maxBackups,
-        dropdownColor: colors.surface,
-        style: TextStyle(color: colors.text),
-        items: [1, 2, 3, 5, 10, 15, 20]
-            .map((n) => DropdownMenuItem(value: n, child: Text(n.toString())))
-            .toList(),
-        onChanged: (v) async {
-          if (v != null) settings.setMaxBackups(v, _db);
         },
       ),
     );

@@ -8,7 +8,6 @@ class SettingsProvider extends ChangeNotifier {
   int _maxPieCategories = defaultMaxPieCategories;
   String _monthMode = defaultMonthMode;
   String _currency = defaultCurrency;
-  int _maxBackups = defaultMaxBackups;
   bool _biometricEnabled = defaultBiometricEnabled;
   String _categoriesView = defaultCategoriesView;
   String _dashboardPieView = defaultDashboardPieView;
@@ -21,7 +20,6 @@ class SettingsProvider extends ChangeNotifier {
   int get maxPieCategories => _maxPieCategories;
   String get monthMode => _monthMode;
   String get currency => _currency;
-  int get maxBackups => _maxBackups;
   bool get biometricEnabled => _biometricEnabled;
   String get categoriesView => _categoriesView;
   String get dashboardPieView => _dashboardPieView;
@@ -41,10 +39,6 @@ class SettingsProvider extends ChangeNotifier {
         defaultMaxPieCategories;
     _monthMode = await db.getSetting('month_mode', defaultValue: defaultMonthMode) ?? defaultMonthMode;
     _currency = await db.getSetting('currency', defaultValue: defaultCurrency) ?? defaultCurrency;
-    _maxBackups = int.tryParse(
-          await db.getSetting('max_backups', defaultValue: defaultMaxBackups.toString()) ?? defaultMaxBackups.toString(),
-        ) ??
-        defaultMaxBackups;
     _biometricEnabled = (await db.getSetting('biometric_enabled', defaultValue: defaultBiometricEnabled.toString())) == 'true';
     _categoriesView = await db.getSetting('categories_view', defaultValue: defaultCategoriesView) ?? defaultCategoriesView;
     _dashboardPieView = await db.getSetting('dashboard_pie_view', defaultValue: defaultDashboardPieView) ?? defaultDashboardPieView;
@@ -80,13 +74,6 @@ class SettingsProvider extends ChangeNotifier {
     _currency = currency;
     await db.setSetting('currency', currency);
     LogService().log('Currency set to $currency');
-    notifyListeners();
-  }
-
-  Future<void> setMaxBackups(int max, DatabaseManager db) async {
-    _maxBackups = max;
-    await db.setSetting('max_backups', max.toString());
-    LogService().log('Backups limit set to $max');
     notifyListeners();
   }
 

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -184,6 +185,29 @@ class _ParametersViewState extends State<ParametersView> {
     );
   }
 
+  static const _feedbackEmail = 'peadra@arthurfert.com';
+
+  /// Open an external URL (browser, mail app, store…). Returns true on
+  /// success. Never fails silently: failures are logged so they show up in
+  /// the exported session logs.
+  Future<bool> _openExternalUrl(Uri uri) async {
+    try {
+      if (await canLaunchUrl(uri)) {
+        final launched =
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+        if (!launched) {
+          LogService().warn('Could not launch URL: $uri');
+        }
+        return launched;
+      }
+      LogService().warn('No app can handle URL: $uri');
+      return false;
+    } catch (e) {
+      LogService().warn('Failed to open URL $uri: $e');
+      return false;
+    }
+  }
+
   Widget _buildFeedbackTile(PeadraColors colors) {
     final isPhone = ResponsiveLayout.isPhone(context);
 
@@ -200,10 +224,17 @@ class _ParametersViewState extends State<ParametersView> {
       onPressed: () async {
         final uri = Uri(
           scheme: 'mailto',
-          path: 'peadra@arthurfert.com',
+          path: _feedbackEmail,
         );
-        if (await canLaunchUrl(uri)) {
-          await launchUrl(uri);
+        final opened = await _openExternalUrl(uri);
+        if (!opened && mounted) {
+          // No mail app (or blocked by the OS): hand the user the address
+          // so they can reach out manually instead of nothing happening.
+          await Clipboard.setData(
+              const ClipboardData(text: _feedbackEmail));
+          PeadraNotification.show(context,
+              message: Translator.t('param_feedback_no_mail_app'),
+              type: NotificationType.warning);
         }
       },
     );
@@ -242,8 +273,11 @@ class _ParametersViewState extends State<ParametersView> {
         child: InkWell(
           onTap: () async {
             final uri = Uri.parse('https://arthurfert.com/privacy/peadra');
-            if (await canLaunchUrl(uri)) {
-              await launchUrl(uri, mode: LaunchMode.externalApplication);
+            final opened = await _openExternalUrl(uri);
+            if (!opened && mounted) {
+              PeadraNotification.show(context,
+                  message: Translator.t('param_link_open_failed'),
+                  type: NotificationType.error);
             }
           },
           child: Text(

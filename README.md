@@ -7,6 +7,9 @@
   <a href="https://github.com/Arthurfert/Peadra?tab=GPL-3.0-1-ov-file)"><img src="https://img.shields.io/badge/License-GPL%203.0-brightgreen.svg"></a>
   <img src="https://img.shields.io/github/v/release/Arthurfert/Peadra">
 </div>
+<div align="center">
+    <a href="https://play.google.com/store/apps/details?id=com.peadra.peadra"><img src="./assets/GetItOnGooglePlay.svg" width=120 ></a>
+</div>
 
 ## Overview
 
@@ -51,7 +54,7 @@ To install the app, please download your designated installer in the `Release` s
 
 |  Device | Installer |
 | :----------------: | :-----------------: |
-| Android | peadra-*version*-android.apk |
+| Android | peadra-*version*-android.apk or [Google Play](https://play.google.com/store/apps/details?id=com.peadra.peadra) |
 | Windows | peadra-*version*-windows.msix + .cer |
 | Linux (debian-based) | peadra-*version*-linux.deb |
 

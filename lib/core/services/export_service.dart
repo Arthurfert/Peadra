@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:csv/csv.dart';
@@ -60,8 +61,8 @@ class ExportService {
           ]),
     ];
 
-    // BOM prefix for Excel; harmless for the importer.
-    return '\uFEFF${const ListToCsvConverter().convert(rows)}';
+    // BOM for Excel (the importer strips it back out).
+    return const CsvEncoder(addBom: true).convert(rows);
   }
 
   /// Render the amount exactly as it must appear in the CSV: plain decimal
@@ -135,14 +136,15 @@ class ExportService {
       return filePath;
     }
 
-    final result = await FilePicker.platform.saveFile(
+    // Note: file_picker writes [bytes] itself and returns the saved URI.
+    final uri = await FilePicker.saveFile(
       dialogTitle: 'Export $format',
       fileName: name,
+      bytes: Uint8List.fromList(utf8.encode(content)),
+      mimeType: format == 'csv' ? 'text/csv' : 'text/plain',
     );
 
-    if (result == null) return null;
-
-    await File(result).writeAsString(content);
-    return result;
+    if (uri == null) return null;
+    return uri.scheme == 'file' ? uri.toFilePath() : uri.toString();
   }
 }

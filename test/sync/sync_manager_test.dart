@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:cryptography/cryptography.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:peadra/core/database/database_manager.dart';
@@ -10,8 +11,21 @@ import 'package:peadra/sync/network/discovered_service.dart';
 import 'package:peadra/sync/network/sync_session.dart';
 import 'package:peadra/sync/security/auth_challenge.dart';
 
+import '../helpers/in_memory_storage_backend.dart';
 import 'sync_test_helpers.dart';
 import 'test_crdt_schema.dart';
+
+/// A peer store whose trusted-peer entry is unreadable (e.g. the device
+/// keystore lost its key). Identity keys still work.
+class PeersUnreadableBackend extends InMemoryStorageBackend {
+  @override
+  Future<String?> read(String key) async {
+    if (key == 'sync_trusted_peers') {
+      throw PlatformException(code: 'error', message: 'keystore locked');
+    }
+    return super.read(key);
+  }
+}
 
 void main() {
   initializeSyncTestDb();
@@ -376,6 +390,52 @@ void main() {
 
     await waitUntil(() async => b.client.connectCount == 3);
     expect(b.client.connectCount, 3);
+  });
+
+  test('unreadable peer store fails syncs cleanly instead of crashing',
+      () async {
+    final a = SyncTestDevice(id: 'device-a', name: 'Device A', secret: secret);
+    final b = SyncTestDevice(
+      id: 'device-b',
+      name: 'Device B',
+      secret: secret,
+      storage: PeersUnreadableBackend(),
+    );
+    addTearDown(a.dispose);
+    addTearDown(b.dispose);
+    await a.setUp();
+    await b.setUp();
+
+    await seedAUser(a, 'user-a', 'alice');
+    await a.trust(b);
+    await a.start();
+    await b.start();
+
+    // Initiator side: the storage throw is contained, nothing is dialed.
+    await expectLater(
+      b.manager.syncNow(a.id, host: 'localhost', port: a.manager.serverPort!),
+      completes,
+    );
+    expect(b.client.connectCount, 0);
+
+    // Discovery side: must not produce an unhandled async error (which
+    // would fail the test).
+    b.browser.emit(DiscoveredService(
+      nodeId: a.id,
+      deviceName: a.name,
+      protocolVersion: SyncSession.currentProtocolVersion,
+      host: 'localhost',
+      port: a.manager.serverPort!,
+    ));
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    expect(b.client.connectCount, 0);
+
+    // Responder side: the healthy device's attempt completes (rejected
+    // cleanly) instead of hanging on the broken store.
+    await expectLater(
+      a.manager.syncNow(b.id, host: 'localhost', port: b.manager.serverPort!),
+      completes,
+    );
   });
 
   test('stale cached address is refreshed from the latest sighting', () async {

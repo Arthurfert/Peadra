@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -139,7 +140,6 @@ class _ParametersViewState extends State<ParametersView> {
           ], icon: Icons.bar_chart),
           const SizedBox(height: 8),
           _buildSection(Translator.t('param_database'), colors, [
-            _buildMaxBackupsTile(settings, colors),
             if (!Platform.isAndroid && !Platform.isIOS)
               _buildLocateDatabaseTile(colors),
             _buildSwitchBackupTile(colors),
@@ -166,6 +166,7 @@ class _ParametersViewState extends State<ParametersView> {
           _buildSection(Translator.t('param_updates'), colors, [
             _buildVersionTile(colors),
             _buildCheckUpdateTile(colors),
+            _buildHideUpdateNotificationsTile(settings, colors),
             if (updateProvider.availableUpdate != null)
               _buildUpdateAvailableTile(colors, updateProvider.availableUpdate!),
           ], icon: Icons.system_update),
@@ -184,6 +185,29 @@ class _ParametersViewState extends State<ParametersView> {
     );
   }
 
+  static const _feedbackEmail = 'peadra@arthurfert.com';
+
+  /// Open an external URL (browser, mail app, store…). Returns true on
+  /// success. Never fails silently: failures are logged so they show up in
+  /// the exported session logs.
+  Future<bool> _openExternalUrl(Uri uri) async {
+    try {
+      if (await canLaunchUrl(uri)) {
+        final launched =
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+        if (!launched) {
+          LogService().warn('Could not launch URL: $uri');
+        }
+        return launched;
+      }
+      LogService().warn('No app can handle URL: $uri');
+      return false;
+    } catch (e) {
+      LogService().warn('Failed to open URL $uri: $e');
+      return false;
+    }
+  }
+
   Widget _buildFeedbackTile(PeadraColors colors) {
     final isPhone = ResponsiveLayout.isPhone(context);
 
@@ -200,10 +224,17 @@ class _ParametersViewState extends State<ParametersView> {
       onPressed: () async {
         final uri = Uri(
           scheme: 'mailto',
-          path: 'peadra@arthurfert.com',
+          path: _feedbackEmail,
         );
-        if (await canLaunchUrl(uri)) {
-          await launchUrl(uri);
+        final opened = await _openExternalUrl(uri);
+        if (!opened && mounted) {
+          // No mail app (or blocked by the OS): hand the user the address
+          // so they can reach out manually instead of nothing happening.
+          await Clipboard.setData(
+              const ClipboardData(text: _feedbackEmail));
+          PeadraNotification.show(context,
+              message: Translator.t('param_feedback_no_mail_app'),
+              type: NotificationType.warning);
         }
       },
     );
@@ -242,8 +273,11 @@ class _ParametersViewState extends State<ParametersView> {
         child: InkWell(
           onTap: () async {
             final uri = Uri.parse('https://arthurfert.com/privacy/peadra');
-            if (await canLaunchUrl(uri)) {
-              await launchUrl(uri, mode: LaunchMode.externalApplication);
+            final opened = await _openExternalUrl(uri);
+            if (!opened && mounted) {
+              PeadraNotification.show(context,
+                  message: Translator.t('param_link_open_failed'),
+                  type: NotificationType.error);
             }
           },
           child: Text(
@@ -834,26 +868,6 @@ class _ParametersViewState extends State<ParametersView> {
     );
   }
 
-  Widget _buildMaxBackupsTile(SettingsProvider settings, PeadraColors colors) {
-    return ListTile(
-      title: Text(Translator.t('param_max_backups'),
-          style: TextStyle(color: colors.text)),
-      subtitle: Text(Translator.t('param_max_backups_desc'),
-          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-      trailing: DropdownButton<int>(
-        value: settings.maxBackups,
-        dropdownColor: colors.surface,
-        style: TextStyle(color: colors.text),
-        items: [1, 2, 3, 5, 10, 15, 20]
-            .map((n) => DropdownMenuItem(value: n, child: Text(n.toString())))
-            .toList(),
-        onChanged: (v) async {
-          if (v != null) settings.setMaxBackups(v, _db);
-        },
-      ),
-    );
-  }
-
   Widget _buildLocateDatabaseTile(PeadraColors colors) {
     return ListTile(
       title: Text(Translator.t('param_locate_database'),
@@ -894,7 +908,7 @@ class _ParametersViewState extends State<ParametersView> {
       label: Text(Translator.t('param_switch_backup'),
           style: const TextStyle(color: Colors.white, fontSize: 12)),
       style: ElevatedButton.styleFrom(
-        backgroundColor: colors.warning,
+        backgroundColor: colors.accent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
         ),
@@ -1680,6 +1694,42 @@ class _ParametersViewState extends State<ParametersView> {
               icon: Icon(Icons.refresh, color: colors.accent),
               onPressed: _checkForUpdate,
             ),
+    );
+  }
+
+  Widget _buildHideUpdateNotificationsTile(SettingsProvider settings, PeadraColors colors) {
+    final isPhone = ResponsiveLayout.isPhone(context);
+
+    final toggle = Switch(
+      value: settings.hideUpdateNotifications,
+      onChanged: (value) => settings.setHideUpdateNotifications(value, _db),
+      activeThumbColor: colors.accent,
+    );
+
+    if (isPhone) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(Translator.t('param_hide_update_notifications'),
+                style: TextStyle(color: colors.text)),
+            const SizedBox(height: 4),
+            Text(Translator.t('param_hide_update_notifications_desc'),
+                style: TextStyle(color: colors.textSecondary, fontSize: 12)),
+            const SizedBox(height: 12),
+            toggle,
+          ],
+        ),
+      );
+    }
+
+    return ListTile(
+      title: Text(Translator.t('param_hide_update_notifications'),
+          style: TextStyle(color: colors.text)),
+      subtitle: Text(Translator.t('param_hide_update_notifications_desc'),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
+      trailing: toggle,
     );
   }
 

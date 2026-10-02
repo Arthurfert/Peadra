@@ -90,6 +90,46 @@ void main() {
     await drainNotifications(tester);
   });
 
+  testWidgets('load failure shows an error with a working retry',
+      (tester) async {
+    var fail = true;
+    await tester.pumpWidget(wrap(PeersListScreen(
+      loadPeers: () async {
+        if (fail) throw Exception('keystore locked');
+        return [peer()];
+      },
+    )));
+    await tester.pumpAndSettle();
+
+    expect(find.text(Translator.t('sync_peers_load_failed')), findsOneWidget);
+    expect(find.text(Translator.t('sync_retry')), findsOneWidget);
+
+    fail = false;
+    await tester.tap(find.text(Translator.t('sync_retry')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Phone'), findsOneWidget);
+    expect(find.text(Translator.t('sync_peers_load_failed')), findsNothing);
+  });
+
+  testWidgets('shows a re-pair notice after peer data was reset',
+      (tester) async {
+    await tester.pumpWidget(wrap(PeersListScreen(
+      loadPeers: () async => [],
+      consumeRecoveryNotice: () => true,
+    )));
+    await tester.pumpAndSettle();
+
+    expect(find.text(Translator.t('sync_peers_reset_notice')), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.close));
+    await tester.pumpAndSettle();
+
+    expect(find.text(Translator.t('sync_peers_reset_notice')), findsNothing);
+    expect(find.text(Translator.t('sync_peers_empty')), findsOneWidget);
+    await drainNotifications(tester);
+  });
+
   testWidgets('shows the last-seen time when available', (tester) async {
     final seen = DateTime.utc(2026, 8, 3, 14, 30);
     await tester.pumpWidget(wrap(PeersListScreen(

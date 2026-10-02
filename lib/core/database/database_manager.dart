@@ -1101,6 +1101,55 @@ void setUserId(String userId) {
     return descriptions;
   }
 
+  /// Searches all of the user's descriptions by name (descriptions table
+  /// only — tags are never involved). Matches [query] case-insensitively,
+  /// excludes transfer descriptions, and ranks prefix matches first, then by
+  /// most-recent use, then alphabetically.
+  Future<List<String>> searchDescriptions(String query,
+      {int limit = 20}) async {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return [];
+    final db = await database;
+
+    final lastUsedRows = await db.query(
+      'SELECT description_id, MAX(date) as last_used FROM transactions '
+      'WHERE user_id = ? AND is_deleted = 0 AND description_id IS NOT NULL '
+      'GROUP BY description_id',
+      [_userId],
+    );
+    final lastUsed = <String, String>{
+      for (final r in lastUsedRows)
+        (r['description_id'] as String): (r['last_used'] as String? ?? ''),
+    };
+
+    final rows = await db.query(
+      'SELECT id, name FROM descriptions WHERE user_id = ? AND is_deleted = 0',
+      [_userId],
+    );
+    final matches = <({String name, String lastUsed})>[];
+    for (final row in rows) {
+      final name = await _decryptValue(row['name']);
+      if (name == null || name.trim().isEmpty) continue;
+      if (_isTransferDescription(name)) continue;
+      if (!name.toLowerCase().contains(q)) continue;
+      matches.add((
+        name: name,
+        lastUsed: lastUsed[row['id'] as String] ?? '',
+      ));
+    }
+
+    matches.sort((a, b) {
+      final aPrefix = a.name.toLowerCase().startsWith(q) ? 0 : 1;
+      final bPrefix = b.name.toLowerCase().startsWith(q) ? 0 : 1;
+      if (aPrefix != bPrefix) return aPrefix - bPrefix;
+      final recency = b.lastUsed.compareTo(a.lastUsed);
+      if (recency != 0) return recency;
+      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+
+    return matches.take(limit).map((m) => m.name).toList();
+  }
+
   Future<String> getOrCreateDescription(String name) async {
     final normalized = name.trim();
     final cacheKey = normalized.toLowerCase();
@@ -1288,11 +1337,15 @@ void setUserId(String userId) {
     final id = _newId();
     final encryptedAmount = await _encrypt(amount.toString());
     final encryptedNotes = await _encrypt(notes);
+    // Explicit ISO timestamps so lexical SQL ordering matches chronological
+    // order (SQLite CURRENT_TIMESTAMP uses a space separator, while updates
+    // use ISO with 'T' — mixing both breaks string comparison).
+    final nowIso = DateTime.now().toIso8601String();
 
     await db.execute(
-      'INSERT INTO transactions (id, user_id, account_id, description_id, tag_id, date, amount, transaction_type, currency, notes) '
-      'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)',
-      [id, _userId, accountId, descId, tagId, date, encryptedAmount, transactionType, effectiveCurrency, encryptedNotes],
+      'INSERT INTO transactions (id, user_id, account_id, description_id, tag_id, date, amount, transaction_type, currency, notes, created_at, updated_at) '
+      'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)',
+      [id, _userId, accountId, descId, tagId, date, encryptedAmount, transactionType, effectiveCurrency, encryptedNotes, nowIso, nowIso],
     );
     return id;
   }
@@ -1396,7 +1449,7 @@ void setUserId(String userId) {
       LEFT JOIN tags tg ON t.tag_id = tg.id AND tg.is_deleted = 0
       LEFT JOIN recurring_transactions rt ON t.recurring_id = rt.id AND rt.is_deleted = 0
       WHERE ${where.join(' AND ')}
-      ORDER BY t.date DESC, t.id DESC
+      ORDER BY t.date DESC, COALESCE(t.updated_at, t.created_at) DESC, t.id DESC
     ''';
 
     final rows = await db.query(query, args);
@@ -2007,9 +2060,10 @@ void setUserId(String userId) {
 
     for (final dateStr in plan.dueDates) {
       if (freshDates.contains(dateStr)) continue;
+      final nowIso = DateTime.now().toIso8601String();
       await db.execute(
-        'INSERT INTO transactions (id, user_id, account_id, description_id, tag_id, date, amount, transaction_type, currency, notes, recurring_id) '
-        'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)',
+        'INSERT INTO transactions (id, user_id, account_id, description_id, tag_id, date, amount, transaction_type, currency, notes, recurring_id, created_at, updated_at) '
+        'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)',
         [
           _newId(),
           rec.userId,
@@ -2022,6 +2076,8 @@ void setUserId(String userId) {
           rec.currency,
           await _encrypt(rec.notes),
           id,
+          nowIso,
+          nowIso,
         ],
       );
     }
@@ -2307,9 +2363,10 @@ void setUserId(String userId) {
       [_userId],
     );
 
+    final today = DateTime.now().toIso8601String().substring(0, 10);
     final txnRows = await db.query(
-      'SELECT transaction_type, amount, account_id FROM transactions WHERE user_id = ? AND is_deleted = 0',
-      [_userId],
+      'SELECT transaction_type, amount, account_id FROM transactions WHERE user_id = ? AND is_deleted = 0 AND date <= ?',
+      [_userId, today],
     );
     final txnByAccount = <String, List<Map<String, Object?>>>{};
     for (final t in txnRows) {
@@ -2346,6 +2403,7 @@ void setUserId(String userId) {
       results.add({
         'name': await _decryptValue(acctRow['name']),
         'color': acctRow['color'],
+        'type': acctRow['type'],
         'value': convertedBalance.toDouble(),
         'nativeValue': balance.toDouble(),
         'currency': acctCurrency,
@@ -3175,7 +3233,10 @@ void setUserId(String userId) {
 
   // ==================== BACKUP ====================
 
-  Future<void> backup({int maxBackups = 5}) async {
+  /// Number of most recent backups always kept.
+  static const int rollingBackups = 3;
+
+  Future<void> backup() async {
     final path = _dbPath;
     if (path == null) return;
     final dbFile = File(path);
@@ -3185,22 +3246,83 @@ void setUserId(String userId) {
     final backupPath = join(dbFile.parent.path, 'peadra_$timestamp.db');
     await dbFile.copy(backupPath);
 
-    _cleanupOldBackups(dbFile.parent.path, maxBackups);
+    _cleanupOldBackups(dbFile.parent.path);
   }
 
-  void _cleanupOldBackups(String dirPath, int maxBackups) {
+  /// Retention policy: keep the [rollingBackups] newest backups, plus two
+  /// protected restore points (unless already covered):
+  /// * the newest backup dated strictly before today ("yesterday"),
+  /// * the newest backup dated at least 7 days ago ("last week").
+  /// The protected backups survive repeated restarts piling up fresh (and
+  /// possibly already corrupt) backups of the current day.
+  void _cleanupOldBackups(String dirPath) {
     final dir = Directory(dirPath);
     final backups = dir.listSync().whereType<File>().where((f) {
       final name = f.path.split(Platform.pathSeparator).last;
       return name.startsWith('peadra_') && name.endsWith('.db');
     }).toList();
 
-    if (backups.length <= maxBackups) return;
+    if (backups.isEmpty) return;
 
-    backups.sort((a, b) => a.path.compareTo(b.path));
-    final toDelete = backups.sublist(0, backups.length - maxBackups);
-    for (final file in toDelete) {
-      file.deleteSync();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final weekAgo = today.subtract(const Duration(days: 7));
+
+    DateTime fileDate(File f) => _backupDate(f) ?? today;
+
+    backups.sort((a, b) {
+      final cmp = fileDate(a).compareTo(fileDate(b));
+      return cmp != 0 ? cmp : a.path.compareTo(b.path);
+    });
+
+    final keep = <String>{};
+    // Rolling window: the newest backups.
+    for (final f in backups.reversed.take(rollingBackups)) {
+      keep.add(f.path);
+    }
+    // Newest backup from a previous day.
+    for (final f in backups.reversed) {
+      final d = fileDate(f);
+      if (d.isBefore(today)) {
+        keep.add(f.path);
+        break;
+      }
+    }
+    // Newest backup at least a week old.
+    for (final f in backups.reversed) {
+      final d = fileDate(f);
+      if (!d.isAfter(weekAgo)) {
+        keep.add(f.path);
+        break;
+      }
+    }
+
+    for (final file in backups) {
+      if (!keep.contains(file.path)) {
+        file.deleteSync();
+      }
+    }
+  }
+
+  /// Calendar date a backup file was taken, parsed from its
+  /// `peadra_YYYY-MM-DDTHH-MM-SS.db` name. Falls back to the file's
+  /// modification time, or null if neither is available.
+  DateTime? _backupDate(File file) {
+    final name = file.path.split(Platform.pathSeparator).last;
+    final match = RegExp(r'peadra_(\d{4})-(\d{2})-(\d{2})T').firstMatch(name);
+    if (match != null) {
+      final y = int.tryParse(match.group(1)!);
+      final m = int.tryParse(match.group(2)!);
+      final d = int.tryParse(match.group(3)!);
+      if (y != null && m != null && d != null && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+        return DateTime(y, m, d);
+      }
+    }
+    try {
+      final modified = file.lastModifiedSync();
+      return DateTime(modified.year, modified.month, modified.day);
+    } catch (_) {
+      return null;
     }
   }
 

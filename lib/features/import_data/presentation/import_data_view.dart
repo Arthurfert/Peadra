@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 
@@ -46,21 +49,19 @@ class _ImportDataViewState extends State<ImportDataView> {
 
   Future<void> _pickFile() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final file = await FilePicker.pickFile(
         type: FileType.custom,
         allowedExtensions: ['csv', 'txt'],
-        allowMultiple: false,
       );
 
-      if (result == null || result.files.isEmpty) return;
+      if (file == null) return;
 
       setState(() {
         _loading = true;
         _error = null;
       });
 
-      final file = result.files.first;
-      final path = file.path;
+      final path = await _resolvePickedPath(file);
       if (path == null) {
         setState(() {
           _loading = false;
@@ -92,6 +93,24 @@ class _ImportDataViewState extends State<ImportDataView> {
         _loading = false;
         _error = e.toString();
       });
+    }
+  }
+
+  /// Resolve a picked file to a local path the import service can read.
+  /// Files picked outside local storage (e.g. Android content URIs, which
+  /// have no `path`) are materialized into a temp file first.
+  Future<String?> _resolvePickedPath(PlatformFile file) async {
+    if (file.path != null) return file.path;
+    try {
+      final bytes = await file.readAsBytes();
+      final dir = await getTemporaryDirectory();
+      final ext = (file.extension?.isNotEmpty ?? false) ? file.extension! : 'csv';
+      final tmp = File(
+          '${dir.path}/peadra_import_${DateTime.now().millisecondsSinceEpoch}.$ext');
+      await tmp.writeAsBytes(bytes, flush: true);
+      return tmp.path;
+    } catch (_) {
+      return null;
     }
   }
 

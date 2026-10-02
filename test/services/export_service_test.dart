@@ -142,13 +142,12 @@ void main() {
         ['2024-03-16', 'Café "Léon", SARL', '-42.50', 'expense'],
         ['2024-03-17', 'Line one\nLine two', '-7', 'expense'],
       ];
-      final csv = const ListToCsvConverter().convert(rows);
-      // Mirror the importer: normalize line endings (ListToCsvConverter
-      // emits CRLF) before parsing with eol '\n'.
-      final reparsed = const CsvToListConverter(
-        shouldParseNumbers: false,
-        eol: '\n',
-      ).convert(import.normalizeLineEndings(csv));
+      final csv = const CsvEncoder().convert(rows);
+      // Mirror the importer: normalize line endings (CsvEncoder emits
+      // CRLF) before parsing.
+      final reparsed = const CsvDecoder().convert(
+        import.normalizeLineEndings(csv),
+      );
       expect(reparsed.length, rows.length);
       for (var i = 0; i < rows.length; i++) {
         expect(

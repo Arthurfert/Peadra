@@ -7,6 +7,7 @@ import 'package:sqlite_crdt/sqlite_crdt.dart';
 
 import 'package:peadra/sync/network/discovered_service.dart';
 import 'package:peadra/sync/network/mdns_discovery_service.dart';
+import 'package:peadra/sync/storage/storage_backend.dart';
 import 'package:peadra/sync/network/p2p_client.dart';
 import 'package:peadra/sync/network/p2p_server.dart';
 import 'package:peadra/sync/network/service_advertiser.dart';
@@ -99,6 +100,7 @@ class SyncTestDevice {
     this.key,
     this.syncDebounce = const Duration(milliseconds: 50),
     this.reconnectCooldown = Duration.zero,
+    this.storage,
   });
 
   final String id;
@@ -106,6 +108,7 @@ class SyncTestDevice {
   final String secret;
   final Duration syncDebounce;
   final Duration reconnectCooldown;
+  final StorageBackend? storage;
 
   /// The device's database encryption key. Mutable so tests can simulate a
   /// password change (the manager resolves it lazily via the constructor).
@@ -121,7 +124,7 @@ class SyncTestDevice {
   Future<void> setUp() async {
     crdt = await createCrdtDatabase();
     service = CrdtDatabaseService(crdt);
-    final store = InMemoryStorageBackend();
+    final StorageBackend store = storage ?? InMemoryStorageBackend();
     await store.write('sync_local_node_id', id);
     final identity = NodeIdentity(storage: store, deviceName: name);
     peers = SecurePeerStorage(storage: store);

@@ -190,8 +190,7 @@ class ImportService {
     for (final delim in delimiters) {
       List<List<dynamic>> parsed;
       try {
-        parsed = const CsvToListConverter(shouldParseNumbers: false, eol: '\n')
-            .convert(sample, fieldDelimiter: delim);
+        parsed = CsvDecoder(fieldDelimiter: delim).convert(sample);
       } catch (_) {
         continue;
       }
@@ -217,11 +216,7 @@ class ImportService {
   /// lines (e.g. a trailing newline) are dropped silently instead of being
   /// counted as failed rows.
   (List<String>, List<List<String>>) _parseTable(String content, CsvDialect dialect) {
-    final rows = CsvToListConverter(
-      shouldParseNumbers: false,
-      eol: '\n',
-      fieldDelimiter: dialect.fieldDelimiter,
-    ).convert(content);
+    final rows = CsvDecoder(fieldDelimiter: dialect.fieldDelimiter).convert(content);
 
     // Drop blank rows (all cells null/empty/whitespace).
     final nonBlank = rows.where((r) {

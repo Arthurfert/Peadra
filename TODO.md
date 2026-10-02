@@ -9,14 +9,19 @@
 
 ### New
 
-- You can now click on a pie chart tag section to view the descriptions pie chart related to this tag !
-- Play store redirect for mobile update, with github apk installation still possible
-- *System* theme that switch between light and dark theme depending on your device theme
+- You can now click on the "others" section of a pie chart to unveil all categories
+- The assets distribution pie chart is now double layered : global account types into details
+- New setting : Hide update notifications
+- New backup policy in order to keep one from yersteday and one from last week, plus the 3 last app opening
 
 ### Fixes
 
-- Fixed sync being quicker on one way (A to B than the contrary)
+- Fixed the assets distribution pie chart taking future transactions
+- Transactions are now sorted by last edit per day (fixing the previous odd order)
+- Fixed the description proposals in transaction modals to fetch all descriptions
+- Fixed critical *bad decrypt* issue blocking the user in a forever unable to sync state
+- Fixed the links not being redirected on mobile
 
 ## Known issues
 
-- On linux, graphs *can* have aliasing. It is a known issues of flutter dependencies, and I cannot fix it myself.
+- On linux, graphs *can* have aliasing. It is a known issue of flutter dependencies, and I cannot fix it myself.

@@ -15,7 +15,6 @@ import 'core/database/database_manager.dart';
 import 'core/theme/peadra_colors.dart';
 import 'core/services/log_service.dart';
 import 'features/auth/presentation/login_view.dart';
-import 'core/utils/constants.dart';
 
 void main() async {
   runZonedGuarded(() async {
@@ -59,10 +58,7 @@ void main() async {
 
 Future<void> _runStartupBackup(DatabaseManager db) async {
   try {
-    final maxBackupsStr =
-        await db.getSetting('max_backups', defaultValue: defaultMaxBackups.toString());
-    final maxBackups = int.tryParse(maxBackupsStr ?? '') ?? defaultMaxBackups;
-    await db.backup(maxBackups: maxBackups);
+    await db.backup();
   } catch (e) {
     LogService().error('Startup backup failed: $e', '');
   }

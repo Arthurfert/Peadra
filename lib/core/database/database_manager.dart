@@ -1254,6 +1254,51 @@ void setUserId(String userId) {
     return rows.map((r) => Tag.fromMap(r)).toList();
   }
 
+  /// Returns the id of the tag with [name] (case-insensitive), creating it
+  /// with the default color when it does not exist yet. Returns null when
+  /// there is no active user or the name is blank.
+  Future<String?> getOrCreateTag(String name) async {
+    if (_userId == null) return null;
+    final normalized = name.trim();
+    if (normalized.isEmpty) return null;
+    final db = await database;
+    final rows = await db.query(
+      'SELECT id, name FROM tags WHERE user_id = ? AND is_deleted = 0',
+      [_userId],
+    );
+    for (final row in rows) {
+      final existing = row['name'] as String?;
+      if (existing != null &&
+          existing.toLowerCase() == normalized.toLowerCase()) {
+        return row['id'] as String;
+      }
+    }
+    return createTag(name: normalized);
+  }
+
+  /// Deletes the tag when no (non-deleted) transaction or recurring
+  /// transaction references it anymore. Used to roll back tags created by
+  /// an import that was aborted part-way. Returns true when deleted.
+  Future<bool> deleteTagIfUnused(String tagId) async {
+    if (_userId == null) return false;
+    final db = await database;
+    final usedInTxns = await db.query(
+      'SELECT id FROM transactions WHERE tag_id = ? AND user_id = ? AND is_deleted = 0 LIMIT 1',
+      [tagId, _userId],
+    );
+    if (usedInTxns.isNotEmpty) return false;
+    final usedInRecurring = await db.query(
+      'SELECT id FROM recurring_transactions WHERE tag_id = ? AND user_id = ? AND is_deleted = 0 LIMIT 1',
+      [tagId, _userId],
+    );
+    if (usedInRecurring.isNotEmpty) return false;
+    await db.execute(
+      'DELETE FROM tags WHERE id = ? AND user_id = ?',
+      [tagId, _userId],
+    );
+    return true;
+  }
+
   Future<bool> updateTag(String tagId, {String? name, String? color}) async {
     if (_userId == null) return false;
     final db = await database;

@@ -12,7 +12,8 @@ import '../database/database_manager.dart';
 
 /// CSV dialect produced by [exportToCsv]. These exact headers are chosen so
 /// that [ImportService] auto-maps every column correctly:
-/// Date → date, Description → description, Amount → amount, Type → type.
+/// Date → date, Description → description, Amount → amount, Type → type,
+/// Tag → tag.
 class ExportService {
   final DatabaseManager _db = DatabaseManager.instance;
   static final ExportService _instance = ExportService._();
@@ -24,6 +25,7 @@ class ExportService {
     'Description',
     'Amount',
     'Type',
+    'Tag',
   ];
 
   /// Export a single account's transactions to CSV in a format that
@@ -32,8 +34,9 @@ class ExportService {
   /// * signed amounts (negative for expenses, positive for incomes) so the
   ///   amount sign and the Type column always agree,
   /// * Type normalized to `income` / `expense`,
-  /// * no extra columns (notes/currency/account have no import mapping and
-  ///   `Notes` would even risk being auto-mapped as a description),
+  /// * Tag carrying the tag name (recreated on import when missing),
+  /// * no other extra columns (notes/currency/account have no import mapping
+  ///   and `Notes` would even risk being auto-mapped as a description),
   /// * UTF-8 with BOM so Excel opens the file correctly (the importer
   ///   strips the BOM back out).
   Future<String> exportToCsv({
@@ -58,6 +61,7 @@ class ExportService {
             t.descriptionName ?? '',
             formatExportAmount(t.amount, t.transactionType),
             normalizeExportType(t.transactionType, t.descriptionName),
+            t.tagName ?? '',
           ]),
     ];
 

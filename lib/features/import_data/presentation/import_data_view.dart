@@ -593,6 +593,8 @@ class _ImportDataViewState extends State<ImportDataView> {
                   DropdownMenuItem(value: ColumnMapping.debit, child: Text(Translator.t('import_debit'))),
                 if (!usedMappings.contains(ColumnMapping.type))
                   DropdownMenuItem(value: ColumnMapping.type, child: Text(Translator.t('import_type'))),
+                if (!usedMappings.contains(ColumnMapping.tag))
+                  DropdownMenuItem(value: ColumnMapping.tag, child: Text(Translator.t('import_tag'))),
                 DropdownMenuItem(value: ColumnMapping.unused, child: Text(Translator.t('import_unused'))),
               ],
               onChanged: (v) {

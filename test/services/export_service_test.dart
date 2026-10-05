@@ -16,12 +16,14 @@ void main() {
     required String description,
     required Decimal amount,
     required String type,
+    String tag = '',
   }) {
     return [
       date,
       description,
       export.formatExportAmount(amount, type),
       export.normalizeExportType(type, description),
+      tag,
     ];
   }
 
@@ -127,10 +129,46 @@ void main() {
           ImportMapping(1, ColumnMapping.description),
           ImportMapping(2, ColumnMapping.amount),
           ImportMapping(3, ColumnMapping.type),
+          ImportMapping(4, ColumnMapping.tag),
         ],
         ExportService.exportHeaders.length,
       );
       expect(errors, isEmpty);
+    });
+
+    test('tagged rows round-trip, empty tag stays untagged', () {
+      expect(
+        import.validateExportRow(exportRow(
+          date: '2024-03-19',
+          description: 'Groceries',
+          amount: Decimal.parse('42.50'),
+          type: 'expense',
+          tag: 'Food',
+        )),
+        isNull,
+      );
+      expect(
+        import.validateExportRow(exportRow(
+          date: '2024-03-19',
+          description: 'Groceries',
+          amount: Decimal.parse('42.50'),
+          type: 'expense',
+        )),
+        isNull,
+      );
+    });
+
+    test('duplicate tag mapping is rejected', () {
+      final errors = import.validateMappings(
+        [
+          ImportMapping(0, ColumnMapping.date),
+          ImportMapping(1, ColumnMapping.amount),
+          ImportMapping(2, ColumnMapping.tag),
+          ImportMapping(3, ColumnMapping.tag),
+        ],
+        4,
+      );
+      expect(errors.any((e) => e.contains('Tag')), isTrue);
     });
   });
 
@@ -138,9 +176,9 @@ void main() {
     test('commas, quotes and newlines in descriptions', () {
       final rows = <List<dynamic>>[
         ExportService.exportHeaders,
-        ['2024-03-15', 'Salary', '2500', 'income'],
-        ['2024-03-16', 'Café "Léon", SARL', '-42.50', 'expense'],
-        ['2024-03-17', 'Line one\nLine two', '-7', 'expense'],
+        ['2024-03-15', 'Salary', '2500', 'income', 'Work'],
+        ['2024-03-16', 'Café "Léon", SARL', '-42.50', 'expense', 'Food'],
+        ['2024-03-17', 'Line one\nLine two', '-7', 'expense', ''],
       ];
       final csv = const CsvEncoder().convert(rows);
       // Mirror the importer: normalize line endings (CsvEncoder emits

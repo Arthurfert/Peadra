@@ -1126,17 +1126,23 @@ void setUserId(String userId) {
       'SELECT id, name FROM descriptions WHERE user_id = ? AND is_deleted = 0',
       [_userId],
     );
-    final matches = <({String name, String lastUsed})>[];
+    // Deduplicate case-insensitively: several rows can decrypt to the same
+    // name (e.g. "Coffee" vs "coffee"). Keep one entry per description, with
+    // the most-recent use across its duplicate rows.
+    final byName = <String, ({String name, String lastUsed})>{};
     for (final row in rows) {
       final name = await _decryptValue(row['name']);
       if (name == null || name.trim().isEmpty) continue;
       if (_isTransferDescription(name)) continue;
       if (!name.toLowerCase().contains(q)) continue;
-      matches.add((
-        name: name,
-        lastUsed: lastUsed[row['id'] as String] ?? '',
-      ));
+      final key = name.trim().toLowerCase();
+      final rowLastUsed = lastUsed[row['id'] as String] ?? '';
+      final existing = byName[key];
+      if (existing == null || rowLastUsed.compareTo(existing.lastUsed) > 0) {
+        byName[key] = (name: name.trim(), lastUsed: rowLastUsed);
+      }
     }
+    final matches = byName.values.toList();
 
     matches.sort((a, b) {
       final aPrefix = a.name.toLowerCase().startsWith(q) ? 0 : 1;
@@ -1252,6 +1258,51 @@ void setUserId(String userId) {
       [_userId],
     );
     return rows.map((r) => Tag.fromMap(r)).toList();
+  }
+
+  /// Returns the id of the tag with [name] (case-insensitive), creating it
+  /// with the default color when it does not exist yet. Returns null when
+  /// there is no active user or the name is blank.
+  Future<String?> getOrCreateTag(String name) async {
+    if (_userId == null) return null;
+    final normalized = name.trim();
+    if (normalized.isEmpty) return null;
+    final db = await database;
+    final rows = await db.query(
+      'SELECT id, name FROM tags WHERE user_id = ? AND is_deleted = 0',
+      [_userId],
+    );
+    for (final row in rows) {
+      final existing = row['name'] as String?;
+      if (existing != null &&
+          existing.toLowerCase() == normalized.toLowerCase()) {
+        return row['id'] as String;
+      }
+    }
+    return createTag(name: normalized);
+  }
+
+  /// Deletes the tag when no (non-deleted) transaction or recurring
+  /// transaction references it anymore. Used to roll back tags created by
+  /// an import that was aborted part-way. Returns true when deleted.
+  Future<bool> deleteTagIfUnused(String tagId) async {
+    if (_userId == null) return false;
+    final db = await database;
+    final usedInTxns = await db.query(
+      'SELECT id FROM transactions WHERE tag_id = ? AND user_id = ? AND is_deleted = 0 LIMIT 1',
+      [tagId, _userId],
+    );
+    if (usedInTxns.isNotEmpty) return false;
+    final usedInRecurring = await db.query(
+      'SELECT id FROM recurring_transactions WHERE tag_id = ? AND user_id = ? AND is_deleted = 0 LIMIT 1',
+      [tagId, _userId],
+    );
+    if (usedInRecurring.isNotEmpty) return false;
+    await db.execute(
+      'DELETE FROM tags WHERE id = ? AND user_id = ?',
+      [tagId, _userId],
+    );
+    return true;
   }
 
   Future<bool> updateTag(String tagId, {String? name, String? color}) async {

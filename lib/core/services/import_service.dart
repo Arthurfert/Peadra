@@ -18,6 +18,7 @@ enum ColumnMapping {
   credit,
   debit,
   type,
+  tag,
 }
 
 class ImportMapping {
@@ -82,17 +83,21 @@ class ImportPreview {
 
 /// A single CSV row after parsing and validation, ready to be written.
 /// Amount is always positive; [type] is always 'income' or 'expense'.
+/// [tagName] is the raw (trimmed) tag name, resolved to a tag id at write
+/// time so phase 1 stays free of database writes.
 class _ParsedRow {
   final String date;
   final Decimal amount;
   final String type;
   final String description;
+  final String tagName;
 
   _ParsedRow({
     required this.date,
     required this.amount,
     required this.type,
     required this.description,
+    this.tagName = '',
   });
 }
 
@@ -120,6 +125,7 @@ class ImportService {
   static final _debitKeywords = ['debit', 'debit amount', 'débit'];
   static final _descKeywords = ['description', 'memo', 'note', 'details', 'libellé', 'désignation'];
   static final _typeKeywords = ['type', 'category', 'kind', 'nature'];
+  static final _tagKeywords = ['tag', 'label', 'étiquette', 'etiquette'];
 
   /// Calculate the SHA-256 hash of a file (hex string).
   Future<String> calculateFileHash(String path) async {
@@ -348,6 +354,16 @@ class ImportService {
         }
       }
 
+      // Tag
+      if (mapping == ColumnMapping.unused && !usedMappings.contains(ColumnMapping.tag)) {
+        for (final kw in _tagKeywords) {
+          if (h.contains(kw)) {
+            mapping = ColumnMapping.tag;
+            break;
+          }
+        }
+      }
+
       if (mapping != ColumnMapping.unused) {
         usedMappings.add(mapping);
       }
@@ -408,6 +424,8 @@ class ImportService {
         return 'Debit';
       case ColumnMapping.type:
         return 'Type';
+      case ColumnMapping.tag:
+        return 'Tag';
       case ColumnMapping.unused:
         return 'Unused';
     }
@@ -693,6 +711,7 @@ class ImportService {
     Decimal? creditAmount;
     Decimal? debitAmount;
     String? explicitType;
+    String tagName = '';
 
     for (final entry in mappingByCol.entries) {
       final col = entry.key;
@@ -738,6 +757,10 @@ class ImportService {
         case ColumnMapping.type:
           final currentType = explicitType;
           if (currentType == null || currentType.isEmpty) explicitType = value;
+          break;
+        case ColumnMapping.tag:
+          // Any non-empty value names a tag (created on write if missing).
+          if (tagName.isEmpty) tagName = value;
           break;
         case ColumnMapping.unused:
           break;
@@ -815,6 +838,7 @@ class ImportService {
         amount: amount,
         type: resolvedType,
         description: description?.trim() ?? '',
+        tagName: tagName,
       ),
       error: null,
     );
@@ -831,6 +855,7 @@ class ImportService {
       ImportMapping(1, ColumnMapping.description),
       ImportMapping(2, ColumnMapping.amount),
       ImportMapping(3, ColumnMapping.type),
+      ImportMapping(4, ColumnMapping.tag),
     ];
     final mappingErrors =
         validateMappings(mappings, ExportService.exportHeaders.length);
@@ -843,12 +868,31 @@ class ImportService {
         1: ColumnMapping.description,
         2: ColumnMapping.amount,
         3: ColumnMapping.type,
+        4: ColumnMapping.tag,
       },
       fallbackType: 'expense',
     );
     if (result.row != null) return null;
     final err = result.error ?? 'invalid row';
     return err.isEmpty ? 'zero amount (skipped by design)' : err;
+  }
+
+  /// Deletes tags created during this import run that no transaction or
+  /// recurring transaction references (i.e. leftovers of an aborted
+  /// import). Best-effort: never throws, so it cannot mask the original
+  /// fatal error.
+  Future<void> _rollbackCreatedTags(Set<String> tagsBefore) async {
+    try {
+      final tagsAfter = await _db.getAllTags();
+      for (final t in tagsAfter) {
+        final id = t.id;
+        if (id != null && !tagsBefore.contains(id)) {
+          await _db.deleteTagIfUnused(id);
+        }
+      }
+    } catch (_) {
+      // Ignore: orphan empty tags are harmless and removable in Manage tags.
+    }
   }
 
   /// Import transactions from a CSV file with given mappings.
@@ -970,7 +1014,30 @@ class ImportService {
     int duplicates = 0;
     String? fatalError;
 
+    // Resolve tag names to ids up-front (creating missing tags), so every
+    // row write below is a single insert. Tags created here that end up
+    // unused after a fatal abort are rolled back below.
+    final tagsBefore = <String>{
+      for (final t in await _db.getAllTags()) if (t.id != null) t.id!
+    };
+    final tagIds = <String, String?>{};
+    try {
+      final distinctNames = <String>{
+        for (final p in parsed)
+          if (p.tagName.trim().isNotEmpty) p.tagName.trim()
+      };
+      for (final name in distinctNames) {
+        tagIds[name] = await _db.getOrCreateTag(name);
+      }
+    } catch (e) {
+      await _rollbackCreatedTags(tagsBefore);
+      fatalError = 'Database error during import (${e.runtimeType}); '
+          'import aborted. Already-imported rows will be detected as '
+          'duplicates if you retry.';
+    }
+
     for (final p in parsed) {
+      if (fatalError != null) break;
       final signature = _signature(p.date, accountId, p.amount, p.description, p.type);
       if (seenSignatures.contains(signature)) {
         duplicates++;
@@ -978,6 +1045,7 @@ class ImportService {
       }
 
       try {
+        final tagKey = p.tagName.trim();
         final txId = await _db.addTransaction(
           accountId: accountId,
           date: p.date,
@@ -986,6 +1054,7 @@ class ImportService {
           transactionType: p.type,
           currency: currency,
           notes: null,
+          tagId: tagKey.isEmpty ? null : tagIds[tagKey],
         );
         if (txId == null) {
           // addTransaction returning null means the write did not happen;
@@ -1005,6 +1074,7 @@ class ImportService {
     }
 
     if (fatalError != null) {
+      await _rollbackCreatedTags(tagsBefore);
       // Deliberately NOT marking the file as imported so a retry is safe.
       return ImportResult(
         totalRows: dataRows.length,

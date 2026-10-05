@@ -12,6 +12,7 @@ const List<String> syncTables = [
   'recurring_exceptions',
   'imported_files',
   'exchange_rates',
+  'goals',
 ];
 
 /// A user identity remap produced by reconciliation: every reference to
@@ -92,6 +93,7 @@ class CrdtDatabaseService {
           'recurring_transactions',
           'imported_files',
           'settings',
+          'goals',
         ]) {
           await txn.execute(
             'UPDATE $table SET user_id = ? WHERE user_id = ?',

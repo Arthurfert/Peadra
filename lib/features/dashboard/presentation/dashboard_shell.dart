@@ -18,6 +18,7 @@ import '../../../sync/sync_service.dart';
 import '../../auth/presentation/login_view.dart';
 import '../../transactions/presentation/transactions_view.dart';
 import '../../accounts/presentation/accounts_view.dart';
+import '../../budgets/presentation/budgets_view.dart';
 import '../../categories/presentation/categories_view.dart';
 import '../../parameters/presentation/parameters_view.dart';
 import 'dashboard_view.dart';
@@ -41,8 +42,9 @@ class _DashboardShellState extends State<DashboardShell> {
 
   late final List<Widget> _staticViews = [
     TransactionsView(onDataChanged: _loadTotalPatrimony),
-    const AccountsView(),
+    const BudgetsView(),
     const CategoriesView(),
+    const AccountsView(),
     const ParametersView(showBackButton: false),
   ];
 
@@ -97,9 +99,11 @@ class _DashboardShellState extends State<DashboardShell> {
   }
 
   void _onNavTap(int index) {
-    if (index == 4 || index == 5) {
+    // 0 dashboard, 1 transactions, 2 budgets, 3 categories,
+    // 4 accounts (via menu), 5 settings (via menu).
+    if (index == 5) {
       if (ResponsiveLayout.isPhone(context)) {
-        setState(() => _selectedIndex = 4);
+        setState(() => _selectedIndex = 5);
         _loadTotalPatrimony();
       } else {
         Navigator.of(context).push(
@@ -131,7 +135,7 @@ class _DashboardShellState extends State<DashboardShell> {
       child: SafeArea(
         bottom: false,
         child: InkWell(
-          onTap: isPhone ? () => _onNavTap(4) : null,
+          onTap: isPhone ? () => _onNavTap(5) : null,
           child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Row(

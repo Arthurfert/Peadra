@@ -9,12 +9,14 @@
 
 ### New
 
-
+- **Budget view :**
+  - Set your goals for any account, expense or revenue category, or even your entire patrimony
+  - Choose monthly goals, or your specific period of time
+  - View how far you are from your goal
 
 ### Fixes
 
-- Integrated tags support in both export and import services
-- Fixed duplicates in the descriptions suggestions from the transaction modal
+
 
 ## Known issues
 

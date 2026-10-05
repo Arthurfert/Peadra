@@ -139,6 +139,23 @@ Future<SqliteCrdt> createCrdtDatabase() {
           PRIMARY KEY (from_currency, to_currency)
         )
       ''');
+
+      await db.execute('''
+        CREATE TABLE goals (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          kind TEXT NOT NULL DEFAULT 'total_assets',
+          account_id TEXT,
+          tag_id TEXT,
+          transaction_type TEXT NOT NULL DEFAULT '',
+          target_amount REAL NOT NULL DEFAULT 0,
+          currency TEXT DEFAULT 'EUR',
+          period TEXT NOT NULL DEFAULT 'monthly',
+          deadline TEXT,
+          start_date TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      ''');
     },
   );
 }

@@ -13,6 +13,7 @@ import 'package:uuid/uuid.dart';
 
 import '../models/account.dart';
 import '../models/description.dart';
+import '../models/goal.dart';
 import '../models/tag.dart';
 import '../models/transaction.dart';
 import '../models/recurring_transaction.dart';
@@ -596,12 +597,55 @@ class DatabaseManager {
       )
     ''');
 
+    await db.execute('''
+      CREATE TABLE goals (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'total_assets' CHECK(kind IN ('total_assets', 'account', 'tag')),
+        account_id TEXT,
+        tag_id TEXT,
+        transaction_type TEXT NOT NULL DEFAULT '',
+        target_amount REAL NOT NULL DEFAULT 0,
+        currency TEXT DEFAULT 'EUR',
+        period TEXT NOT NULL DEFAULT 'monthly' CHECK(period IN ('monthly', 'custom')),
+        deadline DATE,
+        start_date DATE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (account_id) REFERENCES accounts(id),
+        FOREIGN KEY (tag_id) REFERENCES tags(id)
+      )
+    ''');
+
     await _createIndexes(db);
   }
 
   Future<void> _onUpgrade(CrdtTableExecutor db, int oldVersion, int newVersion) async {
-    // Pre-v7 databases are migrated outside of the CRDT layer by
-    // [_migrateToV7]; nothing to do here.
+    // v7 -> v8: budget goals.
+    if (oldVersion < 8) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS goals (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          kind TEXT NOT NULL DEFAULT 'total_assets' CHECK(kind IN ('total_assets', 'account', 'tag')),
+          account_id TEXT,
+          tag_id TEXT,
+          transaction_type TEXT NOT NULL DEFAULT '',
+          target_amount REAL NOT NULL DEFAULT 0,
+          currency TEXT DEFAULT 'EUR',
+          period TEXT NOT NULL DEFAULT 'monthly' CHECK(period IN ('monthly', 'custom')),
+          deadline DATE,
+          start_date DATE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES users(id),
+          FOREIGN KEY (account_id) REFERENCES accounts(id),
+          FOREIGN KEY (tag_id) REFERENCES tags(id)
+        )
+      ''');
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_goals_user ON goals(user_id)',
+      );
+    }
   }
 
   Future<void> _createIndexes(CrdtTableExecutor db) async {
@@ -623,6 +667,9 @@ class DatabaseManager {
     await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_recurring_exception ON recurring_exceptions(recurring_id)',
     );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_goals_user ON goals(user_id)',
+    );
   }
 
   /// Encrypt all existing unencrypted data. Called after login when encryption is first enabled.
@@ -640,6 +687,7 @@ class DatabaseManager {
     await _encryptDescriptions(db);
     await _encryptTransactions(db);
     await _encryptRecurring(db);
+    await _encryptGoals(db);
 
     await db.execute(
       'INSERT OR REPLACE INTO encryption_meta ("key", value) VALUES (?, ?)',
@@ -738,6 +786,17 @@ class DatabaseManager {
         await updateRow('recurring_transactions', row['id'], fields);
       }
     }
+
+    final goalRows = await db.query(
+      'SELECT id, target_amount FROM goals WHERE user_id = ? AND is_deleted = 0',
+      [_userId],
+    );
+    for (final row in goalRows) {
+      final amount = await reencrypt(row['target_amount']);
+      if (amount != null) {
+        await updateRow('goals', row['id'], {'target_amount': amount});
+      }
+    }
   }
 
   Future<void> _encryptAccounts(SqliteCrdt db) async {
@@ -802,6 +861,21 @@ class DatabaseManager {
       await db.execute(
         'UPDATE recurring_transactions SET amount = ?, notes = ? WHERE id = ? AND user_id = ?',
         [encryptedAmount, encryptedNotes, row['id'], _userId],
+      );
+    }
+  }
+
+  Future<void> _encryptGoals(SqliteCrdt db) async {
+    final rows = await db.query(
+      'SELECT id, target_amount FROM goals WHERE user_id = ? AND is_deleted = 0',
+      [_userId],
+    );
+    for (final row in rows) {
+      final amount = row['target_amount'] as dynamic;
+      final encryptedAmount = amount != null ? await _encrypt(amount.toString()) : null;
+      await db.execute(
+        'UPDATE goals SET target_amount = ? WHERE id = ? AND user_id = ?',
+        [encryptedAmount, row['id'], _userId],
       );
     }
   }
@@ -1077,6 +1151,10 @@ void setUserId(String userId) {
       'DELETE FROM accounts WHERE id = ? AND user_id = ?',
       [accountId, _userId],
     );
+    await db.execute(
+      'DELETE FROM goals WHERE account_id = ? AND user_id = ?',
+      [accountId, _userId],
+    );
     return true;
   }
 
@@ -1345,6 +1423,7 @@ void setUserId(String userId) {
       [tagId, _userId],
     );
     await db.execute('DELETE FROM tags WHERE id = ? AND user_id = ?', [tagId, _userId]);
+    await db.execute('DELETE FROM goals WHERE tag_id = ? AND user_id = ?', [tagId, _userId]);
     return true;
   }
 
@@ -3070,6 +3149,241 @@ void setUserId(String userId) {
     };
   }
 
+  // ==================== GOALS ====================
+
+  Future<List<BudgetGoal>> getGoals() async {
+    if (_userId == null) return [];
+    final db = await database;
+    final rows = await db.query(
+      'SELECT * FROM goals WHERE user_id = ? AND is_deleted = 0 ORDER BY created_at ASC, id ASC',
+      [_userId],
+    );
+    final goals = <BudgetGoal>[];
+    for (final r in rows) {
+      goals.add(BudgetGoal(
+        id: r['id'] as String?,
+        userId: r['user_id'] as String,
+        kind: r['kind'] as String? ?? BudgetGoal.kindTotalAssets,
+        accountId: r['account_id'] as String?,
+        tagId: r['tag_id'] as String?,
+        transactionType: r['transaction_type'] as String? ?? '',
+        targetAmount: await _decryptAmount(r['target_amount']),
+        currency: r['currency'] as String? ?? 'EUR',
+        period: r['period'] as String? ?? BudgetGoal.periodMonthly,
+        deadline: r['deadline'] as String?,
+        startDate: r['start_date'] as String?,
+        createdAt: r['created_at'] as String?,
+      ));
+    }
+    return goals;
+  }
+
+  Future<String?> createGoal({
+    required String kind,
+    String? accountId,
+    String? tagId,
+    String transactionType = '',
+    required Decimal targetAmount,
+    String currency = 'EUR',
+    String period = BudgetGoal.periodMonthly,
+    String? deadline,
+    String? startDate,
+  }) async {
+    if (_userId == null) return null;
+    if (targetAmount <= Decimal.zero) return null;
+    final db = await database;
+    final id = _newId();
+    final today = DateTime.now().toIso8601String().substring(0, 10);
+    final effectiveStart =
+        period == BudgetGoal.periodCustom ? (startDate ?? today) : null;
+    final effectiveDeadline =
+        period == BudgetGoal.periodCustom ? deadline : null;
+    await db.execute(
+      'INSERT INTO goals (id, user_id, kind, account_id, tag_id, transaction_type, target_amount, currency, period, deadline, start_date) '
+      'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)',
+      [
+        id,
+        _userId,
+        kind,
+        accountId,
+        tagId,
+        transactionType,
+        await _encrypt(targetAmount.toString()),
+        currency,
+        period,
+        effectiveDeadline,
+        effectiveStart,
+      ],
+    );
+    return id;
+  }
+
+  Future<bool> updateGoal(
+    String goalId, {
+    Decimal? targetAmount,
+    String? currency,
+    String? period,
+    String? deadline,
+    String? startDate,
+  }) async {
+    if (_userId == null) return false;
+    final db = await database;
+    final existing = await db.query(
+      'SELECT id FROM goals WHERE id = ? AND user_id = ? AND is_deleted = 0',
+      [goalId, _userId],
+    );
+    if (existing.isEmpty) return false;
+    final updates = <String, dynamic>{};
+    if (targetAmount != null) {
+      if (targetAmount <= Decimal.zero) return false;
+      updates['target_amount'] = await _encrypt(targetAmount.toString());
+    }
+    if (currency != null) updates['currency'] = currency;
+    if (period != null) updates['period'] = period;
+    if (deadline != null) {
+      updates['deadline'] = deadline;
+    }
+    if (startDate != null) updates['start_date'] = startDate;
+    // Switching back to monthly clears the custom deadline window.
+    if (period == BudgetGoal.periodMonthly) {
+      updates['deadline'] = null;
+      updates['start_date'] = null;
+    }
+    if (updates.isEmpty) return false;
+    var sql = 'UPDATE goals SET';
+    final args = <Object?>[];
+    var first = true;
+    for (final entry in updates.entries) {
+      if (!first) sql += ',';
+      sql += ' ${entry.key} = ?';
+      args.add(entry.value);
+      first = false;
+    }
+    sql += ' WHERE id = ? AND user_id = ?';
+    args.add(goalId);
+    args.add(_userId);
+    await db.execute(sql, args);
+    return true;
+  }
+
+  Future<bool> deleteGoal(String goalId) async {
+    if (_userId == null) return false;
+    final db = await database;
+    final existing = await db.query(
+      'SELECT id FROM goals WHERE id = ? AND user_id = ? AND is_deleted = 0',
+      [goalId, _userId],
+    );
+    if (existing.isEmpty) return false;
+    await db.execute(
+      'DELETE FROM goals WHERE id = ? AND user_id = ?',
+      [goalId, _userId],
+    );
+    return true;
+  }
+
+  /// Current value of [goal] expressed in the goal's currency.
+  ///
+  /// - total/account goals: point-in-time balance (all transactions with
+  ///   `date <= today`).
+  /// - tag goals: sum of matching tagged transactions over the goal window
+  ///   (current calendar month for monthly goals, `startDate..deadline/today`
+  ///   for custom goals).
+  Future<Decimal> getGoalCurrentValue(BudgetGoal goal,
+      {String? todayStr}) async {
+    final today = todayStr ??
+        DateTime.now().toIso8601String().substring(0, 10);
+    final targetCurrency =
+        goal.currency.isNotEmpty ? goal.currency : 'EUR';
+    if (goal.isTotalAssets) {
+      return getTotalPatrimony(targetCurrency: targetCurrency);
+    }
+    if (goal.isAccount) {
+      if (goal.accountId == null) return Decimal.zero;
+      return _getAccountBalanceAsOf(
+        goal.accountId!,
+        today,
+        targetCurrency: targetCurrency,
+      );
+    }
+    // Tag goal.
+    final tagId = goal.tagId;
+    if (tagId == null || tagId.isEmpty) return Decimal.zero;
+    final type = goal.transactionType.isNotEmpty
+        ? goal.transactionType
+        : 'expense';
+    late final String start;
+    late final String end;
+    if (goal.isCustom) {
+      start = (goal.startDate != null && goal.startDate!.isNotEmpty)
+          ? goal.startDate!
+          : today;
+      final dl = (goal.deadline != null && goal.deadline!.isNotEmpty)
+          ? goal.deadline!
+          : today;
+      end = dl.compareTo(today) < 0 ? dl : today;
+      if (start.compareTo(end) > 0) return Decimal.zero;
+    } else {
+      start = '${today.substring(0, 7)}-01';
+      end = today;
+    }
+    final db = await database;
+    final rows = await db.query(
+      'SELECT amount, currency FROM transactions '
+      'WHERE tag_id = ? AND transaction_type = ? AND user_id = ? '
+      'AND is_deleted = 0 AND date >= ? AND date <= ?',
+      [tagId, type, _userId, start, end],
+    );
+    Decimal total = Decimal.zero;
+    for (final row in rows) {
+      final amount = await _decryptAmount(row['amount']);
+      final txnCurrency = (row['currency'] as String?) ?? 'EUR';
+      if (txnCurrency == targetCurrency) {
+        total += amount;
+      } else {
+        final rate = await getExchangeRate(txnCurrency, targetCurrency);
+        total += amount * Decimal.parse((rate ?? 1.0).toString());
+      }
+    }
+    return total;
+  }
+
+  /// Balance of a single account (starting amount + income/expense up to
+  /// [today]), converted to [targetCurrency]. Returns zero when the account
+  /// no longer exists.
+  Future<Decimal> _getAccountBalanceAsOf(
+    String accountId,
+    String today, {
+    String targetCurrency = 'EUR',
+  }) async {
+    final db = await database;
+    final acctRows = await db.query(
+      'SELECT starting_amount, currency FROM accounts WHERE id = ? AND user_id = ? AND is_deleted = 0',
+      [accountId, _userId],
+    );
+    if (acctRows.isEmpty) return Decimal.zero;
+    final acctCurrency = (acctRows.first['currency'] as String?) ?? 'EUR';
+    Decimal balance = await _decryptAmount(acctRows.first['starting_amount']);
+    final txnRows = await db.query(
+      'SELECT amount, transaction_type, currency FROM transactions '
+      'WHERE account_id = ? AND user_id = ? AND is_deleted = 0 AND date <= ?',
+      [accountId, _userId, today],
+    );
+    for (final row in txnRows) {
+      final amount = await _decryptAmount(row['amount']);
+      final type = row['transaction_type'] as String;
+      if (type == 'income') {
+        balance += amount;
+      } else if (type == 'expense') {
+        balance -= amount;
+      }
+    }
+    if (acctCurrency == targetCurrency) return balance;
+    // Account balances are stored in the account's native currency, so the
+    // transaction rows above are already native amounts; convert the total.
+    final rate = await getExchangeRate(acctCurrency, targetCurrency);
+    return balance * Decimal.parse((rate ?? 1.0).toString());
+  }
+
   // ==================== SETTINGS ====================
 
   Future<String?> getSetting(String key, {String? defaultValue}) async {
@@ -3236,6 +3550,7 @@ void setUserId(String userId) {
     await db.execute('DELETE FROM recurring_transactions WHERE user_id = ?', [_userId]);
     await db.execute('DELETE FROM accounts WHERE user_id = ?', [_userId]);
     await db.execute('DELETE FROM descriptions WHERE user_id = ?', [_userId]);
+    await db.execute('DELETE FROM goals WHERE user_id = ?', [_userId]);
     await db.execute('DELETE FROM imported_files WHERE user_id = ?', [_userId]);
     await db.execute('DELETE FROM settings WHERE user_id = ?', [_userId]);
     await db.execute('DELETE FROM users WHERE id = ?', [_userId]);

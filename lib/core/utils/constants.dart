@@ -1,4 +1,4 @@
-const int dbVersion = 7;
+const int dbVersion = 8;
 const String dbName = 'peadra.db';
 
 const int defaultDisplayLimit = 30;

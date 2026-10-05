@@ -14,6 +14,7 @@
 ### Fixes
 
 - Integrated tags support in both export and import services
+- Fixed duplicates in the descriptions suggestions from the transaction modal
 
 ## Known issues
 

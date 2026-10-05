@@ -1126,17 +1126,23 @@ void setUserId(String userId) {
       'SELECT id, name FROM descriptions WHERE user_id = ? AND is_deleted = 0',
       [_userId],
     );
-    final matches = <({String name, String lastUsed})>[];
+    // Deduplicate case-insensitively: several rows can decrypt to the same
+    // name (e.g. "Coffee" vs "coffee"). Keep one entry per description, with
+    // the most-recent use across its duplicate rows.
+    final byName = <String, ({String name, String lastUsed})>{};
     for (final row in rows) {
       final name = await _decryptValue(row['name']);
       if (name == null || name.trim().isEmpty) continue;
       if (_isTransferDescription(name)) continue;
       if (!name.toLowerCase().contains(q)) continue;
-      matches.add((
-        name: name,
-        lastUsed: lastUsed[row['id'] as String] ?? '',
-      ));
+      final key = name.trim().toLowerCase();
+      final rowLastUsed = lastUsed[row['id'] as String] ?? '';
+      final existing = byName[key];
+      if (existing == null || rowLastUsed.compareTo(existing.lastUsed) > 0) {
+        byName[key] = (name: name.trim(), lastUsed: rowLastUsed);
+      }
     }
+    final matches = byName.values.toList();
 
     matches.sort((a, b) {
       final aPrefix = a.name.toLowerCase().startsWith(q) ? 0 : 1;

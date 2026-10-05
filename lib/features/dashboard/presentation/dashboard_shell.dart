@@ -43,8 +43,8 @@ class _DashboardShellState extends State<DashboardShell> {
   late final List<Widget> _staticViews = [
     TransactionsView(onDataChanged: _loadTotalPatrimony),
     const BudgetsView(),
-    const CategoriesView(),
     const AccountsView(),
+    const CategoriesView(),
     const ParametersView(showBackButton: false),
   ];
 
@@ -99,8 +99,8 @@ class _DashboardShellState extends State<DashboardShell> {
   }
 
   void _onNavTap(int index) {
-    // 0 dashboard, 1 transactions, 2 budgets, 3 categories,
-    // 4 accounts (via menu), 5 settings (via menu).
+    // 0 dashboard, 1 transactions, 2 budgets, 3 accounts, 4 categories,
+    // 5 settings (via menu on phones, gear button on desktop).
     if (index == 5) {
       if (ResponsiveLayout.isPhone(context)) {
         setState(() => _selectedIndex = 5);

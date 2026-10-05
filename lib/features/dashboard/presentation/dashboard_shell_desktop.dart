@@ -77,39 +77,10 @@ class DashboardShellDesktop extends StatelessWidget {
             ),
           ),
           const Spacer(),
-          PopupMenuButton<String>(
-            tooltip: Translator.t('nav_menu'),
-            icon: Icon(Icons.menu, color: colors.textSecondary),
-            onSelected: (v) {
-              if (v == 'accounts') {
-                onNavTap(4);
-              } else if (v == 'settings') {
-                onNavTap(5);
-              }
-            },
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                value: 'accounts',
-                child: Row(
-                  children: [
-                    const Icon(Icons.account_balance_wallet_outlined,
-                        size: 18),
-                    const SizedBox(width: 8),
-                    Text(Translator.t('nav_accounts')),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'settings',
-                child: Row(
-                  children: [
-                    const Icon(Icons.settings_outlined, size: 18),
-                    const SizedBox(width: 8),
-                    Text(Translator.t('nav_settings')),
-                  ],
-                ),
-              ),
-            ],
+          IconButton(
+            icon: Icon(Icons.settings, color: colors.textSecondary),
+            onPressed: () => onNavTap(5),
+            tooltip: Translator.t('tooltip_settings'),
           ),
           const SizedBox(width: 8),
           IconButton(
@@ -132,6 +103,8 @@ class DashboardShellDesktop extends StatelessWidget {
           Translator.t('nav_transactions')),
       (Icons.flag_outlined, Icons.flag,
           Translator.t('nav_budgets')),
+      (Icons.account_balance_wallet_outlined, Icons.account_balance_wallet,
+          Translator.t('nav_accounts')),
       (Icons.bubble_chart_outlined, Icons.bubble_chart,
           Translator.t('nav_categories')),
     ];

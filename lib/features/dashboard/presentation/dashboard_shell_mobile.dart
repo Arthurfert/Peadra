@@ -55,7 +55,7 @@ class DashboardShellMobile extends StatelessWidget {
               title: Text(Translator.t('nav_accounts')),
               onTap: () {
                 Navigator.pop(ctx);
-                onNavTap(4);
+                onNavTap(3);
               },
             ),
             ListTile(
@@ -87,10 +87,14 @@ class DashboardShellMobile extends StatelessWidget {
           ]
         : List.filled(5, '');
 
-    // Accounts (4) and settings (5) live behind the burger menu, which
-    // stays highlighted while one of them is displayed.
-    final currentIndex =
-        selectedIndex <= 3 ? selectedIndex : 4;
+    // Accounts (3) and settings (5) live behind the burger menu, which
+    // stays highlighted while one of them is displayed. Categories is
+    // view index 4 but sits at nav position 3.
+    final currentIndex = switch (selectedIndex) {
+      0 || 1 || 2 => selectedIndex,
+      4 => 3,
+      _ => 4,
+    };
 
     return Builder(
       builder: (context) => Container(
@@ -104,6 +108,9 @@ class DashboardShellMobile extends StatelessWidget {
         onTap: (index) {
           if (index == 4) {
             _showMenu(context);
+          } else if (index == 3) {
+            // Categories sits at nav position 3 (view index 4).
+            onNavTap(4);
           } else {
             onNavTap(index);
           }

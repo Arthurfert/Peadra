@@ -357,7 +357,9 @@ class _GoalDialogState extends State<_GoalDialog> {
                 style: TextStyle(
                     color: colors.text, fontWeight: FontWeight.w500)),
             const SizedBox(height: 4),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 ChoiceChip(
                   label: Text(Translator.t('budget_monthly')),
@@ -367,7 +369,6 @@ class _GoalDialogState extends State<_GoalDialog> {
                     _error = null;
                   }),
                 ),
-                const SizedBox(width: 8),
                 ChoiceChip(
                   label: Text(Translator.t('budget_custom')),
                   selected: _period == BudgetGoal.periodCustom,

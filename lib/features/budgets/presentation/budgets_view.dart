@@ -244,6 +244,17 @@ class _BudgetsViewState extends State<BudgetsView> {
     final displayRatio = ratio.clamp(0.0, 1.0);
     final percent = (ratio * 100).toStringAsFixed(0);
 
+    // Exceeded goals get a colored percentage: red when an expense goal
+    // went over budget, green when an income/amount goal reached its target.
+    final bool hasTarget = target > Decimal.zero;
+    final bool expenseExceeded =
+        goal.isExpenseGoal && hasTarget && current > target;
+    final bool amountReached =
+        !goal.isExpenseGoal && hasTarget && current >= target;
+    final percentColor = expenseExceeded
+        ? colors.error
+        : (amountReached ? colors.success : colors.textSecondary);
+
     final currentStr =
         CurrencyService.formatAmount(current, goal.currency);
     final targetStr = CurrencyService.formatAmount(target, goal.currency);
@@ -333,7 +344,7 @@ class _BudgetsViewState extends State<BudgetsView> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: colors.textSecondary,
+                    color: percentColor,
                   ),
                 ),
                 PopupMenuButton<String>(

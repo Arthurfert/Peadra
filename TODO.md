@@ -20,4 +20,4 @@
 
 ## Known issues
 
-- On linux, graphs *can* have aliasing. It is a known issue of flutter dependencies, and I cannot fix it myself.
+- On linux only, graphs *can sometimes* have aliasing. It is a known issue of flutter dependencies with some graphical drivers.

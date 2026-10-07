@@ -623,14 +623,16 @@ class _DashboardViewState extends State<DashboardView> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: options.map((option) {
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Container(
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: options.map((option) {
               final value = option['value'] as int;
               final isCustomOption = value == -1;
               final isSelected = isCustomOption
@@ -674,6 +676,7 @@ class _DashboardViewState extends State<DashboardView> {
                 ),
               );
             }).toList(),
+            ),
           ),
         ),
         if (_isCustomRange)

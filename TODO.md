@@ -19,6 +19,7 @@
 ### Fixes
 
 - Fixed bug where some transactions displayed '-' instead of the description (bad decrypt)
+- Fixed bug where some transactions from other accounts where fetched into an account filtering
 - Tags are now the default setting for graphs
 
 ## Known issues

@@ -12,6 +12,7 @@ import '../../../core/services/currency_service.dart';
 import 'charts/category_pie_chart.dart';
 import 'dashboard_view_desktop.dart';
 import 'dashboard_view_mobile.dart';
+import 'widgets/custom_range_dialog.dart';
 
 class DashboardView extends StatefulWidget {
   final int refreshSignal;
@@ -50,6 +51,10 @@ class _DashboardViewState extends State<DashboardView> {
   bool _incomeDrillLoading = false;
   bool _loading = true;
   int _selectedMonths = 6;
+  String? _customStart;
+  String? _customEnd;
+
+  bool get _isCustomRange => _customStart != null && _customEnd != null;
   String _lastCurrency = '';
   String _lastMonthMode = '';
   String _lastDashboardPieView = '';
@@ -97,6 +102,9 @@ class _DashboardViewState extends State<DashboardView> {
 
       final now = DateTime.now();
       final thisMonthStart = DateTime(now.year, now.month, 1).toIso8601String().substring(0, 10);
+      final isCustom = _isCustomRange;
+      final customStart = _customStart;
+      final customEnd = _customEnd;
       final results = await Future.wait([
         _safeQuery(() => _db.getBalance(targetCurrency: currency)),
         _safeQuery(() => _db.getSavingsTotal(targetCurrency: currency)),
@@ -104,31 +112,68 @@ class _DashboardViewState extends State<DashboardView> {
         _safeQuery(() => isRolling
             ? _db.getRollingSummary()
             : _db.getMonthlySummary(targetCurrency: currency)),
-        _safeQuery(() => _db.getAccountsDistribution(targetCurrency: currency)),
-        _safeQuery(() => _db.getCashFlowData(months: _selectedMonths, targetCurrency: currency)),
-        _safeQuery(() => _db.getAssetsHistory(months: _selectedMonths, targetCurrency: currency, granularity: assetsGranularity)),
-        _safeQuery(() => isRolling
+        _safeQuery(() => _db.getAccountsDistribution(
+            targetCurrency: currency,
+            endDate: isCustom ? customEnd : null)),
+        _safeQuery(() => isCustom
+            ? _db.getCashFlowDataForRange(
+                startDate: customStart!,
+                endDate: customEnd!,
+                targetCurrency: currency)
+            : _db.getCashFlowData(months: _selectedMonths, targetCurrency: currency)),
+        _safeQuery(() => isCustom
+            ? _db.getAssetsHistoryForRange(
+                startDate: customStart!,
+                endDate: customEnd!,
+                targetCurrency: currency,
+                granularity: assetsGranularity)
+            : _db.getAssetsHistory(months: _selectedMonths, targetCurrency: currency, granularity: assetsGranularity)),
+        _safeQuery(() => isCustom
             ? (isTagMode
-                ? _db.getRollingMonthTagDistribution(
-                    transactionType: 'expense', targetCurrency: currency)
-                : _db.getRollingMonthDistribution(
-                    transactionType: 'expense', targetCurrency: currency))
-            : (isTagMode
-                ? _db.getCurrentMonthTagDistribution(
-                    transactionType: 'expense', targetCurrency: currency)
-                : _db.getCurrentMonthDistribution(
-                    transactionType: 'expense', targetCurrency: currency))),
-        _safeQuery(() => isRolling
+                ? _db.getTagDistributionForRange(
+                    transactionType: 'expense',
+                    startDate: customStart!,
+                    endDate: customEnd!,
+                    targetCurrency: currency)
+                : _db.getDistributionForRange(
+                    transactionType: 'expense',
+                    startDate: customStart!,
+                    endDate: customEnd!,
+                    targetCurrency: currency))
+            : isRolling
+                ? (isTagMode
+                    ? _db.getRollingMonthTagDistribution(
+                        transactionType: 'expense', targetCurrency: currency)
+                    : _db.getRollingMonthDistribution(
+                        transactionType: 'expense', targetCurrency: currency))
+                : (isTagMode
+                    ? _db.getCurrentMonthTagDistribution(
+                        transactionType: 'expense', targetCurrency: currency)
+                    : _db.getCurrentMonthDistribution(
+                        transactionType: 'expense', targetCurrency: currency))),
+        _safeQuery(() => isCustom
             ? (isTagMode
-                ? _db.getRollingMonthTagDistribution(
-                    transactionType: 'income', targetCurrency: currency)
-                : _db.getRollingMonthDistribution(
-                    transactionType: 'income', targetCurrency: currency))
-            : (isTagMode
-                ? _db.getCurrentMonthTagDistribution(
-                    transactionType: 'income', targetCurrency: currency)
-                : _db.getCurrentMonthDistribution(
-                    transactionType: 'income', targetCurrency: currency))),
+                ? _db.getTagDistributionForRange(
+                    transactionType: 'income',
+                    startDate: customStart!,
+                    endDate: customEnd!,
+                    targetCurrency: currency)
+                : _db.getDistributionForRange(
+                    transactionType: 'income',
+                    startDate: customStart!,
+                    endDate: customEnd!,
+                    targetCurrency: currency))
+            : isRolling
+                ? (isTagMode
+                    ? _db.getRollingMonthTagDistribution(
+                        transactionType: 'income', targetCurrency: currency)
+                    : _db.getRollingMonthDistribution(
+                        transactionType: 'income', targetCurrency: currency))
+                : (isTagMode
+                    ? _db.getCurrentMonthTagDistribution(
+                        transactionType: 'income', targetCurrency: currency)
+                    : _db.getCurrentMonthDistribution(
+                        transactionType: 'income', targetCurrency: currency))),
         _safeQuery(() {
           final prevMonth = now.month == 1 ? 12 : now.month - 1;
           final prevYear = now.month == 1 ? now.year - 1 : now.year;
@@ -199,10 +244,22 @@ class _DashboardViewState extends State<DashboardView> {
     try {
       final currency = context.read<SettingsProvider>().currency;
       final assetsGranularity = context.read<SettingsProvider>().assetsGranularity;
+      final isCustom = _isCustomRange;
 
       final results = await Future.wait([
-        _db.getCashFlowData(months: _selectedMonths, targetCurrency: currency),
-        _db.getAssetsHistory(months: _selectedMonths, targetCurrency: currency, granularity: assetsGranularity),
+        isCustom
+            ? _db.getCashFlowDataForRange(
+                startDate: _customStart!,
+                endDate: _customEnd!,
+                targetCurrency: currency)
+            : _db.getCashFlowData(months: _selectedMonths, targetCurrency: currency),
+        isCustom
+            ? _db.getAssetsHistoryForRange(
+                startDate: _customStart!,
+                endDate: _customEnd!,
+                targetCurrency: currency,
+                granularity: assetsGranularity)
+            : _db.getAssetsHistory(months: _selectedMonths, targetCurrency: currency, granularity: assetsGranularity),
       ]);
 
       if (mounted) {
@@ -234,11 +291,20 @@ class _DashboardViewState extends State<DashboardView> {
       final currency = context.read<SettingsProvider>().currency;
       final isRolling = context.read<SettingsProvider>().monthMode == 'rolling';
       final transactionType = isExpense ? 'expense' : 'income';
-      final Map<String, Decimal> data = isRolling
-          ? await _db.getRollingMonthTagDescriptionBreakdown(
-              transactionType: transactionType, tag: tag, targetCurrency: currency)
-          : await _db.getCurrentMonthTagDescriptionBreakdown(
-              transactionType: transactionType, tag: tag, targetCurrency: currency);
+      final customStart = _customStart;
+      final customEnd = _customEnd;
+      final Map<String, Decimal> data = (customStart != null && customEnd != null)
+          ? await _db.getTagDescriptionBreakdown(
+              transactionType: transactionType,
+              tag: tag,
+              startDate: customStart,
+              endDate: customEnd,
+              targetCurrency: currency)
+          : isRolling
+              ? await _db.getRollingMonthTagDescriptionBreakdown(
+                  transactionType: transactionType, tag: tag, targetCurrency: currency)
+              : await _db.getCurrentMonthTagDescriptionBreakdown(
+                  transactionType: transactionType, tag: tag, targetCurrency: currency);
       if (!mounted) return;
       setState(() {
         if (isExpense) {
@@ -499,51 +565,151 @@ class _DashboardViewState extends State<DashboardView> {
     );
   }
 
+  Future<void> _pickCustomRange() async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    DateTime initialStart = today.subtract(const Duration(days: 30));
+    DateTime initialEnd = today;
+    if (_customStart != null) {
+      final parsed = DateTime.tryParse(_customStart!);
+      if (parsed != null && !parsed.isAfter(today)) initialStart = parsed;
+    }
+    if (_customEnd != null) {
+      final parsed = DateTime.tryParse(_customEnd!);
+      if (parsed != null && !parsed.isAfter(today)) initialEnd = parsed;
+    }
+    if (initialStart.isAfter(initialEnd)) initialStart = initialEnd;
+    final themeName = context.read<ThemeProvider>().themeName;
+    final colors = PeadraTheme.getColors(themeName);
+    final firstTransaction = await _db.getFirstTransactionDate();
+    if (!mounted) return;
+    final picked = await showDialog<DateTimeRange>(
+      context: context,
+      builder: (_) => CustomRangeDialog(
+        initialStart: initialStart,
+        initialEnd: initialEnd,
+        lastDate: today,
+        firstTransactionDate: firstTransaction,
+        colors: colors,
+      ),
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _customStart = picked.start.toIso8601String().substring(0, 10);
+      _customEnd = picked.end.toIso8601String().substring(0, 10);
+    });
+    _loadData();
+  }
+
+  void _clearCustomRange() {
+    setState(() {
+      _selectedMonths = 6;
+      _customStart = null;
+      _customEnd = null;
+    });
+    _loadData();
+  }
+
   Widget _buildTimeFilterButtons(PeadraColors colors) {
     final options = [
       {'label': Translator.t('period_3m'), 'value': 3},
       {'label': Translator.t('period_6m'), 'value': 6},
       {'label': Translator.t('period_1y'), 'value': 12},
       {'label': Translator.t('segment_all'), 'value': 24},
+      {'label': Translator.t('period_custom'), 'value': -1},
     ];
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: options.map((option) {
-          final isSelected = _selectedMonths == option['value'];
-          return GestureDetector(
-            onTap: () {
-              setState(() {
-                _selectedMonths = option['value'] as int;
-              });
-              _loadChartData();
-            },
-            child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: isSelected ? colors.accent : Colors.transparent,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                option['label'] as String,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight:
-                      isSelected ? FontWeight.w600 : FontWeight.w500,
-                  color:
-                      isSelected ? Colors.white : colors.textSecondary,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: options.map((option) {
+              final value = option['value'] as int;
+              final isCustomOption = value == -1;
+              final isSelected = isCustomOption
+                  ? _isCustomRange
+                  : !_isCustomRange && _selectedMonths == value;
+              return GestureDetector(
+                onTap: () {
+                  if (isCustomOption) {
+                    _pickCustomRange();
+                    return;
+                  }
+                  final wasCustom = _isCustomRange;
+                  setState(() {
+                    _selectedMonths = value;
+                    _customStart = null;
+                    _customEnd = null;
+                  });
+                  if (wasCustom) {
+                    _loadData();
+                  } else {
+                    _loadChartData();
+                  }
+                },
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isSelected ? colors.accent : Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    option['label'] as String,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight:
+                          isSelected ? FontWeight.w600 : FontWeight.w500,
+                      color:
+                          isSelected ? Colors.white : colors.textSecondary,
+                    ),
+                  ),
                 ),
-              ),
+              );
+            }).toList(),
+          ),
+        ),
+        if (_isCustomRange)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.date_range,
+                    size: 14, color: colors.textSecondary),
+                const SizedBox(width: 6),
+                GestureDetector(
+                  onTap: _pickCustomRange,
+                  child: Text(
+                    '$_customStart → $_customEnd',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: colors.text,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: _clearCustomRange,
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(Icons.close,
+                        size: 14, color: colors.textSecondary),
+                  ),
+                ),
+              ],
             ),
-          );
-        }).toList(),
-      ),
+          ),
+      ],
     );
   }
 
@@ -738,7 +904,9 @@ class _DashboardViewState extends State<DashboardView> {
     final cashFlowSection = _buildCashFlowSection(colors);
     final expensePie = _buildPieChartCard(
       colors,
-      Translator.t('dash_this_month_expenses'),
+      _isCustomRange
+          ? Translator.t('dash_expenses')
+          : Translator.t('dash_this_month_expenses'),
       _monthlyExpenses,
       currency,
       maxPieCategories,
@@ -754,7 +922,9 @@ class _DashboardViewState extends State<DashboardView> {
     );
     final incomePie = _buildPieChartCard(
       colors,
-      Translator.t('dash_this_month_incomes'),
+      _isCustomRange
+          ? Translator.t('dash_income')
+          : Translator.t('dash_this_month_incomes'),
       _monthlyIncomes,
       currency,
       maxPieCategories,

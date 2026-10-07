@@ -2486,7 +2486,8 @@ void setUserId(String userId) {
     return {'income': income, 'expenses': expenses, 'balance': income - expenses};
   }
 
-  Future<List<Map<String, dynamic>>> getAccountsDistribution({String targetCurrency = 'EUR'}) async {
+  Future<List<Map<String, dynamic>>> getAccountsDistribution(
+      {String targetCurrency = 'EUR', String? endDate}) async {
     final db = await database;
     final acctRows = await db.query(
       'SELECT * FROM accounts WHERE user_id = ? AND is_deleted = 0 ORDER BY name',
@@ -2494,9 +2495,11 @@ void setUserId(String userId) {
     );
 
     final today = DateTime.now().toIso8601String().substring(0, 10);
+    final effectiveEnd =
+        (endDate != null && endDate.compareTo(today) <= 0) ? endDate : today;
     final txnRows = await db.query(
       'SELECT transaction_type, amount, account_id FROM transactions WHERE user_id = ? AND is_deleted = 0 AND date <= ?',
-      [_userId, today],
+      [_userId, effectiveEnd],
     );
     final txnByAccount = <String, List<Map<String, Object?>>>{};
     for (final t in txnRows) {
@@ -2710,13 +2713,33 @@ void setUserId(String userId) {
   // ==================== DASHBOARD DATA ====================
 
   Future<List<Map<String, dynamic>>> getCashFlowData({int months = 6, String targetCurrency = 'EUR'}) async {
-    final db = await database;
     final now = DateTime.now();
     final startDate = DateTime(now.year, now.month - months + 1, 1)
         .toIso8601String()
         .substring(0, 10);
-
     final today = now.toIso8601String().substring(0, 10);
+    return _getCashFlowData(
+        startDate: startDate, endDate: today, targetCurrency: targetCurrency);
+  }
+
+  Future<List<Map<String, dynamic>>> getCashFlowDataForRange(
+      {required String startDate,
+      required String endDate,
+      String targetCurrency = 'EUR'}) async {
+    final today = DateTime.now().toIso8601String().substring(0, 10);
+    final clampedEnd = endDate.compareTo(today) > 0 ? today : endDate;
+    if (startDate.compareTo(clampedEnd) > 0) return [];
+    return _getCashFlowData(
+        startDate: startDate,
+        endDate: clampedEnd,
+        targetCurrency: targetCurrency);
+  }
+
+  Future<List<Map<String, dynamic>>> _getCashFlowData(
+      {required String startDate,
+      required String endDate,
+      required String targetCurrency}) async {
+    final db = await database;
     final rows = await db.query(
       'SELECT t.amount, t.transaction_type, t.date, '
       'd.name as description_name, '
@@ -2725,7 +2748,7 @@ void setUserId(String userId) {
       'LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
       'LEFT JOIN descriptions d ON t.description_id = d.id AND d.is_deleted = 0 '
       'WHERE t.date >= ? AND t.date <= ? AND t.user_id = ? AND t.is_deleted = 0',
-      [startDate, today, _userId],
+      [startDate, endDate, _userId],
     );
 
     final monthMap = <String, Map<String, Decimal>>{};
@@ -2761,6 +2784,15 @@ void setUserId(String userId) {
       }
     }
     return results;
+  }
+
+  Future<String?> getFirstTransactionDate() async {
+    final db = await database;
+    final result = await db.query(
+      'SELECT MIN(date) as earliest FROM transactions WHERE user_id = ? AND is_deleted = 0',
+      [_userId],
+    );
+    return result.first['earliest'] as String?;
   }
 
   Future<List<Map<String, dynamic>>> getAssetsHistory({
@@ -2869,6 +2901,134 @@ void setUserId(String userId) {
     return results;
   }
 
+  Future<List<Map<String, dynamic>>> getAssetsHistoryForRange({
+    required String startDate,
+    required String endDate,
+    String targetCurrency = 'EUR',
+    String granularity = 'monthly',
+  }) async {
+    final db = await database;
+    final today = DateTime.now().toIso8601String().substring(0, 10);
+    final clampedEnd = endDate.compareTo(today) > 0 ? today : endDate;
+    if (startDate.compareTo(clampedEnd) > 0) return [];
+
+    final acctRows = await db.query(
+      'SELECT starting_amount, currency FROM accounts WHERE user_id = ? AND is_deleted = 0',
+      [_userId],
+    );
+
+    Decimal startingTotal = Decimal.zero;
+    for (final row in acctRows) {
+      final amount = await _decryptAmount(row['starting_amount']);
+      final acctCurrency = (row['currency'] as String?) ?? 'EUR';
+      if (amount == Decimal.zero) continue;
+      if (acctCurrency == targetCurrency) {
+        startingTotal += amount;
+      } else {
+        final rate = await getExchangeRate(acctCurrency, targetCurrency);
+        startingTotal += amount * Decimal.parse((rate ?? 1.0).toString());
+      }
+    }
+
+    final txnRows = await db.query(
+      'SELECT t.amount, t.transaction_type, t.date, '
+      'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
+      'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
+      'WHERE t.date <= ? AND t.user_id = ? AND t.is_deleted = 0',
+      [clampedEnd, _userId],
+    );
+
+    final contributions = <(String, Decimal)>[];
+    Decimal base = startingTotal;
+    for (final row in txnRows) {
+      final amount = await _decryptAmount(row['amount']);
+      final type = row['transaction_type'] as String;
+      final txnCurrency = (row['currency'] as String?) ?? 'EUR';
+      final signedAmount = type == 'income' ? amount : (type == 'expense' ? -amount : Decimal.zero);
+      if (signedAmount == Decimal.zero) continue;
+
+      Decimal converted;
+      if (txnCurrency == targetCurrency) {
+        converted = signedAmount;
+      } else {
+        final rate = await getExchangeRate(txnCurrency, targetCurrency);
+        converted = signedAmount * Decimal.parse((rate ?? 1.0).toString());
+      }
+      final date = row['date'] as String;
+      if (date.compareTo(startDate) < 0) {
+        base += converted;
+      } else {
+        contributions.add((date, converted));
+      }
+    }
+    contributions.sort((a, b) => a.$1.compareTo(b.$1));
+
+    if (granularity == 'daily') {
+      return _buildRangedDailyAssetsHistory(
+          startDate, clampedEnd, base, contributions);
+    }
+    return _buildRangedMonthlyAssetsHistory(
+        startDate, clampedEnd, base, contributions);
+  }
+
+  List<Map<String, dynamic>> _buildRangedMonthlyAssetsHistory(
+      String startDate, String endDate, Decimal base,
+      List<(String, Decimal)> contributions) {
+    final start = DateTime.parse(startDate);
+    var month = DateTime(start.year, start.month, 1);
+    final end = DateTime.parse(endDate);
+    final lastMonth = DateTime(end.year, end.month, 1);
+
+    final results = <Map<String, dynamic>>[];
+    Decimal cumulative = base;
+    int idx = 0;
+    while (!month.isAfter(lastMonth)) {
+      final bucketEnd = DateTime(month.year, month.month + 1, 1)
+          .toIso8601String()
+          .substring(0, 10);
+      while (idx < contributions.length &&
+          contributions[idx].$1.compareTo(bucketEnd) < 0) {
+        cumulative += contributions[idx].$2;
+        idx++;
+      }
+      results.add({
+        'month': month,
+        'label': _getMonthLabel(month.month),
+        'value': cumulative.toDouble(),
+      });
+      month = DateTime(month.year, month.month + 1, 1);
+    }
+    return results;
+  }
+
+  List<Map<String, dynamic>> _buildRangedDailyAssetsHistory(
+      String startDate, String endDate, Decimal base,
+      List<(String, Decimal)> contributions) {
+    var day = DateTime.parse(startDate);
+    final lastDay = DateTime.parse(endDate);
+
+    final results = <Map<String, dynamic>>[];
+    Decimal cumulative = base;
+    int idx = 0;
+    while (!day.isAfter(lastDay)) {
+      final nextDay = DateTime(day.year, day.month, day.day + 1);
+      final nextDayIso = nextDay.toIso8601String().substring(0, 10);
+      while (idx < contributions.length &&
+          contributions[idx].$1.compareTo(nextDayIso) < 0) {
+        cumulative += contributions[idx].$2;
+        idx++;
+      }
+      results.add({
+        'date': day.toIso8601String().substring(0, 10),
+        'label': day.day == 1 ? _getMonthLabel(day.month) : '',
+        'tooltipLabel': '${day.day} ${_getMonthLabel(day.month)}',
+        'value': cumulative.toDouble(),
+      });
+      day = nextDay;
+    }
+    return results;
+  }
+
   List<Map<String, dynamic>> _buildDailyAssetsHistory(
       DateTime now, int effectiveMonths, Decimal startingTotal,
       List<(String, Decimal)> contributions) {
@@ -2909,38 +3069,16 @@ void setUserId(String userId) {
     required String transactionType,
     String targetCurrency = 'EUR',
   }) async {
-    final db = await database;
     final now = DateTime.now();
     final startDate = DateTime(now.year, now.month, 1)
         .toIso8601String()
         .substring(0, 10);
     final endDate = now.toIso8601String().substring(0, 10);
-
-    final rows = await db.query(
-      'SELECT t.amount, t.currency, d.name as description_name '
-      'FROM transactions t LEFT JOIN descriptions d ON t.description_id = d.id AND d.is_deleted = 0 '
-      'WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ? AND t.is_deleted = 0',
-      [transactionType, startDate, endDate, _userId],
-    );
-
-    final result = <String, Decimal>{};
-    for (final row in rows) {
-      final category = await _decryptValue(row['description_name']) ?? 'Uncategorized';
-      if (_isTransferDescription(category)) continue;
-      final rawAmount = await _decryptAmount(row['amount']);
-      final txnCurrency = (row['currency'] as String?) ?? 'EUR';
-
-      Decimal convertedAmount;
-      if (txnCurrency == targetCurrency) {
-        convertedAmount = rawAmount;
-      } else {
-        final rate = await getExchangeRate(txnCurrency, targetCurrency);
-        convertedAmount = rawAmount * Decimal.parse((rate ?? 1.0).toString());
-      }
-
-      result[category] = (result[category] ?? Decimal.zero) + convertedAmount;
-    }
-    return result;
+    return _getDistribution(
+        transactionType: transactionType,
+        startDate: startDate,
+        endDate: endDate,
+        targetCurrency: targetCurrency);
   }
 
   Future<Map<String, Decimal>> getRollingMonthDistribution({
@@ -2948,10 +3086,39 @@ void setUserId(String userId) {
     int days = 30,
     String targetCurrency = 'EUR',
   }) async {
-    final db = await database;
     final now = DateTime.now();
     final endDate = now.toIso8601String().substring(0, 10);
     final startDate = now.subtract(Duration(days: days)).toIso8601String().substring(0, 10);
+    return _getDistribution(
+        transactionType: transactionType,
+        startDate: startDate,
+        endDate: endDate,
+        targetCurrency: targetCurrency);
+  }
+
+  Future<Map<String, Decimal>> getDistributionForRange({
+    required String transactionType,
+    required String startDate,
+    required String endDate,
+    String targetCurrency = 'EUR',
+  }) async {
+    final today = DateTime.now().toIso8601String().substring(0, 10);
+    final clampedEnd = endDate.compareTo(today) > 0 ? today : endDate;
+    if (startDate.compareTo(clampedEnd) > 0) return {};
+    return _getDistribution(
+        transactionType: transactionType,
+        startDate: startDate,
+        endDate: clampedEnd,
+        targetCurrency: targetCurrency);
+  }
+
+  Future<Map<String, Decimal>> _getDistribution({
+    required String transactionType,
+    required String startDate,
+    required String endDate,
+    required String targetCurrency,
+  }) async {
+    final db = await database;
 
     final rows = await db.query(
       'SELECT t.amount, t.currency, d.name as description_name '
@@ -2984,40 +3151,16 @@ void setUserId(String userId) {
     required String transactionType,
     String targetCurrency = 'EUR',
   }) async {
-    final db = await database;
     final now = DateTime.now();
     final startDate = DateTime(now.year, now.month, 1)
         .toIso8601String()
         .substring(0, 10);
     final endDate = now.toIso8601String().substring(0, 10);
-
-    final rows = await db.query(
-      'SELECT t.amount, t.currency, tg.name as tag_name, d.name as description_name '
-      'FROM transactions t LEFT JOIN tags tg ON t.tag_id = tg.id AND tg.is_deleted = 0 '
-      'LEFT JOIN descriptions d ON t.description_id = d.id '
-      'WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ? AND t.is_deleted = 0',
-      [transactionType, startDate, endDate, _userId],
-    );
-
-    final result = <String, Decimal>{};
-    for (final row in rows) {
-      final desc = await _decryptValue(row['description_name']);
-      if (_isTransferDescription(desc)) continue;
-      final tag = row['tag_name'] as String? ?? Translator.t('tag_untagged');
-      final rawAmount = await _decryptAmount(row['amount']);
-      final txnCurrency = (row['currency'] as String?) ?? 'EUR';
-
-      Decimal convertedAmount;
-      if (txnCurrency == targetCurrency) {
-        convertedAmount = rawAmount;
-      } else {
-        final rate = await getExchangeRate(txnCurrency, targetCurrency);
-        convertedAmount = rawAmount * Decimal.parse((rate ?? 1.0).toString());
-      }
-
-      result[tag] = (result[tag] ?? Decimal.zero) + convertedAmount;
-    }
-    return result;
+    return _getTagDistribution(
+        transactionType: transactionType,
+        startDate: startDate,
+        endDate: endDate,
+        targetCurrency: targetCurrency);
   }
 
   Future<Map<String, Decimal>> getRollingMonthTagDistribution({
@@ -3025,10 +3168,39 @@ void setUserId(String userId) {
     int days = 30,
     String targetCurrency = 'EUR',
   }) async {
-    final db = await database;
     final now = DateTime.now();
     final endDate = now.toIso8601String().substring(0, 10);
     final startDate = now.subtract(Duration(days: days)).toIso8601String().substring(0, 10);
+    return _getTagDistribution(
+        transactionType: transactionType,
+        startDate: startDate,
+        endDate: endDate,
+        targetCurrency: targetCurrency);
+  }
+
+  Future<Map<String, Decimal>> getTagDistributionForRange({
+    required String transactionType,
+    required String startDate,
+    required String endDate,
+    String targetCurrency = 'EUR',
+  }) async {
+    final today = DateTime.now().toIso8601String().substring(0, 10);
+    final clampedEnd = endDate.compareTo(today) > 0 ? today : endDate;
+    if (startDate.compareTo(clampedEnd) > 0) return {};
+    return _getTagDistribution(
+        transactionType: transactionType,
+        startDate: startDate,
+        endDate: clampedEnd,
+        targetCurrency: targetCurrency);
+  }
+
+  Future<Map<String, Decimal>> _getTagDistribution({
+    required String transactionType,
+    required String startDate,
+    required String endDate,
+    required String targetCurrency,
+  }) async {
+    final db = await database;
 
     final rows = await db.query(
       'SELECT t.amount, t.currency, tg.name as tag_name, d.name as description_name '
@@ -3059,7 +3231,7 @@ void setUserId(String userId) {
     return result;
   }
 
-  Future<Map<String, Decimal>> _getTagDescriptionBreakdown({
+  Future<Map<String, Decimal>> getTagDescriptionBreakdown({
     required String transactionType,
     required String tag,
     required String startDate,
@@ -3067,13 +3239,16 @@ void setUserId(String userId) {
     String targetCurrency = 'EUR',
   }) async {
     final db = await database;
+    final today = DateTime.now().toIso8601String().substring(0, 10);
+    final clampedEnd = endDate.compareTo(today) > 0 ? today : endDate;
+    if (startDate.compareTo(clampedEnd) > 0) return {};
 
     final rows = await db.query(
       'SELECT t.amount, t.currency, tg.name as tag_name, d.name as description_name '
       'FROM transactions t LEFT JOIN tags tg ON t.tag_id = tg.id AND tg.is_deleted = 0 '
       'LEFT JOIN descriptions d ON t.description_id = d.id '
       'WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ? AND t.is_deleted = 0',
-      [transactionType, startDate, endDate, _userId],
+      [transactionType, startDate, clampedEnd, _userId],
     );
 
     final result = <String, Decimal>{};
@@ -3109,7 +3284,7 @@ void setUserId(String userId) {
         .toIso8601String()
         .substring(0, 10);
     final endDate = now.toIso8601String().substring(0, 10);
-    return _getTagDescriptionBreakdown(
+    return getTagDescriptionBreakdown(
       transactionType: transactionType,
       tag: tag,
       startDate: startDate,
@@ -3127,7 +3302,7 @@ void setUserId(String userId) {
     final now = DateTime.now();
     final endDate = now.toIso8601String().substring(0, 10);
     final startDate = now.subtract(Duration(days: days)).toIso8601String().substring(0, 10);
-    return _getTagDescriptionBreakdown(
+    return getTagDescriptionBreakdown(
       transactionType: transactionType,
       tag: tag,
       startDate: startDate,

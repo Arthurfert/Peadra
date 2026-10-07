@@ -73,9 +73,11 @@ class PeadraApp extends StatelessWidget {
     final languageProvider = context.watch<LanguageProvider>();
     final colors = PeadraTheme.getColors(themeProvider.themeName);
 
-    final locale = languageProvider.language == 'fr'
-        ? const Locale('fr', 'FR')
-        : const Locale('en', 'US');
+    final locale = switch (languageProvider.language) {
+      'fr' => const Locale('fr', 'FR'),
+      'es' => const Locale('es', 'ES'),
+      _ => const Locale('en', 'US'),
+    };
 
     return MaterialApp(
       title: 'Peadra',
@@ -89,6 +91,7 @@ class PeadraApp extends StatelessWidget {
       supportedLocales: const [
         Locale('en', 'US'),
         Locale('fr', 'FR'),
+        Locale('es', 'ES'),
       ],
       themeMode: themeProvider.themeMode,
       theme: ThemeData(

@@ -117,15 +117,16 @@ class ImportService {
   static final _incomeKeywords = [
     'income', 'credit', 'deposit', 'transfer in', 'revenue',
     'reçu', 'dépôt', 'transfert entrant',
+    'ingreso', 'ingresos', 'abono', 'abonos', 'transferencia entrante',
   ];
 
-  static final _dateKeywords = ['date', 'day', 'time', 'posted', 'transaction date'];
-  static final _amountKeywords = ['amount', 'sum', 'total', 'value', 'montant', 'valeur'];
-  static final _creditKeywords = ['credit', 'credit amount', 'crédit'];
-  static final _debitKeywords = ['debit', 'debit amount', 'débit'];
-  static final _descKeywords = ['description', 'memo', 'note', 'details', 'libellé', 'désignation'];
-  static final _typeKeywords = ['type', 'category', 'kind', 'nature'];
-  static final _tagKeywords = ['tag', 'label', 'étiquette', 'etiquette'];
+  static final _dateKeywords = ['date', 'day', 'time', 'posted', 'transaction date', 'fecha', 'día', 'dia'];
+  static final _amountKeywords = ['amount', 'sum', 'total', 'value', 'montant', 'valeur', 'importe', 'cantidad'];
+  static final _creditKeywords = ['credit', 'credit amount', 'crédit', 'abono', 'haber'];
+  static final _debitKeywords = ['debit', 'debit amount', 'débit', 'débito', 'debito', 'cargo', 'adeudo', 'debe'];
+  static final _descKeywords = ['description', 'memo', 'note', 'details', 'libellé', 'désignation', 'descripción', 'descripcion', 'concepto', 'nota', 'referencia'];
+  static final _typeKeywords = ['type', 'category', 'kind', 'nature', 'tipo', 'categoría', 'categoria', 'clase'];
+  static final _tagKeywords = ['tag', 'label', 'étiquette', 'etiquette', 'etiqueta'];
 
   /// Calculate the SHA-256 hash of a file (hex string).
   Future<String> calculateFileHash(String path) async {
@@ -531,18 +532,18 @@ class ImportService {
   }
 
   static const _monthNames = {
-    'jan': 1, 'january': 1, 'janv': 1, 'janvier': 1,
-    'feb': 2, 'february': 2, 'fevr': 2, 'févr': 2, 'fevrier': 2, 'février': 2,
-    'mar': 3, 'march': 3, 'mars': 3,
-    'apr': 4, 'april': 4, 'avr': 4, 'avril': 4,
-    'may': 5, 'mai': 5,
-    'jun': 6, 'june': 6, 'juin': 6,
-    'jul': 7, 'july': 7, 'juil': 7, 'juillet': 7,
-    'aug': 8, 'august': 8, 'aout': 8, 'août': 8,
-    'sep': 9, 'sept': 9, 'september': 9, 'septembre': 9,
-    'oct': 10, 'october': 10, 'octobre': 10,
-    'nov': 11, 'november': 11, 'novembre': 11,
-    'dec': 12, 'december': 12, 'decembre': 12, 'décembre': 12, 'déc': 12,
+    'jan': 1, 'january': 1, 'janv': 1, 'janvier': 1, 'ene': 1, 'enero': 1,
+    'feb': 2, 'february': 2, 'fevr': 2, 'févr': 2, 'fevrier': 2, 'février': 2, 'febrero': 2,
+    'mar': 3, 'march': 3, 'mars': 3, 'marzo': 3,
+    'apr': 4, 'april': 4, 'avr': 4, 'avril': 4, 'abr': 4, 'abril': 4,
+    'may': 5, 'mai': 5, 'mayo': 5,
+    'jun': 6, 'june': 6, 'juin': 6, 'junio': 6,
+    'jul': 7, 'july': 7, 'juil': 7, 'juillet': 7, 'julio': 7,
+    'aug': 8, 'august': 8, 'aout': 8, 'août': 8, 'ago': 8, 'agosto': 8,
+    'sep': 9, 'sept': 9, 'september': 9, 'septembre': 9, 'septiembre': 9, 'setiembre': 9, 'set': 9,
+    'oct': 10, 'october': 10, 'octobre': 10, 'octubre': 10,
+    'nov': 11, 'november': 11, 'novembre': 11, 'noviembre': 11,
+    'dec': 12, 'december': 12, 'decembre': 12, 'décembre': 12, 'déc': 12, 'dic': 12, 'diciembre': 12,
   };
 
   static int _daysInMonth(int year, int month) {
@@ -639,16 +640,20 @@ class ImportService {
     'income', 'incomes', 'in', 'credit', 'credited', 'credits', 'cr',
     'deposit', 'deposits', 'depot', 'depots', 'recu', 'reçu', 'recus',
     'transfert entrant', 'transfer in', 'refund', 'remboursement',
+    'ingreso', 'ingresos', 'abono', 'abonos',
   };
   static final _expenseTypeNames = {
     'expense', 'expenses', 'out', 'debit', 'debited', 'debits', 'db', 'dr',
     'débit', 'withdrawal', 'payment', 'paiement', 'achat',
     'achats', 'prelevement', 'prélèvement', 'transfert sortant',
     'transfer out', 'facture',
+    'gasto', 'gastos', 'debito', 'cargo', 'cargos', 'pago', 'pagos',
+    'retiro', 'retiros', 'compra', 'compras',
   };
   static final _transferTypeNames = {
     'transfer', 'transfers', 'transfert', 'transferts', 'virement',
     'virements', 'trf', 'internal',
+    'transferencia', 'transferencias', 'traspaso', 'traspasos',
   };
 
   /// Normalize a raw type-column value to 'income' / 'expense' / 'transfer'.

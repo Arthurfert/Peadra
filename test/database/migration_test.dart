@@ -27,7 +27,7 @@ void main() {
     );
     addTearDown(() => migrated.close());
     try {
-      expect(await migrated.getVersion(), 7);
+      expect(await migrated.getVersion(), 8);
 
       final users = await migrated.query('users');
       expect(users, hasLength(1));
@@ -102,7 +102,7 @@ void main() {
     );
     addTearDown(() => migrated.close());
     try {
-      expect(await migrated.getVersion(), 7);
+      expect(await migrated.getVersion(), 8);
       expect(await migrated.query('users'), isEmpty);
       expect(await migrated.query('settings'), isEmpty);
       expect(await migrated.query('accounts'), isEmpty);

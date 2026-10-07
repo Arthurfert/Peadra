@@ -3,7 +3,6 @@
 </div>
 
 <div align="center">
-  <a href="https://deepwiki.com/Arthurfert/Peadra"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
   <a href="https://github.com/Arthurfert/Peadra?tab=GPL-3.0-1-ov-file)"><img src="https://img.shields.io/badge/License-GPL%203.0-brightgreen.svg"></a>
   <img src="https://img.shields.io/github/v/release/Arthurfert/Peadra">
 </div>
@@ -28,6 +27,7 @@ Track your assets, manage transactions across multiple accounts and currencies, 
 
 **Portfolio & Visual Insights**
 * Track your net worth, asset distribution, and financial progress over time.
+* Start budgeting by setting savings and spending goals.
 * Interactive bar charts, pie charts, and line graphs to decode your spending habits.
 * Dynamic categories: easily rename, merge, and organize your categories.
 * Set up recurring transactions to automate your monthly budgeting.
@@ -43,8 +43,8 @@ Track your assets, manage transactions across multiple accounts and currencies, 
 * Smart CSV import & export for effortless backups and data migration.
 
 **Tailored to You**
-* Available in **French** and **English**.
-* 4 vibrant built-in themes: Light, Dark, Autumn, and Summer.
+* Available in **French**, **Spanish** and **English**.
+* Choose among many built-in themes.
 
 > ...and many more features [to come](TODO.md) !
 
@@ -65,6 +65,8 @@ For developper's setup instructions, see [INSTALLATION.md](./INSTALLATION.md).
 
 *Due to Apple paywall and severe gatekeeping on apps on both Mac & IOS, Peadra is not available on those machines -unless you build it yourself.*
 
+You can access the developer documentation [here](https://deepwiki.com/Arthurfert/Peadra).
+
 ## Technologies
 
 - **UI Framework:** [Flutter](https://flutter.dev/) - Google's cross-platform UI toolkit for natively compiled apps
@@ -82,7 +84,7 @@ Peadra/
 │   ├── core/                          # Shared infrastructure
 │   │   ├── database/
 │   │   │   └── database_manager.dart  # SQLite database layer
-│   │   ├── models/                    # Data models (User, Account, Transaction…)
+│   │   ├── models/                    # Data models (User, Account, Transaction, Goal…)
 │   │   ├── services/                  # Auth, currency, import, export, update
 │   │   ├── providers/                 # State management (Provider)
 │   │   ├── i18n/                      # Translations (EN/FR)
@@ -105,6 +107,9 @@ Peadra/
 │   │   │   └── widgets/transaction_modal.dart
 │   │   ├── accounts/presentation/
 │   │   │   └── accounts_view.dart
+│   │   ├── budgets/presentation/
+│   │   │   ├── budgets_view.dart         # Goals with progress bars
+│   │   │   └── widgets/goal_dialog.dart  # Create/edit a goal
 │   │   ├── categories/presentation/
 │   │   │   └── categories_view.dart
 │   │   ├── parameters/presentation/

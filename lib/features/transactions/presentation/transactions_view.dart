@@ -259,7 +259,23 @@ class _TransactionsViewState extends State<TransactionsView> {
                 type: v['type']!,
               )),
         );
-        txns = [...txns, ...paired];
+        // getTransactionsByKeys matches on (account, date, type) only, so it
+        // also returns plain non-transfer transactions sharing the same date
+        // and type. Keep only genuine transfer halves pointing back at a
+        // selected account.
+        final selectedNames = <String>{
+          for (final a in _accounts)
+            if (_selectedAccountIds.contains(a.id)) a.name,
+        };
+        txns = [
+          ...txns,
+          ...paired.where((p) {
+            final d = (p.notes ?? p.descriptionName ?? '').trim();
+            final ref = _toPattern.firstMatch(d)?.group(1) ??
+                _fromPattern.firstMatch(d)?.group(1);
+            return ref != null && selectedNames.contains(ref);
+          }),
+        ];
       }
     }
 

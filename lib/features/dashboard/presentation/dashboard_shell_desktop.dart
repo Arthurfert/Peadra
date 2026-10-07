@@ -101,6 +101,8 @@ class DashboardShellDesktop extends StatelessWidget {
           Translator.t('nav_dashboard')),
       (Icons.receipt_long_outlined, Icons.receipt_long,
           Translator.t('nav_transactions')),
+      (Icons.flag_outlined, Icons.flag,
+          Translator.t('nav_budgets')),
       (Icons.account_balance_wallet_outlined, Icons.account_balance_wallet,
           Translator.t('nav_accounts')),
       (Icons.bubble_chart_outlined, Icons.bubble_chart,

@@ -2290,4 +2290,104 @@ void main() {
       expect(trip['total'], 200.0);
     });
   });
+
+  // =========================================================================
+  // Custom range queries (dashboard custom period)
+  // =========================================================================
+  group('Custom range queries SQL', () {
+    test('range distribution only includes transactions within bounds', () async {
+      final descId = await seedTestDescription(db, userId, 'Food');
+
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: descId,
+          date: '2025-03-10', amount: 100, transactionType: 'expense', currency: 'EUR');
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: descId,
+          date: '2025-05-10', amount: 200, transactionType: 'expense', currency: 'EUR');
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: descId,
+          date: '2025-08-10', amount: 400, transactionType: 'expense', currency: 'EUR');
+
+      final rows = await db.rawQuery('''
+        SELECT SUM(t.amount) as total
+        FROM transactions t
+        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
+      ''', ['expense', '2025-04-01', '2025-06-30', userId]);
+
+      expect((rows.first['total'] as num?)?.toDouble() ?? 0.0, 200.0);
+    });
+
+    test('range tag distribution only includes the requested tag', () async {
+      final foodId = await seedTestDescription(db, userId, 'Food');
+      final tagA = await seedTestTag(db, userId, 'TagA');
+      final tagB = await seedTestTag(db, userId, 'TagB');
+
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: foodId, tagId: tagA,
+          date: '2025-04-10', amount: 80, transactionType: 'expense', currency: 'EUR');
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: foodId, tagId: tagB,
+          date: '2025-04-10', amount: 999, transactionType: 'expense', currency: 'EUR');
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: foodId, tagId: tagA,
+          date: '2025-09-10', amount: 777, transactionType: 'expense', currency: 'EUR');
+
+      final rows = await db.rawQuery('''
+        SELECT tg.name as tag_name, SUM(t.amount) as total
+        FROM transactions t
+        LEFT JOIN tags tg ON t.tag_id = tg.id
+        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
+          AND t.tag_id IS NOT NULL
+        GROUP BY tg.name
+      ''', ['expense', '2025-04-01', '2025-06-30', userId]);
+
+      expect(rows.length, 2);
+      final tagARow = rows.firstWhere((r) => r['tag_name'] == 'TagA');
+      final tagBRow = rows.firstWhere((r) => r['tag_name'] == 'TagB');
+      expect(tagARow['total'], 80.0);
+      expect(tagBRow['total'], 999.0);
+    });
+
+    test('earliest transaction date returns the minimum date', () async {
+      final descId = await seedTestDescription(db, userId, 'Food');
+
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: descId,
+          date: '2025-02-10', amount: 100, transactionType: 'expense', currency: 'EUR');
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: descId,
+          date: '2025-01-05', amount: 50, transactionType: 'expense', currency: 'EUR');
+
+      final rows = await db.rawQuery('''
+        SELECT MIN(date) as earliest FROM transactions WHERE user_id = ?
+      ''', [userId]);
+
+      expect(rows.first['earliest'], '2025-01-05');
+    });
+
+    test('range cash flow groups by month within bounds', () async {
+      final descId = await seedTestDescription(db, userId, 'Salary');
+
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: descId,
+          date: '2025-04-15', amount: 1000, transactionType: 'income', currency: 'EUR');
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: descId,
+          date: '2025-05-15', amount: 500, transactionType: 'income', currency: 'EUR');
+
+      final rows = await db.rawQuery('''
+        SELECT strftime('%Y-%m', t.date) as month, SUM(t.amount) as total
+        FROM transactions t
+        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
+        GROUP BY month
+        ORDER BY month
+      ''', ['income', '2025-04-01', '2025-06-30', userId]);
+
+      expect(rows.length, 2);
+      expect(rows[0]['month'], '2025-04');
+      expect(rows[0]['total'], 1000.0);
+      expect(rows[1]['month'], '2025-05');
+      expect(rows[1]['total'], 500.0);
+    });
+  });
 }

@@ -39,6 +39,39 @@ class DashboardShellMobile extends StatelessWidget {
     );
   }
 
+  void _showMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: colors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.account_balance_wallet_outlined),
+              title: Text(Translator.t('nav_accounts')),
+              onTap: () {
+                Navigator.pop(ctx);
+                onNavTap(3);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.settings_outlined),
+              title: Text(Translator.t('nav_settings')),
+              onTap: () {
+                Navigator.pop(ctx);
+                onNavTap(5);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildContent() {
     return views[selectedIndex.clamp(0, views.length - 1)];
   }
@@ -48,21 +81,40 @@ class DashboardShellMobile extends StatelessWidget {
         ? [
             Translator.t('nav_dashboard'),
             Translator.t('nav_transactions'),
-            Translator.t('nav_accounts'),
+            Translator.t('nav_budgets'),
             Translator.t('nav_categories'),
-            Translator.t('nav_settings'),
+            Translator.t('nav_menu'),
           ]
         : List.filled(5, '');
 
-    return Container(
+    // Accounts (3) and settings (5) live behind the burger menu, which
+    // stays highlighted while one of them is displayed. Categories is
+    // view index 4 but sits at nav position 3.
+    final currentIndex = switch (selectedIndex) {
+      0 || 1 || 2 => selectedIndex,
+      4 => 3,
+      _ => 4,
+    };
+
+    return Builder(
+      builder: (context) => Container(
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       clipBehavior: Clip.antiAlias,
       child: BottomNavigationBar(
-        currentIndex: selectedIndex.clamp(0, 4),
-        onTap: onNavTap,
+        currentIndex: currentIndex,
+        onTap: (index) {
+          if (index == 4) {
+            _showMenu(context);
+          } else if (index == 3) {
+            // Categories sits at nav position 3 (view index 4).
+            onNavTap(4);
+          } else {
+            onNavTap(index);
+          }
+        },
         type: BottomNavigationBarType.fixed,
         backgroundColor: colors.surface,
         selectedItemColor: colors.accent,
@@ -81,8 +133,8 @@ class DashboardShellMobile extends StatelessWidget {
             label: labels[1],
           ),
           BottomNavigationBarItem(
-            icon: const Icon(Icons.account_balance_wallet_outlined),
-            activeIcon: const Icon(Icons.account_balance_wallet),
+            icon: const Icon(Icons.flag_outlined),
+            activeIcon: const Icon(Icons.flag),
             label: labels[2],
           ),
           BottomNavigationBarItem(
@@ -91,12 +143,12 @@ class DashboardShellMobile extends StatelessWidget {
             label: labels[3],
           ),
           BottomNavigationBarItem(
-            icon: const Icon(Icons.settings_outlined),
-            activeIcon: const Icon(Icons.settings),
+            icon: const Icon(Icons.menu),
             label: labels[4],
           ),
         ],
       ),
+    ),
     );
   }
 }

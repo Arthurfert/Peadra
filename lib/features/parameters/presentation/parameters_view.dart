@@ -392,6 +392,7 @@ class _ParametersViewState extends State<ParametersView> {
         items: const [
           DropdownMenuItem(value: 'en', child: Text('English')),
           DropdownMenuItem(value: 'fr', child: Text('Fran\u00e7ais')),
+          DropdownMenuItem(value: 'es', child: Text('Español')),
         ],
         onChanged: (v) async {
           if (v != null) {

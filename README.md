@@ -43,8 +43,8 @@ Track your assets, manage transactions across multiple accounts and currencies, 
 * Smart CSV import & export for effortless backups and data migration.
 
 **Tailored to You**
-* Available in **French** and **English**.
-* 4 vibrant built-in themes: Light, Dark, Autumn, and Summer.
+* Available in **French**, **Spanish** and **English**.
+* Choose among many built-in themes.
 
 > ...and many more features [to come](TODO.md) !
 

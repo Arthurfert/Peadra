@@ -756,10 +756,11 @@ class DatabaseManager {
       }
     }
 
-    final today = DateTime.now().toIso8601String().substring(0, 10);
+    // NOTE: this query must select id (used by updateRow) and notes, and
+    // must cover all dates — including future pre-generated occurrences.
     final txnRows = await db.query(
-      'SELECT transaction_type, amount, account_id FROM transactions WHERE user_id = ? AND is_deleted = 0 AND date <= ?',
-      [_userId, today],
+      'SELECT id, amount, notes FROM transactions WHERE user_id = ? AND is_deleted = 0',
+      [_userId],
     );
     for (final row in txnRows) {
       final fields = <String, String>{};
@@ -1238,7 +1239,18 @@ void setUserId(String userId) {
     final normalized = name.trim();
     final cacheKey = normalized.toLowerCase();
     final cached = _descriptionCache[cacheKey];
-    if (cached != null) return cached;
+    if (cached != null) {
+      // The cached row may have been deleted or merged away since (possibly
+      // via a synced tombstone). Never hand out a dead id — it would leave
+      // the new transaction with an undecryptable/missing description.
+      final db = await database;
+      final live = await db.query(
+        'SELECT id FROM descriptions WHERE id = ? AND user_id = ? AND is_deleted = 0',
+        [cached, _userId],
+      );
+      if (live.isNotEmpty) return cached;
+      _descriptionCache.remove(cacheKey);
+    }
 
     final db = await database;
     final allDescs = await db.query(
@@ -1264,11 +1276,123 @@ void setUserId(String userId) {
     return id;
   }
 
+  /// Repairs description references that can no longer be resolved.
+  ///
+  /// - Transactions (and recurring templates) whose `description_id` points
+  ///   at a missing or soft-deleted row are repointed to a live row with the
+  ///   same name (case-insensitive) when the dead row's name is still
+  ///   readable and such a live row exists.
+  /// - Otherwise the dead row is resurrected (`is_deleted = 0`). A dead row
+  ///   that still has live references was deleted erroneously: cleanup only
+  ///   deletes unreferenced rows and merge repoints first — so restoring it
+  ///   recovers the description with zero data loss.
+  /// - Live rows whose name fails to decrypt with the current key cannot be
+  ///   recovered automatically (the plaintext is unknowable); they are only
+  ///   counted so the caller can surface them for manual fixing.
+  /// Returns (repaired transaction/template count, undecryptable live rows).
+  Future<({int repointed, int undecryptable})>
+      repairDanglingDescriptionRefs() async {
+    if (_userId == null || _encryptionKey == null) {
+      return (repointed: 0, undecryptable: 0);
+    }
+    final db = await database;
+
+    final liveRows = await db.query(
+      'SELECT id, name FROM descriptions WHERE user_id = ? AND is_deleted = 0',
+      [_userId],
+    );
+    final liveByName = <String, String>{};
+    var undecryptable = 0;
+    for (final r in liveRows) {
+      final name = await _decryptValue(r['name']);
+      if (name == null || name.trim().isEmpty) {
+        continue;
+      }
+      if (await _isUndecryptableCiphertext(r['name'])) {
+        // Looks like ciphertext but does not decrypt with the current key
+        // (stale key / foreign row): the UI can only show gibberish for it.
+        undecryptable++;
+        continue;
+      }
+      liveByName.putIfAbsent(
+          name.trim().toLowerCase(), () => r['id'] as String);
+    }
+
+    var repointed = 0;
+    Future<void> repoint(String table) async {
+      final dangling = await db.query(
+        'SELECT t.id, t.description_id FROM $table t '
+        'LEFT JOIN descriptions d ON d.id = t.description_id AND d.is_deleted = 0 '
+        'WHERE t.user_id = ? AND t.is_deleted = 0 '
+        'AND t.description_id IS NOT NULL AND d.id IS NULL',
+        [_userId],
+      );
+      for (final row in dangling) {
+        final deadRows = await db.query(
+          'SELECT name FROM descriptions WHERE id = ? AND user_id = ?',
+          [row['description_id'], _userId],
+        );
+        if (deadRows.isEmpty) continue;
+        final deadName = await _decryptValue(deadRows.first['name']);
+        if (deadName == null || deadName.trim().isEmpty) continue;
+        final targetId = liveByName[deadName.trim().toLowerCase()];
+        if (targetId != null &&
+            targetId != (row['description_id'] as String)) {
+          await db.execute(
+            'UPDATE $table SET description_id = ? WHERE id = ? AND user_id = ?',
+            [targetId, row['id'], _userId],
+          );
+          repointed++;
+        } else if (targetId == null) {
+          // No live row carries this name: resurrect the dead row so the
+          // reference resolves again instead of rendering '-' / gibberish.
+          await db.execute(
+            'UPDATE descriptions SET is_deleted = 0 WHERE id = ? AND user_id = ?',
+            [row['description_id'], _userId],
+          );
+          liveByName[deadName.trim().toLowerCase()] =
+              row['description_id'] as String;
+          repointed++;
+        }
+      }
+    }
+
+    await repoint('transactions');
+    await repoint('recurring_transactions');
+    if (repointed > 0) _descriptionCache.clear();
+    return (repointed: repointed, undecryptable: undecryptable);
+  }
+
+  /// True when [raw] looks like an encrypted payload (base64 with room for
+  /// a 12-byte nonce and 16-byte MAC) but fails to decrypt with the current
+  /// key. Plaintext (legacy unencrypted) values return false — they still
+  /// display correctly via the decrypt fallback.
+  Future<bool> _isUndecryptableCiphertext(dynamic raw) async {
+    if (_encryptionKey == null || raw == null) return false;
+    final s = raw.toString();
+    if (s.isEmpty) return false;
+    try {
+      await EncryptionService.decrypt(s, _encryptionKey!);
+      return false;
+    } catch (_) {
+      // Not decryptable: only counts when it plausibly IS ciphertext.
+      try {
+        return base64Decode(s).length >= 28;
+      } catch (_) {
+        return false;
+      }
+    }
+  }
+
   Future<bool> mergeDescriptions(String sourceName, String targetName) async {
     if (sourceName == targetName) return false;
     final db = await database;
     final sourceId = await getOrCreateDescription(sourceName);
     final targetId = await getOrCreateDescription(targetName);
+    // Same row (e.g. case-only difference like "Coffee" vs "coffee"):
+    // there is nothing to merge, and deleting would orphan every
+    // transaction pointing at it.
+    if (sourceId == targetId) return false;
     await db.execute(
       'UPDATE transactions SET description_id = ? WHERE description_id = ? AND user_id = ?',
       [targetId, sourceId, _userId],
@@ -2643,7 +2767,7 @@ void setUserId(String userId) {
       SELECT t.amount, tg.name as tag_name, d.name as description_name
       FROM transactions t
       LEFT JOIN tags tg ON t.tag_id = tg.id AND tg.is_deleted = 0
-      LEFT JOIN descriptions d ON t.description_id = d.id
+      LEFT JOIN descriptions d ON t.description_id = d.id AND d.is_deleted = 0
       WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
         AND t.tag_id IS NOT NULL AND t.is_deleted = 0
     ''', [transactionType, startDate, endDate, _userId]);
@@ -2683,7 +2807,7 @@ void setUserId(String userId) {
              tg.name as tag_name, d.name as description_name
       FROM transactions t
       LEFT JOIN tags tg ON t.tag_id = tg.id AND tg.is_deleted = 0
-      LEFT JOIN descriptions d ON t.description_id = d.id
+      LEFT JOIN descriptions d ON t.description_id = d.id AND d.is_deleted = 0
       WHERE t.date >= ? AND t.date <= ? AND t.user_id = ? AND t.is_deleted = 0
         AND t.tag_id IS NOT NULL AND t.transaction_type != 'transfer'
     ''', [startDate, endDate, _userId]);
@@ -3205,7 +3329,7 @@ void setUserId(String userId) {
     final rows = await db.query(
       'SELECT t.amount, t.currency, tg.name as tag_name, d.name as description_name '
       'FROM transactions t LEFT JOIN tags tg ON t.tag_id = tg.id AND tg.is_deleted = 0 '
-      'LEFT JOIN descriptions d ON t.description_id = d.id '
+      'LEFT JOIN descriptions d ON t.description_id = d.id AND d.is_deleted = 0 '
       'WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ? AND t.is_deleted = 0',
       [transactionType, startDate, endDate, _userId],
     );
@@ -3246,7 +3370,7 @@ void setUserId(String userId) {
     final rows = await db.query(
       'SELECT t.amount, t.currency, tg.name as tag_name, d.name as description_name '
       'FROM transactions t LEFT JOIN tags tg ON t.tag_id = tg.id AND tg.is_deleted = 0 '
-      'LEFT JOIN descriptions d ON t.description_id = d.id '
+      'LEFT JOIN descriptions d ON t.description_id = d.id AND d.is_deleted = 0 '
       'WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ? AND t.is_deleted = 0',
       [transactionType, startDate, clampedEnd, _userId],
     );

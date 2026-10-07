@@ -14,9 +14,11 @@
   - Choose monthly goals, or your specific period of time
   - View how far you are from your goal
 - **Spanish** support !
+- Custom time period selection in the dashboard
 
 ### Fixes
 
+- Fixed bug where some transactions displayed '-' instead of the description (bad decrypt)
 - Tags are now the default setting for graphs
 
 ## Known issues

@@ -312,6 +312,12 @@ class _LoginViewState extends State<LoginView> {
     await _db.setEncryptionKey(key);
     await _db.setSetting('encryption_salt', expectedSaltB64);
     await _db.migrateToEncryption();
+    final repair = await _db.repairDanglingDescriptionRefs();
+    if (repair.repointed > 0 || repair.undecryptable > 0) {
+      LogService().log(
+          'Description repair at login: repointed=${repair.repointed} '
+          'undecryptable=${repair.undecryptable}');
+    }
   }
 
   @override

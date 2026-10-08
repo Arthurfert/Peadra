@@ -455,6 +455,9 @@ class _ParametersViewState extends State<ParametersView> {
               value: 'summer',
               child: Text(Translator.t('param_summer_theme'))),
           DropdownMenuItem(
+              value: 'sakura',
+              child: Text(Translator.t('param_sakura_theme'))),
+          DropdownMenuItem(
               value: 'spring',
               child: Text(Translator.t('param_spring_theme'))),
           DropdownMenuItem(

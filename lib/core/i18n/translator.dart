@@ -343,6 +343,7 @@ class Translator {
       'sync_pair_failed': 'Pairing failed',
       'sync_sync_success': 'Sync complete',
       'sync_sync_failed': 'Sync failed',
+      'sync_unreachable': 'Couldn\'t reach "{name}". Make sure it is powered on and on the same network.',
       'sync_peer_forgotten': 'Device removed',
       'msg_confirm_delete': 'Are you sure you want to delete this?',
       'msg_transaction_deleted': 'Transaction deleted successfully',
@@ -825,6 +826,7 @@ class Translator {
       'sync_pair_failed': '\u00c9chec de l\'association',
       'sync_sync_success': 'Synchronisation termin\u00e9e',
       'sync_sync_failed': '\u00c9chec de la synchronisation',
+      'sync_unreachable': 'Impossible de joindre "{name}". V\u00e9rifiez qu\'il est allum\u00e9 et sur le m\u00eame r\u00e9seau.',
       'sync_peer_forgotten': 'Appareil supprim\u00e9',
       'msg_confirm_delete':
           '\u00cates-vous s\u00fbr de vouloir le supprimer ?',
@@ -1296,6 +1298,7 @@ class Translator {
       'sync_pair_failed': 'Error de vinculación',
       'sync_sync_success': 'Sincronización completa',
       'sync_sync_failed': 'Error de sincronización',
+      'sync_unreachable': 'No se pudo contactar con "{name}". Asegúrate de que esté encendido y en la misma red.',
       'sync_peer_forgotten': 'Dispositivo eliminado',
       'msg_confirm_delete': '¿Seguro que quieres eliminarlo?',
       'msg_transaction_deleted': 'Transacción eliminada correctamente',

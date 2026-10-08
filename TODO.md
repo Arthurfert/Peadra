@@ -13,7 +13,7 @@
 
 ### Fixes
 
-
+- Fixed error notifications in "Manage Device" settings
 
 ## Known issues
 

@@ -9,6 +9,7 @@ import '../../../core/services/log_service.dart';
 import '../../../core/theme/peadra_colors.dart';
 import '../../../shared/widgets/peadra_notification.dart';
 import '../../../sync/models/trusted_peer.dart';
+import '../../../sync/sync_manager.dart';
 import '../../../sync/sync_service.dart';
 
 /// Lists the paired devices with a manual sync trigger and a forget action.
@@ -24,9 +25,9 @@ class PeersListScreen extends StatefulWidget {
 
   /// Injectable data sources, defaulting to the live [SyncService].
   final Future<List<TrustedPeer>> Function()? loadPeers;
-  final Future<void> Function(String peerId)? syncPeer;
+  final Future<SyncOutcome> Function(String peerId)? syncPeer;
   final Future<void> Function(String peerId)? forgetPeer;
-  final Future<void> Function(String peerId)? updatePeerKey;
+  final Future<SyncOutcome> Function(String peerId)? updatePeerKey;
 
   /// Reports once whether unreadable peer data was reset, defaulting to the
   /// live [SyncService], so the page can tell the user to pair again.
@@ -86,14 +87,26 @@ class _PeersListScreenState extends State<PeersListScreen> {
   Future<void> _syncPeer(TrustedPeer peer) async {
     setState(() => _syncingPeerId = peer.peerId);
     try {
-      await (widget.syncPeer?.call(peer.peerId) ??
+      final outcome = await (widget.syncPeer?.call(peer.peerId) ??
           SyncService.instance.syncNow(peer.peerId));
-      if (mounted) {
-        PeadraNotification.show(context,
-            message: Translator.t('sync_sync_success'));
-        await _load();
+      if (!mounted) return;
+      switch (outcome) {
+        case SyncOutcome.synced:
+          PeadraNotification.show(context,
+              message: Translator.t('sync_sync_success'));
+          await _load();
+        case SyncOutcome.unreachable:
+          PeadraNotification.show(context,
+              message: Translator.t('sync_unreachable',
+                  params: {'name': peer.deviceName}),
+              type: NotificationType.error);
+        case SyncOutcome.failed:
+          PeadraNotification.show(context,
+              message: Translator.t('sync_sync_failed'),
+              type: NotificationType.error);
       }
     } catch (e) {
+      LogService().warn('Manual sync with ${peer.deviceName} threw: $e');
       if (mounted) {
         PeadraNotification.show(context,
             message: Translator.t('sync_sync_failed'),
@@ -107,14 +120,26 @@ class _PeersListScreenState extends State<PeersListScreen> {
   Future<void> _reshareKey(TrustedPeer peer) async {
     setState(() => _syncingPeerId = peer.peerId);
     try {
-      await (widget.updatePeerKey?.call(peer.peerId) ??
+      final outcome = await (widget.updatePeerKey?.call(peer.peerId) ??
           SyncService.instance.updatePeerKey(peer.peerId));
-      if (mounted) {
-        PeadraNotification.show(context,
-            message: Translator.t('sync_reshare_success'));
-        await _load();
+      if (!mounted) return;
+      switch (outcome) {
+        case SyncOutcome.synced:
+          PeadraNotification.show(context,
+              message: Translator.t('sync_reshare_success'));
+          await _load();
+        case SyncOutcome.unreachable:
+          PeadraNotification.show(context,
+              message: Translator.t('sync_unreachable',
+                  params: {'name': peer.deviceName}),
+              type: NotificationType.error);
+        case SyncOutcome.failed:
+          PeadraNotification.show(context,
+              message: Translator.t('sync_reshare_failed'),
+              type: NotificationType.error);
       }
     } catch (e) {
+      LogService().warn('Key re-share with ${peer.deviceName} threw: $e');
       if (mounted) {
         PeadraNotification.show(context,
             message: Translator.t('sync_reshare_failed'),

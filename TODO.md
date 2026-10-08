@@ -10,6 +10,7 @@
 ### New
 
 - New "sakura" theme, with a soft pink acccent
+- Modern modals on mobile
 
 ### Fixes
 

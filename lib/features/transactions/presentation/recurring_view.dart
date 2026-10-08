@@ -11,6 +11,7 @@ import '../../../core/models/recurring_transaction.dart';
 import '../../../core/theme/peadra_colors.dart';
 import 'widgets/transaction_modal.dart';
 import '../../../shared/widgets/peadra_notification.dart';
+import '../../../shared/widgets/peadra_modal.dart';
 import '../../../shared/widgets/tag_chip.dart';
 import '../../../core/services/currency_service.dart';
 import '../../../core/responsive/responsive_layout.dart';
@@ -165,14 +166,13 @@ class _RecurringViewState extends State<RecurringView> {
     final colors = PeadraTheme.getColors(themeName);
 
     var deleteOccurrences = false;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showPeadraModal<bool>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: colors.surface,
-          title: Text(Translator.t('btn_delete'),
-              style: TextStyle(color: colors.text)),
-          content: Column(
+      builder: (ctx) => PeadraModal(
+        title: Text(Translator.t('btn_delete'),
+            style: TextStyle(color: colors.text)),
+        content: StatefulBuilder(
+          builder: (ctx, setDialogState) => Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -190,18 +190,18 @@ class _RecurringViewState extends State<RecurringView> {
               ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(Translator.t('btn_cancel')),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(Translator.t('btn_delete'),
-                  style: TextStyle(color: colors.error)),
-            ),
-          ],
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(Translator.t('btn_cancel')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(Translator.t('btn_delete'),
+                style: TextStyle(color: colors.error)),
+          ),
+        ],
       ),
     );
 

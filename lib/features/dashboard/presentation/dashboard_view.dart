@@ -13,6 +13,7 @@ import 'charts/category_pie_chart.dart';
 import 'dashboard_view_desktop.dart';
 import 'dashboard_view_mobile.dart';
 import 'widgets/custom_range_dialog.dart';
+import '../../../shared/widgets/peadra_modal.dart';
 
 class DashboardView extends StatefulWidget {
   final int refreshSignal;
@@ -583,7 +584,7 @@ class _DashboardViewState extends State<DashboardView> {
     final colors = PeadraTheme.getColors(themeName);
     final firstTransaction = await _db.getFirstTransactionDate();
     if (!mounted) return;
-    final picked = await showDialog<DateTimeRange>(
+    final picked = await showPeadraModal<DateTimeRange>(
       context: context,
       builder: (_) => CustomRangeDialog(
         initialStart: initialStart,

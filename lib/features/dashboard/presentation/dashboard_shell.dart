@@ -14,6 +14,7 @@ import '../../../core/theme/peadra_colors.dart';
 import '../../../core/services/update_service.dart';
 import '../../../core/responsive/responsive_layout.dart';
 import '../../../core/database/database_manager.dart';
+import '../../../shared/widgets/peadra_modal.dart';
 import '../../../sync/sync_service.dart';
 import '../../auth/presentation/login_view.dart';
 import '../../transactions/presentation/transactions_view.dart';
@@ -191,45 +192,39 @@ class _DashboardShellState extends State<DashboardShell> {
 
   void _showChangelogDialog(PeadraColors colors, UpdateInfo update) {
     final notes = update.releaseNotes;
-    showDialog(
+    showPeadraModal(
       context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: colors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 500, maxHeight: 500),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 8, 0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        '${update.version} - ${Translator.t('param_changelog_title')}',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: colors.text,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: Icon(Icons.close, color: colors.placeholderColor, size: 20),
-                      onPressed: () => Navigator.of(ctx).pop(),
-                    ),
-                  ],
+      builder: (ctx) => PeadraModal(
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                '${update.version} - ${Translator.t('param_changelog_title')}',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: colors.text,
                 ),
               ),
-              const Divider(),
-              Flexible(
-                child: notes.isNotEmpty
-                    ? Markdown(
-                        data: notes,
-                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                        selectable: true,
-                        styleSheet: MarkdownStyleSheet(
+            ),
+            IconButton(
+              icon: Icon(Icons.close,
+                  color: colors.placeholderColor, size: 20),
+              onPressed: () => Navigator.of(ctx).pop(),
+            ),
+          ],
+        ),
+        content: ConstrainedBox(
+          constraints:
+              const BoxConstraints(maxWidth: 500, maxHeight: 500),
+          child: SingleChildScrollView(
+            child: notes.isNotEmpty
+                ? Markdown(
+                    data: notes,
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.fromLTRB(4, 8, 4, 4),
+                    selectable: true,
+                    styleSheet: MarkdownStyleSheet(
                           p: TextStyle(color: colors.text, fontSize: 14, height: 1.5),
                           h1: TextStyle(color: colors.text, fontSize: 22, fontWeight: FontWeight.bold),
                           h2: TextStyle(color: colors.text, fontSize: 18, fontWeight: FontWeight.bold),
@@ -263,15 +258,10 @@ class _DashboardShellState extends State<DashboardShell> {
                           a: TextStyle(color: colors.accent, decoration: TextDecoration.underline),
                         ),
                       )
-                    : Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Text(
-                          Translator.t('param_changelog_empty'),
-                          style: TextStyle(color: colors.placeholderColor),
-                        ),
+                    : Text(
+                        Translator.t('param_changelog_empty'),
+                        style: TextStyle(color: colors.placeholderColor),
                       ),
-              ),
-            ],
           ),
         ),
       ),

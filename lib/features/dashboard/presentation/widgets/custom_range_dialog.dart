@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/i18n/translator.dart';
 import '../../../../core/theme/peadra_colors.dart';
+import '../../../../shared/widgets/peadra_modal.dart';
 
 /// Custom date-range picker used for the dashboard custom period.
 ///
@@ -120,8 +121,7 @@ class _CustomRangeDialogState extends State<CustomRangeDialog> {
   @override
   Widget build(BuildContext context) {
     final colors = widget.colors;
-    return AlertDialog(
-      backgroundColor: colors.surface,
+    return PeadraModal(
       title: Text(Translator.t('period_custom_title'),
           style: TextStyle(color: colors.text)),
       content: SingleChildScrollView(

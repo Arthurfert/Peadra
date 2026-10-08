@@ -13,6 +13,7 @@ import '../../../core/theme/peadra_colors.dart';
 import '../../../core/responsive/responsive_layout.dart';
 import '../../../core/utils/chart_utils.dart';
 import '../../../shared/widgets/peadra_notification.dart';
+import '../../../shared/widgets/peadra_modal.dart';
 
 class CategoriesView extends StatefulWidget {
   const CategoriesView({super.key});
@@ -563,83 +564,21 @@ class _CategoriesViewState extends State<CategoriesView> {
 
     if (!mounted) return;
 
-    String? sourceName;
-    String? targetName;
-
-    final result = await showDialog<bool>(
+    final result =
+        await showPeadraModal<({String source, String target})>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: colors.surface,
-          title: Text(Translator.t('cat_merge_descriptions'),
-              style: TextStyle(color: colors.text)),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(Translator.t('cat_merge_hint'),
-                    style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-                const SizedBox(height: 16),
-                Text(Translator.t('cat_merge_from'),
-                    style: TextStyle(color: colors.text, fontWeight: FontWeight.w500)),
-                const SizedBox(height: 4),
-                DropdownButtonFormField<String>(
-                  initialValue: sourceName,
-                  decoration: InputDecoration(
-                    hintText: Translator.t('cat_merge_source'),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  items: names
-                      .where((n) => n != targetName)
-                      .map((n) => DropdownMenuItem(value: n, child: Text(n)))
-                      .toList(),
-                  onChanged: (v) => setDialogState(() => sourceName = v),
-                ),
-                const SizedBox(height: 16),
-                Text(Translator.t('cat_merge_to'),
-                    style: TextStyle(color: colors.text, fontWeight: FontWeight.w500)),
-                const SizedBox(height: 4),
-                DropdownButtonFormField<String>(
-                  initialValue: targetName,
-                  decoration: InputDecoration(
-                    hintText: Translator.t('cat_merge_target'),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  items: names
-                      .where((n) => n != sourceName)
-                      .map((n) => DropdownMenuItem(value: n, child: Text(n)))
-                      .toList(),
-                  onChanged: (v) => setDialogState(() => targetName = v),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(Translator.t('btn_cancel')),
-            ),
-            ElevatedButton(
-              onPressed: (sourceName != null && targetName != null)
-                  ? () => Navigator.pop(ctx, true)
-                  : null,
-              style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
-              child: Text(Translator.t('cat_merge_btn'),
-                  style: const TextStyle(color: Colors.white)),
-            ),
-          ],
-        ),
-      ),
+      builder: (ctx) =>
+          _MergeDescriptionsDialog(names: names, colors: colors),
     );
 
-    if (result == true && sourceName != null && targetName != null) {
-      final success = await _db.mergeDescriptions(sourceName!, targetName!);
+    if (result != null) {
+      final success =
+          await _db.mergeDescriptions(result.source, result.target);
       if (mounted) {
         if (success) {
           PeadraNotification.show(context, message: Translator.t('cat_merge_success')
-              .replaceAll('{source}', sourceName!)
-              .replaceAll('{target}', targetName!));
+              .replaceAll('{source}', result.source)
+              .replaceAll('{target}', result.target));
         } else {
           PeadraNotification.show(context, message: Translator.t('cat_merge_failed'), type: NotificationType.error);
         }
@@ -659,87 +598,25 @@ class _CategoriesViewState extends State<CategoriesView> {
       return;
     }
 
-    String? selectedName;
-    final newNameCtrl = TextEditingController();
-
     if (!mounted) return;
 
-    final result = await showDialog<bool>(
+    final result =
+        await showPeadraModal<({String selected, String newName})>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: colors.surface,
-          title: Text(Translator.t('cat_rename_description'),
-              style: TextStyle(color: colors.text)),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(Translator.t('cat_rename_hint'),
-                    style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-                const SizedBox(height: 16),
-                Text(Translator.t('cat_select_description_to_rename'),
-                    style: TextStyle(color: colors.text, fontWeight: FontWeight.w500)),
-                const SizedBox(height: 4),
-                DropdownButtonFormField<String>(
-                  initialValue: selectedName,
-                  decoration: InputDecoration(
-                    hintText: Translator.t('cat_select_description'),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  items: names
-                      .map((n) => DropdownMenuItem(value: n, child: Text(n)))
-                      .toList(),
-                  onChanged: (v) {
-                    setDialogState(() {
-                      selectedName = v;
-                      newNameCtrl.text = v ?? '';
-                    });
-                  },
-                ),
-                const SizedBox(height: 16),
-                Text(Translator.t('cat_new_name_label'),
-                    style: TextStyle(color: colors.text, fontWeight: FontWeight.w500)),
-                const SizedBox(height: 4),
-                TextField(
-                  controller: newNameCtrl,
-                  maxLength: 100,
-                  decoration: InputDecoration(
-                    hintText: Translator.t('cat_new_name'),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(Translator.t('btn_cancel')),
-            ),
-            ElevatedButton(
-              onPressed: (selectedName != null && newNameCtrl.text.trim().isNotEmpty)
-                  ? () => Navigator.pop(ctx, true)
-                  : null,
-              style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
-              child: Text(Translator.t('cat_rename_btn'),
-                  style: const TextStyle(color: Colors.white)),
-            ),
-          ],
-        ),
-      ),
+      builder: (ctx) =>
+          _RenameDescriptionDialog(names: names, colors: colors),
     );
 
-    if (result == true && selectedName != null) {
-      final desc = descriptions.firstWhere((d) => d.name == selectedName);
-      final newName = newNameCtrl.text.trim();
-      final success = await _db.renameDescription(desc.id!, newName);
+    if (result != null) {
+      final desc =
+          descriptions.firstWhere((d) => d.name == result.selected);
+      final success =
+          await _db.renameDescription(desc.id!, result.newName);
       if (mounted) {
         if (success) {
           PeadraNotification.show(context, message: Translator.t('cat_rename_success')
-              .replaceAll('{old}', selectedName!)
-              .replaceAll('{new}', newName));
+              .replaceAll('{old}', result.selected)
+              .replaceAll('{new}', result.newName));
         } else {
           PeadraNotification.show(context, message: Translator.t('cat_rename_failed'), type: NotificationType.error);
         }
@@ -751,12 +628,205 @@ class _CategoriesViewState extends State<CategoriesView> {
   Future<void> _showManageTagsDialog(PeadraColors colors) async {
     if (!mounted) return;
 
-    await showDialog(
+    await showPeadraModal(
       context: context,
       builder: (ctx) => _ManageTagsDialog(db: _db, colors: colors),
     );
 
     _loadData();
+  }
+}
+
+class _MergeDescriptionsDialog extends StatefulWidget {
+  final List<String> names;
+  final PeadraColors colors;
+
+  const _MergeDescriptionsDialog(
+      {required this.names, required this.colors});
+
+  @override
+  State<_MergeDescriptionsDialog> createState() =>
+      _MergeDescriptionsDialogState();
+}
+
+class _MergeDescriptionsDialogState
+    extends State<_MergeDescriptionsDialog> {
+  String? _sourceName;
+  String? _targetName;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = widget.colors;
+    final names = widget.names;
+
+    return PeadraModal(
+      title: Text(Translator.t('cat_merge_descriptions'),
+          style: TextStyle(color: colors.text)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(Translator.t('cat_merge_hint'),
+              style: TextStyle(
+                  color: colors.textSecondary, fontSize: 12)),
+          const SizedBox(height: 16),
+          Text(Translator.t('cat_merge_from'),
+              style: TextStyle(
+                  color: colors.text, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 4),
+          DropdownButtonFormField<String>(
+            initialValue: _sourceName,
+            decoration: InputDecoration(
+              hintText: Translator.t('cat_merge_source'),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+            items: names
+                .where((n) => n != _targetName)
+                .map((n) => DropdownMenuItem(value: n, child: Text(n)))
+                .toList(),
+            onChanged: (v) => setState(() => _sourceName = v),
+          ),
+          const SizedBox(height: 16),
+          Text(Translator.t('cat_merge_to'),
+              style: TextStyle(
+                  color: colors.text, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 4),
+          DropdownButtonFormField<String>(
+            initialValue: _targetName,
+            decoration: InputDecoration(
+              hintText: Translator.t('cat_merge_target'),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+            items: names
+                .where((n) => n != _sourceName)
+                .map((n) => DropdownMenuItem(value: n, child: Text(n)))
+                .toList(),
+            onChanged: (v) => setState(() => _targetName = v),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(Translator.t('btn_cancel')),
+        ),
+        ElevatedButton(
+          onPressed: (_sourceName != null && _targetName != null)
+              ? () => Navigator.pop(context,
+                  (source: _sourceName!, target: _targetName!))
+              : null,
+          style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
+          child: Text(Translator.t('cat_merge_btn'),
+              style: const TextStyle(color: Colors.white)),
+        ),
+      ],
+    );
+  }
+}
+
+class _RenameDescriptionDialog extends StatefulWidget {
+  final List<String> names;
+  final PeadraColors colors;
+
+  const _RenameDescriptionDialog(
+      {required this.names, required this.colors});
+
+  @override
+  State<_RenameDescriptionDialog> createState() =>
+      _RenameDescriptionDialogState();
+}
+
+class _RenameDescriptionDialogState
+    extends State<_RenameDescriptionDialog> {
+  String? _selectedName;
+  final _newNameCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _newNameCtrl.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _newNameCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = widget.colors;
+    final names = widget.names;
+
+    return PeadraModal(
+      title: Text(Translator.t('cat_rename_description'),
+          style: TextStyle(color: colors.text)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(Translator.t('cat_rename_hint'),
+              style: TextStyle(
+                  color: colors.textSecondary, fontSize: 12)),
+          const SizedBox(height: 16),
+          Text(Translator.t('cat_select_description_to_rename'),
+              style: TextStyle(
+                  color: colors.text, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 4),
+          DropdownButtonFormField<String>(
+            initialValue: _selectedName,
+            decoration: InputDecoration(
+              hintText: Translator.t('cat_select_description'),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+            items: names
+                .map((n) => DropdownMenuItem(value: n, child: Text(n)))
+                .toList(),
+            onChanged: (v) {
+              setState(() {
+                _selectedName = v;
+                _newNameCtrl.text = v ?? '';
+              });
+            },
+          ),
+          const SizedBox(height: 16),
+          Text(Translator.t('cat_new_name_label'),
+              style: TextStyle(
+                  color: colors.text, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 4),
+          TextField(
+            controller: _newNameCtrl,
+            maxLength: 100,
+            decoration: InputDecoration(
+              hintText: Translator.t('cat_new_name'),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(Translator.t('btn_cancel')),
+        ),
+        ElevatedButton(
+          onPressed:
+              (_selectedName != null && _newNameCtrl.text.trim().isNotEmpty)
+                  ? () => Navigator.pop(context, (
+                        selected: _selectedName!,
+                        newName: _newNameCtrl.text.trim()
+                      ))
+                  : null,
+          style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
+          child: Text(Translator.t('cat_rename_btn'),
+              style: const TextStyle(color: Colors.white)),
+        ),
+      ],
+    );
   }
 }
 
@@ -788,60 +858,40 @@ class _ManageTagsDialogState extends State<_ManageTagsDialog> {
   Widget build(BuildContext context) {
     final colors = widget.colors;
 
-    final isPhone = ResponsiveLayout.isPhone(context);
-    final screenWidth = MediaQuery.sizeOf(context).width;
-    final dialogWidth = isPhone ? (screenWidth * 0.95 < 450 ? screenWidth * 0.95 : 450.0) : 450.0;
-
-    return Dialog(
-      backgroundColor: colors.surface,
-      insetPadding: isPhone ? const EdgeInsets.symmetric(horizontal: 16) : const EdgeInsets.symmetric(horizontal: 40),
-      child: SizedBox(
-        width: dialogWidth,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(Translator.t('tag_manage'),
-                  style: TextStyle(
-                    color: colors.text,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                  )),
-              const SizedBox(height: 16),
-              _tags.isEmpty
-                  ? Text(Translator.t('tag_no_tags'),
-                      style: TextStyle(color: colors.textSecondary))
-                  : Flexible(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxHeight: 400),
-                        child: SingleChildScrollView(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              for (final tag in _tags) ...[
-                                _buildTagTile(tag, colors),
-                                if (tag != _tags.last)
-                                  const Divider(height: 1),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-              const SizedBox(height: 16),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text(Translator.t('btn_close')),
+    return PeadraModal(
+      title: Text(Translator.t('tag_manage'),
+          style: TextStyle(
+            color: colors.text,
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+          )),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 450),
+        child: _tags.isEmpty
+            ? Text(Translator.t('tag_no_tags'),
+                style: TextStyle(color: colors.textSecondary))
+            : ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 400),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final tag in _tags) ...[
+                        _buildTagTile(tag, colors),
+                        if (tag != _tags.last)
+                          const Divider(height: 1),
+                      ],
+                    ],
+                  ),
                 ),
               ),
-            ],
-          ),
-        ),
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(Translator.t('btn_close')),
+        ),
+      ],
     );
   }
 
@@ -869,10 +919,9 @@ class _ManageTagsDialogState extends State<_ManageTagsDialog> {
             icon: Icon(Icons.delete, color: colors.error, size: 20),
             tooltip: Translator.t('tag_delete'),
             onPressed: () async {
-              final confirmed = await showDialog<bool>(
+              final confirmed = await showPeadraModal<bool>(
                 context: context,
-                builder: (ctx) => AlertDialog(
-                  backgroundColor: colors.surface,
+                builder: (ctx) => PeadraModal(
                   title: Text(Translator.t('tag_delete'),
                       style: TextStyle(color: colors.text)),
                   content: Text(
@@ -909,86 +958,122 @@ class _ManageTagsDialogState extends State<_ManageTagsDialog> {
   }
 
   Future<void> _showEditTagDialog(Tag tag, PeadraColors colors) async {
-    final nameController = TextEditingController(text: tag.name);
-    String selectedColor = tag.color;
+    await showPeadraModal(
+      context: context,
+      builder: (ctx) => _EditTagDialog(
+        db: widget.db,
+        tag: tag,
+        colors: colors,
+      ),
+    );
+  }
+}
 
+class _EditTagDialog extends StatefulWidget {
+  final DatabaseManager db;
+  final Tag tag;
+  final PeadraColors colors;
+
+  const _EditTagDialog(
+      {required this.db, required this.tag, required this.colors});
+
+  @override
+  State<_EditTagDialog> createState() => _EditTagDialogState();
+}
+
+class _EditTagDialogState extends State<_EditTagDialog> {
+  late final TextEditingController _nameController;
+  late String _selectedColor;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.tag.name);
+    _selectedColor = widget.tag.color;
+    _nameController.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = widget.colors;
     final tagColors = PeadraTheme.presetColors;
 
-    await showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: colors.surface,
-          title: Text(Translator.t('btn_edit'),
-              style: TextStyle(color: colors.text)),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextField(
-                  controller: nameController,
-                  maxLength: 50,
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    labelText: Translator.t('tag_name'),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8)),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(Translator.t('tag_color'),
-                    style: TextStyle(
-                        color: colors.text, fontWeight: FontWeight.w500)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: tagColors.map((c) {
-                    final isSelected = selectedColor == c;
-                    return GestureDetector(
-                      onTap: () => setDialogState(() => selectedColor = c),
-                      child: Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: Color(int.parse(c.replaceFirst('#', '0xFF'))),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: isSelected ? colors.text : Colors.transparent,
-                            width: 2,
-                          ),
-                        ),
-                        child: isSelected
-                            ? const Icon(Icons.check, color: Colors.white, size: 16)
-                            : null,
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ],
+    return PeadraModal(
+      title: Text(Translator.t('btn_edit'),
+          style: TextStyle(color: colors.text)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _nameController,
+            maxLength: 50,
+            autofocus: true,
+            decoration: InputDecoration(
+              labelText: Translator.t('tag_name'),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8)),
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(Translator.t('btn_cancel')),
-            ),
-            ElevatedButton(
-              onPressed: nameController.text.trim().isEmpty
-                  ? null
-                  : () async {
-                      final name = nameController.text.trim();
-                      await widget.db.updateTag(tag.id!, name: name, color: selectedColor);
-                      if (mounted) Navigator.pop(ctx);
-                    },
-              style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
-              child: Text(Translator.t('btn_save'),
-                  style: const TextStyle(color: Colors.white)),
-            ),
-          ],
-        ),
+          const SizedBox(height: 12),
+          Text(Translator.t('tag_color'),
+              style: TextStyle(
+                  color: colors.text, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: tagColors.map((c) {
+              final isSelected = _selectedColor == c;
+              return GestureDetector(
+                onTap: () => setState(() => _selectedColor = c),
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: Color(int.parse(c.replaceFirst('#', '0xFF'))),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color:
+                          isSelected ? colors.text : Colors.transparent,
+                      width: 2,
+                    ),
+                  ),
+                  child: isSelected
+                      ? const Icon(Icons.check,
+                          color: Colors.white, size: 16)
+                      : null,
+                ),
+              );
+            }).toList(),
+          ),
+        ],
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(Translator.t('btn_cancel')),
+        ),
+        ElevatedButton(
+          onPressed: _nameController.text.trim().isEmpty
+              ? null
+              : () async {
+                  final name = _nameController.text.trim();
+                  await widget.db.updateTag(widget.tag.id!,
+                      name: name, color: _selectedColor);
+                  if (mounted) Navigator.pop(context);
+                },
+          style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
+          child: Text(Translator.t('btn_save'),
+              style: const TextStyle(color: Colors.white)),
+        ),
+      ],
     );
   }
 }

@@ -8,6 +8,7 @@ import '../../../core/responsive/responsive_layout.dart';
 import '../../../core/services/log_service.dart';
 import '../../../core/theme/peadra_colors.dart';
 import '../../../shared/widgets/peadra_notification.dart';
+import '../../../shared/widgets/peadra_modal.dart';
 import '../../../sync/models/trusted_peer.dart';
 import '../../../sync/sync_manager.dart';
 import '../../../sync/sync_service.dart';
@@ -153,10 +154,9 @@ class _PeersListScreenState extends State<PeersListScreen> {
   Future<void> _forgetPeer(TrustedPeer peer) async {
     final colors =
         PeadraTheme.getColors(context.read<ThemeProvider>().themeName);
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showPeadraModal<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: colors.surface,
+      builder: (ctx) => PeadraModal(
         title: Text(Translator.t('sync_forget'),
             style: TextStyle(color: colors.error)),
         content: Text(Translator.t('sync_forget_confirm',

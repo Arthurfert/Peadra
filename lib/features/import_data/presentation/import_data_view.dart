@@ -11,6 +11,7 @@ import '../../../core/theme/peadra_colors.dart';
 import '../../../core/database/database_manager.dart';
 import '../../../core/models/account.dart';
 import '../../../core/services/import_service.dart';
+import '../../../shared/widgets/peadra_modal.dart';
 
 class ImportDataView extends StatefulWidget {
   const ImportDataView({super.key});
@@ -118,10 +119,9 @@ class _ImportDataViewState extends State<ImportDataView> {
     final themeName = context.read<ThemeProvider>().themeName;
     final colors = PeadraTheme.getColors(themeName);
 
-    final result = await showDialog<bool>(
+    final result = await showPeadraModal<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: colors.surface,
+      builder: (ctx) => PeadraModal(
         title: Row(
           children: [
             Icon(Icons.warning_amber, color: colors.warning),

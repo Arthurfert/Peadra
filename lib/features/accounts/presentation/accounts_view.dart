@@ -12,6 +12,7 @@ import '../../../core/models/account.dart';
 import '../../../core/theme/peadra_colors.dart';
 import '../../../core/services/currency_service.dart';
 import '../../../core/responsive/responsive_layout.dart';
+import '../../../shared/widgets/peadra_modal.dart';
 
 class AccountsView extends StatefulWidget {
   const AccountsView({super.key});
@@ -329,14 +330,13 @@ class _AccountsViewState extends State<AccountsView> {
     String color = '#1976D2';
     String currency = context.read<SettingsProvider>().currency;
 
-    showDialog(
+    showPeadraModal(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: colors.surface,
-          title: Text(Translator.t('acc_add_account'),
-              style: TextStyle(color: colors.text)),
-          content: SingleChildScrollView(
+      builder: (ctx) => PeadraModal(
+        title: Text(Translator.t('acc_add_account'),
+            style: TextStyle(color: colors.text)),
+        content: StatefulBuilder(
+          builder: (ctx, setDialogState) => SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -396,25 +396,25 @@ class _AccountsViewState extends State<AccountsView> {
               ],
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(Translator.t('btn_cancel')),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (nameCtrl.text.trim().isEmpty) return;
-                final startingAmount = Decimal.tryParse(startingAmountCtrl.text) ?? Decimal.zero;
-                await _db.addAccount(nameCtrl.text.trim(), color, type, currency, startingAmount: startingAmount);
-                Navigator.pop(ctx);
-                _loadAccounts();
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
-              child: Text(Translator.t('btn_save'),
-                  style: const TextStyle(color: Colors.white)),
-            ),
-          ],
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(Translator.t('btn_cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (nameCtrl.text.trim().isEmpty) return;
+              final startingAmount = Decimal.tryParse(startingAmountCtrl.text) ?? Decimal.zero;
+              await _db.addAccount(nameCtrl.text.trim(), color, type, currency, startingAmount: startingAmount);
+              Navigator.pop(ctx);
+              _loadAccounts();
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
+            child: Text(Translator.t('btn_save'),
+                style: const TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
     );
   }
@@ -426,14 +426,13 @@ class _AccountsViewState extends State<AccountsView> {
     String color = acct.color;
     String currency = acct.currency.isNotEmpty ? acct.currency : context.read<SettingsProvider>().currency;
 
-    showDialog(
+    showPeadraModal(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: colors.surface,
-          title: Text(Translator.t('acc_edit_account'),
-              style: TextStyle(color: colors.text)),
-          content: SingleChildScrollView(
+      builder: (ctx) => PeadraModal(
+        title: Text(Translator.t('acc_edit_account'),
+            style: TextStyle(color: colors.text)),
+        content: StatefulBuilder(
+          builder: (ctx, setDialogState) => SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -493,33 +492,33 @@ class _AccountsViewState extends State<AccountsView> {
               ],
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(Translator.t('btn_cancel')),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (nameCtrl.text.trim().isEmpty) return;
-                final startingAmount = Decimal.tryParse(startingAmountCtrl.text) ?? Decimal.zero;
-                await _db.updateAccount(
-                  acct.id!,
-                  nameCtrl.text.trim(),
-                  color,
-                  type: type,
-                  currency: currency,
-                  startingAmount: startingAmount,
-                  updateNameInTransactions: true,
-                );
-                Navigator.pop(ctx);
-                _loadAccounts();
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
-              child: Text(Translator.t('btn_save'),
-                  style: const TextStyle(color: Colors.white)),
-            ),
-          ],
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(Translator.t('btn_cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (nameCtrl.text.trim().isEmpty) return;
+              final startingAmount = Decimal.tryParse(startingAmountCtrl.text) ?? Decimal.zero;
+              await _db.updateAccount(
+                acct.id!,
+                nameCtrl.text.trim(),
+                color,
+                type: type,
+                currency: currency,
+                startingAmount: startingAmount,
+                updateNameInTransactions: true,
+              );
+              Navigator.pop(ctx);
+              _loadAccounts();
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
+            child: Text(Translator.t('btn_save'),
+                style: const TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
     );
   }
@@ -527,14 +526,13 @@ class _AccountsViewState extends State<AccountsView> {
   void _showDeleteConfirmation(AccountWithBalance acct, PeadraColors colors) {
     bool deleteTransactions = false;
 
-    showDialog(
+    showPeadraModal(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: colors.surface,
-          title: Text(Translator.t('acc_delete_account'),
-              style: TextStyle(color: colors.text)),
-          content: Column(
+      builder: (ctx) => PeadraModal(
+        title: Text(Translator.t('acc_delete_account'),
+            style: TextStyle(color: colors.text)),
+        content: StatefulBuilder(
+          builder: (ctx, setDialogState) => Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -556,24 +554,24 @@ class _AccountsViewState extends State<AccountsView> {
               ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(Translator.t('btn_cancel')),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                await _db.deleteAccount(acct.id!, deleteTransactions: deleteTransactions);
-                Navigator.pop(ctx);
-                _loadAccounts();
-              },
-              style:
-                  ElevatedButton.styleFrom(backgroundColor: colors.deleteColor),
-              child: Text(Translator.t('btn_delete'),
-                  style: const TextStyle(color: Colors.white)),
-            ),
-          ],
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(Translator.t('btn_cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              await _db.deleteAccount(acct.id!, deleteTransactions: deleteTransactions);
+              Navigator.pop(ctx);
+              _loadAccounts();
+            },
+            style:
+                ElevatedButton.styleFrom(backgroundColor: colors.deleteColor),
+            child: Text(Translator.t('btn_delete'),
+                style: const TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
     );
   }

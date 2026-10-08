@@ -13,6 +13,7 @@ import '../../../core/providers/theme_provider.dart';
 import '../../../core/responsive/responsive_layout.dart';
 import '../../../core/services/currency_service.dart';
 import '../../../core/theme/peadra_colors.dart';
+import '../../../shared/widgets/peadra_modal.dart';
 import 'widgets/goal_dialog.dart';
 
 class BudgetsView extends StatefulWidget {
@@ -123,10 +124,9 @@ class _BudgetsViewState extends State<BudgetsView> {
   Future<void> _confirmDelete(_GoalEntry entry) async {
     final colors =
         PeadraTheme.getColors(context.read<ThemeProvider>().themeName);
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showPeadraModal<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: colors.surface,
+      builder: (ctx) => PeadraModal(
         title: Text(Translator.t('budget_delete_goal'),
             style: TextStyle(color: colors.text)),
         content: Text(Translator.t('budget_delete_confirm'),

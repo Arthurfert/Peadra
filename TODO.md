@@ -9,13 +9,11 @@
 
 ### New
 
-- New "sakura" theme, with a soft pink acccent
-- Modern modals on mobile
-- Visualize upcoming transactions in graphs
+
 
 ### Fixes
 
-- Fixed error notifications in "Manage Device" settings
+
 
 ## Known issues
 

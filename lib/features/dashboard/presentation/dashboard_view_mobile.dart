@@ -89,8 +89,11 @@ class DashboardViewMobile extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              runSpacing: 8,
+              spacing: 12,
               children: [
                 Text(
                   Translator.t('dash_inflows_outflows'),
@@ -101,6 +104,7 @@ class DashboardViewMobile extends StatelessWidget {
                   ),
                 ),
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     _buildLegendDot(colors.success,
                         Translator.t('dash_inflows')),
@@ -123,6 +127,8 @@ class DashboardViewMobile extends StatelessWidget {
   }
 
   Widget _buildTotalAssetsChart(PeadraColors colors) {
+    final hasFuture =
+        assetsHistory.any((e) => (e['isFuture'] as bool?) ?? false);
     return Card(
       color: colors.surface,
       shape:
@@ -132,8 +138,11 @@ class DashboardViewMobile extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              runSpacing: 8,
+              spacing: 12,
               children: [
                 Text(
                   Translator.t('dash_total_assets'),
@@ -143,8 +152,19 @@ class DashboardViewMobile extends StatelessWidget {
                     color: colors.text,
                   ),
                 ),
-                _buildLegendDot(colors.chartAsset,
-                    Translator.t('dash_total_assets')),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildLegendDot(colors.chartAsset,
+                        Translator.t('dash_total_assets')),
+                    if (hasFuture) ...[
+                      const SizedBox(width: 16),
+                      _buildForecastLegendDot(
+                          colors.chartAsset.withValues(alpha: 0.65),
+                          Translator.t('dash_forecast')),
+                    ],
+                  ],
+                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -331,11 +351,13 @@ class DashboardViewMobile extends StatelessWidget {
 
     final spots = <FlSpot>[];
     final labels = <String>[];
+    final futureFlags = <bool>[];
 
     for (int i = 0; i < assetsHistory.length; i++) {
       spots.add(FlSpot(
           i.toDouble(), (assetsHistory[i]['value'] as num).toDouble()));
       labels.add(assetsHistory[i]['label'] as String);
+      futureFlags.add((assetsHistory[i]['isFuture'] as bool?) ?? false);
     }
 
     double minY = spots.first.y;
@@ -349,12 +371,35 @@ class DashboardViewMobile extends StatelessWidget {
     final lineColor = colors.chartAsset;
     final showLabelIndices = _computeLabelIndices(labels);
 
+    // Split the series at the last known (non-future) point so future
+    // transactions render as a dotted forecast continuation. The boundary
+    // point belongs to both series to keep the line continuous.
+    int boundary = -1;
+    for (int i = 0; i < futureFlags.length; i++) {
+      if (!futureFlags[i]) boundary = i;
+    }
+    final hasFuture = boundary >= 0 && boundary < spots.length - 1;
+    final solidSpots = hasFuture ? spots.sublist(0, boundary + 1) : spots;
+    final futureSpots = hasFuture ? spots.sublist(boundary) : <FlSpot>[];
+
     return LineChart(
       LineChartData(
         minX: 0,
         maxX: (spots.length - 1).toDouble(),
         minY: axis.min,
         maxY: axis.max,
+        extraLinesData: hasFuture
+            ? ExtraLinesData(
+                verticalLines: [
+                  VerticalLine(
+                    x: boundary.toDouble(),
+                    color: colors.textSecondary.withValues(alpha: 0.5),
+                    strokeWidth: 1,
+                    dashArray: [4, 4],
+                  ),
+                ],
+              )
+            : const ExtraLinesData(),
         lineTouchData: LineTouchData(
           touchTooltipData: LineTouchTooltipData(
             getTooltipItems: (spots) {
@@ -430,14 +475,14 @@ class DashboardViewMobile extends StatelessWidget {
         borderData: FlBorderData(show: false),
         lineBarsData: [
           LineChartBarData(
-            spots: spots,
+            spots: solidSpots,
             isCurved: true,
             preventCurveOverShooting: true,
             color: lineColor,
             barWidth: 2,
             isStrokeCapRound: true,
             dotData: FlDotData(
-              show: showLineDots && spots.length <= 12,
+              show: showLineDots && solidSpots.length <= 12,
               getDotPainter: (spot, pct, bar, idx) =>
                   FlDotCirclePainter(
                 radius: 3,
@@ -451,6 +496,18 @@ class DashboardViewMobile extends StatelessWidget {
               color: lineColor.withValues(alpha: 0.1),
             ),
           ),
+          if (hasFuture)
+            LineChartBarData(
+              spots: futureSpots,
+              isCurved: true,
+              preventCurveOverShooting: true,
+              color: lineColor.withValues(alpha: 0.65),
+              barWidth: 2,
+              isStrokeCapRound: true,
+              dashArray: [6, 4],
+              dotData: FlDotData(show: false),
+              belowBarData: BarAreaData(show: false),
+            ),
         ],
       ),
     );
@@ -465,6 +522,34 @@ class DashboardViewMobile extends StatelessWidget {
           decoration: BoxDecoration(
             color: color,
             borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(label,
+            style:
+                const TextStyle(fontSize: 12, color: Colors.grey)),
+      ],
+    );
+  }
+
+  Widget _buildForecastLegendDot(Color color, String label) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 14,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              for (int i = 0; i < 3; i++)
+                Container(
+                  width: 3,
+                  height: 3,
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(1.5),
+                  ),
+                ),
+            ],
           ),
         ),
         const SizedBox(width: 4),

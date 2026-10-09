@@ -1389,6 +1389,89 @@ void main() {
     });
   });
 
+  group('getAssetsHistory future forecast SQL', () {
+    test('detects future transactions beyond today', () async {
+      final now = DateTime.now();
+      final today = now.toIso8601String().substring(0, 10);
+      final descId = await seedTestDescription(db, userId, 'Income');
+
+      final futureDate = DateTime(now.year, now.month + 1, 10)
+          .toIso8601String()
+          .substring(0, 10);
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: descId,
+          date: futureDate, amount: 250, transactionType: 'income', currency: 'EUR');
+
+      final latest = await db.rawQuery('''
+        SELECT MAX(date) as latest FROM transactions
+        WHERE user_id = ? AND date > ?
+      ''', [userId, today]);
+
+      expect(latest.first['latest'], futureDate);
+    });
+
+    test('returns no future transactions when all dates are past', () async {
+      final now = DateTime.now();
+      final today = now.toIso8601String().substring(0, 10);
+      final descId = await seedTestDescription(db, userId, 'Income');
+
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: descId,
+          date: today, amount: 100, transactionType: 'income', currency: 'EUR');
+
+      final latest = await db.rawQuery('''
+        SELECT MAX(date) as latest FROM transactions
+        WHERE user_id = ? AND date > ?
+      ''', [userId, today]);
+
+      expect(latest.first['latest'], isNull);
+    });
+
+    test('future bucket accumulates future transactions only', () async {
+      final now = DateTime.now();
+      final descId = await seedTestDescription(db, userId, 'Income');
+
+      final pastDate = DateTime(now.year, now.month - 1, 15)
+          .toIso8601String()
+          .substring(0, 10);
+      final futureDate = DateTime(now.year, now.month + 1, 10)
+          .toIso8601String()
+          .substring(0, 10);
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: descId,
+          date: pastDate, amount: 1000, transactionType: 'income', currency: 'EUR');
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: descId,
+          date: futureDate, amount: 250, transactionType: 'income', currency: 'EUR');
+
+      // Old behavior: capped at the first of next month, future excluded.
+      final nowNextMonth = DateTime(now.year, now.month + 1, 1)
+          .toIso8601String()
+          .substring(0, 10);
+      final capped = await db.rawQuery('''
+        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
+                                 WHEN t.transaction_type = 'expense' THEN -t.amount
+                                 ELSE 0 END), 0) as total
+        FROM transactions t
+        WHERE t.date < ? AND t.user_id = ?
+      ''', [nowNextMonth, userId]);
+      expect((capped.first['total'] as num?)?.toDouble() ?? 0.0, 1000.0);
+
+      // New behavior: extended bound includes the future transaction.
+      final extendedBound = DateTime(now.year, now.month + 2, 1)
+          .toIso8601String()
+          .substring(0, 10);
+      final extended = await db.rawQuery('''
+        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
+                                 WHEN t.transaction_type = 'expense' THEN -t.amount
+                                 ELSE 0 END), 0) as total
+        FROM transactions t
+        WHERE t.date < ? AND t.user_id = ?
+      ''', [extendedBound, userId]);
+      expect((extended.first['total'] as num?)?.toDouble() ?? 0.0, 1250.0);
+    });
+  });
+
   // =========================================================================
   // getCurrentMonthDistribution
   // =========================================================================

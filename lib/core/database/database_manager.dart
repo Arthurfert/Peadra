@@ -2962,7 +2962,38 @@ void setUserId(String userId) {
       }
     }
 
-    final nowNextMonth = DateTime(now.year, now.month + 1, 1)
+    final today = now.toIso8601String().substring(0, 10);
+    final currentMonthStart = DateTime(now.year, now.month, 1);
+    // Future transactions extend the series as a forecast continuation.
+    // The extension is capped at 12 months beyond the current month so a
+    // far-future typo cannot stretch the chart.
+    DateTime lastBucketMonth = currentMonthStart;
+    String? latestFuture;
+    if (granularity == 'daily') {
+      final latestResult = await db.query(
+        'SELECT MAX(date) as latest FROM transactions WHERE user_id = ? AND is_deleted = 0 AND date > ?',
+        [_userId, today],
+      );
+      latestFuture = latestResult.first['latest'] as String?;
+    } else {
+      final firstNextMonth = DateTime(now.year, now.month + 1, 1)
+          .toIso8601String()
+          .substring(0, 10);
+      final latestResult = await db.query(
+        'SELECT MAX(date) as latest FROM transactions WHERE user_id = ? AND is_deleted = 0 AND date >= ?',
+        [_userId, firstNextMonth],
+      );
+      latestFuture = latestResult.first['latest'] as String?;
+      if (latestFuture != null) {
+        final lf = DateTime.parse(latestFuture);
+        var lfMonth = DateTime(lf.year, lf.month, 1);
+        final maxBucketMonth = DateTime(now.year, now.month + 12, 1);
+        if (lfMonth.isAfter(maxBucketMonth)) lfMonth = maxBucketMonth;
+        if (lfMonth.isAfter(lastBucketMonth)) lastBucketMonth = lfMonth;
+      }
+    }
+    final queryUpperBound = DateTime(
+            lastBucketMonth.year, lastBucketMonth.month + 1, 1)
         .toIso8601String()
         .substring(0, 10);
     final txnRows = await db.query(
@@ -2970,7 +3001,7 @@ void setUserId(String userId) {
       'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
       'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
       'WHERE t.date < ? AND t.user_id = ? AND t.is_deleted = 0',
-      [nowNextMonth, _userId],
+      [queryUpperBound, _userId],
     );
 
     final contributions = <(String, Decimal)>[];
@@ -2993,13 +3024,26 @@ void setUserId(String userId) {
     contributions.sort((a, b) => a.$1.compareTo(b.$1));
 
     if (granularity == 'daily') {
+      DateTime? extendThrough;
+      if (latestFuture != null) {
+        final lfDay = DateTime.parse(latestFuture);
+        final capDay =
+            DateTime(now.year, now.month, now.day).add(const Duration(days: 90));
+        extendThrough = lfDay.isAfter(capDay) ? capDay : lfDay;
+      }
       return _buildDailyAssetsHistory(
-          now, effectiveMonths, startingTotal, contributions);
+          now, effectiveMonths, startingTotal, contributions,
+          extendThrough: extendThrough);
     }
 
     final monthStarts = <DateTime>[];
     for (int i = effectiveMonths; i >= 1; i--) {
       monthStarts.add(DateTime(now.year, now.month - i + 1, 1));
+    }
+    var futureMonth = DateTime(now.year, now.month + 1, 1);
+    while (!futureMonth.isAfter(lastBucketMonth)) {
+      monthStarts.add(futureMonth);
+      futureMonth = DateTime(futureMonth.year, futureMonth.month + 1, 1);
     }
 
     final results = <Map<String, dynamic>>[];
@@ -3019,6 +3063,7 @@ void setUserId(String userId) {
         'month': month,
         'label': _getMonthLabel(month.month),
         'value': cumulative.toDouble(),
+        'isFuture': month.isAfter(currentMonthStart),
       });
     }
 
@@ -3119,6 +3164,7 @@ void setUserId(String userId) {
         'month': month,
         'label': _getMonthLabel(month.month),
         'value': cumulative.toDouble(),
+        'isFuture': false,
       });
       month = DateTime(month.year, month.month + 1, 1);
     }
@@ -3147,6 +3193,7 @@ void setUserId(String userId) {
         'label': day.day == 1 ? _getMonthLabel(day.month) : '',
         'tooltipLabel': '${day.day} ${_getMonthLabel(day.month)}',
         'value': cumulative.toDouble(),
+        'isFuture': false,
       });
       day = nextDay;
     }
@@ -3155,15 +3202,19 @@ void setUserId(String userId) {
 
   List<Map<String, dynamic>> _buildDailyAssetsHistory(
       DateTime now, int effectiveMonths, Decimal startingTotal,
-      List<(String, Decimal)> contributions) {
+      List<(String, Decimal)> contributions,
+      {DateTime? extendThrough}) {
     final startDate = DateTime(now.year, now.month - effectiveMonths + 1, 1);
-    final todayEnd = DateTime(now.year, now.month, now.day + 1);
+    final todayDate = DateTime(now.year, now.month, now.day);
+    final lastDay = (extendThrough != null && extendThrough.isAfter(todayDate))
+        ? extendThrough
+        : todayDate;
 
     final results = <Map<String, dynamic>>[];
     Decimal cumulative = startingTotal;
     int idx = 0;
     var day = startDate;
-    while (day.isBefore(todayEnd)) {
+    while (!day.isAfter(lastDay)) {
       final nextDay = DateTime(day.year, day.month, day.day + 1);
       final nextDayIso = nextDay.toIso8601String().substring(0, 10);
       while (idx < contributions.length &&
@@ -3176,6 +3227,7 @@ void setUserId(String userId) {
         'label': day.day == 1 ? _getMonthLabel(day.month) : '',
         'tooltipLabel': '${day.day} ${_getMonthLabel(day.month)}',
         'value': cumulative.toDouble(),
+        'isFuture': day.isAfter(todayDate),
       });
       day = nextDay;
     }

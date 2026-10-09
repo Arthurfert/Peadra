@@ -11,7 +11,7 @@
 
 - New "sakura" theme, with a soft pink acccent
 - Modern modals on mobile
-- Upcoming transactions in graphs (dotted lines)
+- Visualize upcoming transactions in graphs
 
 ### Fixes
 

@@ -2837,13 +2837,35 @@ void setUserId(String userId) {
   // ==================== DASHBOARD DATA ====================
 
   Future<List<Map<String, dynamic>>> getCashFlowData({int months = 6, String targetCurrency = 'EUR'}) async {
+    final db = await database;
     final now = DateTime.now();
     final startDate = DateTime(now.year, now.month - months + 1, 1)
         .toIso8601String()
         .substring(0, 10);
     final today = now.toIso8601String().substring(0, 10);
+    // Future months extend the chart as a forecast continuation, capped at
+    // 6 months beyond the current month so a far-future entry cannot stretch
+    // the chart. The custom-range variant stays bounded by design.
+    var endDate = today;
+    final latestResult = await db.query(
+      'SELECT MAX(date) as latest FROM transactions WHERE user_id = ? AND is_deleted = 0 AND date > ?',
+      [_userId, today],
+    );
+    final latestFuture = latestResult.first['latest'] as String?;
+    if (latestFuture != null) {
+      final lf = DateTime.parse(latestFuture);
+      var lfMonth = DateTime(lf.year, lf.month, 1);
+      final maxFutureMonth = DateTime(now.year, now.month + 6, 1);
+      if (lfMonth.isAfter(maxFutureMonth)) lfMonth = maxFutureMonth;
+      // End on the last day of that month so same-month future
+      // transactions are included too, not just future months.
+      final candidate = DateTime(lfMonth.year, lfMonth.month + 1, 0)
+          .toIso8601String()
+          .substring(0, 10);
+      if (candidate.compareTo(endDate) > 0) endDate = candidate;
+    }
     return _getCashFlowData(
-        startDate: startDate, endDate: today, targetCurrency: targetCurrency);
+        startDate: startDate, endDate: endDate, targetCurrency: targetCurrency);
   }
 
   Future<List<Map<String, dynamic>>> getCashFlowDataForRange(
@@ -2864,6 +2886,10 @@ void setUserId(String userId) {
       required String endDate,
       required String targetCurrency}) async {
     final db = await database;
+    final now = DateTime.now();
+    final currentMonthKey =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}';
+    final todayStr = now.toIso8601String().substring(0, 10);
     final rows = await db.query(
       'SELECT t.amount, t.transaction_type, t.date, '
       'd.name as description_name, '
@@ -2876,11 +2902,13 @@ void setUserId(String userId) {
     );
 
     final monthMap = <String, Map<String, Decimal>>{};
+    final futureMap = <String, Map<String, Decimal>>{};
     for (final r in rows) {
       final desc = await _decryptValue(r['description_name']);
       if (desc != null && _isTransferDescription(desc)) continue;
 
-      final monthKey = (r['date'] as String).substring(0, 7);
+      final dateStr = r['date'] as String;
+      final monthKey = dateStr.substring(0, 7);
       final type = r['transaction_type'] as String;
       final amount = await _decryptAmount(r['amount']);
       final txnCurrency = (r['currency'] as String?) ?? 'EUR';
@@ -2895,6 +2923,11 @@ void setUserId(String userId) {
 
       monthMap.putIfAbsent(monthKey, () => {});
       monthMap[monthKey]![type] = (monthMap[monthKey]![type] ?? Decimal.zero) + convertedAmount;
+      if (dateStr.compareTo(todayStr) > 0) {
+        futureMap.putIfAbsent(monthKey, () => {});
+        futureMap[monthKey]![type] =
+            (futureMap[monthKey]![type] ?? Decimal.zero) + convertedAmount;
+      }
     }
 
     final results = <Map<String, dynamic>>[];
@@ -2904,6 +2937,9 @@ void setUserId(String userId) {
           'month': entry.key,
           'type': typeEntry.key,
           'amount': typeEntry.value.toDouble(),
+          'futureAmount':
+              (futureMap[entry.key]?[typeEntry.key] ?? Decimal.zero).toDouble(),
+          'isFuture': entry.key.compareTo(currentMonthKey) > 0,
         });
       }
     }

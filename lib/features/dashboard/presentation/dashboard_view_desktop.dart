@@ -109,11 +109,8 @@ class DashboardViewDesktop extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              runSpacing: 8,
-              spacing: 12,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   Translator.t('dash_inflows_outflows'),
@@ -124,7 +121,6 @@ class DashboardViewDesktop extends StatelessWidget {
                   ),
                 ),
                 Row(
-                  mainAxisSize: MainAxisSize.min,
                   children: [
                     _buildLegendDot(colors.success,
                         Translator.t('dash_inflows')),
@@ -212,36 +208,57 @@ class DashboardViewDesktop extends StatelessWidget {
         cashFlowData.where((d) => d['type'] == 'income').toList();
 
     final months = <String>{};
-    for (final d in expenseData) {
-      months.add(d['month'] as String);
-    }
-    for (final d in incomeData) {
-      months.add(d['month'] as String);
+    final futureMonthSet = <String>{};
+    for (final d in [...expenseData, ...incomeData]) {
+      final m = d['month'] as String;
+      months.add(m);
+      if ((d['isFuture'] as bool?) ?? false) futureMonthSet.add(m);
     }
 
     final sortedMonths = months.toList()..sort();
-    final displayMonths = sortedMonths.length > 6
-        ? sortedMonths.sublist(sortedMonths.length - 6)
-        : sortedMonths;
+    // Keep the last 6 known months and append every future month after
+    // them, so upcoming transactions continue the chart as a forecast.
+    final pastMonths =
+        sortedMonths.where((m) => !futureMonthSet.contains(m)).toList();
+    final futureMonths =
+        sortedMonths.where((m) => futureMonthSet.contains(m)).toList();
+    final displayPast = pastMonths.length > 6
+        ? pastMonths.sublist(pastMonths.length - 6)
+        : pastMonths;
+    final displayMonths = [...displayPast, ...futureMonths];
     final displayMonthSet = displayMonths.toSet();
 
+    double futureOf(Map<String, dynamic> d) =>
+        (d['futureAmount'] as num?)?.toDouble() ?? 0.0;
+
     final expenseByMonth = <String, double>{};
+    final expenseFutureByMonth = <String, double>{};
     for (final d in expenseData) {
       final m = d['month'] as String;
       if (displayMonthSet.contains(m)) {
         expenseByMonth[m] =
             (expenseByMonth[m] ?? 0.0) + (d['amount'] as num).toDouble();
+        expenseFutureByMonth[m] =
+            (expenseFutureByMonth[m] ?? 0.0) + futureOf(d);
       }
     }
 
     final incomeByMonth = <String, double>{};
+    final incomeFutureByMonth = <String, double>{};
     for (final d in incomeData) {
       final m = d['month'] as String;
       if (displayMonthSet.contains(m)) {
         incomeByMonth[m] =
             (incomeByMonth[m] ?? 0.0) + (d['amount'] as num).toDouble();
+        incomeFutureByMonth[m] =
+            (incomeFutureByMonth[m] ?? 0.0) + futureOf(d);
       }
     }
+
+    bool monthHasForecast(String m) =>
+        futureMonthSet.contains(m) ||
+        (incomeFutureByMonth[m] ?? 0.0) > 0 ||
+        (expenseFutureByMonth[m] ?? 0.0) > 0;
 
     double maxY = 0.0;
     for (final m in displayMonths) {
@@ -262,19 +279,15 @@ class DashboardViewDesktop extends StatelessWidget {
         BarChartGroupData(
           x: i,
           barRods: [
-            BarChartRodData(
-              toY: income,
+            _buildFlowRod(
+              total: income,
+              future: incomeFutureByMonth[m] ?? 0.0,
               color: colors.success,
-              width: 12,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(4)),
             ),
-            BarChartRodData(
-              toY: expense,
+            _buildFlowRod(
+              total: expense,
+              future: expenseFutureByMonth[m] ?? 0.0,
               color: colors.error,
-              width: 12,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(4)),
             ),
           ],
         ),
@@ -293,8 +306,14 @@ class DashboardViewDesktop extends StatelessWidget {
               final label = rodIndex == 0
                   ? Translator.t('chart_incomes')
                   : Translator.t('chart_expenses');
+              final value = rodIndex == 0
+                  ? (incomeByMonth[m] ?? 0.0)
+                  : (expenseByMonth[m] ?? 0.0);
+              final title = monthHasForecast(m)
+                  ? '$m (${Translator.t('dash_forecast')})'
+                  : m;
               return BarTooltipItem(
-                '$m\n$label: ${rod.toY.toStringAsFixed(2)}',
+                '$title\n$label: ${value.toStringAsFixed(2)}',
                 const TextStyle(color: Colors.white, fontSize: 12),
               );
             },
@@ -552,6 +571,38 @@ class DashboardViewDesktop extends StatelessWidget {
         Text(label,
             style:
                 const TextStyle(fontSize: 12, color: Colors.grey)),
+      ],
+    );
+  }
+
+  /// Builds one inflow/outflow rod. When part of the month's amount comes
+  /// from future transactions, the rod is a full-height outline (rounded
+  /// corners, starting at the bottom) with the known portion repainted
+  /// solid inside it — mirroring the budget projected bars, so there is no
+  /// gap between the filled and outlined parts.
+  BarChartRodData _buildFlowRod({
+    required double total,
+    required double future,
+    required Color color,
+  }) {
+    const radius = BorderRadius.vertical(top: Radius.circular(4));
+    if (future <= 0) {
+      return BarChartRodData(
+        toY: total,
+        color: color,
+        width: 12,
+        borderRadius: radius,
+      );
+    }
+    final past = total - future;
+    return BarChartRodData(
+      toY: total,
+      color: Colors.transparent,
+      width: 12,
+      borderRadius: radius,
+      borderSide: BorderSide(color: color, width: 1.5),
+      rodStackItems: [
+        if (past > 0) BarChartRodStackItem(0, past, color),
       ],
     );
   }

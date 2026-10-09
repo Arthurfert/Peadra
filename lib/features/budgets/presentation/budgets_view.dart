@@ -449,7 +449,7 @@ class _BudgetsViewState extends State<BudgetsView> {
   }
 }
 
-/// Progress bar with a solid segment for the current value and a dashed
+/// Progress bar with a solid segment for the current value and an outlined
 /// segment projecting upcoming (future) transactions. The projection
 /// continues the solid bar and is clamped to the track: it never overflows.
 class _GoalBarPainter extends CustomPainter {
@@ -485,20 +485,36 @@ class _GoalBarPainter extends CustomPainter {
 
     final projectionEnd =
         w * min(1.0, solidRatio + max(0.0, upcoming));
-    const dashWidth = 6.0;
-    const gapWidth = 4.0;
-    var x = solidW + (solidW > 0 ? gapWidth : 0);
-    if (projectionEnd - x > 1) {
+    // The outline starts inside the solid fill so both read as a single
+    // continuous bar; the overlap is repainted with the solid color below.
+    // Without solid progress it starts from the beginning of the track.
+    const strokeWidth = 2.0;
+    const inset = strokeWidth / 2;
+    const overlap = 4.0;
+    final outlineStart = max(0.0, solidW > 0 ? solidW - overlap : 0.0);
+    if (projectionEnd - outlineStart > strokeWidth) {
       canvas.save();
       canvas.clipRRect(track);
-      final dashPaint = Paint()..color = color;
-      while (x < projectionEnd) {
-        final dw = min(dashWidth, projectionEnd - x);
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(Rect.fromLTWH(x, 0, dw, h), radius),
-          dashPaint,
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(
+            outlineStart + inset,
+            inset,
+            projectionEnd - outlineStart - strokeWidth,
+            h - strokeWidth,
+          ),
+          Radius.circular(h / 2 - inset),
+        ),
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = strokeWidth,
+      );
+      if (solidW > 0) {
+        canvas.drawRect(
+          Rect.fromLTWH(outlineStart, 0, solidW - outlineStart, h),
+          Paint()..color = color,
         );
-        x += dashWidth + gapWidth;
       }
       canvas.restore();
     }

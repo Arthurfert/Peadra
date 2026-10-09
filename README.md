@@ -117,7 +117,8 @@ Peadra/
 │   │   └── import_data/presentation/
 │   │       └── import_data_view.dart
 │   └── shared/widgets/
-│       └── peadra_notification.dart
+│       ├── peadra_notification.dart
+│       └── peadra_modal.dart          # Bottom-docked modals on phones, dialogs otherwise
 ├── android/                           # Android platform files
 ├── ios/                               # iOS platform files
 ├── linux/                             # Linux platform files

@@ -17,6 +17,21 @@ import 'storage/crdt_database_service.dart';
 import 'storage/secure_peer_storage.dart';
 import 'sync_runner.dart';
 
+/// Outcome of a sync attempt. Background triggers ignore it (failures are
+/// logged and retried on the next mDNS event), while manual triggers report
+/// it to the user instead of claiming success.
+enum SyncOutcome {
+  /// Data was exchanged (or was already up to date).
+  synced,
+
+  /// The device could not be reached (no known address, connection refused,
+  /// timeout…).
+  unreachable,
+
+  /// Anything else: missing peer record, exchange failure, manager stopped…
+  failed,
+}
+
 /// Orchestrates the offline P2P sync layer.
 ///
 /// Started after login (when the DB encryption key is in memory) and stopped
@@ -154,72 +169,97 @@ class SyncManager {
 
   /// Manual sync trigger from the peers list. Falls back to the freshest
   /// address seen via discovery when [host]/[port] are not supplied.
-  Future<void> syncNow(String peerId, {String? host, int? port}) async {
+  /// Unlike background syncs, a manual trigger bypasses the reconnect
+  /// cooldown and always reports its [SyncOutcome] to the caller.
+  Future<SyncOutcome> syncNow(String peerId, {String? host, int? port}) async {
     final resolved = _resolvePeerAddress(peerId, host: host, port: port);
-    await _syncPeer(
+    return _syncPeer(
       peerId,
       host: resolved.host,
       port: resolved.port,
+      manual: true,
     );
   }
 
   /// Re-shares the local database encryption key with an already-paired peer
   /// (after a password change re-derived the key). Updates both sides' stored
-  /// peer key and runs a regular sync in the same session.
-  Future<void> updatePeerKey(String peerId, {String? host, int? port}) async {
+  /// peer key and runs a regular sync in the same session. Reports the
+  /// [SyncOutcome] so manual triggers can surface failures to the user.
+  Future<SyncOutcome> updatePeerKey(String peerId,
+      {String? host, int? port}) async {
     final known = _knownPeers[peerId];
-    await _refreshPeerKey(
+    return _refreshPeerKey(
       peerId,
       host: host ?? known?.host,
       port: port ?? known?.port,
     );
   }
 
-  Future<void> _refreshPeerKey(String peerId, {String? host, int? port}) async {
+  Future<SyncOutcome> _refreshPeerKey(String peerId,
+      {String? host, int? port}) async {
     TrustedPeer? peer;
     try {
       peer = await peerStorage.getById(peerId);
     } catch (e) {
       LogService().warn('Key re-share with $peerId failed: $e');
-      return;
+      return SyncOutcome.failed;
     }
-    if (peer == null) return;
+    if (peer == null) {
+      LogService().warn('Key re-share with $peerId failed: unknown peer');
+      return SyncOutcome.failed;
+    }
     final resolved = _resolvePeerAddress(peerId, host: host, port: port);
     host = resolved.host;
     port = resolved.port;
-    if (host == null || port == null) return;
+    if (host == null || port == null) {
+      LogService()
+          .warn('Key re-share with ${peer.deviceName} failed: no known address');
+      return SyncOutcome.unreachable;
+    }
 
     SyncSession? session;
     try {
-      session = await client.connect(
-        host: host,
-        port: port,
-        nodeId: _nodeId!,
-        deviceName: _deviceName!,
-        peerNodeId: peer.peerId,
-        sharedSecret: peer.sharedSecret,
-      );
-      final remoteKey = await runKeyRefresh(
-        session: session,
-        localKey: await _localDbKeyBytes(),
-        isInitiator: true,
-      );
-      final watermark = await runSyncExchange(
-        session: session,
-        db: db,
-        since: peer.lastSyncHlc,
-        isInitiator: true,
-      );
-      await peerStorage.upsert(
-        peer.copyWith(
-          dbEncryptionKey: remoteKey,
-          lastSyncHlc: watermark,
-          lastSeen: _now(),
-        ),
-      );
+      try {
+        session = await client.connect(
+          host: host,
+          port: port,
+          nodeId: _nodeId!,
+          deviceName: _deviceName!,
+          peerNodeId: peer.peerId,
+          sharedSecret: peer.sharedSecret,
+        );
+      } catch (e) {
+        LogService().warn('Key re-share with ${peer.deviceName} failed: cannot connect to $host:$port ($e)');
+        return SyncOutcome.unreachable;
+      }
+      try {
+        final remoteKey = await runKeyRefresh(
+          session: session,
+          localKey: await _localDbKeyBytes(),
+          isInitiator: true,
+        );
+        final watermark = await runSyncExchange(
+          session: session,
+          db: db,
+          since: peer.lastSyncHlc,
+          isInitiator: true,
+        );
+        await peerStorage.upsert(
+          peer.copyWith(
+            dbEncryptionKey: remoteKey,
+            lastSyncHlc: watermark,
+            lastSeen: _now(),
+          ),
+        );
+      } catch (e) {
+        LogService().warn('Key re-share with ${peer.deviceName} failed during exchange: $e');
+        return SyncOutcome.failed;
+      }
       LogService().log('Key re-shared with ${peer.deviceName}');
+      return SyncOutcome.synced;
     } catch (e) {
       LogService().warn('Key re-share with ${peer.deviceName} failed: $e');
+      return SyncOutcome.failed;
     } finally {
       await session?.close();
     }
@@ -315,13 +355,16 @@ class SyncManager {
     }
   }
 
-  Future<void> _syncPeer(String peerId, {String? host, int? port}) async {
-    if (!_running) return;
+  Future<SyncOutcome> _syncPeer(String peerId,
+      {String? host, int? port, bool manual = false}) async {
+    if (!_running) return SyncOutcome.failed;
     final now = _now();
     final last = _lastAttempt[peerId];
-    if (last != null && now.difference(last) < reconnectCooldown) {
+    if (!manual &&
+        last != null &&
+        now.difference(last) < reconnectCooldown) {
       _scheduleCooldownRetry(peerId, host: host, port: port);
-      return;
+      return SyncOutcome.failed;
     }
     _lastAttempt[peerId] = now;
     final resolved = _resolvePeerAddress(peerId, host: host, port: port);
@@ -331,7 +374,7 @@ class SyncManager {
     _locks[peerId] = previous.then((_) => done.future);
     await previous;
     try {
-      await _doSync(peerId, host: resolved.host, port: resolved.port);
+      return await _doSync(peerId, host: resolved.host, port: resolved.port);
     } finally {
       done.complete();
     }
@@ -384,36 +427,56 @@ class SyncManager {
     });
   }
 
-  Future<void> _doSync(String peerId, {String? host, int? port}) async {
+  Future<SyncOutcome> _doSync(String peerId,
+      {String? host, int? port}) async {
     SyncSession? session;
     try {
       // Storage reads stay inside the try: a failing peer store (locked or
       // damaged keystore) must surface as a logged sync failure, never as an
       // unhandled async error.
       final peer = await peerStorage.getById(peerId);
-      if (peer == null) return;
-      if (host == null || port == null) return;
+      if (peer == null) {
+        LogService().warn('Sync with $peerId failed: unknown peer');
+        return SyncOutcome.failed;
+      }
+      if (host == null || port == null) {
+        LogService()
+            .warn('Sync with ${peer.deviceName} failed: no known address');
+        return SyncOutcome.unreachable;
+      }
 
-      session = await client.connect(
-        host: host,
-        port: port,
-        nodeId: _nodeId!,
-        deviceName: _deviceName!,
-        peerNodeId: peer.peerId,
-        sharedSecret: peer.sharedSecret,
-      );
-      final watermark = await runSyncExchange(
-        session: session,
-        db: db,
-        since: peer.lastSyncHlc,
-        isInitiator: true,
-      );
-      await peerStorage.upsert(
-        peer.copyWith(lastSyncHlc: watermark, lastSeen: _now()),
-      );
+      try {
+        session = await client.connect(
+          host: host,
+          port: port,
+          nodeId: _nodeId!,
+          deviceName: _deviceName!,
+          peerNodeId: peer.peerId,
+          sharedSecret: peer.sharedSecret,
+        );
+      } catch (e) {
+        LogService().warn('Sync with ${peer.deviceName} failed: cannot connect to $host:$port ($e)');
+        return SyncOutcome.unreachable;
+      }
+      try {
+        final watermark = await runSyncExchange(
+          session: session,
+          db: db,
+          since: peer.lastSyncHlc,
+          isInitiator: true,
+        );
+        await peerStorage.upsert(
+          peer.copyWith(lastSyncHlc: watermark, lastSeen: _now()),
+        );
+      } catch (e) {
+        LogService().warn('Sync with ${peer.deviceName} failed during exchange: $e');
+        return SyncOutcome.failed;
+      }
       LogService().log('Sync with ${peer.deviceName} complete');
+      return SyncOutcome.synced;
     } catch (e) {
       LogService().warn('Sync with $peerId failed: $e');
+      return SyncOutcome.failed;
     } finally {
       await session?.close();
     }

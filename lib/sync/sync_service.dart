@@ -152,18 +152,19 @@ class SyncService {
     );
   }
 
-  /// Manual sync trigger from the peers list.
-  Future<void> syncNow(String peerId, {String? host, int? port}) async {
-    final manager = _manager;
-    if (manager == null) return;
-    await manager.syncNow(peerId, host: host, port: port);
+  /// Manual sync trigger from the peers list. Reports the outcome instead
+  /// of silently succeeding when the device cannot be reached.
+  Future<SyncOutcome> syncNow(String peerId, {String? host, int? port}) async {
+    final manager = await ensureStarted();
+    return manager.syncNow(peerId, host: host, port: port);
   }
 
   /// Re-shares the database encryption key with a paired device after a local
-  /// password change re-derived the key.
-  Future<void> updatePeerKey(String peerId, {String? host, int? port}) async {
-    final manager = _manager;
-    if (manager == null) return;
-    await manager.updatePeerKey(peerId, host: host, port: port);
+  /// password change re-derived the key. Reports the outcome instead of
+  /// silently succeeding when the device cannot be reached.
+  Future<SyncOutcome> updatePeerKey(String peerId,
+      {String? host, int? port}) async {
+    final manager = await ensureStarted();
+    return manager.updatePeerKey(peerId, host: host, port: port);
   }
 }

@@ -1193,6 +1193,100 @@ void main() {
       expect(incomeRow['amount'], 3000.0);
     });
 
+    test('detects future months beyond today', () async {
+      final now = DateTime.now();
+      final today = now.toIso8601String().substring(0, 10);
+      final incomeId = await seedTestDescription(db, userId, 'Salary');
+
+      final futureDate = DateTime(now.year, now.month + 1, 10)
+          .toIso8601String()
+          .substring(0, 10);
+      final futureMonthKey = futureDate.substring(0, 7);
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: incomeId,
+          date: futureDate, amount: 750, transactionType: 'income', currency: 'EUR');
+
+      final latest = await db.rawQuery('''
+        SELECT MAX(date) as latest FROM transactions
+        WHERE user_id = ? AND date > ?
+      ''', [userId, today]);
+
+      expect(latest.first['latest'], futureDate);
+      expect(futureMonthKey.compareTo(today.substring(0, 7)) > 0, true);
+    });
+
+    test('future month bucket accumulates only future transactions', () async {
+      final now = DateTime.now();
+      final incomeId = await seedTestDescription(db, userId, 'Salary');
+
+      final pastDate = DateTime(now.year, now.month - 1, 15)
+          .toIso8601String()
+          .substring(0, 10);
+      final futureDate = DateTime(now.year, now.month + 1, 10)
+          .toIso8601String()
+          .substring(0, 10);
+      final futureMonthKey = futureDate.substring(0, 7);
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: incomeId,
+          date: pastDate, amount: 3000, transactionType: 'income', currency: 'EUR');
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: incomeId,
+          date: futureDate, amount: 750, transactionType: 'income', currency: 'EUR');
+
+      // Old behavior: capped at today, future month excluded.
+      final today = now.toIso8601String().substring(0, 10);
+      final capped = await db.rawQuery('''
+        SELECT strftime('%Y-%m', t.date) as month, SUM(t.amount) as amount
+        FROM transactions t
+        WHERE t.transaction_type = ? AND t.date <= ? AND t.user_id = ?
+        GROUP BY month
+      ''', ['income', today, userId]);
+      expect(capped.any((r) => r['month'] == futureMonthKey), false);
+
+      // New behavior: extended bound includes the future month bucket.
+      final extendedBound = DateTime(now.year, now.month + 2, 1)
+          .toIso8601String()
+          .substring(0, 10);
+      final extended = await db.rawQuery('''
+        SELECT strftime('%Y-%m', t.date) as month, SUM(t.amount) as amount
+        FROM transactions t
+        WHERE t.transaction_type = ? AND t.date < ? AND t.user_id = ?
+        GROUP BY month
+      ''', ['income', extendedBound, userId]);
+      final futureRow =
+          extended.firstWhere((r) => r['month'] == futureMonthKey);
+      expect(futureRow['amount'], 750.0);
+    });
+
+    test('splits same-month past and future portions', () async {
+      final now = DateTime.now();
+      final today = now.toIso8601String().substring(0, 10);
+      final incomeId = await seedTestDescription(db, userId, 'Salary');
+
+      final pastDate = now
+          .subtract(const Duration(days: 2))
+          .toIso8601String()
+          .substring(0, 10);
+      final futureDate =
+          now.add(const Duration(days: 2)).toIso8601String().substring(0, 10);
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: incomeId,
+          date: pastDate, amount: 1000, transactionType: 'income', currency: 'EUR');
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: incomeId,
+          date: futureDate, amount: 250, transactionType: 'income', currency: 'EUR');
+
+      final rows = await db.rawQuery('''
+        SELECT SUM(CASE WHEN t.date <= ? THEN t.amount ELSE 0 END) as past,
+               SUM(CASE WHEN t.date > ? THEN t.amount ELSE 0 END) as future
+        FROM transactions t
+        WHERE t.transaction_type = ? AND t.user_id = ?
+      ''', [today, today, 'income', userId]);
+
+      expect((rows.first['past'] as num?)?.toDouble() ?? 0.0, 1000.0);
+      expect((rows.first['future'] as num?)?.toDouble() ?? 0.0, 250.0);
+    });
+
     test('excludes transfer descriptions from cash flow', () async {
       final now = DateTime.now();
       final startDate = DateTime(now.year, now.month - 5, 1)
@@ -1386,6 +1480,89 @@ void main() {
       expect(values.length, totalDays);
       expect(values.first, 0.0); // no transactions before the income date
       expect(values.last, 400.0); // +500 income, -100 expense
+    });
+  });
+
+  group('getAssetsHistory future forecast SQL', () {
+    test('detects future transactions beyond today', () async {
+      final now = DateTime.now();
+      final today = now.toIso8601String().substring(0, 10);
+      final descId = await seedTestDescription(db, userId, 'Income');
+
+      final futureDate = DateTime(now.year, now.month + 1, 10)
+          .toIso8601String()
+          .substring(0, 10);
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: descId,
+          date: futureDate, amount: 250, transactionType: 'income', currency: 'EUR');
+
+      final latest = await db.rawQuery('''
+        SELECT MAX(date) as latest FROM transactions
+        WHERE user_id = ? AND date > ?
+      ''', [userId, today]);
+
+      expect(latest.first['latest'], futureDate);
+    });
+
+    test('returns no future transactions when all dates are past', () async {
+      final now = DateTime.now();
+      final today = now.toIso8601String().substring(0, 10);
+      final descId = await seedTestDescription(db, userId, 'Income');
+
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: descId,
+          date: today, amount: 100, transactionType: 'income', currency: 'EUR');
+
+      final latest = await db.rawQuery('''
+        SELECT MAX(date) as latest FROM transactions
+        WHERE user_id = ? AND date > ?
+      ''', [userId, today]);
+
+      expect(latest.first['latest'], isNull);
+    });
+
+    test('future bucket accumulates future transactions only', () async {
+      final now = DateTime.now();
+      final descId = await seedTestDescription(db, userId, 'Income');
+
+      final pastDate = DateTime(now.year, now.month - 1, 15)
+          .toIso8601String()
+          .substring(0, 10);
+      final futureDate = DateTime(now.year, now.month + 1, 10)
+          .toIso8601String()
+          .substring(0, 10);
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: descId,
+          date: pastDate, amount: 1000, transactionType: 'income', currency: 'EUR');
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: descId,
+          date: futureDate, amount: 250, transactionType: 'income', currency: 'EUR');
+
+      // Old behavior: capped at the first of next month, future excluded.
+      final nowNextMonth = DateTime(now.year, now.month + 1, 1)
+          .toIso8601String()
+          .substring(0, 10);
+      final capped = await db.rawQuery('''
+        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
+                                 WHEN t.transaction_type = 'expense' THEN -t.amount
+                                 ELSE 0 END), 0) as total
+        FROM transactions t
+        WHERE t.date < ? AND t.user_id = ?
+      ''', [nowNextMonth, userId]);
+      expect((capped.first['total'] as num?)?.toDouble() ?? 0.0, 1000.0);
+
+      // New behavior: extended bound includes the future transaction.
+      final extendedBound = DateTime(now.year, now.month + 2, 1)
+          .toIso8601String()
+          .substring(0, 10);
+      final extended = await db.rawQuery('''
+        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
+                                 WHEN t.transaction_type = 'expense' THEN -t.amount
+                                 ELSE 0 END), 0) as total
+        FROM transactions t
+        WHERE t.date < ? AND t.user_id = ?
+      ''', [extendedBound, userId]);
+      expect((extended.first['total'] as num?)?.toDouble() ?? 0.0, 1250.0);
     });
   });
 

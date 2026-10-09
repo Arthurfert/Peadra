@@ -11,11 +11,12 @@ import '../../../../core/providers/settings_provider.dart';
 import '../../../../core/providers/theme_provider.dart';
 import '../../../../core/services/currency_service.dart';
 import '../../../../core/theme/peadra_colors.dart';
+import '../../../../shared/widgets/peadra_modal.dart';
 
 /// Shows the create/edit goal dialog. Returns true when a goal was saved.
 Future<bool?> showGoalDialog(BuildContext context,
     {BudgetGoal? existing}) {
-  return showDialog<bool>(
+  return showPeadraModal<bool>(
     context: context,
     builder: (ctx) => _GoalDialog(existing: existing),
   );
@@ -223,8 +224,7 @@ class _GoalDialogState extends State<_GoalDialog> {
     final themeName = context.watch<ThemeProvider>().themeName;
     final colors = PeadraTheme.getColors(themeName);
 
-    return AlertDialog(
-      backgroundColor: colors.surface,
+    return PeadraModal(
       title: Text(
         _isEdit
             ? Translator.t('budget_edit_goal')

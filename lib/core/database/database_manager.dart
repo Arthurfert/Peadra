@@ -2837,13 +2837,35 @@ void setUserId(String userId) {
   // ==================== DASHBOARD DATA ====================
 
   Future<List<Map<String, dynamic>>> getCashFlowData({int months = 6, String targetCurrency = 'EUR'}) async {
+    final db = await database;
     final now = DateTime.now();
     final startDate = DateTime(now.year, now.month - months + 1, 1)
         .toIso8601String()
         .substring(0, 10);
     final today = now.toIso8601String().substring(0, 10);
+    // Future months extend the chart as a forecast continuation, capped at
+    // 6 months beyond the current month so a far-future entry cannot stretch
+    // the chart. The custom-range variant stays bounded by design.
+    var endDate = today;
+    final latestResult = await db.query(
+      'SELECT MAX(date) as latest FROM transactions WHERE user_id = ? AND is_deleted = 0 AND date > ?',
+      [_userId, today],
+    );
+    final latestFuture = latestResult.first['latest'] as String?;
+    if (latestFuture != null) {
+      final lf = DateTime.parse(latestFuture);
+      var lfMonth = DateTime(lf.year, lf.month, 1);
+      final maxFutureMonth = DateTime(now.year, now.month + 6, 1);
+      if (lfMonth.isAfter(maxFutureMonth)) lfMonth = maxFutureMonth;
+      // End on the last day of that month so same-month future
+      // transactions are included too, not just future months.
+      final candidate = DateTime(lfMonth.year, lfMonth.month + 1, 0)
+          .toIso8601String()
+          .substring(0, 10);
+      if (candidate.compareTo(endDate) > 0) endDate = candidate;
+    }
     return _getCashFlowData(
-        startDate: startDate, endDate: today, targetCurrency: targetCurrency);
+        startDate: startDate, endDate: endDate, targetCurrency: targetCurrency);
   }
 
   Future<List<Map<String, dynamic>>> getCashFlowDataForRange(
@@ -2864,6 +2886,10 @@ void setUserId(String userId) {
       required String endDate,
       required String targetCurrency}) async {
     final db = await database;
+    final now = DateTime.now();
+    final currentMonthKey =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}';
+    final todayStr = now.toIso8601String().substring(0, 10);
     final rows = await db.query(
       'SELECT t.amount, t.transaction_type, t.date, '
       'd.name as description_name, '
@@ -2876,11 +2902,13 @@ void setUserId(String userId) {
     );
 
     final monthMap = <String, Map<String, Decimal>>{};
+    final futureMap = <String, Map<String, Decimal>>{};
     for (final r in rows) {
       final desc = await _decryptValue(r['description_name']);
       if (desc != null && _isTransferDescription(desc)) continue;
 
-      final monthKey = (r['date'] as String).substring(0, 7);
+      final dateStr = r['date'] as String;
+      final monthKey = dateStr.substring(0, 7);
       final type = r['transaction_type'] as String;
       final amount = await _decryptAmount(r['amount']);
       final txnCurrency = (r['currency'] as String?) ?? 'EUR';
@@ -2895,6 +2923,11 @@ void setUserId(String userId) {
 
       monthMap.putIfAbsent(monthKey, () => {});
       monthMap[monthKey]![type] = (monthMap[monthKey]![type] ?? Decimal.zero) + convertedAmount;
+      if (dateStr.compareTo(todayStr) > 0) {
+        futureMap.putIfAbsent(monthKey, () => {});
+        futureMap[monthKey]![type] =
+            (futureMap[monthKey]![type] ?? Decimal.zero) + convertedAmount;
+      }
     }
 
     final results = <Map<String, dynamic>>[];
@@ -2904,6 +2937,9 @@ void setUserId(String userId) {
           'month': entry.key,
           'type': typeEntry.key,
           'amount': typeEntry.value.toDouble(),
+          'futureAmount':
+              (futureMap[entry.key]?[typeEntry.key] ?? Decimal.zero).toDouble(),
+          'isFuture': entry.key.compareTo(currentMonthKey) > 0,
         });
       }
     }
@@ -2962,7 +2998,38 @@ void setUserId(String userId) {
       }
     }
 
-    final nowNextMonth = DateTime(now.year, now.month + 1, 1)
+    final today = now.toIso8601String().substring(0, 10);
+    final currentMonthStart = DateTime(now.year, now.month, 1);
+    // Future transactions extend the series as a forecast continuation.
+    // The extension is capped at 12 months beyond the current month so a
+    // far-future typo cannot stretch the chart.
+    DateTime lastBucketMonth = currentMonthStart;
+    String? latestFuture;
+    if (granularity == 'daily') {
+      final latestResult = await db.query(
+        'SELECT MAX(date) as latest FROM transactions WHERE user_id = ? AND is_deleted = 0 AND date > ?',
+        [_userId, today],
+      );
+      latestFuture = latestResult.first['latest'] as String?;
+    } else {
+      final firstNextMonth = DateTime(now.year, now.month + 1, 1)
+          .toIso8601String()
+          .substring(0, 10);
+      final latestResult = await db.query(
+        'SELECT MAX(date) as latest FROM transactions WHERE user_id = ? AND is_deleted = 0 AND date >= ?',
+        [_userId, firstNextMonth],
+      );
+      latestFuture = latestResult.first['latest'] as String?;
+      if (latestFuture != null) {
+        final lf = DateTime.parse(latestFuture);
+        var lfMonth = DateTime(lf.year, lf.month, 1);
+        final maxBucketMonth = DateTime(now.year, now.month + 12, 1);
+        if (lfMonth.isAfter(maxBucketMonth)) lfMonth = maxBucketMonth;
+        if (lfMonth.isAfter(lastBucketMonth)) lastBucketMonth = lfMonth;
+      }
+    }
+    final queryUpperBound = DateTime(
+            lastBucketMonth.year, lastBucketMonth.month + 1, 1)
         .toIso8601String()
         .substring(0, 10);
     final txnRows = await db.query(
@@ -2970,7 +3037,7 @@ void setUserId(String userId) {
       'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
       'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
       'WHERE t.date < ? AND t.user_id = ? AND t.is_deleted = 0',
-      [nowNextMonth, _userId],
+      [queryUpperBound, _userId],
     );
 
     final contributions = <(String, Decimal)>[];
@@ -2993,13 +3060,26 @@ void setUserId(String userId) {
     contributions.sort((a, b) => a.$1.compareTo(b.$1));
 
     if (granularity == 'daily') {
+      DateTime? extendThrough;
+      if (latestFuture != null) {
+        final lfDay = DateTime.parse(latestFuture);
+        final capDay =
+            DateTime(now.year, now.month, now.day).add(const Duration(days: 90));
+        extendThrough = lfDay.isAfter(capDay) ? capDay : lfDay;
+      }
       return _buildDailyAssetsHistory(
-          now, effectiveMonths, startingTotal, contributions);
+          now, effectiveMonths, startingTotal, contributions,
+          extendThrough: extendThrough);
     }
 
     final monthStarts = <DateTime>[];
     for (int i = effectiveMonths; i >= 1; i--) {
       monthStarts.add(DateTime(now.year, now.month - i + 1, 1));
+    }
+    var futureMonth = DateTime(now.year, now.month + 1, 1);
+    while (!futureMonth.isAfter(lastBucketMonth)) {
+      monthStarts.add(futureMonth);
+      futureMonth = DateTime(futureMonth.year, futureMonth.month + 1, 1);
     }
 
     final results = <Map<String, dynamic>>[];
@@ -3019,6 +3099,7 @@ void setUserId(String userId) {
         'month': month,
         'label': _getMonthLabel(month.month),
         'value': cumulative.toDouble(),
+        'isFuture': month.isAfter(currentMonthStart),
       });
     }
 
@@ -3119,6 +3200,7 @@ void setUserId(String userId) {
         'month': month,
         'label': _getMonthLabel(month.month),
         'value': cumulative.toDouble(),
+        'isFuture': false,
       });
       month = DateTime(month.year, month.month + 1, 1);
     }
@@ -3147,6 +3229,7 @@ void setUserId(String userId) {
         'label': day.day == 1 ? _getMonthLabel(day.month) : '',
         'tooltipLabel': '${day.day} ${_getMonthLabel(day.month)}',
         'value': cumulative.toDouble(),
+        'isFuture': false,
       });
       day = nextDay;
     }
@@ -3155,15 +3238,19 @@ void setUserId(String userId) {
 
   List<Map<String, dynamic>> _buildDailyAssetsHistory(
       DateTime now, int effectiveMonths, Decimal startingTotal,
-      List<(String, Decimal)> contributions) {
+      List<(String, Decimal)> contributions,
+      {DateTime? extendThrough}) {
     final startDate = DateTime(now.year, now.month - effectiveMonths + 1, 1);
-    final todayEnd = DateTime(now.year, now.month, now.day + 1);
+    final todayDate = DateTime(now.year, now.month, now.day);
+    final lastDay = (extendThrough != null && extendThrough.isAfter(todayDate))
+        ? extendThrough
+        : todayDate;
 
     final results = <Map<String, dynamic>>[];
     Decimal cumulative = startingTotal;
     int idx = 0;
     var day = startDate;
-    while (day.isBefore(todayEnd)) {
+    while (!day.isAfter(lastDay)) {
       final nextDay = DateTime(day.year, day.month, day.day + 1);
       final nextDayIso = nextDay.toIso8601String().substring(0, 10);
       while (idx < contributions.length &&
@@ -3176,6 +3263,7 @@ void setUserId(String userId) {
         'label': day.day == 1 ? _getMonthLabel(day.month) : '',
         'tooltipLabel': '${day.day} ${_getMonthLabel(day.month)}',
         'value': cumulative.toDouble(),
+        'isFuture': day.isAfter(todayDate),
       });
       day = nextDay;
     }
@@ -3681,6 +3769,96 @@ void setUserId(String userId) {
     // transaction rows above are already native amounts; convert the total.
     final rate = await getExchangeRate(acctCurrency, targetCurrency);
     return balance * Decimal.parse((rate ?? 1.0).toString());
+  }
+
+  /// Net upcoming (strictly future-dated) value of [goal] in the goal's
+  /// currency, bounded by the goal's effective deadline (end of the month
+  /// for monthly goals). Returns zero once the deadline has passed.
+  ///
+  /// For tag goals this is the signed sum of matching future transactions;
+  /// for total/account goals it is the signed balance delta those future
+  /// transactions would produce. It can be negative (more expenses coming
+  /// than income); callers clamp it for display.
+  Future<Decimal> getGoalUpcomingValue(BudgetGoal goal,
+      {String? todayStr}) async {
+    final today = todayStr ??
+        DateTime.now().toIso8601String().substring(0, 10);
+    final end = goal.effectiveDeadline(today);
+    if (end.compareTo(today) <= 0) return Decimal.zero;
+    final targetCurrency =
+        goal.currency.isNotEmpty ? goal.currency : 'EUR';
+    final db = await database;
+
+    Future<Decimal> convert(Decimal amount, String fromCurrency) async {
+      if (amount == Decimal.zero) return Decimal.zero;
+      if (fromCurrency == targetCurrency) return amount;
+      final rate = await getExchangeRate(fromCurrency, targetCurrency);
+      return amount * Decimal.parse((rate ?? 1.0).toString());
+    }
+
+    Decimal signedOf(String type, Decimal amount) {
+      if (type == 'income') return amount;
+      if (type == 'expense') return -amount;
+      return Decimal.zero;
+    }
+
+    if (goal.isTotalAssets) {
+      final rows = await db.query(
+        'SELECT t.amount, t.transaction_type, '
+        'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
+        'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
+        'WHERE t.user_id = ? AND t.is_deleted = 0 AND t.date > ? AND t.date <= ?',
+        [_userId, today, end],
+      );
+      Decimal total = Decimal.zero;
+      for (final row in rows) {
+        final amount = await _decryptAmount(row['amount']);
+        final signed =
+            signedOf(row['transaction_type'] as String, amount);
+        total +=
+            await convert(signed, (row['currency'] as String?) ?? 'EUR');
+      }
+      return total;
+    }
+
+    if (goal.isAccount) {
+      if (goal.accountId == null) return Decimal.zero;
+      final acctRows = await db.query(
+        'SELECT currency FROM accounts WHERE id = ? AND user_id = ? AND is_deleted = 0',
+        [goal.accountId, _userId],
+      );
+      if (acctRows.isEmpty) return Decimal.zero;
+      final acctCurrency = (acctRows.first['currency'] as String?) ?? 'EUR';
+      final txnRows = await db.query(
+        'SELECT amount, transaction_type FROM transactions '
+        'WHERE account_id = ? AND user_id = ? AND is_deleted = 0 AND date > ? AND date <= ?',
+        [goal.accountId, _userId, today, end],
+      );
+      Decimal delta = Decimal.zero;
+      for (final row in txnRows) {
+        final amount = await _decryptAmount(row['amount']);
+        delta += signedOf(row['transaction_type'] as String, amount);
+      }
+      return convert(delta, acctCurrency);
+    }
+
+    final tagId = goal.tagId;
+    if (tagId == null || tagId.isEmpty) return Decimal.zero;
+    final type = goal.transactionType.isNotEmpty
+        ? goal.transactionType
+        : 'expense';
+    final rows = await db.query(
+      'SELECT amount, currency FROM transactions '
+      'WHERE tag_id = ? AND transaction_type = ? AND user_id = ? '
+      'AND is_deleted = 0 AND date > ? AND date <= ?',
+      [tagId, type, _userId, today, end],
+    );
+    Decimal total = Decimal.zero;
+    for (final row in rows) {
+      total += await convert(await _decryptAmount(row['amount']),
+          (row['currency'] as String?) ?? 'EUR');
+    }
+    return total;
   }
 
   // ==================== SETTINGS ====================

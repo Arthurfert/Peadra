@@ -27,7 +27,7 @@ class ThemeProvider extends ChangeNotifier {
       ? PeadraTheme.isSystemDark
       : !_lightThemes.contains(_themeName);
 
-  static const _lightThemes = {'light', 'summer', 'spring', 'high_contrast_light'};
+  static const _lightThemes = {'light', 'summer', 'spring', 'sakura', 'high_contrast_light'};
 
   ThemeMode get themeMode => _themeName == PeadraTheme.systemThemeName
       ? ThemeMode.system

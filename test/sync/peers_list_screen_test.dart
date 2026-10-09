@@ -7,6 +7,7 @@ import 'package:peadra/core/i18n/translator.dart';
 import 'package:peadra/core/providers/theme_provider.dart';
 import 'package:peadra/features/sync/presentation/peers_list_screen.dart';
 import 'package:peadra/sync/models/trusted_peer.dart';
+import 'package:peadra/sync/sync_manager.dart';
 
 TrustedPeer peer({
   String id = 'peer-1',
@@ -47,7 +48,10 @@ void main() {
     final synced = <String>[];
     await tester.pumpWidget(wrap(PeersListScreen(
       loadPeers: () async => [peer()],
-      syncPeer: (id) async => synced.add(id),
+      syncPeer: (id) async {
+        synced.add(id);
+        return SyncOutcome.synced;
+      },
     )));
     await tester.pumpAndSettle();
 
@@ -58,6 +62,77 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(synced, ['peer-1']);
+    expect(find.text(Translator.t('sync_sync_success')), findsOneWidget);
+    await drainNotifications(tester);
+  });
+
+  testWidgets('manual sync reports an unreachable device instead of success',
+      (tester) async {
+    await tester.pumpWidget(wrap(PeersListScreen(
+      loadPeers: () async => [peer()],
+      syncPeer: (_) async => SyncOutcome.unreachable,
+    )));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.sync));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+          Translator.t('sync_unreachable', params: {'name': 'Phone'})),
+      findsOneWidget,
+    );
+    expect(find.text(Translator.t('sync_sync_success')), findsNothing);
+    await drainNotifications(tester);
+  });
+
+  testWidgets('manual sync reports a failed exchange as an error',
+      (tester) async {
+    await tester.pumpWidget(wrap(PeersListScreen(
+      loadPeers: () async => [peer()],
+      syncPeer: (_) async => SyncOutcome.failed,
+    )));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.sync));
+    await tester.pumpAndSettle();
+
+    expect(find.text(Translator.t('sync_sync_failed')), findsOneWidget);
+    expect(find.text(Translator.t('sync_sync_success')), findsNothing);
+    await drainNotifications(tester);
+  });
+
+  testWidgets('key re-share reports success', (tester) async {
+    await tester.pumpWidget(wrap(PeersListScreen(
+      loadPeers: () async => [peer()],
+      updatePeerKey: (_) async => SyncOutcome.synced,
+    )));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.vpn_key_outlined));
+    await tester.pumpAndSettle();
+
+    expect(find.text(Translator.t('sync_reshare_success')), findsOneWidget);
+    await drainNotifications(tester);
+  });
+
+  testWidgets('key re-share reports an unreachable device instead of success',
+      (tester) async {
+    await tester.pumpWidget(wrap(PeersListScreen(
+      loadPeers: () async => [peer()],
+      updatePeerKey: (_) async => SyncOutcome.unreachable,
+    )));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.vpn_key_outlined));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+          Translator.t('sync_unreachable', params: {'name': 'Phone'})),
+      findsOneWidget,
+    );
+    expect(find.text(Translator.t('sync_reshare_success')), findsNothing);
     await drainNotifications(tester);
   });
 

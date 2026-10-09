@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
@@ -13,6 +14,7 @@ import '../../../core/providers/theme_provider.dart';
 import '../../../core/responsive/responsive_layout.dart';
 import '../../../core/services/currency_service.dart';
 import '../../../core/theme/peadra_colors.dart';
+import '../../../shared/widgets/peadra_modal.dart';
 import 'widgets/goal_dialog.dart';
 
 class BudgetsView extends StatefulWidget {
@@ -25,8 +27,10 @@ class BudgetsView extends StatefulWidget {
 class _GoalEntry {
   final BudgetGoal goal;
   final Decimal current;
+  final Decimal upcoming;
 
-  const _GoalEntry(this.goal, this.current);
+  _GoalEntry(this.goal, this.current, [Decimal? upcoming])
+      : upcoming = upcoming ?? Decimal.zero;
 }
 
 class _BudgetsViewState extends State<BudgetsView> {
@@ -66,12 +70,18 @@ class _BudgetsViewState extends State<BudgetsView> {
     final tags = results[2] as List<Tag>;
 
     final currents = <String, Decimal>{};
+    final upcomings = <String, Decimal>{};
     for (final goal in goals) {
       if (goal.id == null) continue;
       try {
         currents[goal.id!] = await _db.getGoalCurrentValue(goal);
       } catch (_) {
         currents[goal.id!] = Decimal.zero;
+      }
+      try {
+        upcomings[goal.id!] = await _db.getGoalUpcomingValue(goal);
+      } catch (_) {
+        upcomings[goal.id!] = Decimal.zero;
       }
     }
 
@@ -81,7 +91,9 @@ class _BudgetsViewState extends State<BudgetsView> {
         _tagsById = {for (final t in tags) if (t.id != null) t.id!: t};
         _entries = [
           for (final g in goals)
-            if (g.id != null) _GoalEntry(g, currents[g.id!] ?? Decimal.zero),
+            if (g.id != null)
+              _GoalEntry(g, currents[g.id!] ?? Decimal.zero,
+                  upcomings[g.id!] ?? Decimal.zero),
         ];
         _today = DateTime.now().toIso8601String().substring(0, 10);
         _loading = false;
@@ -123,10 +135,9 @@ class _BudgetsViewState extends State<BudgetsView> {
   Future<void> _confirmDelete(_GoalEntry entry) async {
     final colors =
         PeadraTheme.getColors(context.read<ThemeProvider>().themeName);
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showPeadraModal<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: colors.surface,
+      builder: (ctx) => PeadraModal(
         title: Text(Translator.t('budget_delete_goal'),
             style: TextStyle(color: colors.text)),
         content: Text(Translator.t('budget_delete_confirm'),
@@ -243,6 +254,11 @@ class _BudgetsViewState extends State<BudgetsView> {
     }
     final displayRatio = ratio.clamp(0.0, 1.0);
     final percent = (ratio * 100).toStringAsFixed(0);
+
+    double upcomingRatio = 0;
+    if (target > Decimal.zero && entry.upcoming > Decimal.zero) {
+      upcomingRatio = (entry.upcoming / target).toDouble();
+    }
 
     // Exceeded goals get a colored percentage: red when an expense goal
     // went over budget, green when an income/amount goal reached its target.
@@ -393,13 +409,15 @@ class _BudgetsViewState extends State<BudgetsView> {
               style: TextStyle(fontSize: 12, color: deadlineColor),
             ),
             const SizedBox(height: 12),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: LinearProgressIndicator(
-                value: displayRatio,
-                minHeight: 10,
-                backgroundColor: barColor.withValues(alpha: 0.2),
-                valueColor: AlwaysStoppedAnimation<Color>(barColor),
+            SizedBox(
+              height: 10,
+              width: double.infinity,
+              child: CustomPaint(
+                painter: _GoalBarPainter(
+                  color: barColor,
+                  current: displayRatio,
+                  upcoming: upcomingRatio,
+                ),
               ),
             ),
             const SizedBox(height: 8),
@@ -429,4 +447,82 @@ class _BudgetsViewState extends State<BudgetsView> {
       ),
     );
   }
+}
+
+/// Progress bar with a solid segment for the current value and an outlined
+/// segment projecting upcoming (future) transactions. The projection
+/// continues the solid bar and is clamped to the track: it never overflows.
+class _GoalBarPainter extends CustomPainter {
+  final Color color;
+  final double current;
+  final double upcoming;
+
+  const _GoalBarPainter({
+    required this.color,
+    required this.current,
+    required this.upcoming,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    if (w <= 0 || h <= 0) return;
+    final radius = Radius.circular(h / 2);
+    final track =
+        RRect.fromRectAndRadius(Offset.zero & size, radius);
+    canvas.drawRRect(
+        track, Paint()..color = color.withValues(alpha: 0.2));
+
+    final solidRatio = current.clamp(0.0, 1.0);
+    final solidW = w * solidRatio;
+    if (solidW > 0) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, solidW, h), radius),
+        Paint()..color = color,
+      );
+    }
+
+    final projectionEnd =
+        w * min(1.0, solidRatio + max(0.0, upcoming));
+    // The outline starts inside the solid fill so both read as a single
+    // continuous bar; the overlap is repainted with the solid color below.
+    // Without solid progress it starts from the beginning of the track.
+    const strokeWidth = 2.0;
+    const inset = strokeWidth / 2;
+    const overlap = 4.0;
+    final outlineStart = max(0.0, solidW > 0 ? solidW - overlap : 0.0);
+    if (projectionEnd - outlineStart > strokeWidth) {
+      canvas.save();
+      canvas.clipRRect(track);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(
+            outlineStart + inset,
+            inset,
+            projectionEnd - outlineStart - strokeWidth,
+            h - strokeWidth,
+          ),
+          Radius.circular(h / 2 - inset),
+        ),
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = strokeWidth,
+      );
+      if (solidW > 0) {
+        canvas.drawRect(
+          Rect.fromLTWH(outlineStart, 0, solidW - outlineStart, h),
+          Paint()..color = color,
+        );
+      }
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _GoalBarPainter old) =>
+      old.color != color ||
+      old.current != current ||
+      old.upcoming != upcoming;
 }

@@ -21,6 +21,7 @@ import '../../../core/services/currency_service.dart';
 import '../../../core/services/export_service.dart';
 import '../../../core/services/update_service.dart';
 import '../../../shared/widgets/peadra_notification.dart';
+import '../../../shared/widgets/peadra_modal.dart';
 import '../../../core/services/log_service.dart';
 import '../../import_data/presentation/import_data_view.dart';
 import '../../auth/presentation/login_view.dart';
@@ -454,6 +455,9 @@ class _ParametersViewState extends State<ParametersView> {
           DropdownMenuItem(
               value: 'summer',
               child: Text(Translator.t('param_summer_theme'))),
+          DropdownMenuItem(
+              value: 'sakura',
+              child: Text(Translator.t('param_sakura_theme'))),
           DropdownMenuItem(
               value: 'spring',
               child: Text(Translator.t('param_spring_theme'))),
@@ -954,10 +958,9 @@ class _ParametersViewState extends State<ParametersView> {
       return;
     }
 
-    showDialog(
+    showPeadraModal(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: colors.surface,
+      builder: (ctx) => PeadraModal(
         title: Text(Translator.t('param_switch_backup_title'),
             style: TextStyle(color: colors.text)),
         content: SizedBox(
@@ -1003,10 +1006,9 @@ class _ParametersViewState extends State<ParametersView> {
   void _confirmSwitchBackup(File backup, PeadraColors colors) {
     final fileName = backup.path.split(Platform.pathSeparator).last;
 
-    showDialog(
+    showPeadraModal(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: colors.surface,
+      builder: (ctx) => PeadraModal(
         title: Row(
           children: [
             Icon(Icons.warning, color: colors.warning),
@@ -1200,19 +1202,18 @@ class _ParametersViewState extends State<ParametersView> {
     final newPasswordController = TextEditingController();
     final confirmPasswordController = TextEditingController();
 
-    showDialog(
+    showPeadraModal(
       context: context,
       builder: (ctx) {
         bool obscureOld = true;
         bool obscureNew = true;
         bool obscureConfirm = true;
-        return StatefulBuilder(
-          builder: (ctx, setDialogState) {
-            return AlertDialog(
-              backgroundColor: colors.surface,
-              title: Text(Translator.t('param_change_password'),
-                  style: TextStyle(color: colors.text)),
-              content: SingleChildScrollView(
+        return PeadraModal(
+          title: Text(Translator.t('param_change_password'),
+              style: TextStyle(color: colors.text)),
+          content: StatefulBuilder(
+            builder: (ctx, setDialogState) {
+              return SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -1286,7 +1287,9 @@ class _ParametersViewState extends State<ParametersView> {
                     ),
                   ],
                 ),
-              ),
+              );
+            },
+          ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(ctx).pop(),
@@ -1332,8 +1335,6 @@ class _ParametersViewState extends State<ParametersView> {
                   child: Text(Translator.t('param_btn_save')),
                 ),
               ],
-            );
-          },
         );
       },
     );
@@ -1496,59 +1497,33 @@ class _ParametersViewState extends State<ParametersView> {
 
     String selectedId = accounts.first.id!;
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showPeadraModal<bool>(
       context: context,
       builder: (ctx) {
         String localSelected = selectedId;
-        return StatefulBuilder(
-          builder: (ctx, setDialogState) => AlertDialog(
-            backgroundColor: colors.surface,
-            title: Text('${Translator.t('btn_export')} CSV',
-                style: TextStyle(color: colors.text)),
-            content: DropdownButtonFormField<String>(
-              initialValue: localSelected,
-              isExpanded: true,
-              decoration: InputDecoration(
-                labelText: Translator.t('export_select_account'),
-                labelStyle: TextStyle(color: colors.placeholderColor),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                filled: true,
-                fillColor: colors.bg,
-              ),
-              dropdownColor: colors.surface,
-              style: TextStyle(color: colors.text),
-              items: accounts
-                  .map((a) => DropdownMenuItem(
-                        value: a.id,
-                        child: Text(a.name,
-                            overflow: TextOverflow.ellipsis),
-                      ))
-                  .toList(),
-              onChanged: (v) {
-                if (v != null) {
-                  setDialogState(() => localSelected = v);
-                  selectedId = v;
-                }
-              },
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(false),
-                child: Text(Translator.t('btn_cancel'),
-                    style: TextStyle(color: colors.textSecondary)),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.of(ctx).pop(true),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: colors.accent,
-                  foregroundColor: Colors.white,
-                ),
-                child: Text(Translator.t('btn_export')),
-              ),
-            ],
+        return PeadraModal(
+          title: Text('${Translator.t('btn_export')} CSV',
+              style: TextStyle(color: colors.text)),
+          content: _ExportAccountPicker(
+            accounts: accounts,
+            initialId: localSelected,
+            onChanged: (v) => selectedId = v,
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text(Translator.t('btn_cancel'),
+                  style: TextStyle(color: colors.textSecondary)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colors.accent,
+                foregroundColor: Colors.white,
+              ),
+              child: Text(Translator.t('btn_export')),
+            ),
+          ],
         );
       },
     );
@@ -1803,44 +1778,38 @@ class _ParametersViewState extends State<ParametersView> {
 
   void _showChangelogDialog(PeadraColors colors, UpdateInfo update) {
     final notes = update.releaseNotes;
-    showDialog(
+    showPeadraModal(
       context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: colors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 500, maxHeight: 500),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 8, 0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        '${update.version} - ${Translator.t('param_changelog_title')}',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: colors.text,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: Icon(Icons.close, color: colors.placeholderColor, size: 20),
-                      onPressed: () => Navigator.of(ctx).pop(),
-                    ),
-                  ],
+      builder: (ctx) => PeadraModal(
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                '${update.version} - ${Translator.t('param_changelog_title')}',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: colors.text,
                 ),
               ),
-              const Divider(),
-              Flexible(
-                child: notes.isNotEmpty
-                    ? Markdown(
-                        data: notes,
-                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                        selectable: true,
+            ),
+            IconButton(
+              icon: Icon(Icons.close,
+                  color: colors.placeholderColor, size: 20),
+              onPressed: () => Navigator.of(ctx).pop(),
+            ),
+          ],
+        ),
+        content: ConstrainedBox(
+          constraints:
+              const BoxConstraints(maxWidth: 500, maxHeight: 500),
+          child: SingleChildScrollView(
+            child: notes.isNotEmpty
+                ? Markdown(
+                    data: notes,
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.fromLTRB(4, 8, 4, 4),
+                    selectable: true,
                         styleSheet: MarkdownStyleSheet(
                           p: TextStyle(color: colors.text, fontSize: 14, height: 1.5),
                           h1: TextStyle(color: colors.text, fontSize: 22, fontWeight: FontWeight.bold),
@@ -1875,15 +1844,10 @@ class _ParametersViewState extends State<ParametersView> {
                           a: TextStyle(color: colors.accent, decoration: TextDecoration.underline),
                         ),
                       )
-                    : Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Text(
-                          Translator.t('param_changelog_empty'),
-                          style: TextStyle(color: colors.placeholderColor),
-                        ),
+                    : Text(
+                        Translator.t('param_changelog_empty'),
+                        style: TextStyle(color: colors.placeholderColor),
                       ),
-              ),
-            ],
           ),
         ),
       ),
@@ -1908,23 +1872,22 @@ class _ParametersViewState extends State<ParametersView> {
   void _showDeleteAccountDialog(PeadraColors colors) {
     final passwordController = TextEditingController();
 
-    showDialog(
+    showPeadraModal(
       context: context,
       builder: (ctx) {
         bool obscureDelete = true;
-        return StatefulBuilder(
-          builder: (ctx, setDialogState) {
-            return AlertDialog(
-              backgroundColor: colors.surface,
-              title: Row(
-                children: [
-                  Icon(Icons.warning, color: colors.error),
-                  const SizedBox(width: 8),
-                  Text(Translator.t('param_delete_confirm'),
-                      style: TextStyle(color: colors.error)),
-                ],
-              ),
-              content: SingleChildScrollView(
+        return PeadraModal(
+          title: Row(
+            children: [
+              Icon(Icons.warning, color: colors.error),
+              const SizedBox(width: 8),
+              Text(Translator.t('param_delete_confirm'),
+                  style: TextStyle(color: colors.error)),
+            ],
+          ),
+          content: StatefulBuilder(
+            builder: (ctx, setDialogState) {
+              return SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1953,13 +1916,15 @@ class _ParametersViewState extends State<ParametersView> {
                             obscureDelete ? Icons.visibility_off : Icons.visibility,
                             color: colors.placeholderColor,
                           ),
-                          onPressed: () => setDialogState(() => obscureDelete = !obscureDelete),
+                        onPressed: () => setDialogState(() => obscureDelete = !obscureDelete),
                         ),
                       ),
                     ),
                   ],
                 ),
-              ),
+              );
+            },
+          ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
@@ -2000,8 +1965,6 @@ class _ParametersViewState extends State<ParametersView> {
             child: Text(Translator.t('param_delete_confirm')),
           ),
         ],
-            );
-          },
         );
       },
     );
@@ -2009,3 +1972,59 @@ class _ParametersViewState extends State<ParametersView> {
 }
 
 enum _UpdateStatus { idle, checking, available, upToDate, error }
+
+class _ExportAccountPicker extends StatefulWidget {
+  final List<Account> accounts;
+  final String initialId;
+  final ValueChanged<String> onChanged;
+
+  const _ExportAccountPicker({
+    required this.accounts,
+    required this.initialId,
+    required this.onChanged,
+  });
+
+  @override
+  State<_ExportAccountPicker> createState() => _ExportAccountPickerState();
+}
+
+class _ExportAccountPickerState extends State<_ExportAccountPicker> {
+  late String _selectedId;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedId = widget.initialId;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final themeName = context.watch<ThemeProvider>().themeName;
+    final colors = PeadraTheme.getColors(themeName);
+    return DropdownButtonFormField<String>(
+      initialValue: _selectedId,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: Translator.t('export_select_account'),
+        labelStyle: TextStyle(color: colors.placeholderColor),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        filled: true,
+        fillColor: colors.bg,
+      ),
+      dropdownColor: colors.surface,
+      style: TextStyle(color: colors.text),
+      items: widget.accounts
+          .map((a) => DropdownMenuItem(
+                value: a.id,
+                child:
+                    Text(a.name, overflow: TextOverflow.ellipsis),
+              ))
+          .toList(),
+      onChanged: (v) {
+        if (v == null) return;
+        setState(() => _selectedId = v);
+        widget.onChanged(v);
+      },
+    );
+  }
+}

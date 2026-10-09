@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:peadra/core/database/database_manager.dart';
 import 'package:peadra/sync/models/sync_session_status.dart';
+import 'package:peadra/sync/sync_manager.dart';
 import 'package:peadra/sync/network/discovered_service.dart';
 import 'package:peadra/sync/network/sync_session.dart';
 import 'package:peadra/sync/security/auth_challenge.dart';
@@ -164,7 +165,7 @@ void main() {
 
     await expectLater(
       b.manager.syncNow(a.id, host: 'localhost', port: deadPort),
-      completes,
+      completion(SyncOutcome.unreachable),
     );
     expect(b.client.connectCount, 1);
 

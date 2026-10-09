@@ -17,6 +17,7 @@ import '../../../core/theme/peadra_colors.dart';
 import 'widgets/transaction_modal.dart';
 import 'recurring_view.dart';
 import '../../../shared/widgets/peadra_notification.dart';
+import '../../../shared/widgets/peadra_modal.dart';
 import '../../../shared/widgets/tag_chip.dart';
 import '../../../core/services/currency_service.dart';
 import '../../../core/responsive/responsive_layout.dart';
@@ -526,10 +527,9 @@ class _TransactionsViewState extends State<TransactionsView> {
     final colors = PeadraTheme.getColors(themeName);
 
     if (txn.recurringId != null) {
-      final scope = await showDialog<String>(
+      final scope = await showPeadraModal<String>(
         context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: colors.surface,
+        builder: (ctx) => PeadraModal(
           title: Text(Translator.t('rec_scope_title'),
               style: TextStyle(color: colors.text)),
           content: Text(Translator.t('rec_scope_message'),
@@ -571,10 +571,9 @@ class _TransactionsViewState extends State<TransactionsView> {
       return;
     }
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showPeadraModal<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: colors.surface,
+      builder: (ctx) => PeadraModal(
         title: Text(Translator.t('btn_delete'),
             style: TextStyle(color: colors.text)),
         content: Text(Translator.t('msg_confirm_delete'),
@@ -613,10 +612,9 @@ class _TransactionsViewState extends State<TransactionsView> {
 
     final colors =
         PeadraTheme.getColors(context.read<ThemeProvider>().themeName);
-    final scope = await showDialog<String>(
+    final scope = await showPeadraModal<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: colors.surface,
+      builder: (ctx) => PeadraModal(
         title: Text(Translator.t('rec_scope_title'),
             style: TextStyle(color: colors.text)),
         content: Text(Translator.t('rec_scope_message'),
@@ -863,7 +861,7 @@ class _TransactionsViewState extends State<TransactionsView> {
                           child: FittedBox(
                             fit: BoxFit.scaleDown,
                             child: Text(Translator.t('btn_edit'),
-                                maxLines: 1, softWrap: false, style: const TextStyle(fontSize: 13)),
+                                maxLines: 1, softWrap: false, style: TextStyle(fontSize: 13, color: colors.text)),
                           ),
                         ),
                       ),

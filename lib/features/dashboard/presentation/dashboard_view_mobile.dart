@@ -123,6 +123,8 @@ class DashboardViewMobile extends StatelessWidget {
   }
 
   Widget _buildTotalAssetsChart(PeadraColors colors) {
+    final hasFuture =
+        assetsHistory.any((e) => (e['isFuture'] as bool?) ?? false);
     return Card(
       color: colors.surface,
       shape:
@@ -132,8 +134,11 @@ class DashboardViewMobile extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              runSpacing: 8,
+              spacing: 12,
               children: [
                 Text(
                   Translator.t('dash_total_assets'),
@@ -143,8 +148,19 @@ class DashboardViewMobile extends StatelessWidget {
                     color: colors.text,
                   ),
                 ),
-                _buildLegendDot(colors.chartAsset,
-                    Translator.t('dash_total_assets')),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildLegendDot(colors.chartAsset,
+                        Translator.t('dash_total_assets')),
+                    if (hasFuture) ...[
+                      const SizedBox(width: 16),
+                      _buildForecastLegendDot(
+                          colors.chartAsset.withValues(alpha: 0.65),
+                          Translator.t('dash_forecast')),
+                    ],
+                  ],
+                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -172,34 +188,50 @@ class DashboardViewMobile extends StatelessWidget {
         cashFlowData.where((d) => d['type'] == 'income').toList();
 
     final months = <String>{};
-    for (final d in expenseData) {
-      months.add(d['month'] as String);
-    }
-    for (final d in incomeData) {
-      months.add(d['month'] as String);
+    final futureMonthSet = <String>{};
+    for (final d in [...expenseData, ...incomeData]) {
+      final m = d['month'] as String;
+      months.add(m);
+      if ((d['isFuture'] as bool?) ?? false) futureMonthSet.add(m);
     }
 
     final sortedMonths = months.toList()..sort();
-    final displayMonths = sortedMonths.length > 6
-        ? sortedMonths.sublist(sortedMonths.length - 6)
-        : sortedMonths;
+    // Keep the last 6 known months and append every future month after
+    // them, so upcoming transactions continue the chart as a forecast.
+    final pastMonths =
+        sortedMonths.where((m) => !futureMonthSet.contains(m)).toList();
+    final futureMonths =
+        sortedMonths.where((m) => futureMonthSet.contains(m)).toList();
+    final displayPast = pastMonths.length > 6
+        ? pastMonths.sublist(pastMonths.length - 6)
+        : pastMonths;
+    final displayMonths = [...displayPast, ...futureMonths];
     final displayMonthSet = displayMonths.toSet();
 
+    double futureOf(Map<String, dynamic> d) =>
+        (d['futureAmount'] as num?)?.toDouble() ?? 0.0;
+
     final expenseByMonth = <String, double>{};
+    final expenseFutureByMonth = <String, double>{};
     for (final d in expenseData) {
       final m = d['month'] as String;
       if (displayMonthSet.contains(m)) {
         expenseByMonth[m] =
             (expenseByMonth[m] ?? 0.0) + (d['amount'] as num).toDouble();
+        expenseFutureByMonth[m] =
+            (expenseFutureByMonth[m] ?? 0.0) + futureOf(d);
       }
     }
 
     final incomeByMonth = <String, double>{};
+    final incomeFutureByMonth = <String, double>{};
     for (final d in incomeData) {
       final m = d['month'] as String;
       if (displayMonthSet.contains(m)) {
         incomeByMonth[m] =
             (incomeByMonth[m] ?? 0.0) + (d['amount'] as num).toDouble();
+        incomeFutureByMonth[m] =
+            (incomeFutureByMonth[m] ?? 0.0) + futureOf(d);
       }
     }
 
@@ -222,19 +254,15 @@ class DashboardViewMobile extends StatelessWidget {
         BarChartGroupData(
           x: i,
           barRods: [
-            BarChartRodData(
-              toY: income,
+            _buildFlowRod(
+              total: income,
+              future: incomeFutureByMonth[m] ?? 0.0,
               color: colors.success,
-              width: 12,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(4)),
             ),
-            BarChartRodData(
-              toY: expense,
+            _buildFlowRod(
+              total: expense,
+              future: expenseFutureByMonth[m] ?? 0.0,
               color: colors.error,
-              width: 12,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(4)),
             ),
           ],
         ),
@@ -250,11 +278,27 @@ class DashboardViewMobile extends StatelessWidget {
           touchTooltipData: BarTouchTooltipData(
             getTooltipItem: (group, groupIndex, rod, rodIndex) {
               final m = displayMonths[group.x];
-              final label = rodIndex == 0
+              final isIncome = rodIndex == 0;
+              final label = isIncome
                   ? Translator.t('chart_incomes')
                   : Translator.t('chart_expenses');
+              final total = isIncome
+                  ? (incomeByMonth[m] ?? 0.0)
+                  : (expenseByMonth[m] ?? 0.0);
+              final future = isIncome
+                  ? (incomeFutureByMonth[m] ?? 0.0)
+                  : (expenseFutureByMonth[m] ?? 0.0);
+              if (future > 0) {
+                final current = total - future;
+                return BarTooltipItem(
+                  '$m (${Translator.t('dash_forecast')})\n'
+                  '$label: ${current.toStringAsFixed(2)}\n'
+                  '${Translator.t('dash_forecast')}: ${future.toStringAsFixed(2)}',
+                  const TextStyle(color: Colors.white, fontSize: 12),
+                );
+              }
               return BarTooltipItem(
-                '$m\n$label: ${rod.toY.toStringAsFixed(2)}',
+                '$m\n$label: ${total.toStringAsFixed(2)}',
                 const TextStyle(color: Colors.white, fontSize: 12),
               );
             },
@@ -331,11 +375,13 @@ class DashboardViewMobile extends StatelessWidget {
 
     final spots = <FlSpot>[];
     final labels = <String>[];
+    final futureFlags = <bool>[];
 
     for (int i = 0; i < assetsHistory.length; i++) {
       spots.add(FlSpot(
           i.toDouble(), (assetsHistory[i]['value'] as num).toDouble()));
       labels.add(assetsHistory[i]['label'] as String);
+      futureFlags.add((assetsHistory[i]['isFuture'] as bool?) ?? false);
     }
 
     double minY = spots.first.y;
@@ -349,12 +395,35 @@ class DashboardViewMobile extends StatelessWidget {
     final lineColor = colors.chartAsset;
     final showLabelIndices = _computeLabelIndices(labels);
 
+    // Split the series at the last known (non-future) point so future
+    // transactions render as a dotted forecast continuation. The boundary
+    // point belongs to both series to keep the line continuous.
+    int boundary = -1;
+    for (int i = 0; i < futureFlags.length; i++) {
+      if (!futureFlags[i]) boundary = i;
+    }
+    final hasFuture = boundary >= 0 && boundary < spots.length - 1;
+    final solidSpots = hasFuture ? spots.sublist(0, boundary + 1) : spots;
+    final futureSpots = hasFuture ? spots.sublist(boundary) : <FlSpot>[];
+
     return LineChart(
       LineChartData(
         minX: 0,
         maxX: (spots.length - 1).toDouble(),
         minY: axis.min,
         maxY: axis.max,
+        extraLinesData: hasFuture
+            ? ExtraLinesData(
+                verticalLines: [
+                  VerticalLine(
+                    x: boundary.toDouble(),
+                    color: colors.textSecondary.withValues(alpha: 0.5),
+                    strokeWidth: 1,
+                    dashArray: [4, 4],
+                  ),
+                ],
+              )
+            : const ExtraLinesData(),
         lineTouchData: LineTouchData(
           touchTooltipData: LineTouchTooltipData(
             getTooltipItems: (spots) {
@@ -430,14 +499,14 @@ class DashboardViewMobile extends StatelessWidget {
         borderData: FlBorderData(show: false),
         lineBarsData: [
           LineChartBarData(
-            spots: spots,
+            spots: solidSpots,
             isCurved: true,
             preventCurveOverShooting: true,
             color: lineColor,
             barWidth: 2,
             isStrokeCapRound: true,
             dotData: FlDotData(
-              show: showLineDots && spots.length <= 12,
+              show: showLineDots && solidSpots.length <= 12,
               getDotPainter: (spot, pct, bar, idx) =>
                   FlDotCirclePainter(
                 radius: 3,
@@ -451,6 +520,18 @@ class DashboardViewMobile extends StatelessWidget {
               color: lineColor.withValues(alpha: 0.1),
             ),
           ),
+          if (hasFuture)
+            LineChartBarData(
+              spots: futureSpots,
+              isCurved: true,
+              preventCurveOverShooting: true,
+              color: lineColor.withValues(alpha: 0.65),
+              barWidth: 2,
+              isStrokeCapRound: true,
+              dashArray: [6, 4],
+              dotData: FlDotData(show: false),
+              belowBarData: BarAreaData(show: false),
+            ),
         ],
       ),
     );
@@ -465,6 +546,66 @@ class DashboardViewMobile extends StatelessWidget {
           decoration: BoxDecoration(
             color: color,
             borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(label,
+            style:
+                const TextStyle(fontSize: 12, color: Colors.grey)),
+      ],
+    );
+  }
+
+  /// Builds one inflow/outflow rod. When part of the month's amount comes
+  /// from future transactions, the rod is a full-height outline (rounded
+  /// corners, starting at the bottom) with the known portion repainted
+  /// solid inside it — mirroring the budget projected bars, so there is no
+  /// gap between the filled and outlined parts.
+  BarChartRodData _buildFlowRod({
+    required double total,
+    required double future,
+    required Color color,
+  }) {
+    const radius = BorderRadius.vertical(top: Radius.circular(4));
+    if (future <= 0) {
+      return BarChartRodData(
+        toY: total,
+        color: color,
+        width: 12,
+        borderRadius: radius,
+      );
+    }
+    final past = total - future;
+    return BarChartRodData(
+      toY: total,
+      color: Colors.transparent,
+      width: 12,
+      borderRadius: radius,
+      borderSide: BorderSide(color: color, width: 1.5),
+      rodStackItems: [
+        if (past > 0) BarChartRodStackItem(0, past, color),
+      ],
+    );
+  }
+
+  Widget _buildForecastLegendDot(Color color, String label) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 14,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              for (int i = 0; i < 3; i++)
+                Container(
+                  width: 3,
+                  height: 3,
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(1.5),
+                  ),
+                ),
+            ],
           ),
         ),
         const SizedBox(width: 4),

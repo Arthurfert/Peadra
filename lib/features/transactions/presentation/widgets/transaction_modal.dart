@@ -14,6 +14,7 @@ import '../../../../core/models/recurring_transaction.dart';
 import '../../../../core/theme/peadra_colors.dart';
 import '../../../../core/services/currency_service.dart';
 import '../../../../core/responsive/responsive_layout.dart';
+import '../../../../shared/widgets/peadra_modal.dart';
 
 typedef OnTransactionSaved = void Function(Map<String, dynamic> data);
 
@@ -920,89 +921,14 @@ class _TransactionModalState extends State<TransactionModal> {
   }
 
   void _showCreateTagDialog(PeadraColors colors) {
-    final nameController = TextEditingController();
-    String selectedColor = '#1976D2';
-
-    final tagColors = PeadraTheme.presetColors;
-
-    showDialog(
+    showPeadraModal(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: colors.surface,
-          title: Text(Translator.t('tag_create'),
-              style: TextStyle(color: colors.text)),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextField(
-                  controller: nameController,
-                  maxLength: 50,
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    labelText: Translator.t('tag_name'),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8)),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(Translator.t('tag_color'),
-                    style: TextStyle(
-                        color: colors.text, fontWeight: FontWeight.w500)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: tagColors.map((c) {
-                    final isSelected = selectedColor == c;
-                    return GestureDetector(
-                      onTap: () => setDialogState(() => selectedColor = c),
-                      child: Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: Color(int.parse(c.replaceFirst('#', '0xFF'))),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: isSelected ? colors.text : Colors.transparent,
-                            width: 2,
-                          ),
-                        ),
-                        child: isSelected
-                            ? const Icon(Icons.check, color: Colors.white, size: 16)
-                            : null,
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(Translator.t('btn_cancel')),
-            ),
-            ElevatedButton(
-              onPressed: nameController.text.trim().isEmpty
-                  ? null
-                  : () async {
-                      final name = nameController.text.trim();
-                      final id = await _db.createTag(name: name, color: selectedColor);
-                      if (id != null && mounted) {
-                        await _loadTags();
-                        setState(() => _selectedTagId = id);
-                      }
-                      if (mounted) Navigator.pop(ctx);
-                    },
-              style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
-              child: Text(Translator.t('btn_save'),
-                  style: const TextStyle(color: Colors.white)),
-            ),
-          ],
-        ),
+      builder: (ctx) => _CreateTagDialog(
+        colors: colors,
+        onTagCreated: (id) async {
+          await _loadTags();
+          if (mounted) setState(() => _selectedTagId = id);
+        },
       ),
     );
   }
@@ -1021,5 +947,109 @@ class _TransactionModalState extends State<TransactionModal> {
       ),
     );
   }
+}
 
+class _CreateTagDialog extends StatefulWidget {
+  final PeadraColors colors;
+  final Future<void> Function(String id) onTagCreated;
+
+  const _CreateTagDialog({required this.colors, required this.onTagCreated});
+
+  @override
+  State<_CreateTagDialog> createState() => _CreateTagDialogState();
+}
+
+class _CreateTagDialogState extends State<_CreateTagDialog> {
+  final _db = DatabaseManager.instance;
+  final _nameController = TextEditingController();
+  String _selectedColor = '#1976D2';
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = widget.colors;
+    final tagColors = PeadraTheme.presetColors;
+
+    return PeadraModal(
+      title: Text(Translator.t('tag_create'),
+          style: TextStyle(color: colors.text)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _nameController,
+            maxLength: 50,
+            autofocus: true,
+            decoration: InputDecoration(
+              labelText: Translator.t('tag_name'),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(Translator.t('tag_color'),
+              style: TextStyle(
+                  color: colors.text, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: tagColors.map((c) {
+              final isSelected = _selectedColor == c;
+              return GestureDetector(
+                onTap: () => setState(() => _selectedColor = c),
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: Color(int.parse(c.replaceFirst('#', '0xFF'))),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isSelected ? colors.text : Colors.transparent,
+                      width: 2,
+                    ),
+                  ),
+                  child: isSelected
+                      ? const Icon(Icons.check, color: Colors.white, size: 16)
+                      : null,
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(Translator.t('btn_cancel')),
+        ),
+        ElevatedButton(
+          onPressed: _nameController.text.trim().isEmpty
+              ? null
+              : () async {
+                  final name = _nameController.text.trim();
+                  final id = await _db.createTag(
+                      name: name, color: _selectedColor);
+                  if (id != null) await widget.onTagCreated(id);
+                  if (mounted) Navigator.pop(context);
+                },
+          style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
+          child: Text(Translator.t('btn_save'),
+              style: const TextStyle(color: Colors.white)),
+        ),
+      ],
+    );
+  }
 }

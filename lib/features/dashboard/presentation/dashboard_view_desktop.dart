@@ -255,11 +255,6 @@ class DashboardViewDesktop extends StatelessWidget {
       }
     }
 
-    bool monthHasForecast(String m) =>
-        futureMonthSet.contains(m) ||
-        (incomeFutureByMonth[m] ?? 0.0) > 0 ||
-        (expenseFutureByMonth[m] ?? 0.0) > 0;
-
     double maxY = 0.0;
     for (final m in displayMonths) {
       final e = expenseByMonth[m] ?? 0.0;
@@ -303,17 +298,27 @@ class DashboardViewDesktop extends StatelessWidget {
           touchTooltipData: BarTouchTooltipData(
             getTooltipItem: (group, groupIndex, rod, rodIndex) {
               final m = displayMonths[group.x];
-              final label = rodIndex == 0
+              final isIncome = rodIndex == 0;
+              final label = isIncome
                   ? Translator.t('chart_incomes')
                   : Translator.t('chart_expenses');
-              final value = rodIndex == 0
+              final total = isIncome
                   ? (incomeByMonth[m] ?? 0.0)
                   : (expenseByMonth[m] ?? 0.0);
-              final title = monthHasForecast(m)
-                  ? '$m (${Translator.t('dash_forecast')})'
-                  : m;
+              final future = isIncome
+                  ? (incomeFutureByMonth[m] ?? 0.0)
+                  : (expenseFutureByMonth[m] ?? 0.0);
+              if (future > 0) {
+                final current = total - future;
+                return BarTooltipItem(
+                  '$m (${Translator.t('dash_forecast')})\n'
+                  '$label: ${current.toStringAsFixed(2)}\n'
+                  '${Translator.t('dash_forecast')}: ${future.toStringAsFixed(2)}',
+                  const TextStyle(color: Colors.white, fontSize: 12),
+                );
+              }
               return BarTooltipItem(
-                '$title\n$label: ${value.toStringAsFixed(2)}',
+                '$m\n$label: ${total.toStringAsFixed(2)}',
                 const TextStyle(color: Colors.white, fontSize: 12),
               );
             },

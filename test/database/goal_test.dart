@@ -140,6 +140,157 @@ void main() {
     expect(await db.getGoalCurrentValue(goal), Decimal.fromInt(30));
   });
 
+  test('upcoming tag value counts future transactions in window', () async {
+    final db = DatabaseManager.instance;
+    final tagId = await db.createTag(name: 'salary');
+    final now = DateTime.now();
+    final today = now.toIso8601String().substring(0, 10);
+    final start =
+        now.subtract(const Duration(days: 10)).toIso8601String().substring(0, 10);
+    final soon =
+        now.add(const Duration(days: 10)).toIso8601String().substring(0, 10);
+    final deadline =
+        now.add(const Duration(days: 300)).toIso8601String().substring(0, 10);
+    final beyond = now
+        .add(const Duration(days: 400))
+        .toIso8601String()
+        .substring(0, 10);
+
+    await db.addTransaction(
+      date: today,
+      description: 'Pay',
+      amount: Decimal.fromInt(100),
+      transactionType: 'income',
+      tagId: tagId,
+    );
+    await db.addTransaction(
+      date: soon,
+      description: 'Next pay',
+      amount: Decimal.fromInt(50),
+      transactionType: 'income',
+      tagId: tagId,
+    );
+    await db.addTransaction(
+      date: beyond,
+      description: 'Far pay',
+      amount: Decimal.fromInt(999),
+      transactionType: 'income',
+      tagId: tagId,
+    );
+
+    final id = await db.createGoal(
+      kind: BudgetGoal.kindTag,
+      tagId: tagId,
+      transactionType: 'income',
+      targetAmount: Decimal.fromInt(500),
+      currency: 'EUR',
+      period: BudgetGoal.periodCustom,
+      deadline: deadline,
+      startDate: start,
+    );
+    final goal = (await db.getGoals()).singleWhere((g) => g.id == id);
+    expect(await db.getGoalCurrentValue(goal), Decimal.fromInt(100));
+    expect(await db.getGoalUpcomingValue(goal), Decimal.fromInt(50));
+  });
+
+  test('upcoming total and account values', () async {
+    final db = DatabaseManager.instance;
+    final now = DateTime.now();
+    final today = now.toIso8601String().substring(0, 10);
+    final soon =
+        now.add(const Duration(days: 5)).toIso8601String().substring(0, 10);
+    final deadline =
+        now.add(const Duration(days: 300)).toIso8601String().substring(0, 10);
+
+    final a = await db.addAccount('A', '#4CAF50', 'checking', 'EUR',
+        startingAmount: Decimal.fromInt(100));
+    final b = await db.addAccount('B', '#2196F3', 'savings', 'EUR',
+        startingAmount: Decimal.zero);
+    await db.addTransaction(
+      date: today,
+      description: 'Pay',
+      amount: Decimal.fromInt(20),
+      transactionType: 'income',
+      accountId: a,
+    );
+    await db.addTransaction(
+      date: soon,
+      description: 'Bonus',
+      amount: Decimal.fromInt(25),
+      transactionType: 'income',
+      accountId: a,
+    );
+    await db.addTransaction(
+      date: soon,
+      description: 'Bill',
+      amount: Decimal.fromInt(40),
+      transactionType: 'expense',
+      accountId: a,
+    );
+    await db.addTransaction(
+      date: soon,
+      description: 'Other',
+      amount: Decimal.fromInt(777),
+      transactionType: 'income',
+      accountId: b,
+    );
+
+    final totalId = await db.createGoal(
+      kind: BudgetGoal.kindTotalAssets,
+      targetAmount: Decimal.fromInt(1000),
+      currency: 'EUR',
+      period: BudgetGoal.periodCustom,
+      deadline: deadline,
+    );
+    final totalGoal =
+        (await db.getGoals()).singleWhere((g) => g.id == totalId);
+    // +25 -40 +777 ahead.
+    expect(await db.getGoalUpcomingValue(totalGoal), Decimal.fromInt(762));
+
+    final acctId = await db.createGoal(
+      kind: BudgetGoal.kindAccount,
+      accountId: a,
+      targetAmount: Decimal.fromInt(1000),
+      currency: 'EUR',
+      period: BudgetGoal.periodCustom,
+      deadline: deadline,
+    );
+    final acctGoal =
+        (await db.getGoals()).singleWhere((g) => g.id == acctId);
+    // +25 -40 ahead on A only.
+    expect(await db.getGoalUpcomingValue(acctGoal), Decimal.fromInt(-15));
+  });
+
+  test('upcoming is zero once the deadline has passed', () async {
+    final db = DatabaseManager.instance;
+    final now = DateTime.now();
+    final soon =
+        now.add(const Duration(days: 5)).toIso8601String().substring(0, 10);
+    final past =
+        now.subtract(const Duration(days: 2)).toIso8601String().substring(0, 10);
+    final tagId = await db.createTag(name: 'food');
+    await db.addTransaction(
+      date: soon,
+      description: 'Groceries',
+      amount: Decimal.fromInt(30),
+      transactionType: 'expense',
+      tagId: tagId,
+    );
+
+    final id = await db.createGoal(
+      kind: BudgetGoal.kindTag,
+      tagId: tagId,
+      transactionType: 'expense',
+      targetAmount: Decimal.fromInt(200),
+      currency: 'EUR',
+      period: BudgetGoal.periodCustom,
+      deadline: past,
+    );
+    final goal = (await db.getGoals()).singleWhere((g) => g.id == id);
+    expect(goal.isOverdue(now.toIso8601String().substring(0, 10)), isTrue);
+    expect(await db.getGoalUpcomingValue(goal), Decimal.zero);
+  });
+
   test('custom tag goal uses its start/deadline window', () async {
     final db = DatabaseManager.instance;
     final tagId = await db.createTag(name: 'salary');

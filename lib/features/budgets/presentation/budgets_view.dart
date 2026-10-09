@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
@@ -26,8 +27,10 @@ class BudgetsView extends StatefulWidget {
 class _GoalEntry {
   final BudgetGoal goal;
   final Decimal current;
+  final Decimal upcoming;
 
-  const _GoalEntry(this.goal, this.current);
+  _GoalEntry(this.goal, this.current, [Decimal? upcoming])
+      : upcoming = upcoming ?? Decimal.zero;
 }
 
 class _BudgetsViewState extends State<BudgetsView> {
@@ -67,12 +70,18 @@ class _BudgetsViewState extends State<BudgetsView> {
     final tags = results[2] as List<Tag>;
 
     final currents = <String, Decimal>{};
+    final upcomings = <String, Decimal>{};
     for (final goal in goals) {
       if (goal.id == null) continue;
       try {
         currents[goal.id!] = await _db.getGoalCurrentValue(goal);
       } catch (_) {
         currents[goal.id!] = Decimal.zero;
+      }
+      try {
+        upcomings[goal.id!] = await _db.getGoalUpcomingValue(goal);
+      } catch (_) {
+        upcomings[goal.id!] = Decimal.zero;
       }
     }
 
@@ -82,7 +91,9 @@ class _BudgetsViewState extends State<BudgetsView> {
         _tagsById = {for (final t in tags) if (t.id != null) t.id!: t};
         _entries = [
           for (final g in goals)
-            if (g.id != null) _GoalEntry(g, currents[g.id!] ?? Decimal.zero),
+            if (g.id != null)
+              _GoalEntry(g, currents[g.id!] ?? Decimal.zero,
+                  upcomings[g.id!] ?? Decimal.zero),
         ];
         _today = DateTime.now().toIso8601String().substring(0, 10);
         _loading = false;
@@ -244,6 +255,11 @@ class _BudgetsViewState extends State<BudgetsView> {
     final displayRatio = ratio.clamp(0.0, 1.0);
     final percent = (ratio * 100).toStringAsFixed(0);
 
+    double upcomingRatio = 0;
+    if (target > Decimal.zero && entry.upcoming > Decimal.zero) {
+      upcomingRatio = (entry.upcoming / target).toDouble();
+    }
+
     // Exceeded goals get a colored percentage: red when an expense goal
     // went over budget, green when an income/amount goal reached its target.
     final bool hasTarget = target > Decimal.zero;
@@ -393,13 +409,15 @@ class _BudgetsViewState extends State<BudgetsView> {
               style: TextStyle(fontSize: 12, color: deadlineColor),
             ),
             const SizedBox(height: 12),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: LinearProgressIndicator(
-                value: displayRatio,
-                minHeight: 10,
-                backgroundColor: barColor.withValues(alpha: 0.2),
-                valueColor: AlwaysStoppedAnimation<Color>(barColor),
+            SizedBox(
+              height: 10,
+              width: double.infinity,
+              child: CustomPaint(
+                painter: _GoalBarPainter(
+                  color: barColor,
+                  current: displayRatio,
+                  upcoming: upcomingRatio,
+                ),
               ),
             ),
             const SizedBox(height: 8),
@@ -429,4 +447,66 @@ class _BudgetsViewState extends State<BudgetsView> {
       ),
     );
   }
+}
+
+/// Progress bar with a solid segment for the current value and a dashed
+/// segment projecting upcoming (future) transactions. The projection
+/// continues the solid bar and is clamped to the track: it never overflows.
+class _GoalBarPainter extends CustomPainter {
+  final Color color;
+  final double current;
+  final double upcoming;
+
+  const _GoalBarPainter({
+    required this.color,
+    required this.current,
+    required this.upcoming,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    if (w <= 0 || h <= 0) return;
+    final radius = Radius.circular(h / 2);
+    final track =
+        RRect.fromRectAndRadius(Offset.zero & size, radius);
+    canvas.drawRRect(
+        track, Paint()..color = color.withValues(alpha: 0.2));
+
+    final solidRatio = current.clamp(0.0, 1.0);
+    final solidW = w * solidRatio;
+    if (solidW > 0) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, solidW, h), radius),
+        Paint()..color = color,
+      );
+    }
+
+    final projectionEnd =
+        w * min(1.0, solidRatio + max(0.0, upcoming));
+    const dashWidth = 6.0;
+    const gapWidth = 4.0;
+    var x = solidW + (solidW > 0 ? gapWidth : 0);
+    if (projectionEnd - x > 1) {
+      canvas.save();
+      canvas.clipRRect(track);
+      final dashPaint = Paint()..color = color;
+      while (x < projectionEnd) {
+        final dw = min(dashWidth, projectionEnd - x);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(Rect.fromLTWH(x, 0, dw, h), radius),
+          dashPaint,
+        );
+        x += dashWidth + gapWidth;
+      }
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _GoalBarPainter old) =>
+      old.color != color ||
+      old.current != current ||
+      old.upcoming != upcoming;
 }

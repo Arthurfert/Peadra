@@ -3683,6 +3683,96 @@ void setUserId(String userId) {
     return balance * Decimal.parse((rate ?? 1.0).toString());
   }
 
+  /// Net upcoming (strictly future-dated) value of [goal] in the goal's
+  /// currency, bounded by the goal's effective deadline (end of the month
+  /// for monthly goals). Returns zero once the deadline has passed.
+  ///
+  /// For tag goals this is the signed sum of matching future transactions;
+  /// for total/account goals it is the signed balance delta those future
+  /// transactions would produce. It can be negative (more expenses coming
+  /// than income); callers clamp it for display.
+  Future<Decimal> getGoalUpcomingValue(BudgetGoal goal,
+      {String? todayStr}) async {
+    final today = todayStr ??
+        DateTime.now().toIso8601String().substring(0, 10);
+    final end = goal.effectiveDeadline(today);
+    if (end.compareTo(today) <= 0) return Decimal.zero;
+    final targetCurrency =
+        goal.currency.isNotEmpty ? goal.currency : 'EUR';
+    final db = await database;
+
+    Future<Decimal> convert(Decimal amount, String fromCurrency) async {
+      if (amount == Decimal.zero) return Decimal.zero;
+      if (fromCurrency == targetCurrency) return amount;
+      final rate = await getExchangeRate(fromCurrency, targetCurrency);
+      return amount * Decimal.parse((rate ?? 1.0).toString());
+    }
+
+    Decimal signedOf(String type, Decimal amount) {
+      if (type == 'income') return amount;
+      if (type == 'expense') return -amount;
+      return Decimal.zero;
+    }
+
+    if (goal.isTotalAssets) {
+      final rows = await db.query(
+        'SELECT t.amount, t.transaction_type, '
+        'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
+        'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
+        'WHERE t.user_id = ? AND t.is_deleted = 0 AND t.date > ? AND t.date <= ?',
+        [_userId, today, end],
+      );
+      Decimal total = Decimal.zero;
+      for (final row in rows) {
+        final amount = await _decryptAmount(row['amount']);
+        final signed =
+            signedOf(row['transaction_type'] as String, amount);
+        total +=
+            await convert(signed, (row['currency'] as String?) ?? 'EUR');
+      }
+      return total;
+    }
+
+    if (goal.isAccount) {
+      if (goal.accountId == null) return Decimal.zero;
+      final acctRows = await db.query(
+        'SELECT currency FROM accounts WHERE id = ? AND user_id = ? AND is_deleted = 0',
+        [goal.accountId, _userId],
+      );
+      if (acctRows.isEmpty) return Decimal.zero;
+      final acctCurrency = (acctRows.first['currency'] as String?) ?? 'EUR';
+      final txnRows = await db.query(
+        'SELECT amount, transaction_type FROM transactions '
+        'WHERE account_id = ? AND user_id = ? AND is_deleted = 0 AND date > ? AND date <= ?',
+        [goal.accountId, _userId, today, end],
+      );
+      Decimal delta = Decimal.zero;
+      for (final row in txnRows) {
+        final amount = await _decryptAmount(row['amount']);
+        delta += signedOf(row['transaction_type'] as String, amount);
+      }
+      return convert(delta, acctCurrency);
+    }
+
+    final tagId = goal.tagId;
+    if (tagId == null || tagId.isEmpty) return Decimal.zero;
+    final type = goal.transactionType.isNotEmpty
+        ? goal.transactionType
+        : 'expense';
+    final rows = await db.query(
+      'SELECT amount, currency FROM transactions '
+      'WHERE tag_id = ? AND transaction_type = ? AND user_id = ? '
+      'AND is_deleted = 0 AND date > ? AND date <= ?',
+      [tagId, type, _userId, today, end],
+    );
+    Decimal total = Decimal.zero;
+    for (final row in rows) {
+      total += await convert(await _decryptAmount(row['amount']),
+          (row['currency'] as String?) ?? 'EUR');
+    }
+    return total;
+  }
+
   // ==================== SETTINGS ====================
 
   Future<String?> getSetting(String key, {String? defaultValue}) async {

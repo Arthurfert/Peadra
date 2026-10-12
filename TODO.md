@@ -9,7 +9,7 @@
 
 ### New
 
-
+- You can now reorder the navigation bar to your convenience
 
 ### Fixes
 

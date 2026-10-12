@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../database/database_manager.dart';
 import '../services/log_service.dart';
 import '../utils/constants.dart';
+import '../utils/nav_views.dart';
 
 class SettingsProvider extends ChangeNotifier {
   int _displayLimit = defaultDisplayLimit;
@@ -15,6 +16,7 @@ class SettingsProvider extends ChangeNotifier {
   String _assetsGranularity = defaultAssetsGranularity;
   bool _showNavLabels = defaultShowNavLabels;
   bool _hideUpdateNotifications = defaultHideUpdateNotifications;
+  List<String> _navOrder = List.of(defaultNavOrder);
 
   int get displayLimit => _displayLimit;
   int get maxPieCategories => _maxPieCategories;
@@ -27,6 +29,10 @@ class SettingsProvider extends ChangeNotifier {
   String get assetsGranularity => _assetsGranularity;
   bool get showNavLabels => _showNavLabels;
   bool get hideUpdateNotifications => _hideUpdateNotifications;
+
+  /// Mobile navigation order: the first [mobileNavBarSlots] destinations
+  /// sit in the bottom bar, the rest behind the burger menu.
+  List<String> get navOrder => List.unmodifiable(_navOrder);
 
   Future<void> loadFromSettings(DatabaseManager db) async {
     _displayLimit = int.tryParse(
@@ -46,6 +52,8 @@ class SettingsProvider extends ChangeNotifier {
     _assetsGranularity = await db.getSetting('assets_granularity', defaultValue: defaultAssetsGranularity) ?? defaultAssetsGranularity;
     _showNavLabels = (await db.getSetting('show_nav_labels', defaultValue: defaultShowNavLabels.toString())) == 'true';
     _hideUpdateNotifications = (await db.getSetting('hide_update_notifications', defaultValue: defaultHideUpdateNotifications.toString())) == 'true';
+    _navOrder = parseNavOrder(await db.getSetting(
+        'nav_order', defaultValue: encodeNavOrder(defaultNavOrder)));
     notifyListeners();
   }
 
@@ -124,5 +132,19 @@ class SettingsProvider extends ChangeNotifier {
     await db.setSetting('hide_update_notifications', hide.toString());
     LogService().log('Hide update notifications set to $hide');
     notifyListeners();
+  }
+
+  /// Stores the mobile navigation order. An order that does not cover every
+  /// destination exactly once is ignored (the current order is kept).
+  Future<bool> setNavOrder(List<String> order, DatabaseManager db) async {
+    if (!isValidNavOrder(order)) {
+      LogService().warn('Ignoring incomplete navigation order: $order');
+      return false;
+    }
+    _navOrder = List.of(order);
+    await db.setSetting('nav_order', encodeNavOrder(order));
+    LogService().log('Navigation order set to ${_navOrder.join(',')}');
+    notifyListeners();
+    return true;
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/i18n/translator.dart';
 import '../../../core/theme/peadra_colors.dart';
+import '../../../core/utils/nav_views.dart';
 
 class DashboardShellMobile extends StatelessWidget {
   final int selectedIndex;
@@ -10,6 +11,12 @@ class DashboardShellMobile extends StatelessWidget {
   final ValueChanged<int> onNavTap;
   final VoidCallback onLogout;
   final bool showNavLabels;
+
+  /// Destinations in the user's chosen order. The first
+  /// [mobileNavBarSlots] are rendered in the bottom bar; the rest go into
+  /// the burger menu (which always occupies the last bar slot).
+  final List<NavView> navViews;
+
   final PeadraColors colors;
 
   const DashboardShellMobile({
@@ -20,8 +27,17 @@ class DashboardShellMobile extends StatelessWidget {
     required this.onNavTap,
     required this.onLogout,
     this.showNavLabels = false,
+    required this.navViews,
     required this.colors,
   });
+
+  List<NavView> get _orderedViews =>
+      navViews.isEmpty ? navViewsFor(defaultNavOrder) : navViews;
+
+  List<NavView> get _barViews =>
+      _orderedViews.take(mobileNavBarSlots).toList();
+
+  List<NavView> get _menuViews => _orderedViews.skip(mobileNavBarSlots).toList();
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +51,7 @@ class DashboardShellMobile extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(),
+      bottomNavigationBar: _buildBottomNav(context),
     );
   }
 
@@ -46,29 +62,31 @@ class DashboardShellMobile extends StatelessWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.account_balance_wallet_outlined),
-              title: Text(Translator.t('nav_accounts')),
-              onTap: () {
-                Navigator.pop(ctx);
-                onNavTap(3);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.settings_outlined),
-              title: Text(Translator.t('nav_settings')),
-              onTap: () {
-                Navigator.pop(ctx);
-                onNavTap(5);
-              },
-            ),
-          ],
-        ),
-      ),
+      builder: (ctx) {
+        final menuViews = _menuViews;
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: menuViews.isEmpty
+                ? [
+                    ListTile(
+                      title: Text(Translator.t('nav_menu')),
+                      enabled: false,
+                    ),
+                  ]
+                : menuViews
+                    .map((view) => ListTile(
+                          leading: Icon(view.iconOff, color: colors.text),
+                          title: Text(view.label),
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            onNavTap(view.viewIndex);
+                          },
+                        ))
+                    .toList(),
+          ),
+        );
+      },
     );
   }
 
@@ -76,28 +94,20 @@ class DashboardShellMobile extends StatelessWidget {
     return views[selectedIndex.clamp(0, views.length - 1)];
   }
 
-  Widget _buildBottomNav() {
-    final labels = showNavLabels
-        ? [
-            Translator.t('nav_dashboard'),
-            Translator.t('nav_transactions'),
-            Translator.t('nav_budgets'),
-            Translator.t('nav_categories'),
-            Translator.t('nav_menu'),
-          ]
-        : List.filled(5, '');
+  Widget _buildBottomNav(BuildContext context) {
+    final ordered = _orderedViews;
+    final barViews = _barViews;
+    final hasMenu = _menuViews.isNotEmpty;
 
-    // Accounts (3) and settings (5) live behind the burger menu, which
-    // stays highlighted while one of them is displayed. Categories is
-    // view index 4 but sits at nav position 3.
-    final currentIndex = switch (selectedIndex) {
-      0 || 1 || 2 => selectedIndex,
-      4 => 3,
-      _ => 4,
-    };
+    // Highlight the selected destination inside the bar, or the burger
+    // menu item when the selected view lives in it.
+    final selectedPosition =
+        ordered.indexWhere((v) => v.viewIndex == selectedIndex);
+    final currentIndex = selectedPosition >= 0 && selectedPosition < barViews.length
+        ? selectedPosition
+        : barViews.length;
 
-    return Builder(
-      builder: (context) => Container(
+    return Container(
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
@@ -106,13 +116,11 @@ class DashboardShellMobile extends StatelessWidget {
       child: BottomNavigationBar(
         currentIndex: currentIndex,
         onTap: (index) {
-          if (index == 4) {
+          final view = index < barViews.length ? barViews[index] : null;
+          if (view == null) {
             _showMenu(context);
-          } else if (index == 3) {
-            // Categories sits at nav position 3 (view index 4).
-            onNavTap(4);
           } else {
-            onNavTap(index);
+            onNavTap(view.viewIndex);
           }
         },
         type: BottomNavigationBarType.fixed,
@@ -122,33 +130,19 @@ class DashboardShellMobile extends StatelessWidget {
         selectedFontSize: showNavLabels ? 11 : 0,
         unselectedFontSize: showNavLabels ? 11 : 0,
         items: [
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.dashboard_outlined),
-            activeIcon: const Icon(Icons.dashboard),
-            label: labels[0],
-          ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.receipt_long_outlined),
-            activeIcon: const Icon(Icons.receipt_long),
-            label: labels[1],
-          ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.flag_outlined),
-            activeIcon: const Icon(Icons.flag),
-            label: labels[2],
-          ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.bubble_chart_outlined),
-            activeIcon: const Icon(Icons.bubble_chart),
-            label: labels[3],
-          ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.menu),
-            label: labels[4],
-          ),
+          for (final view in barViews)
+            BottomNavigationBarItem(
+              icon: Icon(view.iconOff),
+              activeIcon: Icon(view.iconOn),
+              label: showNavLabels ? view.label : '',
+            ),
+          if (hasMenu)
+            BottomNavigationBarItem(
+              icon: const Icon(Icons.menu),
+              label: showNavLabels ? Translator.t('nav_menu') : '',
+            ),
         ],
       ),
-    ),
     );
   }
 }

@@ -15,6 +15,7 @@ import '../../../core/providers/update_provider.dart';
 import '../../../core/database/database_manager.dart';
 import '../../../core/models/account.dart';
 import '../../../core/theme/peadra_colors.dart';
+import '../../../core/utils/nav_views.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/biometric_service.dart';
 import '../../../core/services/currency_service.dart';
@@ -125,6 +126,7 @@ class _ParametersViewState extends State<ParametersView> {
             _buildCurrencyTile(settings, colors),
             _buildThemeTile(colors),
             if (isPhone) _buildNavLabelsTile(settings, colors),
+            if (isPhone) _buildNavOrderTile(settings, colors),
           ], icon: Icons.settings),
           const SizedBox(height: 8),
           _buildSection(Translator.t('param_transactions'), colors, [
@@ -497,6 +499,147 @@ class _ParametersViewState extends State<ParametersView> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildNavOrderTile(SettingsProvider settings, PeadraColors colors) {
+    final firstNavViews = navViewsFor(settings.navOrder)
+        .take(mobileNavBarSlots)
+        .map((v) => v.label)
+        .join(', ');
+
+    return ListTile(
+      title: Text(Translator.t('param_nav_order'),
+          style: TextStyle(color: colors.text)),
+      subtitle: Text(
+        firstNavViews.isEmpty
+            ? Translator.t('param_nav_order_desc')
+            : '${Translator.t('param_nav_order_desc')}\n$firstNavViews',
+        style: TextStyle(color: colors.textSecondary, fontSize: 12),
+      ),
+      isThreeLine: true,
+      trailing: Icon(Icons.swap_vert, color: colors.accent),
+      onTap: () => _showNavOrderModal(settings, colors),
+    );
+  }
+
+  /// Lets the user drag the mobile destinations into their preferred order:
+  /// the first [mobileNavBarSlots] go into the bottom bar, the rest into the
+  /// burger menu.
+  void _showNavOrderModal(SettingsProvider settings, PeadraColors colors) {
+    showPeadraModal(
+      context: context,
+      builder: (ctx) {
+        // Working copy so a cancelled edit leaves the saved order untouched.
+        final order = List<String>.of(settings.navOrder);
+
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            final views = navViewsFor(order);
+            final barCount = mobileNavBarSlots;
+
+            void reset() =>
+                setModalState(() => order
+                  ..clear()
+                  ..addAll(defaultNavOrder));
+
+            return PeadraModal(
+              title: Text(Translator.t('param_nav_order'),
+                  style: TextStyle(color: colors.text)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    Translator.t('param_nav_order_hint'),
+                    style: TextStyle(
+                        color: colors.textSecondary, fontSize: 12, height: 1.4),
+                  ),
+                  const SizedBox(height: 12),
+                  ReorderableListView(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    buildDefaultDragHandles: false,
+                    // onReorderItem already reports newIndex relative to
+                    // the list without the dragged item.
+                    onReorderItem: (oldIndex, newIndex) {
+                      setModalState(() {
+                        final item = order.removeAt(oldIndex);
+                        order.insert(newIndex, item);
+                      });
+                    },
+                    children: [
+                      for (var i = 0; i < views.length; i++)
+                        ListTile(
+                          key: ValueKey(views[i].key),
+                          contentPadding: EdgeInsets.zero,
+                          leading: CircleAvatar(
+                            radius: 14,
+                            backgroundColor: i < barCount
+                                ? colors.accent
+                                : colors.placeholderColor,
+                            child: Text(
+                              '${i + 1}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          title: Text(views[i].label,
+                              style: TextStyle(color: colors.text)),
+                          subtitle: Text(
+                            i < barCount
+                                ? Translator.t('param_nav_order_bar')
+                                : Translator.t('param_nav_order_menu'),
+                            style: TextStyle(
+                                color: colors.textSecondary, fontSize: 11),
+                          ),
+                          trailing: ReorderableDragStartListener(
+                            index: i,
+                            child: Icon(Icons.drag_handle,
+                                color: colors.placeholderColor),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: reset,
+                    child: Text(Translator.t('param_nav_order_reset'),
+                        style: TextStyle(color: colors.textSecondary)),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: Text(Translator.t('btn_cancel'),
+                      style: TextStyle(color: colors.textSecondary)),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    final saved =
+                        await settings.setNavOrder(order, _db);
+                    if (!ctx.mounted) return;
+                    Navigator.of(ctx).pop();
+                    if (saved && mounted) {
+                      PeadraNotification.show(context,
+                          message: Translator.t('param_nav_order_saved'));
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colors.accent,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: Text(Translator.t('btn_save')),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 

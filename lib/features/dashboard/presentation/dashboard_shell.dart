@@ -14,6 +14,7 @@ import '../../../core/theme/peadra_colors.dart';
 import '../../../core/services/update_service.dart';
 import '../../../core/responsive/responsive_layout.dart';
 import '../../../core/database/database_manager.dart';
+import '../../../core/utils/nav_views.dart';
 import '../../../shared/widgets/peadra_modal.dart';
 import '../../../sync/sync_service.dart';
 import '../../auth/presentation/login_view.dart';
@@ -274,6 +275,7 @@ class _DashboardShellState extends State<DashboardShell> {
     final colors = PeadraTheme.getColors(themeName);
     final isDark = context.watch<ThemeProvider>().isDark;
     final showNavLabels = context.watch<SettingsProvider>().showNavLabels;
+    final navOrder = context.watch<SettingsProvider>().navOrder;
     final availableUpdate = context.watch<UpdateProvider>().availableUpdate;
     final hideUpdateNotifications =
         context.watch<SettingsProvider>().hideUpdateNotifications;
@@ -305,6 +307,7 @@ class _DashboardShellState extends State<DashboardShell> {
             onNavTap: _onNavTap,
             onLogout: _logout,
             showNavLabels: showNavLabels,
+            navViews: navViewsFor(navOrder),
             colors: colors,
           );
         }

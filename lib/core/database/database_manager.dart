@@ -2610,6 +2610,89 @@ void setUserId(String userId) {
     return {'income': income, 'expenses': expenses, 'balance': income - expenses};
   }
 
+  /// Lifetime totals used for the dashboard averages section.
+  ///
+  /// Same conventions as [getMonthlySummary]: checking accounts only
+  /// (plus orphan transactions), transfers excluded, past and present
+  /// transactions only. [months] counts calendar months from the first
+  /// recorded transaction to today (minimum 1).
+  Future<Map<String, dynamic>> getLifetimeStats({String targetCurrency = 'EUR'}) async {
+    final db = await database;
+    final now = DateTime.now();
+    final endDate = now.toIso8601String().substring(0, 10);
+
+    final firstDate = await getFirstTransactionDate();
+    int months = 1;
+    if (firstDate != null) {
+      final first = DateTime.parse(firstDate);
+      months = (now.year - first.year) * 12 + (now.month - first.month) + 1;
+      if (months < 1) months = 1;
+    }
+
+    final acctRows = await db.query(
+      'SELECT starting_amount, currency FROM accounts WHERE user_id = ? AND is_deleted = 0',
+      [_userId],
+    );
+    Decimal startingTotal = Decimal.zero;
+    for (final row in acctRows) {
+      final amount = await _decryptAmount(row['starting_amount']);
+      final acctCurrency = (row['currency'] as String?) ?? 'EUR';
+      if (amount == Decimal.zero) continue;
+      if (acctCurrency == targetCurrency) {
+        startingTotal += amount;
+      } else {
+        final rate = await getExchangeRate(acctCurrency, targetCurrency);
+        startingTotal += amount * Decimal.parse((rate ?? 1.0).toString());
+      }
+    }
+
+    final txnRows = await db.query(
+      'SELECT t.amount, t.transaction_type, t.account_id, '
+      'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency, a.type as account_type, '
+      'd.name as description_name '
+      'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
+      'LEFT JOIN descriptions d ON t.description_id = d.id AND d.is_deleted = 0 '
+      'WHERE t.date <= ? AND t.user_id = ? AND t.is_deleted = 0',
+      [endDate, _userId],
+    );
+
+    Decimal income = Decimal.zero;
+    Decimal expenses = Decimal.zero;
+    for (final row in txnRows) {
+      final accountType = row['account_type'] as String?;
+      final hasAccount = row['account_id'] != null;
+      if (accountType != 'checking' && hasAccount) continue;
+
+      final desc = await _decryptValue(row['description_name']);
+      if (desc != null && _isTransferDescription(desc)) continue;
+
+      final amount = await _decryptAmount(row['amount']);
+      final type = row['transaction_type'] as String;
+      final txnCurrency = (row['currency'] as String?) ?? 'EUR';
+
+      Decimal convertedAmount;
+      if (txnCurrency == targetCurrency) {
+        convertedAmount = amount;
+      } else {
+        final rate = await getExchangeRate(txnCurrency, targetCurrency);
+        convertedAmount = amount * Decimal.parse((rate ?? 1.0).toString());
+      }
+
+      if (type == 'income') {
+        income += convertedAmount;
+      } else if (type == 'expense') {
+        expenses += convertedAmount;
+      }
+    }
+    return {
+      'income': income,
+      'expenses': expenses,
+      'startingTotal': startingTotal,
+      'firstDate': firstDate,
+      'months': months,
+    };
+  }
+
   Future<List<Map<String, dynamic>>> getAccountsDistribution(
       {String targetCurrency = 'EUR', String? endDate}) async {
     final db = await database;

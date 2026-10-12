@@ -2567,4 +2567,77 @@ void main() {
       expect(rows[1]['total'], 500.0);
     });
   });
+
+  // =========================================================================
+  // Lifetime stats (dashboard averages section)
+  // =========================================================================
+  group('Lifetime stats SQL', () {
+    test('lifetime totals exclude future-dated transactions', () async {
+      final now = DateTime.now();
+      final today = now.toIso8601String().substring(0, 10);
+      final descId = await seedTestDescription(db, userId, 'Salary');
+
+      final pastDate = now
+          .subtract(const Duration(days: 10))
+          .toIso8601String()
+          .substring(0, 10);
+      final futureDate =
+          now.add(const Duration(days: 10)).toIso8601String().substring(0, 10);
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: descId,
+          date: pastDate, amount: 1000, transactionType: 'income', currency: 'EUR');
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: descId,
+          date: futureDate, amount: 9999, transactionType: 'income', currency: 'EUR');
+
+      final rows = await db.rawQuery('''
+        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
+                                 WHEN t.transaction_type = 'expense' THEN -t.amount
+                                 ELSE 0 END), 0) as total
+        FROM transactions t
+        WHERE t.date <= ? AND t.user_id = ?
+      ''', [today, userId]);
+
+      expect((rows.first['total'] as num?)?.toDouble() ?? 0.0, 1000.0);
+    });
+
+    test('lifetime totals only count checking accounts and orphans', () async {
+      final now = DateTime.now();
+      final today = now.toIso8601String().substring(0, 10);
+      final descId = await seedTestDescription(db, userId, 'Food');
+      final txnDate = now
+          .subtract(const Duration(days: 5))
+          .toIso8601String()
+          .substring(0, 10);
+
+      // accountIds[0] = checking, accountIds[1] = savings.
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[0], descriptionId: descId,
+          date: txnDate, amount: 100, transactionType: 'expense', currency: 'EUR');
+      await seedTestTransaction(db, userId,
+          accountId: accountIds[1], descriptionId: descId,
+          date: txnDate, amount: 500, transactionType: 'expense', currency: 'EUR');
+      await seedTestTransaction(db, userId,
+          descriptionId: descId,
+          date: txnDate, amount: 50, transactionType: 'expense', currency: 'EUR');
+
+      final rows = await db.rawQuery('''
+        SELECT t.amount, t.account_id, a.type as account_type
+        FROM transactions t
+        LEFT JOIN accounts a ON t.account_id = a.id
+        WHERE t.date <= ? AND t.user_id = ?
+      ''', [today, userId]);
+
+      // Same convention as DatabaseManager: skip non-checking accounts,
+      // but keep orphan transactions without an account.
+      double total = 0.0;
+      for (final row in rows) {
+        final accountType = row['account_type'] as String?;
+        final hasAccount = row['account_id'] != null;
+        if (accountType != 'checking' && hasAccount) continue;
+        total += (row['amount'] as num).toDouble();
+      }
+      expect(total, 150.0);
+    });
+  });
 }

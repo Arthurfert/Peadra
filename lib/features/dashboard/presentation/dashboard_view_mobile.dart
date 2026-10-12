@@ -29,6 +29,7 @@ class DashboardViewMobile extends StatelessWidget {
   final Widget expensePie;
   final Widget incomePie;
   final Widget assetsPie;
+  final Widget averageSection;
   final PeadraColors colors;
   final List<Map<String, dynamic>> cashFlowData;
   final List<Map<String, dynamic>> assetsHistory;
@@ -43,6 +44,7 @@ class DashboardViewMobile extends StatelessWidget {
     required this.expensePie,
     required this.incomePie,
     required this.assetsPie,
+    required this.averageSection,
     required this.colors,
     required this.cashFlowData,
     required this.assetsHistory,
@@ -73,6 +75,8 @@ class DashboardViewMobile extends StatelessWidget {
           incomePie,
           const SizedBox(height: 16),
           assetsPie,
+          const SizedBox(height: 24),
+          averageSection,
           const SizedBox(height: 80),
         ],
       ),

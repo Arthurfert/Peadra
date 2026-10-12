@@ -261,6 +261,8 @@ class Translator {
       'param_assets_daily': 'Daily',
       'param_nav_labels': 'Navigation labels',
       'param_nav_labels_desc': 'Show text below the navigation bar icons.',
+      'param_stat_subtitles': 'Stat card subtitles',
+      'param_stat_subtitles_desc': 'Show the small caption under stat card values.',
       'param_nav_order': 'Navigation order',
       'param_nav_order_desc': 'Reorder the views in the navigation bar.',
       'param_nav_order_hint': 'The first 4 views appear in the bar; the rest appear in the menu.',
@@ -756,6 +758,9 @@ class Translator {
       'param_nav_labels': 'Libell\u00e9s du menu',
       'param_nav_labels_desc':
           'Afficher le texte sous les ic\u00f4nes de la barre de navigation.',
+      'param_stat_subtitles': 'Sous-titres des cartes',
+      'param_stat_subtitles_desc':
+          'Afficher la petite l\u00e9gende sous les valeurs des cartes.',
       'param_nav_order': 'Ordre de navigation',
       'param_nav_order_desc': 'R\u00e9organisez les vues de la barre de navigation.',
       'param_nav_order_hint':
@@ -1251,6 +1256,8 @@ class Translator {
       'param_assets_daily': 'Diaria',
       'param_nav_labels': 'Etiquetas de navegación',
       'param_nav_labels_desc': 'Mostrar texto bajo los iconos de la barra de navegación.',
+      'param_stat_subtitles': 'Subtítulos de tarjetas',
+      'param_stat_subtitles_desc': 'Mostrar la pequeña leyenda bajo los valores de las tarjetas.',
       'param_nav_order': 'Orden de navegación',
       'param_nav_order_desc': 'Reordena las vistas de la barra de navegación.',
       'param_nav_order_hint':

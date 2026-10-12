@@ -127,6 +127,7 @@ class _ParametersViewState extends State<ParametersView> {
             _buildThemeTile(colors),
             if (isPhone) _buildNavLabelsTile(settings, colors),
             if (isPhone) _buildNavOrderTile(settings, colors),
+            _buildStatSubtitlesTile(settings, colors),
           ], icon: Icons.settings),
           const SizedBox(height: 8),
           _buildSection(Translator.t('param_transactions'), colors, [
@@ -499,6 +500,42 @@ class _ParametersViewState extends State<ParametersView> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildStatSubtitlesTile(SettingsProvider settings, PeadraColors colors) {
+    final isPhone = ResponsiveLayout.isPhone(context);
+
+    final toggle = Switch(
+      value: settings.showStatSubtitles,
+      onChanged: (value) => settings.setShowStatSubtitles(value, _db),
+      activeThumbColor: colors.accent,
+    );
+
+    if (isPhone) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(Translator.t('param_stat_subtitles'),
+                style: TextStyle(color: colors.text)),
+            const SizedBox(height: 4),
+            Text(Translator.t('param_stat_subtitles_desc'),
+                style: TextStyle(color: colors.textSecondary, fontSize: 12)),
+            const SizedBox(height: 12),
+            toggle,
+          ],
+        ),
+      );
+    }
+
+    return ListTile(
+      title: Text(Translator.t('param_stat_subtitles'),
+          style: TextStyle(color: colors.text)),
+      subtitle: Text(Translator.t('param_stat_subtitles_desc'),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
+      trailing: toggle,
     );
   }
 

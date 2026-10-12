@@ -11,6 +11,7 @@ const String defaultDashboardPieView = 'tags';
 const bool defaultLineChartDots = true;
 const String defaultAssetsGranularity = 'monthly';
 const bool defaultShowNavLabels = false;
+const bool defaultShowStatSubtitles = true;
 const bool defaultHideUpdateNotifications = false;
 
 const int globalSettingsUserId = 0;

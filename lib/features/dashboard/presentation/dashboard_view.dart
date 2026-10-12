@@ -380,6 +380,7 @@ class _DashboardViewState extends State<DashboardView> {
   Widget _buildStatCards(PeadraColors colors, String currency) {
     final currentIncome = _monthlySummary['income'] ?? Decimal.zero;
     final currentExpenses = _monthlySummary['expenses'] ?? Decimal.zero;
+    final showSubtitles = context.read<SettingsProvider>().showStatSubtitles;
 
     final balanceChange = _previousBalance > Decimal.zero
         ? (((_balance - _previousBalance) * Decimal.fromInt(100)) / _previousBalance).toDouble()
@@ -403,6 +404,7 @@ class _DashboardViewState extends State<DashboardView> {
         iconColor: colors.info,
         bgColor: colors.info.withValues(alpha: 0.15),
         colors: colors,
+        showSubtitle: showSubtitles,
         subtitle: Translator.t('dash_as_of_today'),
       ),
       _buildStatCard(
@@ -413,6 +415,7 @@ class _DashboardViewState extends State<DashboardView> {
         iconColor: colors.success,
         bgColor: colors.incomeBg,
         colors: colors,
+        showSubtitle: showSubtitles,
         subtitle: Translator.t('dash_this_month'),
       ),
       _buildStatCard(
@@ -424,6 +427,7 @@ class _DashboardViewState extends State<DashboardView> {
         bgColor: colors.expenseBg,
         colors: colors,
         invertChange: true,
+        showSubtitle: showSubtitles,
         subtitle: Translator.t('dash_this_month'),
       ),
       _buildStatCard(
@@ -434,6 +438,7 @@ class _DashboardViewState extends State<DashboardView> {
         iconColor: colors.savingsIcon,
         bgColor: colors.savingsBg,
         colors: colors,
+        showSubtitle: showSubtitles,
         subtitle: Translator.t('dash_as_of_today'),
       ),
     ];
@@ -452,6 +457,7 @@ class _DashboardViewState extends State<DashboardView> {
     final startingTotal =
         _lifetimeStats['startingTotal'] as Decimal? ?? Decimal.zero;
     final months = _lifetimeStats['months'] as int? ?? 1;
+    final showSubtitles = context.read<SettingsProvider>().showStatSubtitles;
 
     final totalGrowth = _totalAssets - startingTotal;
     final hasStartingCapital = startingTotal > Decimal.zero;
@@ -470,6 +476,7 @@ class _DashboardViewState extends State<DashboardView> {
         bgColor: colors.expenseBg,
         colors: colors,
         hideChange: true,
+        showSubtitle: showSubtitles,
         subtitle: Translator.t('dash_per_month'),
       ),
       _buildStatCard(
@@ -482,6 +489,7 @@ class _DashboardViewState extends State<DashboardView> {
         bgColor: colors.incomeBg,
         colors: colors,
         hideChange: true,
+        showSubtitle: showSubtitles,
         subtitle: Translator.t('dash_per_month'),
       ),
       _buildStatCard(
@@ -494,6 +502,7 @@ class _DashboardViewState extends State<DashboardView> {
         bgColor: colors.chartAsset.withValues(alpha: 0.12),
         colors: colors,
         hideChange: !hasStartingCapital,
+        showSubtitle: showSubtitles,
         subtitle: Translator.t('dash_per_month'),
       ),
       _buildStatCard(
@@ -505,6 +514,7 @@ class _DashboardViewState extends State<DashboardView> {
         bgColor: colors.info.withValues(alpha: 0.15),
         colors: colors,
         hideChange: !hasStartingCapital,
+        showSubtitle: showSubtitles,
         subtitle: Translator.t('dash_since_start'),
       ),
     ];
@@ -541,6 +551,7 @@ class _DashboardViewState extends State<DashboardView> {
     bool invertChange = false,
     bool hideChange = false,
     String? subtitle,
+    bool showSubtitle = true,
   }) {
     return Card(
       color: colors.surface,
@@ -591,21 +602,23 @@ class _DashboardViewState extends State<DashboardView> {
                 ),
               ),
             ),
-            const SizedBox(height: 2),
-            Text(
-              // Always reserve the subtitle line (non-breaking space when
-              // empty) so every card keeps the same height.
-              subtitle ?? '\u00A0',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 11,
-                color: colors.textSecondary,
+            if (showSubtitle) ...[
+              const SizedBox(height: 2),
+              Text(
+                // Always reserve the subtitle line (non-breaking space when
+                // empty) so every card keeps the same height.
+                subtitle ?? '\u00A0',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: colors.textSecondary,
+                ),
               ),
+            ],
+            ],
             ),
-          ],
         ),
-      ),
     );
   }
 

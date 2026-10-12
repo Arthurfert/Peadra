@@ -10,6 +10,8 @@
 ### New
 
 - You can now reorder the navigation bar to your convenience
+- New lifetime stats cards with means and growth
+- New stat card "subtitles" setting
 
 ### Fixes
 

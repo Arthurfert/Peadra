@@ -15,6 +15,7 @@ class SettingsProvider extends ChangeNotifier {
   bool _lineChartDots = defaultLineChartDots;
   String _assetsGranularity = defaultAssetsGranularity;
   bool _showNavLabels = defaultShowNavLabels;
+  bool _showStatSubtitles = defaultShowStatSubtitles;
   bool _hideUpdateNotifications = defaultHideUpdateNotifications;
   List<String> _navOrder = List.of(defaultNavOrder);
 
@@ -28,6 +29,7 @@ class SettingsProvider extends ChangeNotifier {
   bool get lineChartDots => _lineChartDots;
   String get assetsGranularity => _assetsGranularity;
   bool get showNavLabels => _showNavLabels;
+  bool get showStatSubtitles => _showStatSubtitles;
   bool get hideUpdateNotifications => _hideUpdateNotifications;
 
   /// Mobile navigation order: the first [mobileNavBarSlots] destinations
@@ -51,6 +53,7 @@ class SettingsProvider extends ChangeNotifier {
     _lineChartDots = (await db.getSetting('line_chart_dots', defaultValue: defaultLineChartDots.toString())) == 'true';
     _assetsGranularity = await db.getSetting('assets_granularity', defaultValue: defaultAssetsGranularity) ?? defaultAssetsGranularity;
     _showNavLabels = (await db.getSetting('show_nav_labels', defaultValue: defaultShowNavLabels.toString())) == 'true';
+    _showStatSubtitles = (await db.getSetting('show_stat_subtitles', defaultValue: defaultShowStatSubtitles.toString())) == 'true';
     _hideUpdateNotifications = (await db.getSetting('hide_update_notifications', defaultValue: defaultHideUpdateNotifications.toString())) == 'true';
     _navOrder = parseNavOrder(await db.getSetting(
         'nav_order', defaultValue: encodeNavOrder(defaultNavOrder)));
@@ -124,6 +127,13 @@ class SettingsProvider extends ChangeNotifier {
     _showNavLabels = show;
     await db.setSetting('show_nav_labels', show.toString());
     LogService().log('Show nav labels set to $show');
+    notifyListeners();
+  }
+
+  Future<void> setShowStatSubtitles(bool show, DatabaseManager db) async {
+    _showStatSubtitles = show;
+    await db.setSetting('show_stat_subtitles', show.toString());
+    LogService().log('Show stat subtitles set to $show');
     notifyListeners();
   }
 

@@ -30,6 +30,9 @@ class _CategoriesViewState extends State<CategoriesView> {
   bool _loading = true;
   int _selectedMonths = 6;
   StreamSubscription<void>? _remoteDataSub;
+  Map<String, Map<String, Map<String, double>>>? _spotsRef;
+  final Map<String, ({List<FlSpot> spots, List<String> labels, AxisScale axis})>
+      _spotsCache = {};
 
   @override
   void initState() {
@@ -86,20 +89,10 @@ class _CategoriesViewState extends State<CategoriesView> {
 
     if (mounted) {
       setState(() {
-        if (isTagMode) {
-          _topExpenses = results[0] as List<Map<String, dynamic>>;
-          _topIncomes = results[1] as List<Map<String, dynamic>>;
-          _monthlyData = {};
-          // Convert tag monthly data to the same format
-          final tagMonthly = results[2] as Map<String, Map<String, Map<String, double>>>;
-          for (final entry in tagMonthly.entries) {
-            _monthlyData[entry.key] = entry.value;
-          }
-        } else {
-          _topExpenses = results[0] as List<Map<String, dynamic>>;
-          _topIncomes = results[1] as List<Map<String, dynamic>>;
-          _monthlyData = results[2] as Map<String, Map<String, Map<String, double>>>;
-        }
+        _topExpenses = results[0] as List<Map<String, dynamic>>;
+        _topIncomes = results[1] as List<Map<String, dynamic>>;
+        _monthlyData =
+            results[2] as Map<String, Map<String, Map<String, double>>>;
         _loading = false;
       });
     }
@@ -117,79 +110,7 @@ class _CategoriesViewState extends State<CategoriesView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (isPhone) ...[
-            Text(
-              Translator.t('nav_categories'),
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: colors.text,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                _buildToolButton(
-                  icon: Icons.merge,
-                  label: Translator.t('cat_merge_descriptions'),
-                  colors: colors,
-                  onPressed: () => _showMergeDialog(colors),
-                ),
-                const SizedBox(width: 8),
-                _buildToolButton(
-                  icon: Icons.edit,
-                  label: Translator.t('cat_rename_description'),
-                  colors: colors,
-                  onPressed: () => _showRenameDialog(colors),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            _buildToolButton(
-              icon: Icons.label,
-              label: Translator.t('tag_manage'),
-              colors: colors,
-              onPressed: () => _showManageTagsDialog(colors),
-            ),
-            const SizedBox(height: 12),
-            _buildTimeFilterButtons(colors),
-          ] else ...[
-            Row(
-              children: [
-                Text(
-                  Translator.t('nav_categories'),
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: colors.text,
-                  ),
-                ),
-                const Spacer(),
-                _buildToolButton(
-                  icon: Icons.label,
-                  label: Translator.t('tag_manage'),
-                  colors: colors,
-                  onPressed: () => _showManageTagsDialog(colors),
-                ),
-                const SizedBox(width: 8),
-                _buildToolButton(
-                  icon: Icons.merge,
-                  label: Translator.t('cat_merge_descriptions'),
-                  colors: colors,
-                  onPressed: () => _showMergeDialog(colors),
-                ),
-                const SizedBox(width: 8),
-                _buildToolButton(
-                  icon: Icons.edit,
-                  label: Translator.t('cat_rename_description'),
-                  colors: colors,
-                  onPressed: () => _showRenameDialog(colors),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _buildTimeFilterButtons(colors),
-          ],
+          _buildToolbar(isPhone, colors),
           const SizedBox(height: 16),
           Expanded(
             child: _loading
@@ -217,6 +138,73 @@ class _CategoriesViewState extends State<CategoriesView> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildToolbar(bool isPhone, PeadraColors colors) {
+    final title = Text(
+      Translator.t('nav_categories'),
+      style: TextStyle(
+        fontSize: 28,
+        fontWeight: FontWeight.bold,
+        color: colors.text,
+      ),
+    );
+    final manageTags = _buildToolButton(
+      icon: Icons.label,
+      label: Translator.t('tag_manage'),
+      colors: colors,
+      onPressed: () => _showManageTagsDialog(colors),
+    );
+    final mergeBtn = _buildToolButton(
+      icon: Icons.merge,
+      label: Translator.t('cat_merge_descriptions'),
+      colors: colors,
+      onPressed: () => _showMergeDialog(colors),
+    );
+    final renameBtn = _buildToolButton(
+      icon: Icons.edit,
+      label: Translator.t('cat_rename_description'),
+      colors: colors,
+      onPressed: () => _showRenameDialog(colors),
+    );
+    if (isPhone) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          title,
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              mergeBtn,
+              const SizedBox(width: 8),
+              renameBtn,
+            ],
+          ),
+          const SizedBox(height: 8),
+          manageTags,
+          const SizedBox(height: 12),
+          _buildTimeFilterButtons(colors),
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            title,
+            const Spacer(),
+            manageTags,
+            const SizedBox(width: 8),
+            mergeBtn,
+            const SizedBox(width: 8),
+            renameBtn,
+          ],
+        ),
+        const SizedBox(height: 12),
+        _buildTimeFilterButtons(colors),
+      ],
     );
   }
 
@@ -304,7 +292,7 @@ class _CategoriesViewState extends State<CategoriesView> {
       Color accentColor, PeadraColors colors, {required bool showDots}) {
     final itemsWithGraph = items.map((item) {
       final name = (item['description'] ?? item['tag']) as String;
-      final data = _buildSpotsForDescription(name);
+      final data = _spotsForDescription(name);
       return (item: item, name: name, data: data);
     }).where((e) => e.data.spots.length > 1).toList();
 
@@ -341,19 +329,24 @@ class _CategoriesViewState extends State<CategoriesView> {
                     ? 2
                     : 1;
 
-            return GridView.count(
-              crossAxisCount: crossAxisCount,
+            return GridView.builder(
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossAxisCount,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: 1.8,
+              ),
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 1.8,
-              children: itemsWithGraph.map((e) {
+              itemCount: itemsWithGraph.length,
+              itemBuilder: (context, index) {
+                final e = itemsWithGraph[index];
                 final name = e.name;
                 final count = e.item['count'] as int;
                 final total = e.item['total'] as num;
                 final spots = e.data.spots;
                 final labels = e.data.labels;
+                final axis = e.data.axis;
                 final avg = spots.isNotEmpty ? total / spots.length : 0.0;
 
                 return Card(
@@ -397,14 +390,14 @@ class _CategoriesViewState extends State<CategoriesView> {
                         ),
                         const SizedBox(height: 8),
                         Expanded(
-                          child: _buildLineChart(spots, labels, accentColor,
-                              colors, showDots: showDots),
+                          child: _buildLineChart(spots, labels, axis,
+                              accentColor, colors, showDots: showDots),
                         ),
                       ],
                     ),
                   ),
                 );
-              }).toList(),
+              },
             );
           },
         ),
@@ -417,11 +410,24 @@ class _CategoriesViewState extends State<CategoriesView> {
     'month_jul_abbr', 'month_aug_abbr', 'month_sep_abbr', 'month_oct_abbr', 'month_nov_abbr', 'month_dec_abbr',
   ];
 
-  ({List<FlSpot> spots, List<String> labels}) _buildSpotsForDescription(
-      String description) {
+  ({List<FlSpot> spots, List<String> labels, AxisScale axis})
+      _spotsForDescription(String description) {
+    if (!identical(_monthlyData, _spotsRef)) {
+      _spotsRef = _monthlyData;
+      _spotsCache.clear();
+    }
+    final cached = _spotsCache[description];
+    if (cached != null) return cached;
+
     final descData = _monthlyData[description];
     if (descData == null || descData.isEmpty) {
-      return (spots: <FlSpot>[], labels: <String>[]);
+      // Cache empty results too so repeated misses stay cheap; the cache
+      // is invalidated whenever _monthlyData identity changes above.
+      const emptyAxis = AxisScale(min: 0, max: 100, interval: 25);
+      final empty =
+          (spots: <FlSpot>[], labels: <String>[], axis: emptyAxis);
+      _spotsCache[description] = empty;
+      return empty;
     }
 
     final sortedMonths = descData.keys.toList()..sort();
@@ -435,18 +441,20 @@ class _CategoriesViewState extends State<CategoriesView> {
           int.tryParse(sortedMonths[i].split('-').last) ?? 1;
       labels.add(Translator.t(_monthKeys[(monthNum - 1).clamp(0, 11)]));
     }
-    return (spots: spots, labels: labels);
-  }
-
-  Widget _buildLineChart(List<FlSpot> spots, List<String> labels,
-      Color accentColor, PeadraColors colors, {required bool showDots}) {
     double minY = spots.first.y;
     double maxY = spots.first.y;
     for (final s in spots) {
       if (s.y < minY) minY = s.y;
       if (s.y > maxY) maxY = s.y;
     }
-    final axis = niceAxisScale(minY, maxY);
+    final result = (spots: spots, labels: labels, axis: niceAxisScale(minY, maxY));
+    _spotsCache[description] = result;
+    return result;
+  }
+
+  Widget _buildLineChart(List<FlSpot> spots, List<String> labels,
+      AxisScale axis, Color accentColor, PeadraColors colors,
+      {required bool showDots}) {
 
     return LineChart(
       LineChartData(
@@ -1067,7 +1075,7 @@ class _EditTagDialogState extends State<_EditTagDialog> {
                   final name = _nameController.text.trim();
                   await widget.db.updateTag(widget.tag.id!,
                       name: name, color: _selectedColor);
-                  if (mounted) Navigator.pop(context);
+                  if (context.mounted) Navigator.pop(context);
                 },
           style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
           child: Text(Translator.t('btn_save'),

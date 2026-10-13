@@ -81,6 +81,17 @@ class SyncManager {
   final Map<String, DateTime> _lastAttempt = {};
   final Map<String, Timer> _retryTimers = {};
   final Map<String, DiscoveredService> _knownPeers = {};
+
+  /// Last mDNS sighting per peer. Entries (and their lock/attempt/retry
+  /// state) are evicted after [_peerTtl] without a re-sighting so offline
+  /// or rogue nodeIds can't accumulate forever.
+  final Map<String, DateTime> _knownPeersSeen = {};
+
+  /// How long a peer stays syncable after its last mDNS sighting.
+  static const Duration peerTtl = Duration(minutes: 10);
+
+  /// Max concurrent peer syncs in [_syncAllKnown].
+  static const int maxConcurrentSyncs = 4;
   final Map<String, String> _pendingPairingSecrets = {};
   final Set<Future<void>> _inFlight = {};
   StreamSubscription<DiscoveredService>? _discoverySub;
@@ -320,15 +331,19 @@ class SyncManager {
       LogService().warn('Sync: cannot read peer secret for $nodeId: $e');
       return null;
     }
-    if (_pendingPairingSecrets.isNotEmpty) {
-      return _pendingPairingSecrets.values.first;
-    }
-    return null;
+    // Prefer the secret registered for this exact node; fall back to any
+    // pending secret (single-pairing flow) instead of failing the handshake.
+    return _pendingPairingSecrets[nodeId] ??
+        (_pendingPairingSecrets.isNotEmpty
+            ? _pendingPairingSecrets.values.first
+            : null);
   }
 
   Future<void> _onDiscovered(DiscoveredService service) async {
     if (!_running) return;
     _knownPeers[service.nodeId] = service;
+    _knownPeersSeen[service.nodeId] = _now();
+    _evictStalePeers();
     TrustedPeer? peer;
     try {
       peer = await peerStorage.getById(service.nodeId);
@@ -349,9 +364,35 @@ class SyncManager {
 
   Future<void> _syncAllKnown() async {
     _refreshKnownAddresses();
-    final services = Map.of(_knownPeers).values;
-    for (final service in services) {
-      await _syncPeer(service.nodeId, host: service.host, port: service.port);
+    _evictStalePeers();
+    final services = Map.of(_knownPeers).values.toList();
+    // Peers are independent: sync them concurrently (bounded) instead of
+    // head-of-line blocking N x RTT on the slowest peer. _doSync never
+    // throws, so the batch always runs to completion.
+    for (var i = 0; i < services.length; i += maxConcurrentSyncs) {
+      final batch = services.skip(i).take(maxConcurrentSyncs);
+      await Future.wait([
+        for (final service in batch)
+          _syncPeer(service.nodeId, host: service.host, port: service.port),
+      ]);
+    }
+  }
+
+  /// Drops peers (and their lock/attempt/retry bookkeeping) not re-sighted
+  /// within [peerTtl]. A returning peer is simply re-added by [_onDiscovered].
+  void _evictStalePeers() {
+    if (_knownPeers.isEmpty) return;
+    final cutoff = _now().subtract(peerTtl);
+    final stale = [
+      for (final entry in _knownPeersSeen.entries)
+        if (entry.value.isBefore(cutoff)) entry.key,
+    ];
+    for (final peerId in stale) {
+      _knownPeers.remove(peerId);
+      _knownPeersSeen.remove(peerId);
+      _lastAttempt.remove(peerId);
+      _locks.remove(peerId);
+      _retryTimers.remove(peerId)?.cancel();
     }
   }
 
@@ -371,12 +412,17 @@ class SyncManager {
 
     final previous = _locks[peerId] ?? Future<void>.value();
     final done = Completer<void>();
-    _locks[peerId] = previous.then((_) => done.future);
+    final chained = previous.then((_) => done.future);
+    _locks[peerId] = chained;
     await previous;
     try {
       return await _doSync(peerId, host: resolved.host, port: resolved.port);
     } finally {
       done.complete();
+      // Our session is over: drop the chain entry so _locks can't grow
+      // with one completed future per peer ever seen. Concurrent waiters
+      // already hold `previous`; a later _syncPeer starts a fresh chain.
+      if (identical(_locks[peerId], chained)) _locks.remove(peerId);
     }
   }
 

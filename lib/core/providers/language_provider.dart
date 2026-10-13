@@ -15,6 +15,7 @@ class LanguageProvider extends ChangeNotifier {
   }
 
   void setLanguage(String lang) {
+    if (_language == lang) return;
     LogService().log('Language changed to $lang');
     _language = lang;
     Translator.setLanguage(lang);

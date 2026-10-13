@@ -20,9 +20,10 @@ class AuthChallenge {
   /// Generates a fresh 32-byte random pairing secret, base64-encoded.
   static String generateSharedSecret() {
     final random = Random.secure();
-    final bytes = Uint8List.fromList(
-      List<int>.generate(secretBytes, (_) => random.nextInt(256)),
-    );
+    final bytes = Uint8List(secretBytes);
+    for (var i = 0; i < bytes.length; i++) {
+      bytes[i] = random.nextInt(256);
+    }
     return base64Encode(bytes);
   }
 
@@ -51,6 +52,9 @@ class AuthChallenge {
     } on FormatException {
       return false;
     }
+    // Reject wrong-length signatures before the HMAC: HMAC-SHA256 always
+    // yields 32 bytes, so anything else is forged without any crypto work.
+    if (provided.length != 32) return false;
     final mac = await Hmac.sha256().calculateMac(
       utf8.encode(message),
       secretKey: SecretKey(_decodeSharedSecret(sharedSecret)),

@@ -36,7 +36,7 @@ class DashboardShellDesktop extends StatelessWidget {
       backgroundColor: colors.surface,
       body: Column(
         children: [
-          if (updateBanner != null) updateBanner!,
+          ?updateBanner,
           _buildTopBar(context),
           Expanded(
             child: Row(

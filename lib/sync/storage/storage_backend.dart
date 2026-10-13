@@ -15,8 +15,6 @@ abstract class StorageBackend {
 
   Future<void> delete(String key);
 
-  Future<Map<String, String>> readAll();
-
   /// True once if the backend had to reset unreadable state since the last
   /// call, so higher layers can tell the user to recreate it (e.g. re-pair).
   bool consumeRecoveryFlag() => false;
@@ -87,7 +85,4 @@ class SecureStorageBackend implements StorageBackend {
 
   @override
   Future<void> delete(String key) => _storage.delete(key: key);
-
-  @override
-  Future<Map<String, String>> readAll() => _storage.readAll();
 }

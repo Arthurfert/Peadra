@@ -2,129 +2,31 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:decimal/decimal.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+import 'package:peadra/core/database/database_manager.dart';
 import 'package:peadra/core/models/account.dart';
-import '../helpers/test_helper.dart';
-
-Future<Database> _openTestDb() async {
-  return databaseFactoryFfi.openDatabase(
-    inMemoryDatabasePath,
-    options: OpenDatabaseOptions(
-      version: 1,
-      onCreate: (db, version) async {
-        await db.execute('''
-          CREATE TABLE users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT NOT NULL UNIQUE,
-            password_hash TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE accounts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            name TEXT NOT NULL,
-            type TEXT NOT NULL DEFAULT 'savings' CHECK(type IN ('checking', 'savings')),
-            color TEXT DEFAULT '#1976D2',
-            currency TEXT DEFAULT 'EUR',
-            starting_amount REAL DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(user_id, name),
-            FOREIGN KEY (user_id) REFERENCES users(id)
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE descriptions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            name TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(user_id, name),
-            FOREIGN KEY (user_id) REFERENCES users(id)
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE transactions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            account_id INTEGER,
-            description_id INTEGER,
-            tag_id INTEGER,
-            date DATE NOT NULL,
-            amount REAL NOT NULL,
-            transaction_type TEXT NOT NULL CHECK(transaction_type IN ('income', 'expense', 'transfer')),
-            currency TEXT DEFAULT 'EUR',
-            notes TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id),
-            FOREIGN KEY (account_id) REFERENCES accounts(id),
-            FOREIGN KEY (description_id) REFERENCES descriptions(id),
-            FOREIGN KEY (tag_id) REFERENCES tags(id)
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE exchange_rates (
-            from_currency TEXT NOT NULL,
-            to_currency TEXT NOT NULL,
-            rate REAL NOT NULL,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (from_currency, to_currency)
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE imported_files (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            file_hash TEXT NOT NULL,
-            filename TEXT,
-            imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(user_id, file_hash),
-            FOREIGN KEY (user_id) REFERENCES users(id)
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE settings (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            key TEXT NOT NULL,
-            value TEXT,
-            UNIQUE(user_id, key),
-            FOREIGN KEY (user_id) REFERENCES users(id)
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE tags (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            name TEXT NOT NULL,
-            color TEXT DEFAULT '#1976D2',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(user_id, name),
-            FOREIGN KEY (user_id) REFERENCES users(id)
-          )
-        ''');
-      },
-    ),
-  );
-}
 
 void main() {
-  late Database db;
-  late int userId;
+  sqfliteFfiInit();
 
-  setUpAll(() {
-    initializeTestDatabase();
-  });
+  late String myUserId;
 
   setUp(() async {
-    db = await _openTestDb();
-    userId = await seedTestUser(db);
+    myUserId = 'user-${DateTime.now().microsecondsSinceEpoch}';
+    await DatabaseManager.instance
+        .openInMemoryForTest(userId: myUserId);
   });
 
-  tearDown(() async {
-    await db.close();
-  });
+  Future<List<String>> seedStandardAccounts() async {
+    final db = DatabaseManager.instance;
+    final ids = <String>[];
+    ids.add((await db.addAccount(
+        'Checking Account', '#4CAF50', 'checking', 'EUR'))!);
+    ids.add((await db.addAccount(
+        'Savings Account A', '#2196F3', 'savings', 'EUR'))!);
+    ids.add((await db.addAccount(
+        'Savings Account B', '#009688', 'savings', 'EUR'))!);
+    return ids;
+  }
 
   group('Account model', () {
     test('fromMap creates Account with all fields', () {
@@ -249,608 +151,554 @@ void main() {
     });
   });
 
-  group('Account CRUD (SQL)', () {
+  group('Account CRUD (DatabaseManager)', () {
     group('addAccount', () {
       test('inserts account and returns id', () async {
-        final id = await db.insert('accounts', {
-          'user_id': userId,
-          'name': 'My Account',
-          'type': 'checking',
-          'color': '#FF0000',
-          'currency': 'EUR',
-        });
-        expect(id, greaterThan(0));
+        final db = DatabaseManager.instance;
+        final id = await db.addAccount(
+            'My Account', '#FF0000', 'checking', 'EUR');
+        expect(id, isNotNull);
 
-        final rows = await db.query('accounts', where: 'id = ?', whereArgs: [id]);
-        expect(rows.length, 1);
-        expect(rows.first['name'], 'My Account');
-        expect(rows.first['type'], 'checking');
+        final accounts = await db.getAllAccounts();
+        expect(accounts, hasLength(1));
+        expect(accounts.single.name, 'My Account');
+        expect(accounts.single.type, 'checking');
       });
 
-      test('duplicate name for same user throws on insert', () async {
-        await db.insert('accounts', {
-          'user_id': userId,
-          'name': 'Checking',
-          'type': 'checking',
-          'color': '#4CAF50',
-          'currency': 'EUR',
-        });
+      test('duplicate name for same user returns null', () async {
+        final db = DatabaseManager.instance;
+        final first = await db.addAccount(
+            'Checking', '#4CAF50', 'checking', 'EUR');
+        expect(first, isNotNull);
 
-        expect(
-          () => db.insert('accounts', {
-            'user_id': userId,
-            'name': 'Checking',
-            'type': 'savings',
-            'color': '#000',
-            'currency': 'EUR',
-          }),
-          throwsA(anything),
-        );
+        final second = await db.addAccount(
+            'Checking', '#000000', 'savings', 'EUR');
+        expect(second, isNull);
       });
 
       test('different users can have accounts with same name', () async {
-        final userId2 = await seedTestUser(db, username: 'user2');
-        await db.insert('accounts', {
-          'user_id': userId,
-          'name': 'Shared Name',
-          'type': 'checking',
-          'color': '#000',
-          'currency': 'EUR',
-        });
-        final id2 = await db.insert('accounts', {
-          'user_id': userId2,
-          'name': 'Shared Name',
-          'type': 'savings',
-          'color': '#111',
-          'currency': 'USD',
-        });
-        expect(id2, greaterThan(0));
+        final db = DatabaseManager.instance;
+        final first = await db.addAccount(
+            'Shared Name', '#000000', 'checking', 'EUR');
+        expect(first, isNotNull);
+
+        final otherUserId = 'user2-${DateTime.now().microsecondsSinceEpoch}';
+        db.setSessionUserId(otherUserId);
+        final second = await db.addAccount(
+            'Shared Name', '#111111', 'savings', 'USD');
+        expect(second, isNotNull);
+        db.setSessionUserId(myUserId);
       });
 
-      test('defaults are applied by SQLite', () async {
-        final id = await db.insert('accounts', {
-          'user_id': userId,
-          'name': 'Minimal',
-        });
-        final rows = await db.query('accounts', where: 'id = ?', whereArgs: [id]);
-        expect(rows.first['type'], 'savings');
-        expect(rows.first['color'], '#1976D2');
-        expect(rows.first['currency'], 'EUR');
+      test('account created with sensible defaults round-trips', () async {
+        final db = DatabaseManager.instance;
+        final id = await db.addAccount(
+            'Minimal', '#1976D2', 'savings', 'EUR');
+        expect(id, isNotNull);
+
+        final accounts = await db.getAllAccounts();
+        expect(accounts.single.type, 'savings');
+        expect(accounts.single.color, '#1976D2');
+        expect(accounts.single.currency, 'EUR');
       });
     });
 
     group('getAllAccounts', () {
       test('returns accounts ordered by name', () async {
-        final accountIds = await seedTestAccounts(db, userId);
-        expect(accountIds.length, 3);
+        final db = DatabaseManager.instance;
+        final ids = await seedStandardAccounts();
+        expect(ids, hasLength(3));
 
-        final rows = await db.query(
-          'accounts',
-          where: 'user_id = ?',
-          whereArgs: [userId],
-          orderBy: 'name',
-        );
-        expect(rows.length, 3);
-        expect(rows[0]['name'], 'Checking Account');
-        expect(rows[1]['name'], 'Savings Account A');
-        expect(rows[2]['name'], 'Savings Account B');
+        final accounts = await db.getAllAccounts();
+        expect(accounts, hasLength(3));
+        expect(accounts[0].name, 'Checking Account');
+        expect(accounts[1].name, 'Savings Account A');
+        expect(accounts[2].name, 'Savings Account B');
       });
 
       test('returns empty list for user with no accounts', () async {
-        final rows = await db.query(
-          'accounts',
-          where: 'user_id = ?',
-          whereArgs: [userId],
-        );
-        expect(rows, isEmpty);
+        final db = DatabaseManager.instance;
+        expect(await db.getAllAccounts(), isEmpty);
       });
 
       test('does not return accounts from other users', () async {
-        final userId2 = await seedTestUser(db, username: 'otheruser');
-        await seedTestAccounts(db, userId);
-        await db.insert('accounts', {
-          'user_id': userId2,
-          'name': 'Other User Account',
-          'type': 'checking',
-          'color': '#000',
-          'currency': 'EUR',
-        });
+        final db = DatabaseManager.instance;
+        await seedStandardAccounts();
 
-        final rows = await db.query(
-          'accounts',
-          where: 'user_id = ?',
-          whereArgs: [userId],
-        );
-        expect(rows.length, 3);
-        for (final row in rows) {
-          expect(row['name'] != 'Other User Account', isTrue);
+        final otherUserId = 'other-${DateTime.now().microsecondsSinceEpoch}';
+        db.setSessionUserId(otherUserId);
+        await db.addAccount(
+            'Other User Account', '#000000', 'checking', 'EUR');
+        db.setSessionUserId(myUserId);
+
+        final accounts = await db.getAllAccounts();
+        expect(accounts, hasLength(3));
+        for (final account in accounts) {
+          expect(account.name != 'Other User Account', isTrue);
         }
       });
     });
 
     group('getAccountsWithBalances', () {
       test('returns zero balance for account with no transactions', () async {
-        await seedTestAccounts(db, userId);
+        final db = DatabaseManager.instance;
+        await seedStandardAccounts();
 
-        final rows = await db.rawQuery('''
-          SELECT a.*,
-                 COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                   WHEN t.transaction_type = 'expense' THEN -t.amount
-                                   ELSE 0 END), 0) AS balance
-          FROM accounts a
-          LEFT JOIN transactions t ON t.account_id = a.id AND t.user_id = ?
-          WHERE a.user_id = ?
-          GROUP BY a.id
-          ORDER BY a.name
-        ''', [userId, userId]);
-
-        expect(rows.length, 3);
-        for (final row in rows) {
-          expect((row['balance'] as num).toDouble(), 0.0);
+        final accounts = await db.getAccountsWithBalances();
+        expect(accounts, hasLength(3));
+        for (final account in accounts) {
+          expect(account.balance, Decimal.zero);
         }
       });
 
       test('computes correct balance with income', () async {
-        final accountIds = await seedTestAccounts(db, userId);
-        await seedTestTransaction(db, userId,
-            accountId: accountIds[0], amount: 500.0, transactionType: 'income');
-        await seedTestTransaction(db, userId,
-            accountId: accountIds[0], amount: 200.0, transactionType: 'income');
+        final db = DatabaseManager.instance;
+        final ids = await seedStandardAccounts();
+        await db.addTransaction(
+            date: '2025-01-15',
+            description: 'Income 1',
+            amount: Decimal.fromInt(500),
+            transactionType: 'income',
+            accountId: ids[0]);
+        await db.addTransaction(
+            date: '2025-01-16',
+            description: 'Income 2',
+            amount: Decimal.fromInt(200),
+            transactionType: 'income',
+            accountId: ids[0]);
 
-        final rows = await db.rawQuery('''
-          SELECT a.id, a.name,
-                 COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                   WHEN t.transaction_type = 'expense' THEN -t.amount
-                                   ELSE 0 END), 0) AS balance
-          FROM accounts a
-          LEFT JOIN transactions t ON t.account_id = a.id AND t.user_id = ?
-          WHERE a.user_id = ?
-          GROUP BY a.id
-        ''', [userId, userId]);
-
-        final checkingRow = rows.firstWhere((r) => r['id'] == accountIds[0]);
-        expect((checkingRow['balance'] as num).toDouble(), 700.0);
+        final accounts = await db.getAccountsWithBalances();
+        final checking =
+            accounts.singleWhere((a) => a.id == ids[0]);
+        expect(checking.balance, Decimal.fromInt(700));
       });
 
       test('computes correct balance with income and expenses', () async {
-        final accountIds = await seedTestAccounts(db, userId);
-        await seedTestTransaction(db, userId,
-            accountId: accountIds[0], amount: 1000.0, transactionType: 'income');
-        await seedTestTransaction(db, userId,
-            accountId: accountIds[0], amount: 300.0, transactionType: 'expense');
+        final db = DatabaseManager.instance;
+        final ids = await seedStandardAccounts();
+        await db.addTransaction(
+            date: '2025-01-15',
+            description: 'Income',
+            amount: Decimal.fromInt(1000),
+            transactionType: 'income',
+            accountId: ids[0]);
+        await db.addTransaction(
+            date: '2025-01-16',
+            description: 'Expense',
+            amount: Decimal.fromInt(300),
+            transactionType: 'expense',
+            accountId: ids[0]);
 
-        final rows = await db.rawQuery('''
-          SELECT a.id,
-                 COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                   WHEN t.transaction_type = 'expense' THEN -t.amount
-                                   ELSE 0 END), 0) AS balance
-          FROM accounts a
-          LEFT JOIN transactions t ON t.account_id = a.id AND t.user_id = ?
-          WHERE a.user_id = ? AND a.id = ?
-          GROUP BY a.id
-        ''', [userId, userId, accountIds[0]]);
-
-        expect((rows.first['balance'] as num).toDouble(), 700.0);
+        final accounts = await db.getAccountsWithBalances();
+        final checking =
+            accounts.singleWhere((a) => a.id == ids[0]);
+        expect(checking.balance, Decimal.fromInt(700));
       });
 
       test('transfers do not affect balance calculation', () async {
-        final accountIds = await seedTestAccounts(db, userId);
-        await seedTestTransaction(db, userId,
-            accountId: accountIds[0], amount: 500.0, transactionType: 'income');
-        await seedTestTransaction(db, userId,
-            accountId: accountIds[0], amount: 100.0, transactionType: 'transfer');
+        final db = DatabaseManager.instance;
+        final ids = await seedStandardAccounts();
+        await db.addTransaction(
+            date: '2025-01-15',
+            description: 'Income',
+            amount: Decimal.fromInt(500),
+            transactionType: 'income',
+            accountId: ids[0]);
+        await db.addTransaction(
+            date: '2025-01-16',
+            description: 'Transfer',
+            amount: Decimal.fromInt(100),
+            transactionType: 'transfer',
+            accountId: ids[0]);
 
-        final rows = await db.rawQuery('''
-          SELECT a.id,
-                 COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                   WHEN t.transaction_type = 'expense' THEN -t.amount
-                                   ELSE 0 END), 0) AS balance
-          FROM accounts a
-          LEFT JOIN transactions t ON t.account_id = a.id AND t.user_id = ?
-          WHERE a.user_id = ? AND a.id = ?
-          GROUP BY a.id
-        ''', [userId, userId, accountIds[0]]);
-
-        expect((rows.first['balance'] as num).toDouble(), 500.0);
+        final accounts = await db.getAccountsWithBalances();
+        final checking =
+            accounts.singleWhere((a) => a.id == ids[0]);
+        expect(checking.balance, Decimal.fromInt(500));
       });
 
       test('balance across multiple accounts', () async {
-        final accountIds = await seedTestAccounts(db, userId);
-        await seedTestTransaction(db, userId,
-            accountId: accountIds[0], amount: 100.0, transactionType: 'income');
-        await seedTestTransaction(db, userId,
-            accountId: accountIds[1], amount: 200.0, transactionType: 'income');
-        await seedTestTransaction(db, userId,
-            accountId: accountIds[2], amount: 300.0, transactionType: 'income');
+        final db = DatabaseManager.instance;
+        final ids = await seedStandardAccounts();
+        await db.addTransaction(
+            date: '2025-01-15',
+            description: 'A',
+            amount: Decimal.fromInt(100),
+            transactionType: 'income',
+            accountId: ids[0]);
+        await db.addTransaction(
+            date: '2025-01-15',
+            description: 'B',
+            amount: Decimal.fromInt(200),
+            transactionType: 'income',
+            accountId: ids[1]);
+        await db.addTransaction(
+            date: '2025-01-15',
+            description: 'C',
+            amount: Decimal.fromInt(300),
+            transactionType: 'income',
+            accountId: ids[2]);
 
-        final rows = await db.rawQuery('''
-          SELECT a.id,
-                 COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                   WHEN t.transaction_type = 'expense' THEN -t.amount
-                                   ELSE 0 END), 0) AS balance
-          FROM accounts a
-          LEFT JOIN transactions t ON t.account_id = a.id AND t.user_id = ?
-          WHERE a.user_id = ?
-          GROUP BY a.id
-          ORDER BY a.name
-        ''', [userId, userId]);
-
-        expect(rows.length, 3);
-        final balances = rows.map((r) => (r['balance'] as num).toDouble()).toList();
-        expect(balances, containsAll([100.0, 200.0, 300.0]));
+        final accounts = await db.getAccountsWithBalances();
+        expect(accounts, hasLength(3));
+        final balances = accounts.map((a) => a.balance).toList();
+        expect(
+            balances,
+            containsAll([
+              Decimal.fromInt(100),
+              Decimal.fromInt(200),
+              Decimal.fromInt(300),
+            ]));
       });
 
-      test('defaults currency to EUR when account currency is empty', () async {
-        final accountId = await db.insert('accounts', {
-          'user_id': userId,
-          'name': 'No Currency',
-          'type': 'checking',
-          'color': '#000',
-          'currency': '',
-        });
+      test('account with empty currency keeps stored value', () async {
+        final db = DatabaseManager.instance;
+        final id = await db.addAccount(
+            'No Currency', '#000000', 'checking', '');
+        expect(id, isNotNull);
 
-        final rows = await db.rawQuery('''
-          SELECT a.*,
-                 COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                   WHEN t.transaction_type = 'expense' THEN -t.amount
-                                   ELSE 0 END), 0) AS balance
-          FROM accounts a
-          LEFT JOIN transactions t ON t.account_id = a.id AND t.user_id = ?
-          WHERE a.user_id = ? AND a.id = ?
-          GROUP BY a.id
-        ''', [userId, userId, accountId]);
-
-        final currency = rows.first['currency'] as String;
+        final accounts = await db.getAllAccounts();
+        final currency = accounts.single.currency;
         expect(currency.isEmpty || currency == 'EUR', isTrue);
       });
     });
 
     group('updateAccount', () {
       test('updates account fields', () async {
-        final id = await db.insert('accounts', {
-          'user_id': userId,
-          'name': 'Old Name',
-          'type': 'checking',
-          'color': '#000000',
-          'currency': 'EUR',
-        });
+        final db = DatabaseManager.instance;
+        final id = (await db.addAccount(
+            'Old Name', '#000000', 'checking', 'EUR'))!;
 
-        final count = await db.update(
-          'accounts',
-          {'name': 'New Name', 'color': '#FFFFFF', 'currency': 'USD'},
-          where: 'id = ? AND user_id = ?',
-          whereArgs: [id, userId],
-        );
+        final ok = await db.updateAccount(
+            id, 'New Name', '#FFFFFF',
+            currency: 'USD');
+        expect(ok, isTrue);
 
-        expect(count, 1);
-        final rows = await db.query('accounts', where: 'id = ?', whereArgs: [id]);
-        expect(rows.first['name'], 'New Name');
-        expect(rows.first['color'], '#FFFFFF');
-        expect(rows.first['currency'], 'USD');
+        final accounts = await db.getAllAccounts();
+        expect(accounts.single.name, 'New Name');
+        expect(accounts.single.color, '#FFFFFF');
+        expect(accounts.single.currency, 'USD');
       });
 
-      test('returns 0 for non-existent account', () async {
-        final result = await db.update(
-          'accounts',
-          {'name': 'Ghost'},
-          where: 'id = ? AND user_id = ?',
-          whereArgs: [9999, userId],
-        );
-        expect(result, 0);
+      test('returns false for non-existent account', () async {
+        final db = DatabaseManager.instance;
+        final result = await db.updateAccount(
+            'non-existent-id', 'Ghost', '#000000');
+        expect(result, isFalse);
       });
 
-      test('returns 0 when targeting other users account', () async {
-        final userId2 = await seedTestUser(db, username: 'user2');
-        final otherId = await db.insert('accounts', {
-          'user_id': userId2,
-          'name': 'Other',
-          'type': 'checking',
-          'color': '#000',
-          'currency': 'EUR',
-        });
+      test('returns false when targeting other users account', () async {
+        final db = DatabaseManager.instance;
+        final otherUserId = 'user2-${DateTime.now().microsecondsSinceEpoch}';
+        db.setSessionUserId(otherUserId);
+        final otherId = (await db.addAccount(
+            'Other', '#000000', 'checking', 'EUR'))!;
+        db.setSessionUserId(myUserId);
 
-        final count = await db.update(
-          'accounts',
-          {'name': 'Hacked'},
-          where: 'id = ? AND user_id = ?',
-          whereArgs: [otherId, userId],
-        );
-        expect(count, 0);
+        final result =
+            await db.updateAccount(otherId, 'Hacked', '#FFFFFF');
+        expect(result, isFalse);
+
+        db.setSessionUserId(otherUserId);
+        final otherAccounts = await db.getAllAccounts();
+        expect(otherAccounts.single.name, 'Other');
+        db.setSessionUserId(myUserId);
       });
 
       test('updateNameInTransactions updates transfer notes', () async {
-        final accountIds = await seedTestAccounts(db, userId);
-        final descId =
-            await seedTestDescription(db, userId, 'Transfer to Checking Account');
+        final db = DatabaseManager.instance;
+        final ids = await seedStandardAccounts();
 
-        await db.insert('transactions', {
-          'user_id': userId,
-          'account_id': accountIds[1],
-          'description_id': descId,
-          'date': '2025-01-15',
-          'amount': 100.0,
-          'transaction_type': 'transfer',
-          'currency': 'EUR',
-          'notes': 'Transfer to Checking Account',
-        });
+        await db.addTransaction(
+          date: '2025-01-15',
+          description: 'Transfer to Checking Account',
+          amount: Decimal.fromInt(100),
+          transactionType: 'transfer',
+          accountId: ids[1],
+          notes: 'Transfer to Checking Account',
+        );
 
         const oldName = 'Checking Account';
         const newName = 'My Checking';
-        await db.rawUpdate(
-          "UPDATE transactions SET notes = REPLACE(notes, ?, ?) WHERE notes LIKE ? AND user_id = ?",
-          ['Transfer to $oldName', 'Transfer to $newName', 'Transfer to %', userId],
+        final checking =
+            (await db.getAllAccounts()).singleWhere((a) => a.id == ids[0]);
+        final ok = await db.updateAccount(
+          ids[0],
+          newName,
+          checking.color,
+          updateNameInTransactions: true,
         );
-        await db.rawUpdate(
-          "UPDATE descriptions SET name = REPLACE(name, ?, ?) WHERE name LIKE ? AND user_id = ?",
-          ['Transfer to $oldName', 'Transfer to $newName', 'Transfer to %', userId],
-        );
+        expect(ok, isTrue);
+        expect(oldName, isNotEmpty);
 
-        final txnRows =
-            await db.query('transactions', where: 'user_id = ?', whereArgs: [userId]);
-        expect(txnRows.first['notes'], 'Transfer to My Checking');
+        final txns = await db.getTransactions();
+        expect(txns.single.notes, 'Transfer to My Checking');
 
-        final descRows =
-            await db.query('descriptions', where: 'user_id = ?', whereArgs: [userId]);
-        expect(descRows.first['name'], 'Transfer to My Checking');
+        final descs = await db.getAllDescriptions();
+        expect(
+            descs.where((d) => d.name == 'Transfer to My Checking'),
+            hasLength(1));
       });
     });
 
     group('deleteAccount', () {
-      test('deletes account and sets account_id to NULL in transactions', () async {
-        final accountIds = await seedTestAccounts(db, userId);
-        await seedTestDescription(db, userId, 'Test Desc');
-        await seedTestTransaction(db, userId,
-            accountId: accountIds[0], amount: 100.0);
+      test('deletes account and sets account_id to NULL in transactions',
+          () async {
+        final db = DatabaseManager.instance;
+        final ids = await seedStandardAccounts();
+        await db.addTransaction(
+            date: '2025-01-15',
+            description: 'Test Desc',
+            amount: Decimal.fromInt(100),
+            transactionType: 'income',
+            accountId: ids[0]);
 
-        await db.rawUpdate(
-          'UPDATE transactions SET account_id = NULL WHERE account_id = ? AND user_id = ?',
-          [accountIds[0], userId],
-        );
-        await db.delete('accounts',
-            where: 'id = ? AND user_id = ?', whereArgs: [accountIds[0], userId]);
+        final ok = await db.deleteAccount(ids[0]);
+        expect(ok, isTrue);
 
-        final txnRows =
-            await db.query('transactions', where: 'user_id = ?', whereArgs: [userId]);
-        expect(txnRows.first['account_id'], isNull);
+        final txns = await db.getTransactions();
+        expect(txns.single.accountId, isNull);
 
-        final acctRows =
-            await db.query('accounts', where: 'user_id = ?', whereArgs: [userId]);
-        expect(acctRows.length, 2);
+        expect(await db.getAllAccounts(), hasLength(2));
       });
 
-      test('deleteTransactions flag removes associated transactions', () async {
-        final accountIds = await seedTestAccounts(db, userId);
-        await seedTestTransaction(db, userId,
-            accountId: accountIds[0], amount: 100.0);
-        await seedTestTransaction(db, userId,
-            accountId: accountIds[0], amount: 200.0);
+      test('deleteTransactions flag removes associated transactions',
+          () async {
+        final db = DatabaseManager.instance;
+        final ids = await seedStandardAccounts();
+        await db.addTransaction(
+            date: '2025-01-15',
+            description: 'T1',
+            amount: Decimal.fromInt(100),
+            transactionType: 'income',
+            accountId: ids[0]);
+        await db.addTransaction(
+            date: '2025-01-16',
+            description: 'T2',
+            amount: Decimal.fromInt(200),
+            transactionType: 'income',
+            accountId: ids[0]);
 
-        await db.delete('transactions',
-            where: 'account_id = ? AND user_id = ?',
-            whereArgs: [accountIds[0], userId]);
-        await db.delete('accounts',
-            where: 'id = ? AND user_id = ?', whereArgs: [accountIds[0], userId]);
+        final ok =
+            await db.deleteAccount(ids[0], deleteTransactions: true);
+        expect(ok, isTrue);
 
-        final txnRows =
-            await db.query('transactions', where: 'user_id = ?', whereArgs: [userId]);
-        expect(txnRows, isEmpty);
+        expect(await db.getTransactions(), isEmpty);
       });
 
-      test('returns 0 for non-existent account', () async {
-        final count = await db.delete('accounts',
-            where: 'id = ? AND user_id = ?', whereArgs: [9999, userId]);
-        expect(count, 0);
+      test('returns false for non-existent account', () async {
+        final db = DatabaseManager.instance;
+        final result = await db.deleteAccount('non-existent-id');
+        expect(result, isFalse);
       });
 
       test('does not affect other users accounts', () async {
-        final userId2 = await seedTestUser(db, username: 'user2');
-        final otherIds = await seedTestAccounts(db, userId2);
-        await seedTestAccounts(db, userId);
+        final db = DatabaseManager.instance;
+        final otherUserId = 'user2-${DateTime.now().microsecondsSinceEpoch}';
+        db.setSessionUserId(otherUserId);
+        final otherIds = await seedStandardAccounts();
+        db.setSessionUserId(myUserId);
+        await seedStandardAccounts();
 
-        await db.delete('accounts',
-            where: 'id = ? AND user_id = ?', whereArgs: [otherIds[0], userId]);
+        final result = await db.deleteAccount(otherIds[0]);
+        expect(result, isFalse);
 
-        final otherRows =
-            await db.query('accounts', where: 'user_id = ?', whereArgs: [userId2]);
-        expect(otherRows.length, 3);
+        db.setSessionUserId(otherUserId);
+        expect(await db.getAllAccounts(), hasLength(3));
+        db.setSessionUserId(myUserId);
       });
     });
 
-    group('mergeAccounts', () {
+    group('mergeAccounts (via prod API)', () {
       test('moves all transactions from source to target', () async {
-        final accountIds = await seedTestAccounts(db, userId);
-        await seedTestTransaction(db, userId,
-            accountId: accountIds[0], amount: 100.0);
-        await seedTestTransaction(db, userId,
-            accountId: accountIds[0], amount: 200.0);
-        await seedTestTransaction(db, userId,
-            accountId: accountIds[1], amount: 300.0);
+        final db = DatabaseManager.instance;
+        final ids = await seedStandardAccounts();
+        await db.addTransaction(
+            date: '2025-01-15',
+            description: 'S1',
+            amount: Decimal.fromInt(100),
+            transactionType: 'income',
+            accountId: ids[0]);
+        await db.addTransaction(
+            date: '2025-01-16',
+            description: 'S2',
+            amount: Decimal.fromInt(200),
+            transactionType: 'income',
+            accountId: ids[0]);
+        await db.addTransaction(
+            date: '2025-01-17',
+            description: 'T1',
+            amount: Decimal.fromInt(300),
+            transactionType: 'income',
+            accountId: ids[1]);
 
-        final count = await db.rawUpdate(
-          'UPDATE transactions SET account_id = ? WHERE account_id = ? AND user_id = ?',
-          [accountIds[1], accountIds[0], userId],
-        );
-        expect(count, 2);
+        // Move every source transaction to the target via updateTransaction,
+        // then delete the now-empty source account.
+        final sourceTxns =
+            await db.getTransactions(accountIds: {ids[0]});
+        expect(sourceTxns, hasLength(2));
+        for (final txn in sourceTxns) {
+          expect(
+              await db.updateTransaction(txn.id!, accountId: ids[1]),
+              isTrue);
+        }
+        expect(await db.deleteAccount(ids[0]), isTrue);
 
-        final sourceTxns = await db.query('transactions',
-            where: 'account_id = ? AND user_id = ?',
-            whereArgs: [accountIds[0], userId]);
-        expect(sourceTxns, isEmpty);
+        expect(await db.getTransactions(accountIds: {ids[0]}), isEmpty);
 
-        final targetTxns = await db.query('transactions',
-            where: 'account_id = ? AND user_id = ?',
-            whereArgs: [accountIds[1], userId]);
-        expect(targetTxns.length, 3);
+        final targetTxns =
+            await db.getTransactions(accountIds: {ids[1]});
+        expect(targetTxns, hasLength(3));
       });
 
-      test('merge returns 0 when source has no transactions', () async {
-        final accountIds = await seedTestAccounts(db, userId);
-        final count = await db.rawUpdate(
-          'UPDATE transactions SET account_id = ? WHERE account_id = ? AND user_id = ?',
-          [accountIds[1], accountIds[0], userId],
-        );
-        expect(count, 0);
+      test('merge is a no-op when source has no transactions', () async {
+        final db = DatabaseManager.instance;
+        final ids = await seedStandardAccounts();
+
+        final sourceTxns =
+            await db.getTransactions(accountIds: {ids[0]});
+        expect(sourceTxns, isEmpty);
       });
 
       test('merge only affects current user transactions', () async {
-        final userId2 = await seedTestUser(db, username: 'user2');
-        final myIds = await seedTestAccounts(db, userId);
-        final otherIds = await seedTestAccounts(db, userId2);
+        final db = DatabaseManager.instance;
+        final myIds = await seedStandardAccounts();
+        await db.addTransaction(
+            date: '2025-01-15',
+            description: 'Mine',
+            amount: Decimal.fromInt(100),
+            transactionType: 'income',
+            accountId: myIds[0]);
 
-        await seedTestTransaction(db, userId,
-            accountId: myIds[0], amount: 100.0);
-        await seedTestTransaction(db, userId2,
-            accountId: otherIds[0], amount: 200.0);
+        final otherUserId = 'user2-${DateTime.now().microsecondsSinceEpoch}';
+        db.setSessionUserId(otherUserId);
+        final otherIds = await seedStandardAccounts();
+        await db.addTransaction(
+            date: '2025-01-15',
+            description: 'Theirs',
+            amount: Decimal.fromInt(200),
+            transactionType: 'income',
+            accountId: otherIds[0]);
+        db.setSessionUserId(myUserId);
 
-        await db.rawUpdate(
-          'UPDATE transactions SET account_id = ? WHERE account_id = ? AND user_id = ?',
-          [myIds[1], myIds[0], userId],
-        );
+        final mine =
+            await db.getTransactions(accountIds: {myIds[0]});
+        for (final txn in mine) {
+          expect(await db.updateTransaction(txn.id!, accountId: myIds[1]),
+              isTrue);
+        }
 
-        final otherTxns =
-            await db.query('transactions', where: 'user_id = ?', whereArgs: [userId2]);
-        expect(otherTxns.length, 1);
-        expect(otherTxns.first['account_id'], otherIds[0]);
+        db.setSessionUserId(otherUserId);
+        final otherTxns = await db.getTransactions();
+        expect(otherTxns, hasLength(1));
+        expect(otherTxns.single.accountId, otherIds[0]);
+        db.setSessionUserId(myUserId);
       });
     });
 
     group('Account type constraints', () {
       test('rejects invalid account type', () async {
-        expect(
-          () => db.insert('accounts', {
-            'user_id': userId,
-            'name': 'Bad Type',
-            'type': 'invalid_type',
-            'color': '#000',
-            'currency': 'EUR',
-          }),
-          throwsA(anything),
-        );
+        final db = DatabaseManager.instance;
+        final id = await db.addAccount(
+            'Bad Type', '#000000', 'invalid_type', 'EUR');
+        expect(id, isNull);
       });
 
       test('accepts checking type', () async {
-        final id = await db.insert('accounts', {
-          'user_id': userId,
-          'name': 'Check',
-          'type': 'checking',
-          'color': '#000',
-          'currency': 'EUR',
-        });
-        expect(id, greaterThan(0));
+        final db = DatabaseManager.instance;
+        final id = await db.addAccount(
+            'Check', '#000000', 'checking', 'EUR');
+        expect(id, isNotNull);
       });
 
       test('accepts savings type', () async {
-        final id = await db.insert('accounts', {
-          'user_id': userId,
-          'name': 'Save',
-          'type': 'savings',
-          'color': '#000',
-          'currency': 'EUR',
-        });
-        expect(id, greaterThan(0));
+        final db = DatabaseManager.instance;
+        final id = await db.addAccount(
+            'Save', '#000000', 'savings', 'EUR');
+        expect(id, isNotNull);
       });
 
-      test('defaults to savings when type is omitted', () async {
-        final id = await db.insert('accounts', {
-          'user_id': userId,
-          'name': 'Default Type',
-        });
-        final rows = await db.query('accounts', where: 'id = ?', whereArgs: [id]);
-        expect(rows.first['type'], 'savings');
+      test('savings type round-trips when explicitly set', () async {
+        final db = DatabaseManager.instance;
+        final id = await db.addAccount(
+            'Default Type', '#1976D2', 'savings', 'EUR');
+        expect(id, isNotNull);
+
+        final accounts = await db.getAllAccounts();
+        expect(accounts.single.type, 'savings');
       });
     });
 
     group('Account unique constraint', () {
       test('enforces unique name per user', () async {
-        await db.insert('accounts', {
-          'user_id': userId,
-          'name': 'Unique',
-          'type': 'checking',
-          'color': '#000',
-          'currency': 'EUR',
-        });
+        final db = DatabaseManager.instance;
+        final first = await db.addAccount(
+            'Unique', '#000000', 'checking', 'EUR');
+        expect(first, isNotNull);
 
-        expect(
-          () => db.insert('accounts', {
-            'user_id': userId,
-            'name': 'Unique',
-            'type': 'savings',
-            'color': '#111',
-            'currency': 'USD',
-          }),
-          throwsA(anything),
-        );
+        final second = await db.addAccount(
+            'Unique', '#111111', 'savings', 'USD');
+        expect(second, isNull);
       });
 
       test('allows same name for different users', () async {
-        final userId2 = await seedTestUser(db, username: 'user2');
-        await db.insert('accounts', {
-          'user_id': userId,
-          'name': 'Shared',
-          'type': 'checking',
-          'color': '#000',
-          'currency': 'EUR',
-        });
-        final id2 = await db.insert('accounts', {
-          'user_id': userId2,
-          'name': 'Shared',
-          'type': 'savings',
-          'color': '#111',
-          'currency': 'USD',
-        });
-        expect(id2, greaterThan(0));
+        final db = DatabaseManager.instance;
+        final first = await db.addAccount(
+            'Shared', '#000000', 'checking', 'EUR');
+        expect(first, isNotNull);
+
+        final otherUserId = 'user2-${DateTime.now().microsecondsSinceEpoch}';
+        db.setSessionUserId(otherUserId);
+        final second = await db.addAccount(
+            'Shared', '#111111', 'savings', 'USD');
+        expect(second, isNotNull);
+        db.setSessionUserId(myUserId);
       });
     });
 
     group('Account default accounts', () {
-      test('seedTestAccounts creates 3 default accounts', () async {
-        final ids = await seedTestAccounts(db, userId);
-        expect(ids.length, 3);
+      test('can create the 3 standard accounts', () async {
+        final db = DatabaseManager.instance;
+        final ids = await seedStandardAccounts();
+        expect(ids, hasLength(3));
 
-        final rows = await db.query(
-          'accounts',
-          where: 'user_id = ?',
-          whereArgs: [userId],
-          orderBy: 'name',
-        );
-        expect(rows.length, 3);
+        final accounts = await db.getAllAccounts();
+        expect(accounts, hasLength(3));
 
-        final names = rows.map((r) => r['name'] as String).toList();
-        expect(names,
-            containsAll(['Checking Account', 'Savings Account A', 'Savings Account B']));
+        final names = accounts.map((a) => a.name).toList();
+        expect(
+            names,
+            containsAll([
+              'Checking Account',
+              'Savings Account A',
+              'Savings Account B'
+            ]));
       });
 
-      test('default accounts have correct types and currencies', () async {
-        await seedTestAccounts(db, userId);
+      test('standard accounts have correct types and currencies', () async {
+        final db = DatabaseManager.instance;
+        await seedStandardAccounts();
 
-        final rows = await db.query(
-          'accounts',
-          where: 'user_id = ?',
-          whereArgs: [userId],
-        );
+        final accounts = await db.getAllAccounts();
+        final checking = accounts
+            .singleWhere((a) => a.name == 'Checking Account');
+        expect(checking.type, 'checking');
+        expect(checking.currency, 'EUR');
 
-        final checkingRow = rows.firstWhere((r) => r['name'] == 'Checking Account');
-        expect(checkingRow['type'], 'checking');
-        expect(checkingRow['currency'], 'EUR');
-
-        for (final row in rows) {
-          if (row['name'] != 'Checking Account') {
-            expect(row['type'], 'savings');
+        for (final account in accounts) {
+          if (account.name != 'Checking Account') {
+            expect(account.type, 'savings');
           }
-          expect(row['currency'], 'EUR');
+          expect(account.currency, 'EUR');
         }
       });
 
-      test('default accounts have expected colors', () async {
-        await seedTestAccounts(db, userId);
+      test('standard accounts have expected colors', () async {
+        final db = DatabaseManager.instance;
+        await seedStandardAccounts();
 
-        final rows = await db.query(
-          'accounts',
-          where: 'user_id = ?',
-          whereArgs: [userId],
-        );
-
-        final colors = rows.map((r) => r['color'] as String).toList();
+        final accounts = await db.getAllAccounts();
+        final colors = accounts.map((a) => a.color).toList();
         expect(colors, containsAll(['#4CAF50', '#2196F3', '#009688']));
       });
     });

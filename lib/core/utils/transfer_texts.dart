@@ -62,6 +62,10 @@ bool isTransferText(String? text) => parseTransferText(text) != null;
   required String? sourceLegText,
   required String? destLegText,
 }) {
+  // Fast path: both live names known, no text parsing needed.
+  if (sourceAccountName != null && destAccountName != null) {
+    return (source: sourceAccountName, dest: destAccountName);
+  }
   final fromParsed = parseTransferText(destLegText);
   final toParsed = parseTransferText(sourceLegText);
   return (

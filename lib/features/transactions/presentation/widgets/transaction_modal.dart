@@ -50,7 +50,6 @@ class _TransactionModalState extends State<TransactionModal> {
   final _amountController = TextEditingController();
   final _notesController = TextEditingController();
   final _endDateController = TextEditingController();
-  final _newAccountController = TextEditingController();
 
   String _transactionType = 'expense';
   String? _selectedAccountId;
@@ -129,7 +128,6 @@ class _TransactionModalState extends State<TransactionModal> {
           : widget.accounts.first.id;
     }
 
-    _descController.addListener(() => setState(() {}));
     _amountController.addListener(_onAmountChanged);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -155,7 +153,6 @@ class _TransactionModalState extends State<TransactionModal> {
     _amountController.dispose();
     _notesController.dispose();
     _endDateController.dispose();
-    _newAccountController.dispose();
     super.dispose();
   }
 
@@ -165,10 +162,12 @@ class _TransactionModalState extends State<TransactionModal> {
 
   Future<void> _updateExchangeRate() async {
     if (_transactionType != 'transfer' || _sourceAccountId == null || _destAccountId == null) {
-      setState(() {
-        _exchangeRate = null;
-        _convertedAmount = null;
-      });
+      if (mounted) {
+        setState(() {
+          _exchangeRate = null;
+          _convertedAmount = null;
+        });
+      }
       return;
     }
 
@@ -176,38 +175,37 @@ class _TransactionModalState extends State<TransactionModal> {
     final destCurrency = _getDestCurrency();
 
     if (srcCurrency == destCurrency) {
-      setState(() {
-        _exchangeRate = null;
-        _convertedAmount = null;
-      });
+      if (mounted) {
+        setState(() {
+          _exchangeRate = null;
+          _convertedAmount = null;
+        });
+      }
       return;
     }
 
     final rate = await _db.getExchangeRate(srcCurrency, destCurrency);
+    if (!mounted) return;
+    // Single setState for rate + converted amount (was two).
     setState(() {
       _exchangeRate = rate;
+      _convertedAmount = _computeConvertedAmount(rate);
     });
-    _updateConvertedAmount();
+  }
+
+  Decimal? _computeConvertedAmount(double? rate) {
+    if (rate == null) return null;
+    final amount = Decimal.tryParse(_amountController.text);
+    if (amount != null && amount > Decimal.zero) {
+      return amount * Decimal.parse(rate.toString());
+    }
+    return null;
   }
 
   void _updateConvertedAmount() {
-    if (_exchangeRate == null) {
-      setState(() {
-        _convertedAmount = null;
-      });
-      return;
-    }
-
-    final amount = Decimal.tryParse(_amountController.text);
-    if (amount != null && amount > Decimal.zero) {
-      setState(() {
-        _convertedAmount = amount * Decimal.parse(_exchangeRate!.toString());
-      });
-    } else {
-      setState(() {
-        _convertedAmount = null;
-      });
-    }
+    setState(() {
+      _convertedAmount = _computeConvertedAmount(_exchangeRate);
+    });
   }
 
   String _getSourceCurrency() {
@@ -355,6 +353,7 @@ class _TransactionModalState extends State<TransactionModal> {
       'expense': Translator.t('modal_new_expense'),
       'transfer': Translator.t('modal_new_transfer'),
     };
+    final canSave = _validate();
     final title = widget.editRecurring != null
         ? Translator.t('rec_edit')
         : widget.editTransaction != null
@@ -384,10 +383,19 @@ class _TransactionModalState extends State<TransactionModal> {
           _buildDateField(colors),
           const SizedBox(height: 12),
 
-          // Description (not for transfers)
+          // Description (not for transfers). Scoped rebuild: typing only
+          // rebuilds this subtree, not the whole modal.
           if (_transactionType != 'transfer') ...[
-            _buildDescriptionField(colors),
-            if (_showSuggestions) _buildSuggestions(colors),
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: _descController,
+              builder: (_, _, _) => Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildDescriptionField(colors),
+                  if (_showSuggestions) _buildSuggestions(colors),
+                ],
+              ),
+            ),
             const SizedBox(height: 12),
           ],
 
@@ -430,10 +438,10 @@ class _TransactionModalState extends State<TransactionModal> {
           iconTheme: IconThemeData(color: colors.text),
           actions: [
             TextButton(
-              onPressed: _validate() ? _save : null,
+              onPressed: canSave ? _save : null,
               child: Text(Translator.t('btn_save'),
                   style: TextStyle(
-                      color: _validate() ? colors.accent : colors.placeholderColor)),
+                      color: canSave ? colors.accent : colors.placeholderColor)),
             ),
           ],
         ),
@@ -456,7 +464,7 @@ class _TransactionModalState extends State<TransactionModal> {
           child: Text(Translator.t('btn_cancel')),
         ),
         ElevatedButton(
-          onPressed: _validate() ? _save : null,
+          onPressed: canSave ? _save : null,
           style: ElevatedButton.styleFrom(
             backgroundColor: colors.accent,
             disabledBackgroundColor: colors.placeholderColor.withValues(alpha: 0.3),
@@ -636,7 +644,6 @@ class _TransactionModalState extends State<TransactionModal> {
           onChanged: (v) {
             setState(() => _sourceAccountId = v);
             _updateExchangeRate();
-            _updateConvertedAmount();
           },
         ),
         const SizedBox(height: 12),
@@ -655,7 +662,6 @@ class _TransactionModalState extends State<TransactionModal> {
           onChanged: (v) {
             setState(() => _destAccountId = v);
             _updateExchangeRate();
-            _updateConvertedAmount();
           },
         ),
         if (_exchangeRate != null && _convertedAmount != null) ...[
@@ -1043,7 +1049,7 @@ class _CreateTagDialogState extends State<_CreateTagDialog> {
                   final id = await _db.createTag(
                       name: name, color: _selectedColor);
                   if (id != null) await widget.onTagCreated(id);
-                  if (mounted) Navigator.pop(context);
+                  if (context.mounted) Navigator.pop(context);
                 },
           style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
           child: Text(Translator.t('btn_save'),

@@ -3,57 +3,53 @@ import 'package:decimal/decimal.dart';
 class CurrencyData {
   final String code;
   final String symbol;
-  final String name;
-  final String nameFr;
 
   const CurrencyData({
     required this.code,
     required this.symbol,
-    required this.name,
-    required this.nameFr,
   });
 }
 
 class CurrencyService {
   static const Map<String, CurrencyData> currencies = {
-    'EUR': CurrencyData(code: 'EUR', symbol: '\u20ac', name: 'Euro', nameFr: 'Euro'),
-    'USD': CurrencyData(code: 'USD', symbol: '\$', name: 'US Dollar', nameFr: 'Dollar am\u00e9ricain'),
-    'GBP': CurrencyData(code: 'GBP', symbol: '\u00a3', name: 'Pound Sterling', nameFr: 'Livre sterling'),
-    'JPY': CurrencyData(code: 'JPY', symbol: '\u00a5', name: 'Japanese Yen', nameFr: 'Yen japonais'),
-    'CHF': CurrencyData(code: 'CHF', symbol: 'CHF', name: 'Swiss Franc', nameFr: 'Franc suisse'),
-    'CAD': CurrencyData(code: 'CAD', symbol: 'CA\$', name: 'Canadian Dollar', nameFr: 'Dollar canadien'),
-    'AUD': CurrencyData(code: 'AUD', symbol: 'AU\$', name: 'Australian Dollar', nameFr: 'Dollar australien'),
-    'CNY': CurrencyData(code: 'CNY', symbol: 'CN\u00a5', name: 'Chinese Yuan', nameFr: 'Yuan chinois'),
-    'HKD': CurrencyData(code: 'HKD', symbol: 'HK\$', name: 'Hong Kong Dollar', nameFr: 'Dollar de Hong Kong'),
-    'SGD': CurrencyData(code: 'SGD', symbol: 'SG\$', name: 'Singapore Dollar', nameFr: 'Dollar de Singapour'),
-    'SEK': CurrencyData(code: 'SEK', symbol: 'kr', name: 'Swedish Krona', nameFr: 'Couronne su\u00e9doise'),
-    'NOK': CurrencyData(code: 'NOK', symbol: 'kr', name: 'Norwegian Krone', nameFr: 'Couronne norv\u00e9gienne'),
-    'DKK': CurrencyData(code: 'DKK', symbol: 'kr', name: 'Danish Krone', nameFr: 'Couronne danoise'),
-    'PLN': CurrencyData(code: 'PLN', symbol: 'z\u0142', name: 'Polish Zloty', nameFr: 'Zloty polonais'),
-    'CZK': CurrencyData(code: 'CZK', symbol: 'K\u010d', name: 'Czech Koruna', nameFr: 'Couronne tch\u00e8que'),
-    'HUF': CurrencyData(code: 'HUF', symbol: 'Ft', name: 'Hungarian Forint', nameFr: 'Forint hongrois'),
-    'INR': CurrencyData(code: 'INR', symbol: '\u20b9', name: 'Indian Rupee', nameFr: 'Roupie indienne'),
-    'BRL': CurrencyData(code: 'BRL', symbol: 'R\$', name: 'Brazilian Real', nameFr: 'Real br\u00e9silien'),
-    'ZAR': CurrencyData(code: 'ZAR', symbol: 'R', name: 'South African Rand', nameFr: 'Rand sud-africain'),
-    'MXN': CurrencyData(code: 'MXN', symbol: 'MX\$', name: 'Mexican Peso', nameFr: 'Peso mexicain'),
-    'TWD': CurrencyData(code: 'TWD', symbol: 'NT\$', name: 'Taiwan Dollar', nameFr: 'Dollar ta\u00efwanais'),
-    'NZD': CurrencyData(code: 'NZD', symbol: 'NZ\$', name: 'New Zealand Dollar', nameFr: 'Dollar n\u00e9o-z\u00e9landais'),
-    'KRW': CurrencyData(code: 'KRW', symbol: '\u20a9', name: 'South Korean Won', nameFr: 'Won sud-cor\u00e9en'),
-    'TRY': CurrencyData(code: 'TRY', symbol: '\u20ba', name: 'Turkish Lira', nameFr: 'Lire turque'),
-    'RUB': CurrencyData(code: 'RUB', symbol: '\u20bd', name: 'Russian Ruble', nameFr: 'Rouble russe'),
-    'THB': CurrencyData(code: 'THB', symbol: '\u0e3f', name: 'Thai Baht', nameFr: 'Baht tha\u00eflandais'),
-    'AED': CurrencyData(code: 'AED', symbol: 'د.إ', name: 'UAE Dirham', nameFr: 'Dirham des \u00c9mirats'),
-    'SAR': CurrencyData(code: 'SAR', symbol: '\ufdfc', name: 'Saudi Riyal', nameFr: 'Riyal saoudien'),
-    'MYR': CurrencyData(code: 'MYR', symbol: 'RM', name: 'Malaysian Ringgit', nameFr: 'Ringgit malaisien'),
-    'PHP': CurrencyData(code: 'PHP', symbol: '\u20b1', name: 'Philippine Peso', nameFr: 'Peso philippin'),
-    'IDR': CurrencyData(code: 'IDR', symbol: 'Rp', name: 'Indonesian Rupiah', nameFr: 'Roupie indon\u00e9sienne'),
-    'VND': CurrencyData(code: 'VND', symbol: '\u20ab', name: 'Vietnamese Dong', nameFr: 'Dong vietnamien'),
-    'ILS': CurrencyData(code: 'ILS', symbol: '\u20aa', name: 'Israeli Shekel', nameFr: 'Shekel isra\u00e9lien'),
-    'CLP': CurrencyData(code: 'CLP', symbol: 'CLP\$', name: 'Chilean Peso', nameFr: 'Peso chilien'),
-    'NGN': CurrencyData(code: 'NGN', symbol: '\u20a6', name: 'Nigerian Naira', nameFr: 'Naira nig\u00e9rian'),
-    'EGP': CurrencyData(code: 'EGP', symbol: 'E\u00a3', name: 'Egyptian Pound', nameFr: '\u00c9gypte livre'),
-    'PKR': CurrencyData(code: 'PKR', symbol: '\u20a8', name: 'Pakistani Rupee', nameFr: 'Roupie pakistanaise'),
-    'BDT': CurrencyData(code: 'BDT', symbol: '\u09f3', name: 'Bangladeshi Taka', nameFr: 'Taka bangladais'),
+    'EUR': CurrencyData(code: 'EUR', symbol: '\u20ac'),
+    'USD': CurrencyData(code: 'USD', symbol: '\$'),
+    'GBP': CurrencyData(code: 'GBP', symbol: '\u00a3'),
+    'JPY': CurrencyData(code: 'JPY', symbol: '\u00a5'),
+    'CHF': CurrencyData(code: 'CHF', symbol: 'CHF'),
+    'CAD': CurrencyData(code: 'CAD', symbol: 'CA\$'),
+    'AUD': CurrencyData(code: 'AUD', symbol: 'AU\$'),
+    'CNY': CurrencyData(code: 'CNY', symbol: 'CN\u00a5'),
+    'HKD': CurrencyData(code: 'HKD', symbol: 'HK\$'),
+    'SGD': CurrencyData(code: 'SGD', symbol: 'SG\$'),
+    'SEK': CurrencyData(code: 'SEK', symbol: 'kr'),
+    'NOK': CurrencyData(code: 'NOK', symbol: 'kr'),
+    'DKK': CurrencyData(code: 'DKK', symbol: 'kr'),
+    'PLN': CurrencyData(code: 'PLN', symbol: 'z\u0142'),
+    'CZK': CurrencyData(code: 'CZK', symbol: 'K\u010d'),
+    'HUF': CurrencyData(code: 'HUF', symbol: 'Ft'),
+    'INR': CurrencyData(code: 'INR', symbol: '\u20b9'),
+    'BRL': CurrencyData(code: 'BRL', symbol: 'R\$'),
+    'ZAR': CurrencyData(code: 'ZAR', symbol: 'R'),
+    'MXN': CurrencyData(code: 'MXN', symbol: 'MX\$'),
+    'TWD': CurrencyData(code: 'TWD', symbol: 'NT\$'),
+    'NZD': CurrencyData(code: 'NZD', symbol: 'NZ\$'),
+    'KRW': CurrencyData(code: 'KRW', symbol: '\u20a9'),
+    'TRY': CurrencyData(code: 'TRY', symbol: '\u20ba'),
+    'RUB': CurrencyData(code: 'RUB', symbol: '\u20bd'),
+    'THB': CurrencyData(code: 'THB', symbol: '\u0e3f'),
+    'AED': CurrencyData(code: 'AED', symbol: 'د.إ'),
+    'SAR': CurrencyData(code: 'SAR', symbol: '\ufdfc'),
+    'MYR': CurrencyData(code: 'MYR', symbol: 'RM'),
+    'PHP': CurrencyData(code: 'PHP', symbol: '\u20b1'),
+    'IDR': CurrencyData(code: 'IDR', symbol: 'Rp'),
+    'VND': CurrencyData(code: 'VND', symbol: '\u20ab'),
+    'ILS': CurrencyData(code: 'ILS', symbol: '\u20aa'),
+    'CLP': CurrencyData(code: 'CLP', symbol: 'CLP\$'),
+    'NGN': CurrencyData(code: 'NGN', symbol: '\u20a6'),
+    'EGP': CurrencyData(code: 'EGP', symbol: 'E\u00a3'),
+    'PKR': CurrencyData(code: 'PKR', symbol: '\u20a8'),
+    'BDT': CurrencyData(code: 'BDT', symbol: '\u09f3'),
   };
 
   static String getSymbol(String code) {
@@ -62,7 +58,10 @@ class CurrencyService {
 
   static bool isValid(String code) => currencies.containsKey(code);
 
-  static List<String> get allCodes => currencies.keys.toList();
+  static final List<String> allCodes =
+      List.unmodifiable(currencies.keys);
+
+  static final RegExp _thousandsSep = RegExp(r'(\d)(?=(\d{3})+(?!\d))');
 
   static String formatAmount(Decimal amount, String currencyCode) {
     final symbol = getSymbol(currencyCode);
@@ -86,7 +85,7 @@ class CurrencyService {
     }
 
     final formatted = str.replaceAllMapped(
-          RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+          _thousandsSep,
           (m) => '${m[1]},',
         );
     return '$prefix$formatted $symbol';

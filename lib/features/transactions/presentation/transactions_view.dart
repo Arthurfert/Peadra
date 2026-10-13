@@ -54,8 +54,16 @@ class _TransactionsViewState extends State<TransactionsView> {
   final _tagScrollController = ScrollController();
   final _accountScrollController = ScrollController();
   List<_DisplayItem> _displayItems = [];
+  // Cached splits computed once in _loadTransactions (single today stamp,
+  // single pass) instead of O(2n)+DateTime.parse per row per build.
+  List<_DisplayItem> _upcoming = [];
+  List<_DisplayItem> _current = [];
   List<Account> _accounts = [];
   List<Tag> _tags = [];
+  // Tag/account chip colors parsed once when the lists load, not per chip
+  // per build.
+  final Map<String, Color> _tagColors = {};
+  final Map<String, Color> _accountColors = {};
   bool _loading = true;
   bool _showUpcoming = false;
   String _searchQuery = '';
@@ -80,7 +88,8 @@ class _TransactionsViewState extends State<TransactionsView> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final limit = context.read<SettingsProvider>().displayLimit;
+    // watch (not read): subscribes so this fires when the limit changes.
+    final limit = context.watch<SettingsProvider>().displayLimit;
     if (limit != _displayLimit) {
       _displayLimit = limit;
       _loadTransactions();
@@ -219,9 +228,57 @@ class _TransactionsViewState extends State<TransactionsView> {
       setState(() {
         _accounts = results[0] as List<Account>;
         _tags = results[1] as List<Tag>;
+        _refreshChipColors();
       });
     }
     await _loadTransactions();
+  }
+
+  static Color _parseHexColor(String? hex, [Color fallback = const Color(0xFF1976D2)]) {
+    if (hex == null || hex.isEmpty) return fallback;
+    try {
+      return Color(int.parse(hex.replaceFirst('#', '0xFF')));
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  void _refreshChipColors() {
+    _tagColors.clear();
+    for (final tag in _tags) {
+      if (tag.id != null) _tagColors[tag.id!] = _parseHexColor(tag.color);
+    }
+    _accountColors.clear();
+    for (final acct in _accounts) {
+      if (acct.id != null) _accountColors[acct.id!] = _parseHexColor(acct.color);
+    }
+  }
+
+  /// Partitions [items] into upcoming (date after today) vs current in a
+  /// single pass with one today stamp and one parse per transaction.
+  void _refreshSplits(List<_DisplayItem> items) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final upcoming = <_DisplayItem>[];
+    final current = <_DisplayItem>[];
+    for (final item in items) {
+      final txn = item.transaction;
+      var isUpcoming = false;
+      if (txn != null && txn.date.isNotEmpty) {
+        final date = DateTime.tryParse(txn.date);
+        if (date != null) {
+          isUpcoming =
+              DateTime(date.year, date.month, date.day).isAfter(today);
+        }
+      }
+      if (isUpcoming) {
+        upcoming.add(item);
+      } else {
+        current.add(item);
+      }
+    }
+    _upcoming = upcoming;
+    _current = current;
   }
 
   Future<void> _loadTransactions(
@@ -314,6 +371,7 @@ class _TransactionsViewState extends State<TransactionsView> {
         } else {
           _displayItems = newItems;
         }
+        _refreshSplits(_displayItems);
         _lastRawFetchCount = rawCount;
         _hasMore = !loadAll && rawCount == _displayLimit;
         _loading = false;
@@ -990,26 +1048,6 @@ class _TransactionsViewState extends State<TransactionsView> {
     );
   }
 
-  /// A transaction is "upcoming" when its date is after today.
-  bool _isUpcomingItem(_DisplayItem item) {
-    final txn = item.transaction;
-    if (txn == null || txn.date.isEmpty) return false;
-    final date = DateTime.tryParse(txn.date);
-    if (date == null) return false;
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final txDate = DateTime(date.year, date.month, date.day);
-    return txDate.isAfter(today);
-  }
-
-  /// Future-dated transactions, hidden by default behind the "To come" toggle.
-  List<_DisplayItem> _upcomingItems() =>
-      _displayItems.where(_isUpcomingItem).toList();
-
-  /// Transactions that occurred up to today.
-  List<_DisplayItem> _currentItems() =>
-      _displayItems.where((item) => !_isUpcomingItem(item)).toList();
-
   /// Subtle, clearly-visible tint for upcoming rows on both light and dark
   /// themes: a faint blue on light surfaces, a slightly lighter blue on dark.
   Color _upcomingBackground(PeadraColors colors) => Color.alphaBlend(
@@ -1083,147 +1121,11 @@ class _TransactionsViewState extends State<TransactionsView> {
           ),
           if (_tags.isNotEmpty) ...[
             const SizedBox(height: 8),
-            SizedBox(
-              height: 40,
-              child: Listener(
-                onPointerSignal: (event) {
-                  if (event is PointerScrollEvent &&
-                      _tagScrollController.hasClients) {
-                    _tagScrollController.jumpTo(
-                      (_tagScrollController.offset + event.scrollDelta.dy)
-                          .clamp(
-                        0.0,
-                        _tagScrollController.position.maxScrollExtent,
-                      ),
-                    );
-                  }
-                },
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  controller: _tagScrollController,
-                  itemCount: _tags.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 6),
-                itemBuilder: (context, index) {
-                  final tag = _tags[index];
-                  final isSelected = _selectedTagIds.contains(tag.id);
-                  final tagColor = Color(int.parse(tag.color.replaceFirst('#', '0xFF')));
-                  return FilterChip(
-                    label: Text(tag.name),
-                    labelStyle: TextStyle(
-                      color: isSelected ? Colors.white : tagColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    selected: isSelected,
-                    selectedColor: tagColor,
-                    backgroundColor: tagColor.withValues(alpha: 0.1),
-                    checkmarkColor: Colors.white,
-                    side: BorderSide(
-                      color: isSelected ? tagColor : tagColor.withValues(alpha: 0.3),
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    visualDensity: VisualDensity.compact,
-                    onSelected: (selected) {
-                      setState(() {
-                        if (selected) {
-                          _selectedTagIds.add(tag.id!);
-                        } else {
-                          _selectedTagIds.remove(tag.id);
-                        }
-                      });
-                      _loadTransactions();
-                    },
-                  );
-                },
-              ),
-              ),
-            ),
+            _buildTagBar(),
           ],
           if (_accounts.isNotEmpty) ...[
             const SizedBox(height: 8),
-            SizedBox(
-              height: 40,
-              child: Listener(
-                onPointerSignal: (event) {
-                  if (event is PointerScrollEvent &&
-                      _accountScrollController.hasClients) {
-                    _accountScrollController.jumpTo(
-                      (_accountScrollController.offset +
-                              event.scrollDelta.dy)
-                          .clamp(
-                        0.0,
-                        _accountScrollController
-                            .position.maxScrollExtent,
-                      ),
-                    );
-                  }
-                },
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  controller: _accountScrollController,
-                  itemCount: _accounts.length,
-                  separatorBuilder: (_, __) =>
-                      const SizedBox(width: 6),
-                  itemBuilder: (context, index) {
-                    final acct = _accounts[index];
-                    final isSelected = _selectedAccountIds
-                        .contains(acct.id);
-                    final acctColor = Color(int.parse(
-                        acct.color
-                            .replaceFirst('#', '0xFF')));
-                    return FilterChip(
-                      label: Text(acct.name),
-                      labelStyle: TextStyle(
-                        color: isSelected
-                            ? Colors.white
-                            : acctColor,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      selected: isSelected,
-                      selectedColor: acctColor,
-                      backgroundColor: acctColor
-                          .withValues(alpha: 0.1),
-                      checkmarkColor: Colors.white,
-                      side: BorderSide(
-                        color: isSelected
-                            ? acctColor
-                            : acctColor
-                                .withValues(alpha: 0.3),
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(20),
-                      ),
-                      padding:
-                          const EdgeInsets.symmetric(
-                              horizontal: 4),
-                      materialTapTargetSize:
-                          MaterialTapTargetSize
-                              .shrinkWrap,
-                      visualDensity:
-                          VisualDensity.compact,
-                      onSelected: (selected) {
-                        setState(() {
-                          if (selected) {
-                            _selectedAccountIds
-                                .add(acct.id!);
-                          } else {
-                            _selectedAccountIds
-                                .remove(acct.id);
-                          }
-                        });
-                        _loadTransactions();
-                      },
-                    );
-                  },
-                ),
-              ),
-            ),
+            _buildAccountBar(),
           ],
           const SizedBox(height: 16),
           Expanded(
@@ -1247,9 +1149,137 @@ class _TransactionsViewState extends State<TransactionsView> {
     );
   }
 
+  /// Memoized tag filter bar: chip colors come from [_tagColors] (parsed
+  /// once when the tag list loads), so builds do no parsing.
+  Widget _buildTagBar() {
+    return SizedBox(
+      height: 40,
+      child: Listener(
+        onPointerSignal: (event) {
+          if (event is PointerScrollEvent &&
+              _tagScrollController.hasClients) {
+            _tagScrollController.jumpTo(
+              (_tagScrollController.offset + event.scrollDelta.dy).clamp(
+                0.0,
+                _tagScrollController.position.maxScrollExtent,
+              ),
+            );
+          }
+        },
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          controller: _tagScrollController,
+          itemCount: _tags.length,
+          separatorBuilder: (_, _) => const SizedBox(width: 6),
+          itemBuilder: (context, index) {
+            final tag = _tags[index];
+            final isSelected = _selectedTagIds.contains(tag.id);
+            final tagColor =
+                _tagColors[tag.id] ?? const Color(0xFF1976D2);
+            return FilterChip(
+              label: Text(tag.name),
+              labelStyle: TextStyle(
+                color: isSelected ? Colors.white : tagColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+              selected: isSelected,
+              selectedColor: tagColor,
+              backgroundColor: tagColor.withValues(alpha: 0.1),
+              checkmarkColor: Colors.white,
+              side: BorderSide(
+                color: isSelected ? tagColor : tagColor.withValues(alpha: 0.3),
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+              onSelected: (selected) {
+                setState(() {
+                  if (selected) {
+                    _selectedTagIds.add(tag.id!);
+                  } else {
+                    _selectedTagIds.remove(tag.id);
+                  }
+                });
+                _loadTransactions();
+              },
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  /// Memoized account filter bar: chip colors come from [_accountColors].
+  Widget _buildAccountBar() {
+    return SizedBox(
+      height: 40,
+      child: Listener(
+        onPointerSignal: (event) {
+          if (event is PointerScrollEvent &&
+              _accountScrollController.hasClients) {
+            _accountScrollController.jumpTo(
+              (_accountScrollController.offset + event.scrollDelta.dy).clamp(
+                0.0,
+                _accountScrollController.position.maxScrollExtent,
+              ),
+            );
+          }
+        },
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          controller: _accountScrollController,
+          itemCount: _accounts.length,
+          separatorBuilder: (_, _) => const SizedBox(width: 6),
+          itemBuilder: (context, index) {
+            final acct = _accounts[index];
+            final isSelected = _selectedAccountIds.contains(acct.id);
+            final acctColor =
+                _accountColors[acct.id] ?? const Color(0xFF1976D2);
+            return FilterChip(
+              label: Text(acct.name),
+              labelStyle: TextStyle(
+                color: isSelected ? Colors.white : acctColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+              selected: isSelected,
+              selectedColor: acctColor,
+              backgroundColor: acctColor.withValues(alpha: 0.1),
+              checkmarkColor: Colors.white,
+              side: BorderSide(
+                color:
+                    isSelected ? acctColor : acctColor.withValues(alpha: 0.3),
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+              onSelected: (selected) {
+                setState(() {
+                  if (selected) {
+                    _selectedAccountIds.add(acct.id!);
+                  } else {
+                    _selectedAccountIds.remove(acct.id);
+                  }
+                });
+                _loadTransactions();
+              },
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   Widget _buildTransactionList(PeadraColors colors, String defaultCurrency) {
-    final upcomingItems = _upcomingItems();
-    final currentItems = _currentItems();
+    final upcomingItems = _upcoming;
+    final currentItems = _current;
     final hasUpcoming = upcomingItems.isNotEmpty;
     final toggleCount = hasUpcoming ? 1 : 0;
     final visibleUpcoming =

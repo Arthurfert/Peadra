@@ -42,22 +42,30 @@ class BiometricService {
   }
 
   Future<void> saveCredentials(String userId, String username, {SecretKey? encryptionKey}) async {
-    await _storage.write(key: _keyUserId, value: userId);
-    await _storage.write(key: _keyUsername, value: username);
-    if (encryptionKey != null) {
-      final keyBytes = (await encryptionKey.extract()).bytes;
-      await _storage.write(key: _keyEncryption, value: base64Encode(keyBytes));
-    }
+    final keyB64 = encryptionKey == null
+        ? null
+        : base64Encode((await encryptionKey.extract()).bytes);
+    await Future.wait([
+      _storage.write(key: _keyUserId, value: userId),
+      _storage.write(key: _keyUsername, value: username),
+      if (keyB64 != null)
+        _storage.write(key: _keyEncryption, value: keyB64),
+    ]);
   }
 
   Future<Map<String, dynamic>?> loadCredentials() async {
-    final userId = await _storage.read(key: _keyUserId);
-    final username = await _storage.read(key: _keyUsername);
+    final values = await Future.wait([
+      _storage.read(key: _keyUserId),
+      _storage.read(key: _keyUsername),
+      _storage.read(key: _keyEncryption),
+    ]);
+    final userId = values[0];
+    final username = values[1];
     if (userId != null && username != null) {
       return {
         'userId': userId,
         'username': username,
-        'encryptionKey': await _storage.read(key: _keyEncryption),
+        'encryptionKey': values[2],
       };
     }
     return null;
@@ -69,8 +77,4 @@ class BiometricService {
     await _storage.delete(key: _keyEncryption);
   }
 
-  Future<bool> hasStoredCredentials() async {
-    final userId = await _storage.read(key: _keyUserId);
-    return userId != null;
-  }
 }

@@ -28,9 +28,28 @@ class _GoalEntry {
   final BudgetGoal goal;
   final Decimal current;
   final Decimal upcoming;
+  // Display strings precomputed at load time so per-card builds don't
+  // re-run formatAmount/formatDate on every build.
+  final String currentStr;
+  final String targetStr;
+  final String remainingStr;
+  final String overStr;
 
   _GoalEntry(this.goal, this.current, [Decimal? upcoming])
-      : upcoming = upcoming ?? Decimal.zero;
+      : upcoming = upcoming ?? Decimal.zero,
+        currentStr = CurrencyService.formatAmount(current, goal.currency),
+        targetStr =
+            CurrencyService.formatAmount(goal.targetAmount, goal.currency),
+        remainingStr = CurrencyService.formatAmount(
+            goal.targetAmount - current > Decimal.zero
+                ? goal.targetAmount - current
+                : Decimal.zero,
+            goal.currency),
+        overStr = CurrencyService.formatAmount(
+            current - goal.targetAmount > Decimal.zero
+                ? current - goal.targetAmount
+                : Decimal.zero,
+            goal.currency);
 }
 
 class _BudgetsViewState extends State<BudgetsView> {
@@ -71,18 +90,35 @@ class _BudgetsViewState extends State<BudgetsView> {
 
     final currents = <String, Decimal>{};
     final upcomings = <String, Decimal>{};
-    for (final goal in goals) {
-      if (goal.id == null) continue;
+    // Batch per-goal valuations concurrently instead of awaiting each
+    // goal serially (each issues 1-3 queries plus rate lookups).
+    Future<Decimal> safeCurrent(BudgetGoal g) async {
+      if (g.id == null) return Decimal.zero;
       try {
-        currents[goal.id!] = await _db.getGoalCurrentValue(goal);
+        return await _db.getGoalCurrentValue(g);
       } catch (_) {
-        currents[goal.id!] = Decimal.zero;
+        return Decimal.zero;
       }
+    }
+
+    Future<Decimal> safeUpcoming(BudgetGoal g) async {
+      if (g.id == null) return Decimal.zero;
       try {
-        upcomings[goal.id!] = await _db.getGoalUpcomingValue(goal);
+        return await _db.getGoalUpcomingValue(g);
       } catch (_) {
-        upcomings[goal.id!] = Decimal.zero;
+        return Decimal.zero;
       }
+    }
+
+    final valued = await Future.wait([
+      for (final goal in goals)
+        Future.wait([safeCurrent(goal), safeUpcoming(goal)]),
+    ]);
+    for (var i = 0; i < goals.length; i++) {
+      final id = goals[i].id;
+      if (id == null) continue;
+      currents[id] = valued[i][0];
+      upcomings[id] = valued[i][1];
     }
 
     if (mounted) {
@@ -217,7 +253,7 @@ class _BudgetsViewState extends State<BudgetsView> {
                       )
                     : ListView.separated(
                         itemCount: _entries.length,
-                        separatorBuilder: (_, __) =>
+                        separatorBuilder: (_, _) =>
                             const SizedBox(height: 12),
                         itemBuilder: (context, index) =>
                             _buildGoalCard(_entries[index], colors),
@@ -271,9 +307,8 @@ class _BudgetsViewState extends State<BudgetsView> {
         ? colors.error
         : (amountReached ? colors.success : colors.textSecondary);
 
-    final currentStr =
-        CurrencyService.formatAmount(current, goal.currency);
-    final targetStr = CurrencyService.formatAmount(target, goal.currency);
+    final currentStr = entry.currentStr;
+    final targetStr = entry.targetStr;
 
     final deadlineStr = goal.effectiveDeadline(_today);
     final isOverdue = goal.isCustom && deadlineStr.compareTo(_today) < 0;
@@ -295,19 +330,11 @@ class _BudgetsViewState extends State<BudgetsView> {
     Color statusColor = colors.textSecondary;
     if (goal.isExpenseGoal) {
       if (current <= target) {
-        final remaining = target - current;
         statusLabel = Translator.t('budget_remaining',
-            params: {
-              'amount': CurrencyService.formatAmount(
-                  remaining, goal.currency)
-            });
+            params: {'amount': entry.remainingStr});
       } else {
-        final over = current - target;
         statusLabel = Translator.t('budget_exceeded_by',
-            params: {
-              'amount':
-                  CurrencyService.formatAmount(over, goal.currency)
-            });
+            params: {'amount': entry.overStr});
         statusColor = colors.error;
       }
     } else {
@@ -315,12 +342,8 @@ class _BudgetsViewState extends State<BudgetsView> {
         statusLabel = Translator.t('budget_reached');
         statusColor = colors.success;
       } else {
-        final remaining = target - current;
         statusLabel = Translator.t('budget_remaining',
-            params: {
-              'amount': CurrencyService.formatAmount(
-                  remaining, goal.currency)
-            });
+            params: {'amount': entry.remainingStr});
       }
     }
 

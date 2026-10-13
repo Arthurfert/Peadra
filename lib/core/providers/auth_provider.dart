@@ -5,16 +5,13 @@ import '../services/log_service.dart';
 class AuthProvider extends ChangeNotifier {
   String? _userId;
   String _username = '';
-  bool _isAuthenticated = false;
 
   String? get userId => _userId;
   String get username => _username;
-  bool get isAuthenticated => _isAuthenticated;
 
   void login(String userId, String username, DatabaseManager db) {
     _userId = userId;
     _username = username;
-    _isAuthenticated = true;
     db.setUserId(userId);
     LogService().log('User logged in: $username');
     notifyListeners();
@@ -30,7 +27,6 @@ class AuthProvider extends ChangeNotifier {
     LogService().log('User logged out: $_username');
     _userId = null;
     _username = '';
-    _isAuthenticated = false;
     db.clearEncryptionKey();
     notifyListeners();
   }

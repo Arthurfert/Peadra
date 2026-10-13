@@ -10,11 +10,9 @@ class EncryptionService {
   static const int _saltLength = 32;
   static const int _keyLength = 32;
 
-  static final SecretKey _algorithmKey = SecretKey([]);
-
   /// Generate a random salt for key derivation.
   static Uint8List generateSalt() {
-    final random = Random();
+    final random = Random.secure();
     return Uint8List.fromList(
       List<int>.generate(_saltLength, (_) => random.nextInt(256)),
     );

@@ -1,138 +1,90 @@
+import 'package:decimal/decimal.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import '../helpers/test_helper.dart';
 
-const int globalUserId = 0;
+import 'package:peadra/core/database/database_manager.dart';
+import 'package:peadra/core/utils/constants.dart';
 
 void main() {
-  late Database db;
-  late int userId;
-
-  setUpAll(() {
-    initializeTestDatabase();
-  });
+  sqfliteFfiInit();
 
   setUp(() async {
-    db = await createTestDatabase();
-    userId = await seedTestUser(db);
-  });
-
-  tearDown(() async {
-    await db.close();
+    await DatabaseManager.instance
+        .openInMemoryForTest(userId: 'user-${DateTime.now().microsecondsSinceEpoch}');
   });
 
   // ==================== SETTINGS CRUD ====================
 
   group('Settings CRUD', () {
     test('setSetting and getSetting round-trip', () async {
-      await db.rawInsert(
-        'INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, ?, ?)',
-        [userId, 'theme', 'dark'],
-      );
+      final db = DatabaseManager.instance;
+      await db.setSetting('theme', 'dark');
 
-      final result = await db.rawQuery(
-        'SELECT value FROM settings WHERE key = ? AND user_id = ?',
-        ['theme', userId],
-      );
-
-      expect(result, isNotEmpty);
-      expect(result.first['value'], 'dark');
+      expect(await db.getSetting('theme'), 'dark');
     });
 
     test('getSetting returns defaultValue when key does not exist', () async {
-      final result = await db.rawQuery(
-        'SELECT value FROM settings WHERE key = ? AND user_id = ?',
-        ['nonexistent', userId],
-      );
+      final db = DatabaseManager.instance;
 
-      expect(result, isEmpty);
+      expect(await db.getSetting('nonexistent'), isNull);
+      expect(
+        await db.getSetting('nonexistent', defaultValue: 'fallback'),
+        'fallback',
+      );
     });
 
     test('setSetting overwrites existing value (INSERT OR REPLACE)', () async {
-      await db.rawInsert(
-        'INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, ?, ?)',
-        [userId, 'currency', 'USD'],
-      );
-      await db.rawInsert(
-        'INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, ?, ?)',
-        [userId, 'currency', 'GBP'],
-      );
+      final db = DatabaseManager.instance;
+      await db.setSetting('currency', 'USD');
+      await db.setSetting('currency', 'GBP');
 
-      final result = await db.rawQuery(
-        'SELECT value FROM settings WHERE key = ? AND user_id = ?',
-        ['currency', userId],
-      );
-
-      expect(result.length, 1);
-      expect(result.first['value'], 'GBP');
+      expect(await db.getSetting('currency'), 'GBP');
     });
 
     test('settings are isolated per user', () async {
-      final userId2 = await seedTestUser(db, username: 'user2');
+      final db = DatabaseManager.instance;
+      final userA = db.userId!;
+      await db.setSetting('theme', 'dark');
 
-      await db.rawInsert(
-        'INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, ?, ?)',
-        [userId, 'theme', 'dark'],
-      );
-      await db.rawInsert(
-        'INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, ?, ?)',
-        [userId2, 'theme', 'light'],
-      );
+      final userB = 'user-${DateTime.now().microsecondsSinceEpoch}-b';
+      db.setSessionUserId(userB);
+      await db.setSetting('theme', 'light');
+      expect(await db.getSetting('theme'), 'light');
 
-      final r1 = await db.rawQuery(
-        'SELECT value FROM settings WHERE key = ? AND user_id = ?',
-        ['theme', userId],
-      );
-      final r2 = await db.rawQuery(
-        'SELECT value FROM settings WHERE key = ? AND user_id = ?',
-        ['theme', userId2],
-      );
+      db.setSessionUserId(userA);
+      expect(await db.getSetting('theme'), 'dark');
 
-      expect(r1.first['value'], 'dark');
-      expect(r2.first['value'], 'light');
+      db.setSessionUserId(userB);
+      expect(await db.getSetting('theme'), 'light');
     });
 
-    test('setting value can be null', () async {
-      await db.rawInsert(
-        'INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, ?, ?)',
-        [userId, 'nullable_key', null],
-      );
-
-      final result = await db.rawQuery(
-        'SELECT value FROM settings WHERE key = ? AND user_id = ?',
-        ['nullable_key', userId],
-      );
-
-      expect(result, isNotEmpty);
-      expect(result.first['value'], isNull);
+    test('missing setting returns null (not defaultValue without one)', () async {
+      final db = DatabaseManager.instance;
+      expect(await db.getSetting('nullable_key'), isNull);
     });
 
     test('setSetting uses correct SQL pattern', () async {
-      await db.rawInsert(
-        'INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, ?, ?)',
-        [userId, 'test_key', 'test_value'],
-      );
+      final db = DatabaseManager.instance;
+      await db.setSetting('test_key', 'test_value');
 
-      final row = await db.rawQuery(
-        'SELECT user_id, key, value FROM settings WHERE key = ?',
-        ['test_key'],
+      expect(await db.getSetting('test_key'), 'test_value');
+
+      // The row is stored scoped to the current user.
+      final handle = await db.database;
+      final rows = await handle.query(
+        'SELECT user_id, "key", value FROM settings WHERE "key" = ? AND user_id = ?',
+        ['test_key', db.userId],
       );
-      expect(row.first['user_id'], userId);
-      expect(row.first['key'], 'test_key');
-      expect(row.first['value'], 'test_value');
+      expect(rows, hasLength(1));
+      expect(rows.first['key'], 'test_key');
+      expect(rows.first['value'], 'test_value');
     });
 
     test('can store and retrieve empty string values', () async {
-      await db.rawInsert(
-        'INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, ?, ?)',
-        [userId, 'empty', ''],
-      );
+      final db = DatabaseManager.instance;
+      await db.setSetting('empty', '');
 
-      final result = await db.rawQuery(
-        'SELECT value FROM settings WHERE key = ? AND user_id = ?',
-        ['empty', userId],
-      );
-      expect(result.first['value'], '');
+      expect(await db.getSetting('empty'), '');
     });
   });
 
@@ -140,478 +92,404 @@ void main() {
 
   group('App settings (global)', () {
     test('global settings use user_id = 0', () async {
-      await db.rawInsert(
-        'INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, ?, ?)',
-        [globalUserId, 'language', 'fr'],
-      );
+      final db = DatabaseManager.instance;
+      await db.setAppSetting('language', 'fr');
 
-      final result = await db.rawQuery(
-        'SELECT value FROM settings WHERE key = ? AND user_id = ?',
-        ['language', globalUserId],
-      );
+      expect(await db.getAppSetting('language'), 'fr');
 
-      expect(result, isNotEmpty);
-      expect(result.first['value'], 'fr');
+      final handle = await db.database;
+      final rows = await handle.query(
+        'SELECT value FROM settings WHERE "key" = ? AND user_id = ?',
+        ['language', globalSettingsUserId],
+      );
+      expect(rows, isNotEmpty);
+      expect(rows.first['value'], 'fr');
     });
 
     test('getAppSetting queries user_id=0, not the current user', () async {
-      await db.rawInsert(
-        'INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, ?, ?)',
-        [globalUserId, 'app_theme', 'dark'],
-      );
-      await db.rawInsert(
-        'INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, ?, ?)',
-        [userId, 'app_theme', 'light'],
-      );
+      final db = DatabaseManager.instance;
+      await db.setAppSetting('app_theme', 'dark');
+      await db.setSetting('app_theme', 'light');
 
-      final globalResult = await db.rawQuery(
-        'SELECT value FROM settings WHERE key = ? AND user_id = ?',
-        ['app_theme', globalUserId],
-      );
-      final userResult = await db.rawQuery(
-        'SELECT value FROM settings WHERE key = ? AND user_id = ?',
-        ['app_theme', userId],
-      );
-
-      expect(globalResult.first['value'], 'dark');
-      expect(userResult.first['value'], 'light');
+      expect(await db.getAppSetting('app_theme'), 'dark');
+      expect(await db.getSetting('app_theme'), 'light');
     });
 
     test('setAppSetting writes with user_id=0', () async {
-      await db.rawInsert(
-        'INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, ?, ?)',
-        [globalUserId, 'default_currency', 'USD'],
-      );
+      final db = DatabaseManager.instance;
+      await db.setAppSetting('default_currency', 'USD');
 
-      final result = await db.rawQuery(
-        'SELECT user_id, value FROM settings WHERE key = ?',
+      final handle = await db.database;
+      final rows = await handle.query(
+        'SELECT user_id, value FROM settings WHERE "key" = ?',
         ['default_currency'],
       );
-
-      expect(result.first['user_id'], globalUserId);
-      expect(result.first['value'], 'USD');
+      expect(rows.first['user_id'].toString(), '$globalSettingsUserId');
+      expect(rows.first['value'], 'USD');
     });
 
     test('global settings are shared across users', () async {
-      await seedTestUser(db, username: 'user2');
+      final db = DatabaseManager.instance;
+      final userA = db.userId!;
+      await db.setAppSetting('shared_key', 'shared_value');
 
-      await db.rawInsert(
-        'INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, ?, ?)',
-        [globalUserId, 'shared_key', 'shared_value'],
-      );
+      final userB = 'user-${DateTime.now().microsecondsSinceEpoch}-b';
+      db.setSessionUserId(userB);
+      expect(await db.getAppSetting('shared_key'), 'shared_value');
 
-      final r1 = await db.rawQuery(
-        'SELECT value FROM settings WHERE key = ? AND user_id = ?',
-        ['shared_key', globalUserId],
-      );
-      final r2 = await db.rawQuery(
-        'SELECT value FROM settings WHERE key = ? AND user_id = ?',
-        ['shared_key', globalUserId],
-      );
-
-      expect(r1.first['value'], 'shared_value');
-      expect(r2.first['value'], 'shared_value');
+      db.setSessionUserId(userA);
+      expect(await db.getAppSetting('shared_key'), 'shared_value');
     });
 
     test('global setting overwrite via INSERT OR REPLACE', () async {
-      await db.rawInsert(
-        'INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, ?, ?)',
-        [globalUserId, 'rate', '1.0'],
-      );
-      await db.rawInsert(
-        'INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, ?, ?)',
-        [globalUserId, 'rate', '2.5'],
-      );
+      final db = DatabaseManager.instance;
+      await db.setAppSetting('rate', '1.0');
+      await db.setAppSetting('rate', '2.5');
 
-      final result = await db.rawQuery(
-        'SELECT value FROM settings WHERE key = ? AND user_id = ?',
-        ['rate', globalUserId],
-      );
-
-      expect(result.length, 1);
-      expect(result.first['value'], '2.5');
+      expect(await db.getAppSetting('rate'), '2.5');
     });
   });
 
   // ==================== IMPORT DEDUPLICATION ====================
+  //
+  // DatabaseManager exposes no import-tracking API, so these scenarios drive
+  // the production imported_files schema through the manager's database
+  // handle (string user ids, prod UNIQUE(user_id, file_hash)).
 
   group('Import deduplication', () {
     test('logImportedFile inserts record for current user', () async {
-      await db.rawInsert(
-        'INSERT INTO imported_files (user_id, file_hash, filename) VALUES (?, ?, ?)',
-        [userId, 'abc123hash', 'bank_export.csv'],
+      final db = DatabaseManager.instance;
+      final handle = await db.database;
+      final uid = db.userId!;
+
+      await handle.execute(
+        'INSERT INTO imported_files (id, user_id, file_hash, filename) VALUES (?1, ?2, ?3, ?4)',
+        [newFileId(), uid, 'abc123hash', 'bank_export.csv'],
       );
 
-      final result = await db.rawQuery(
+      final rows = await handle.query(
         'SELECT * FROM imported_files WHERE file_hash = ? AND user_id = ?',
-        ['abc123hash', userId],
+        ['abc123hash', uid],
       );
-
-      expect(result, isNotEmpty);
-      expect(result.first['file_hash'], 'abc123hash');
-      expect(result.first['filename'], 'bank_export.csv');
-      expect(result.first['user_id'], userId);
+      expect(rows, isNotEmpty);
+      expect(rows.first['file_hash'], 'abc123hash');
+      expect(rows.first['filename'], 'bank_export.csv');
+      expect(rows.first['user_id'], uid);
     });
 
     test('isFileImported returns true after logging', () async {
-      await db.rawInsert(
-        'INSERT INTO imported_files (user_id, file_hash, filename) VALUES (?, ?, ?)',
-        [userId, 'hash_abc', 'file.csv'],
+      final db = DatabaseManager.instance;
+      final handle = await db.database;
+      final uid = db.userId!;
+
+      await handle.execute(
+        'INSERT INTO imported_files (id, user_id, file_hash, filename) VALUES (?1, ?2, ?3, ?4)',
+        [newFileId(), uid, 'hash_abc', 'file.csv'],
       );
 
-      final result = await db.rawQuery(
+      final rows = await handle.query(
         'SELECT COUNT(*) as cnt FROM imported_files WHERE file_hash = ? AND user_id = ?',
-        ['hash_abc', userId],
+        ['hash_abc', uid],
       );
-
-      expect((result.first['cnt'] as int) > 0, isTrue);
+      expect(((rows.first['cnt'] as num?) ?? 0) > 0, isTrue);
     });
 
     test('isFileImported returns false for unknown hash', () async {
-      final result = await db.rawQuery(
-        'SELECT COUNT(*) as cnt FROM imported_files WHERE file_hash = ? AND user_id = ?',
-        ['unknown_hash', userId],
-      );
+      final db = DatabaseManager.instance;
+      final handle = await db.database;
 
-      expect((result.first['cnt'] as int) > 0, isFalse);
+      final rows = await handle.query(
+        'SELECT COUNT(*) as cnt FROM imported_files WHERE file_hash = ? AND user_id = ?',
+        ['unknown_hash', db.userId],
+      );
+      expect(((rows.first['cnt'] as num?) ?? 0) > 0, isFalse);
     });
 
     test('imported files are isolated per user', () async {
-      final userId2 = await seedTestUser(db, username: 'user2');
+      final db = DatabaseManager.instance;
+      final handle = await db.database;
+      final userA = db.userId!;
+      final userB = 'user-${DateTime.now().microsecondsSinceEpoch}-b';
 
-      await db.rawInsert(
-        'INSERT INTO imported_files (user_id, file_hash, filename) VALUES (?, ?, ?)',
-        [userId, 'shared_hash', 'user1_file.csv'],
+      await handle.execute(
+        'INSERT INTO imported_files (id, user_id, file_hash, filename) VALUES (?1, ?2, ?3, ?4)',
+        [newFileId(), userA, 'shared_hash', 'user1_file.csv'],
       );
 
-      final r1 = await db.rawQuery(
-        'SELECT COUNT(*) as cnt FROM imported_files WHERE file_hash = ? AND user_id = ?',
-        ['shared_hash', userId],
-      );
-      final r2 = await db.rawQuery(
-        'SELECT COUNT(*) as cnt FROM imported_files WHERE file_hash = ? AND user_id = ?',
-        ['shared_hash', userId2],
-      );
+      Future<bool> isImported(String uid) async {
+        final rows = await handle.query(
+          'SELECT COUNT(*) as cnt FROM imported_files WHERE file_hash = ? AND user_id = ?',
+          ['shared_hash', uid],
+        );
+        return ((rows.first['cnt'] as num?) ?? 0) > 0;
+      }
 
-      expect((r1.first['cnt'] as int) > 0, isTrue);
-      expect((r2.first['cnt'] as int) > 0, isFalse);
+      expect(await isImported(userA), isTrue);
+      expect(await isImported(userB), isFalse);
     });
 
     test('duplicate file hash insert respects UNIQUE constraint', () async {
-      await db.rawInsert(
-        'INSERT INTO imported_files (user_id, file_hash, filename) VALUES (?, ?, ?)',
-        [userId, 'dup_hash', 'file1.csv'],
+      final db = DatabaseManager.instance;
+      final handle = await db.database;
+      final uid = db.userId!;
+
+      await handle.execute(
+        'INSERT INTO imported_files (id, user_id, file_hash, filename) VALUES (?1, ?2, ?3, ?4)',
+        [newFileId(), uid, 'dup_hash', 'file1.csv'],
       );
 
       expect(
-        () => db.rawInsert(
-          'INSERT INTO imported_files (user_id, file_hash, filename) VALUES (?, ?, ?)',
-          [userId, 'dup_hash', 'file2.csv'],
+        () => handle.execute(
+          'INSERT INTO imported_files (id, user_id, file_hash, filename) VALUES (?1, ?2, ?3, ?4)',
+          [newFileId(), uid, 'dup_hash', 'file2.csv'],
         ),
-        throwsA(isA<DatabaseException>()),
+        throwsA(anything),
       );
     });
 
-    test('same hash with different filename for different users is allowed', () async {
-      final userId2 = await seedTestUser(db, username: 'user2');
+    test('same hash with different filename for different users is allowed',
+        () async {
+      final db = DatabaseManager.instance;
+      final handle = await db.database;
+      final userA = db.userId!;
+      final userB = 'user-${DateTime.now().microsecondsSinceEpoch}-b';
 
-      await db.rawInsert(
-        'INSERT INTO imported_files (user_id, file_hash, filename) VALUES (?, ?, ?)',
-        [userId, 'same_hash', 'file_user1.csv'],
+      await handle.execute(
+        'INSERT INTO imported_files (id, user_id, file_hash, filename) VALUES (?1, ?2, ?3, ?4)',
+        [newFileId(), userA, 'same_hash', 'file_user1.csv'],
       );
-      await db.rawInsert(
-        'INSERT INTO imported_files (user_id, file_hash, filename) VALUES (?, ?, ?)',
-        [userId2, 'same_hash', 'file_user2.csv'],
+      await handle.execute(
+        'INSERT INTO imported_files (id, user_id, file_hash, filename) VALUES (?1, ?2, ?3, ?4)',
+        [newFileId(), userB, 'same_hash', 'file_user2.csv'],
       );
 
-      final all = await db.rawQuery(
+      final all = await handle.query(
         'SELECT * FROM imported_files WHERE file_hash = ?',
         ['same_hash'],
       );
-      expect(all.length, 2);
+      expect(all, hasLength(2));
     });
 
     test('filename can be null', () async {
-      await db.rawInsert(
-        'INSERT INTO imported_files (user_id, file_hash, filename) VALUES (?, ?, ?)',
-        [userId, 'null_name_hash', null],
+      final db = DatabaseManager.instance;
+      final handle = await db.database;
+
+      await handle.execute(
+        'INSERT INTO imported_files (id, user_id, file_hash, filename) VALUES (?1, ?2, ?3, ?4)',
+        [newFileId(), db.userId, 'null_name_hash', null],
       );
 
-      final result = await db.rawQuery(
+      final rows = await handle.query(
         'SELECT filename FROM imported_files WHERE file_hash = ?',
         ['null_name_hash'],
       );
-      expect(result.first['filename'], isNull);
+      expect(rows.first['filename'], isNull);
     });
   });
 
   // ==================== DESCRIPTIONS CRUD ====================
 
   group('Descriptions CRUD', () {
-    test('seedTestDescription creates a description and returns its ID', () async {
-      final descId = await seedTestDescription(db, userId, 'Groceries');
-      expect(descId, isA<int>());
-      expect(descId, greaterThan(0));
+    test('seedTestDescription creates a description and returns its ID',
+        () async {
+      final db = DatabaseManager.instance;
+      final descId = await db.getOrCreateDescription('Groceries');
+      expect(descId, isNotEmpty);
     });
 
     test('getOrCreateDescription finds existing description', () async {
-      final descId = await seedTestDescription(db, userId, 'Groceries');
-
-      final result = await db.rawQuery(
-        'SELECT id FROM descriptions WHERE user_id = ? AND name = ?',
-        [userId, 'Groceries'],
-      );
-      expect(result.first['id'], descId);
+      final db = DatabaseManager.instance;
+      final first = await db.getOrCreateDescription('Groceries');
+      final second = await db.getOrCreateDescription('Groceries');
+      expect(second, first);
     });
 
-    test('getOrCreateDescription creates new description when not found', () async {
-      final before = await db.rawQuery(
-        'SELECT COUNT(*) as cnt FROM descriptions WHERE user_id = ?',
-        [userId],
-      );
+    test('getOrCreateDescription creates new description when not found',
+        () async {
+      final db = DatabaseManager.instance;
+      final before = await db.getAllDescriptions();
 
-      await db.rawInsert(
-        'INSERT INTO descriptions (user_id, name) VALUES (?, ?)',
-        [userId, 'New Description'],
-      );
+      await db.getOrCreateDescription('New Description');
 
-      final after = await db.rawQuery(
-        'SELECT COUNT(*) as cnt FROM descriptions WHERE user_id = ?',
-        [userId],
-      );
-
-      expect(after.first['cnt'], (before.first['cnt'] as int) + 1);
+      final after = await db.getAllDescriptions();
+      expect(after.length, before.length + 1);
+      expect(after.map((d) => d.name), contains('New Description'));
     });
 
-    test('getAllDescriptions returns all descriptions for current user ordered by name', () async {
-      await seedTestDescription(db, userId, 'Zebra');
-      await seedTestDescription(db, userId, 'Apple');
-      await seedTestDescription(db, userId, 'Mango');
+    test(
+        'getAllDescriptions returns all descriptions for current user ordered by name',
+        () async {
+      final db = DatabaseManager.instance;
+      await db.getOrCreateDescription('Zebra');
+      await db.getOrCreateDescription('Apple');
+      await db.getOrCreateDescription('Mango');
 
-      final rows = await db.rawQuery(
-        'SELECT * FROM descriptions WHERE user_id = ? ORDER BY name',
-        [userId],
-      );
-
-      expect(rows.length, 3);
-      expect(rows[0]['name'], 'Apple');
-      expect(rows[1]['name'], 'Mango');
-      expect(rows[2]['name'], 'Zebra');
+      final descriptions = await db.getAllDescriptions();
+      expect(descriptions.map((d) => d.name).toList(),
+          ['Apple', 'Mango', 'Zebra']);
     });
 
     test('descriptions are isolated per user', () async {
-      final userId2 = await seedTestUser(db, username: 'user2');
+      final db = DatabaseManager.instance;
+      final userA = db.userId!;
+      await db.getOrCreateDescription('Food');
 
-      await seedTestDescription(db, userId, 'Food');
-      await seedTestDescription(db, userId2, 'Transport');
+      final userB = 'user-${DateTime.now().microsecondsSinceEpoch}-b';
+      db.setSessionUserId(userB);
+      await db.getOrCreateDescription('Transport');
 
-      final r1 = await db.rawQuery(
-        'SELECT * FROM descriptions WHERE user_id = ?',
-        [userId],
-      );
-      final r2 = await db.rawQuery(
-        'SELECT * FROM descriptions WHERE user_id = ?',
-        [userId2],
-      );
+      final forB = await db.getAllDescriptions();
+      expect(forB.map((d) => d.name).toList(), ['Transport']);
 
-      expect(r1.length, 1);
-      expect(r2.length, 1);
-      expect(r1.first['name'], 'Food');
-      expect(r2.first['name'], 'Transport');
+      db.setSessionUserId(userA);
+      final forA = await db.getAllDescriptions();
+      expect(forA.map((d) => d.name).toList(), ['Food']);
     });
 
     test('descriptions have UNIQUE(user_id, name) constraint', () async {
-      await seedTestDescription(db, userId, 'Duplicate');
+      final db = DatabaseManager.instance;
+      final first = await db.getOrCreateDescription('Duplicate');
+      final second = await db.getOrCreateDescription('Duplicate');
 
+      // The production API dedupes instead of throwing: same row, one row.
+      expect(second, first);
       expect(
-        () => seedTestDescription(db, userId, 'Duplicate'),
-        throwsA(isA<DatabaseException>()),
+        (await db.getAllDescriptions()).where((d) => d.name == 'Duplicate'),
+        hasLength(1),
       );
     });
 
-    test('mergeDescriptions reassigns transactions and deletes source', () async {
-      final srcId = await seedTestDescription(db, userId, 'OldCategory');
-      final tgtId = await seedTestDescription(db, userId, 'NewCategory');
-      final acctIds = await seedTestAccounts(db, userId);
+    test('mergeDescriptions reassigns transactions and deletes source',
+        () async {
+      final db = DatabaseManager.instance;
+      final accountId = await db.addAccount(
+          'Checking', '#4CAF50', 'checking', 'EUR');
 
-      await seedTestTransaction(db, userId,
-          accountId: acctIds[0], descriptionId: srcId, amount: 50.0);
-      await seedTestTransaction(db, userId,
-          accountId: acctIds[0], descriptionId: srcId, amount: 75.0);
+      Future<void> addWithDescription(String description, int amount) =>
+          db.addTransaction(
+            date: '2025-01-15',
+            description: description,
+            amount: Decimal.fromInt(amount),
+            transactionType: 'income',
+            accountId: accountId,
+          );
+      await addWithDescription('OldCategory', 50);
+      await addWithDescription('OldCategory', 75);
+      await db.getOrCreateDescription('NewCategory');
 
-      await db.rawUpdate(
-        'UPDATE transactions SET description_id = ? WHERE description_id = ? AND user_id = ?',
-        [tgtId, srcId, userId],
-      );
-      await db.rawDelete(
-        'DELETE FROM descriptions WHERE id = ? AND user_id = ?',
-        [srcId, userId],
-      );
+      expect(await db.mergeDescriptions('OldCategory', 'NewCategory'), isTrue);
 
-      final txns = await db.rawQuery(
-        'SELECT description_id FROM transactions WHERE user_id = ?',
-        [userId],
-      );
-      expect(txns.every((t) => t['description_id'] == tgtId), isTrue);
+      final txns = await db.getTransactions();
+      expect(txns, hasLength(2));
+      expect(txns.every((t) => t.descriptionName == 'NewCategory'), isTrue);
 
-      final srcStillExists = await db.rawQuery(
-        'SELECT * FROM descriptions WHERE id = ? AND user_id = ?',
-        [srcId, userId],
-      );
-      expect(srcStillExists, isEmpty);
-
-      final tgtStillExists = await db.rawQuery(
-        'SELECT * FROM descriptions WHERE id = ? AND user_id = ?',
-        [tgtId, userId],
-      );
-      expect(tgtStillExists, isNotEmpty);
+      final names =
+          (await db.getAllDescriptions()).map((d) => d.name).toList();
+      expect(names, isNot(contains('OldCategory')));
+      expect(names, contains('NewCategory'));
     });
 
     test('mergeDescriptions returns false when source == target', () async {
-      final descId = await seedTestDescription(db, userId, 'SameName');
+      final db = DatabaseManager.instance;
+      await db.getOrCreateDescription('SameName');
 
-      final srcId = descId;
-      final tgtId = descId;
-
-      final sameName = srcId == tgtId;
-      expect(sameName, isTrue);
+      expect(await db.mergeDescriptions('SameName', 'SameName'), isFalse);
     });
 
     test('renameDescription updates the name', () async {
-      final descId = await seedTestDescription(db, userId, 'OldName');
+      final db = DatabaseManager.instance;
+      final descId = await db.getOrCreateDescription('OldName');
 
-      final count = await db.rawUpdate(
-        'UPDATE descriptions SET name = ? WHERE id = ? AND user_id = ?',
-        ['NewName', descId, userId],
-      );
-      expect(count, 1);
+      expect(await db.renameDescription(descId, 'NewName'), isTrue);
 
-      final result = await db.rawQuery(
-        'SELECT name FROM descriptions WHERE id = ?',
-        [descId],
-      );
-      expect(result.first['name'], 'NewName');
+      final descriptions = await db.getAllDescriptions();
+      expect(descriptions.map((d) => d.name), contains('NewName'));
+      expect(descriptions.map((d) => d.name), isNot(contains('OldName')));
     });
 
     test('renameDescription with empty name returns 0 updates', () async {
-      final descId = await seedTestDescription(db, userId, 'KeepName');
+      final db = DatabaseManager.instance;
+      final descId = await db.getOrCreateDescription('KeepName');
 
-      final newName = ''.trim();
-      expect(newName.isEmpty, isTrue);
+      expect(await db.renameDescription(descId, '   '), isFalse);
 
-      if (newName.isNotEmpty) {
-        await db.rawUpdate(
-          'UPDATE descriptions SET name = ? WHERE id = ? AND user_id = ?',
-          [newName, descId, userId],
-        );
-      }
-
-      final result = await db.rawQuery(
-        'SELECT name FROM descriptions WHERE id = ?',
-        [descId],
-      );
-      expect(result.first['name'], 'KeepName');
+      final descriptions = await db.getAllDescriptions();
+      expect(descriptions.map((d) => d.name), contains('KeepName'));
     });
 
     test('renameDescription trims whitespace', () async {
-      final descId = await seedTestDescription(db, userId, 'TestDesc');
+      final db = DatabaseManager.instance;
+      final descId = await db.getOrCreateDescription('TestDesc');
 
-      final newName = '  TrimmedName  '.trim();
-      final count = await db.rawUpdate(
-        'UPDATE descriptions SET name = ? WHERE id = ? AND user_id = ?',
-        [newName, descId, userId],
-      );
-      expect(count, 1);
+      expect(await db.renameDescription(descId, '  TrimmedName  '), isTrue);
 
-      final result = await db.rawQuery(
-        'SELECT name FROM descriptions WHERE id = ?',
-        [descId],
-      );
-      expect(result.first['name'], 'TrimmedName');
+      final descriptions = await db.getAllDescriptions();
+      expect(descriptions.map((d) => d.name), contains('TrimmedName'));
     });
 
     test('mergeDescriptions preserves target description', () async {
-      final srcId = await seedTestDescription(db, userId, 'Source');
-      final tgtId = await seedTestDescription(db, userId, 'Target');
-      final acctIds = await seedTestAccounts(db, userId);
-
-      await seedTestTransaction(db, userId,
-          accountId: acctIds[0], descriptionId: srcId, amount: 100.0);
-
-      await db.rawUpdate(
-        'UPDATE transactions SET description_id = ? WHERE description_id = ? AND user_id = ?',
-        [tgtId, srcId, userId],
+      final db = DatabaseManager.instance;
+      final accountId = await db.addAccount(
+          'Checking', '#4CAF50', 'checking', 'EUR');
+      await db.addTransaction(
+        date: '2025-01-15',
+        description: 'Source',
+        amount: Decimal.fromInt(100),
+        transactionType: 'income',
+        accountId: accountId,
       );
-      await db.rawDelete(
-        'DELETE FROM descriptions WHERE id = ? AND user_id = ?',
-        [srcId, userId],
-      );
+      await db.getOrCreateDescription('Target');
 
-      final descriptions = await db.rawQuery(
-        'SELECT * FROM descriptions WHERE user_id = ? ORDER BY name',
-        [userId],
-      );
-      expect(descriptions.length, 1);
-      expect(descriptions.first['name'], 'Target');
+      expect(await db.mergeDescriptions('Source', 'Target'), isTrue);
+
+      final descriptions = await db.getAllDescriptions();
+      expect(descriptions.map((d) => d.name).toList(), ['Target']);
     });
 
     test('merge with target already having transactions', () async {
-      final srcId = await seedTestDescription(db, userId, 'Food');
-      final tgtId = await seedTestDescription(db, userId, 'Dining');
-      final acctIds = await seedTestAccounts(db, userId);
-
-      await seedTestTransaction(db, userId,
-          accountId: acctIds[0], descriptionId: srcId, amount: 30.0);
-      await seedTestTransaction(db, userId,
-          accountId: acctIds[0], descriptionId: tgtId, amount: 20.0);
-
-      await db.rawUpdate(
-        'UPDATE transactions SET description_id = ? WHERE description_id = ? AND user_id = ?',
-        [tgtId, srcId, userId],
+      final db = DatabaseManager.instance;
+      final accountId = await db.addAccount(
+          'Checking', '#4CAF50', 'checking', 'EUR');
+      await db.addTransaction(
+        date: '2025-01-15',
+        description: 'Food',
+        amount: Decimal.fromInt(30),
+        transactionType: 'income',
+        accountId: accountId,
       );
-      await db.rawDelete(
-        'DELETE FROM descriptions WHERE id = ? AND user_id = ?',
-        [srcId, userId],
+      await db.addTransaction(
+        date: '2025-01-15',
+        description: 'Dining',
+        amount: Decimal.fromInt(20),
+        transactionType: 'income',
+        accountId: accountId,
       );
 
-      final txns = await db.rawQuery(
-        'SELECT description_id, amount FROM transactions WHERE user_id = ? ORDER BY amount',
-        [userId],
-      );
-      expect(txns.length, 2);
-      expect(txns.every((t) => t['description_id'] == tgtId), isTrue);
+      expect(await db.mergeDescriptions('Food', 'Dining'), isTrue);
+
+      final txns = await db.getTransactions();
+      expect(txns, hasLength(2));
+      expect(txns.every((t) => t.descriptionName == 'Dining'), isTrue);
     });
 
     test('descriptions have auto-populated created_at', () async {
-      final descId = await seedTestDescription(db, userId, 'Timestamped');
+      final db = DatabaseManager.instance;
+      await db.getOrCreateDescription('Timestamped');
 
-      final result = await db.rawQuery(
-        'SELECT created_at FROM descriptions WHERE id = ?',
-        [descId],
-      );
-      expect(result.first['created_at'], isNotNull);
+      final descriptions = await db.getAllDescriptions();
+      expect(descriptions.single.createdAt, isNotNull);
     });
   });
 
   // ==================== EXPORT ====================
 
   group('Export (exportToJson structure)', () {
-    test('export contains accounts, transactions, and exported_at keys', () async {
-      final accounts = await db.rawQuery('SELECT * FROM accounts WHERE user_id = ?', [userId]);
-      final transactions = await db.rawQuery(
-        '''SELECT t.*, a.name as account_name, a.color as account_color,
-                  a.currency as account_currency, d.name as description_name
-           FROM transactions t
-           LEFT JOIN accounts a ON t.account_id = a.id
-           LEFT JOIN descriptions d ON t.description_id = d.id
-           WHERE t.user_id = ?
-           ORDER BY t.date DESC, t.id DESC''',
-        [userId],
-      );
-
+    test('export contains accounts, transactions, and exported_at keys',
+        () async {
+      final db = DatabaseManager.instance;
       final exportData = {
-        'accounts': accounts,
-        'transactions': transactions,
+        'accounts': (await db.getAllAccounts()).map((a) => a.toMap()).toList(),
+        'transactions': await db.getTransactions(),
         'exported_at': DateTime.now().toIso8601String(),
       };
 
@@ -621,56 +499,45 @@ void main() {
     });
 
     test('export with no data returns empty lists', () async {
-      final accounts = await db.rawQuery('SELECT * FROM accounts WHERE user_id = ?', [userId]);
-      final transactions = await db.rawQuery(
-        '''SELECT t.*, a.name as account_name, a.color as account_color,
-                  a.currency as account_currency, d.name as description_name
-           FROM transactions t
-           LEFT JOIN accounts a ON t.account_id = a.id
-           LEFT JOIN descriptions d ON t.description_id = d.id
-           WHERE t.user_id = ?''',
-        [userId],
-      );
-
-      expect(accounts, isEmpty);
-      expect(transactions, isEmpty);
+      final db = DatabaseManager.instance;
+      expect(await db.getAllAccounts(), isEmpty);
+      expect(await db.getTransactions(), isEmpty);
     });
 
     test('export includes seeded accounts', () async {
-      await seedTestAccounts(db, userId);
+      final db = DatabaseManager.instance;
+      await db.addAccount('Checking Account', '#4CAF50', 'checking', 'EUR');
+      await db.addAccount('Savings Account A', '#2196F3', 'savings', 'EUR');
+      await db.addAccount('Savings Account B', '#009688', 'savings', 'EUR');
 
-      final accounts = await db.rawQuery('SELECT * FROM accounts WHERE user_id = ?', [userId]);
-      expect(accounts.length, 3);
+      final accounts = await db.getAllAccounts();
+      expect(accounts, hasLength(3));
 
-      final names = accounts.map((a) => a['name'] as String).toSet();
-      expect(names, containsAll(['Checking Account', 'Savings Account A', 'Savings Account B']));
+      final names = accounts.map((a) => a.name).toSet();
+      expect(
+        names,
+        containsAll(['Checking Account', 'Savings Account A', 'Savings Account B']),
+      );
     });
 
     test('export includes seeded transactions with details', () async {
-      final acctIds = await seedTestAccounts(db, userId);
-      final descId = await seedTestDescription(db, userId, 'Salary');
-      await seedTestTransaction(db, userId,
-          accountId: acctIds[0],
-          descriptionId: descId,
-          amount: 3000.0,
-          transactionType: 'income',
-          date: '2025-01-15');
-
-      final transactions = await db.rawQuery(
-        '''SELECT t.*, a.name as account_name, a.color as account_color,
-                  a.currency as account_currency, d.name as description_name
-           FROM transactions t
-           LEFT JOIN accounts a ON t.account_id = a.id
-           LEFT JOIN descriptions d ON t.description_id = d.id
-           WHERE t.user_id = ?''',
-        [userId],
+      final db = DatabaseManager.instance;
+      final accountId = await db.addAccount(
+          'Checking Account', '#4CAF50', 'checking', 'EUR');
+      await db.addTransaction(
+        date: '2025-01-15',
+        description: 'Salary',
+        amount: Decimal.fromInt(3000),
+        transactionType: 'income',
+        accountId: accountId,
       );
 
-      expect(transactions.length, 1);
-      expect(transactions.first['account_name'], 'Checking Account');
-      expect(transactions.first['description_name'], 'Salary');
-      expect(transactions.first['amount'], 3000.0);
-      expect(transactions.first['transaction_type'], 'income');
+      final transactions = await db.getTransactions();
+      expect(transactions, hasLength(1));
+      expect(transactions.single.accountName, 'Checking Account');
+      expect(transactions.single.descriptionName, 'Salary');
+      expect(transactions.single.amount, Decimal.fromInt(3000));
+      expect(transactions.single.transactionType, 'income');
     });
 
     test('exported_at is a valid ISO 8601 string', () async {
@@ -680,30 +547,41 @@ void main() {
     });
 
     test('export only includes current user data', () async {
-      final userId2 = await seedTestUser(db, username: 'other_user');
-      final acctIds1 = await seedTestAccounts(db, userId);
-      final acctIds2 = await seedTestAccounts(db, userId2);
-
-      await seedTestTransaction(db, userId,
-          accountId: acctIds1[0], amount: 100.0, transactionType: 'income');
-      await seedTestTransaction(db, userId2,
-          accountId: acctIds2[0], amount: 200.0, transactionType: 'income');
-
-      final txns = await db.rawQuery(
-        'SELECT * FROM transactions WHERE user_id = ?',
-        [userId],
+      final db = DatabaseManager.instance;
+      final userA = db.userId!;
+      final accountA = await db.addAccount(
+          'Checking', '#4CAF50', 'checking', 'EUR');
+      await db.addTransaction(
+        date: '2025-01-15',
+        description: 'Pay A',
+        amount: Decimal.fromInt(100),
+        transactionType: 'income',
+        accountId: accountA,
       );
-      expect(txns.length, 1);
-      expect(txns.first['amount'], 100.0);
+
+      final userB = 'user-${DateTime.now().microsecondsSinceEpoch}-b';
+      db.setSessionUserId(userB);
+      final accountB = await db.addAccount(
+          'Checking', '#4CAF50', 'checking', 'EUR');
+      await db.addTransaction(
+        date: '2025-01-15',
+        description: 'Pay B',
+        amount: Decimal.fromInt(200),
+        transactionType: 'income',
+        accountId: accountB,
+      );
+
+      db.setSessionUserId(userA);
+      final txns = await db.getTransactions();
+      expect(txns, hasLength(1));
+      expect(txns.single.amount, Decimal.fromInt(100));
     });
 
     test('export account map structure matches Account.toMap', () async {
-      await seedTestAccounts(db, userId);
+      final db = DatabaseManager.instance;
+      await db.addAccount('Checking', '#4CAF50', 'checking', 'EUR');
 
-      final accounts = await db.query('accounts',
-          where: 'user_id = ?', whereArgs: [userId], orderBy: 'name');
-      final first = accounts.first;
-
+      final first = (await db.getAllAccounts()).single.toMap();
       expect(first.containsKey('id'), isTrue);
       expect(first.containsKey('user_id'), isTrue);
       expect(first.containsKey('name'), isTrue);
@@ -716,202 +594,199 @@ void main() {
   // ==================== EDGE CASES ====================
 
   group('Edge cases', () {
-    test('getSetting with null value stored returns null (not defaultValue)', () async {
-      await db.rawInsert(
-        'INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, ?, ?)',
-        [userId, 'null_val', null],
+    test('getSetting with null value stored returns null (not defaultValue)',
+        () async {
+      final db = DatabaseManager.instance;
+      // The production setter only stores non-null strings, so a missing key
+      // must read back as null even when callers pass no default.
+      expect(await db.getSetting('null_val'), isNull);
+      expect(
+        await db.getSetting('null_val', defaultValue: 'fallback'),
+        'fallback',
       );
-
-      final result = await db.rawQuery(
-        'SELECT value FROM settings WHERE key = ? AND user_id = ?',
-        ['null_val', userId],
-      );
-
-      expect(result, isNotEmpty);
-      expect(result.first['value'], isNull);
     });
 
     test('settings table allows multiple different keys per user', () async {
-      await db.rawInsert(
-        'INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, ?, ?)',
-        [userId, 'theme', 'dark'],
-      );
-      await db.rawInsert(
-        'INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, ?, ?)',
-        [userId, 'currency', 'EUR'],
-      );
-      await db.rawInsert(
-        'INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, ?, ?)',
-        [userId, 'language', 'en'],
-      );
+      final db = DatabaseManager.instance;
+      await db.setSetting('theme', 'dark');
+      await db.setSetting('currency', 'EUR');
+      await db.setSetting('language', 'en');
 
-      final count = await db.rawQuery(
+      final handle = await db.database;
+      final count = await handle.query(
         'SELECT COUNT(*) as cnt FROM settings WHERE user_id = ?',
-        [userId],
+        [db.userId],
       );
       expect(count.first['cnt'], 3);
     });
 
     test('imported_files imported_at is auto-set', () async {
-      await db.rawInsert(
-        'INSERT INTO imported_files (user_id, file_hash, filename) VALUES (?, ?, ?)',
-        [userId, 'ts_hash', 'file.csv'],
+      final db = DatabaseManager.instance;
+      final handle = await db.database;
+
+      await handle.execute(
+        'INSERT INTO imported_files (id, user_id, file_hash, filename) VALUES (?1, ?2, ?3, ?4)',
+        [newFileId(), db.userId, 'ts_hash', 'file.csv'],
       );
 
-      final result = await db.rawQuery(
+      final rows = await handle.query(
         'SELECT imported_at FROM imported_files WHERE file_hash = ?',
         ['ts_hash'],
       );
-      expect(result.first['imported_at'], isNotNull);
+      expect(rows.first['imported_at'], isNotNull);
     });
 
     test('description name with special characters', () async {
-      final descId = await seedTestDescription(db, userId, "Café & Restaurant (Main)");
+      final db = DatabaseManager.instance;
+      await db.getOrCreateDescription('Café & Restaurant (Main)');
 
-      final result = await db.rawQuery(
-        'SELECT name FROM descriptions WHERE id = ?',
-        [descId],
+      final descriptions = await db.getAllDescriptions();
+      expect(
+        descriptions.map((d) => d.name),
+        contains('Café & Restaurant (Main)'),
       );
-      expect(result.first['name'], "Café & Restaurant (Main)");
     });
 
     test('setting key with special characters', () async {
-      await db.rawInsert(
-        'INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, ?, ?)',
-        [userId, 'user.prefs/font-size', '14'],
-      );
+      final db = DatabaseManager.instance;
+      await db.setSetting('user.prefs/font-size', '14');
 
-      final result = await db.rawQuery(
-        'SELECT value FROM settings WHERE key = ? AND user_id = ?',
-        ['user.prefs/font-size', userId],
-      );
-      expect(result.first['value'], '14');
+      expect(await db.getSetting('user.prefs/font-size'), '14');
     });
 
-    test('globalSetting and userSetting with same key are independent', () async {
-      await db.rawInsert(
-        'INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, ?, ?)',
-        [userId, 'shared_key', 'user_value'],
-      );
-      await db.rawInsert(
-        'INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, ?, ?)',
-        [globalUserId, 'shared_key', 'global_value'],
-      );
+    test('globalSetting and userSetting with same key are independent',
+        () async {
+      final db = DatabaseManager.instance;
+      await db.setSetting('shared_key', 'user_value');
+      await db.setAppSetting('shared_key', 'global_value');
 
-      final userVal = await db.rawQuery(
-        'SELECT value FROM settings WHERE key = ? AND user_id = ?',
-        ['shared_key', userId],
-      );
-      final globalVal = await db.rawQuery(
-        'SELECT value FROM settings WHERE key = ? AND user_id = ?',
-        ['shared_key', globalUserId],
-      );
-
-      expect(userVal.first['value'], 'user_value');
-      expect(globalVal.first['value'], 'global_value');
+      expect(await db.getSetting('shared_key'), 'user_value');
+      expect(await db.getAppSetting('shared_key'), 'global_value');
     });
 
     test('logImportedFile records filename correctly', () async {
-      await db.rawInsert(
-        'INSERT INTO imported_files (user_id, file_hash, filename) VALUES (?, ?, ?)',
-        [userId, 'file_hash_1', 'my_statement_march_2025.csv'],
+      final db = DatabaseManager.instance;
+      final handle = await db.database;
+
+      await handle.execute(
+        'INSERT INTO imported_files (id, user_id, file_hash, filename) VALUES (?1, ?2, ?3, ?4)',
+        [newFileId(), db.userId, 'file_hash_1', 'my_statement_march_2025.csv'],
       );
 
-      final result = await db.rawQuery(
+      final rows = await handle.query(
         'SELECT filename FROM imported_files WHERE file_hash = ?',
         ['file_hash_1'],
       );
-      expect(result.first['filename'], 'my_statement_march_2025.csv');
+      expect(rows.first['filename'], 'my_statement_march_2025.csv');
     });
 
-    test('renaming a description that does not exist returns 0 updates', () async {
-      final count = await db.rawUpdate(
-        'UPDATE descriptions SET name = ? WHERE id = ? AND user_id = ?',
-        ['NewName', 99999, userId],
-      );
-      expect(count, 0);
+    test('renaming a description that does not exist returns 0 updates',
+        () async {
+      final db = DatabaseManager.instance;
+      expect(await db.renameDescription('does-not-exist', 'NewName'), isFalse);
     });
 
     test('delete all settings for a user', () async {
-      await db.rawInsert(
-        'INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, ?, ?)',
-        [userId, 'k1', 'v1'],
+      final db = DatabaseManager.instance;
+      final handle = await db.database;
+      final uid = db.userId!;
+
+      // Seed through the handle so the read cache stays cold, then delete.
+      await handle.execute(
+        'INSERT OR REPLACE INTO settings (user_id, "key", value) VALUES (?, ?, ?)',
+        [uid, 'k1', 'v1'],
       );
-      await db.rawInsert(
-        'INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, ?, ?)',
-        [userId, 'k2', 'v2'],
+      await handle.execute(
+        'INSERT OR REPLACE INTO settings (user_id, "key", value) VALUES (?, ?, ?)',
+        [uid, 'k2', 'v2'],
       );
 
-      await db.delete('settings', where: 'user_id = ?', whereArgs: [userId]);
+      await handle.execute('DELETE FROM settings WHERE user_id = ?', [uid]);
 
-      final count = await db.rawQuery(
-        'SELECT COUNT(*) as cnt FROM settings WHERE user_id = ?',
-        [userId],
+      // Deletes are CRDT tombstones: nothing may remain visible.
+      final count = await handle.query(
+        'SELECT COUNT(*) as cnt FROM settings WHERE user_id = ? AND is_deleted = 0',
+        [uid],
       );
       expect(count.first['cnt'], 0);
+      expect(await db.getSetting('k1'), isNull);
     });
 
     test('delete imported_files for a user', () async {
-      await db.rawInsert(
-        'INSERT INTO imported_files (user_id, file_hash, filename) VALUES (?, ?, ?)',
-        [userId, 'h1', 'f1.csv'],
+      final db = DatabaseManager.instance;
+      final handle = await db.database;
+      final uid = db.userId!;
+
+      await handle.execute(
+        'INSERT INTO imported_files (id, user_id, file_hash, filename) VALUES (?1, ?2, ?3, ?4)',
+        [newFileId(), uid, 'h1', 'f1.csv'],
       );
-      await db.rawInsert(
-        'INSERT INTO imported_files (user_id, file_hash, filename) VALUES (?, ?, ?)',
-        [userId, 'h2', 'f2.csv'],
+      await handle.execute(
+        'INSERT INTO imported_files (id, user_id, file_hash, filename) VALUES (?1, ?2, ?3, ?4)',
+        [newFileId(), uid, 'h2', 'f2.csv'],
       );
 
-      await db.delete('imported_files', where: 'user_id = ?', whereArgs: [userId]);
+      await handle
+          .execute('DELETE FROM imported_files WHERE user_id = ?', [uid]);
 
-      final count = await db.rawQuery(
-        'SELECT COUNT(*) as cnt FROM imported_files WHERE user_id = ?',
-        [userId],
+      // Deletes are CRDT tombstones: nothing may remain visible.
+      final count = await handle.query(
+        'SELECT COUNT(*) as cnt FROM imported_files WHERE user_id = ? AND is_deleted = 0',
+        [uid],
       );
       expect(count.first['cnt'], 0);
     });
 
-    test('description merge with transactions from multiple accounts', () async {
-      final acctIds = await seedTestAccounts(db, userId);
-      final srcId = await seedTestDescription(db, userId, 'Groceries');
-      final tgtId = await seedTestDescription(db, userId, 'Food & Drink');
+    test('description merge with transactions from multiple accounts',
+        () async {
+      final db = DatabaseManager.instance;
+      final checking = await db.addAccount(
+          'Checking', '#4CAF50', 'checking', 'EUR');
+      final savingsA = await db.addAccount(
+          'Savings A', '#2196F3', 'savings', 'EUR');
+      final savingsB = await db.addAccount(
+          'Savings B', '#009688', 'savings', 'EUR');
+      await db.getOrCreateDescription('Food & Drink');
 
-      await seedTestTransaction(db, userId,
-          accountId: acctIds[0], descriptionId: srcId, amount: 30.0);
-      await seedTestTransaction(db, userId,
-          accountId: acctIds[1], descriptionId: srcId, amount: 45.0);
-      await seedTestTransaction(db, userId,
-          accountId: acctIds[2], descriptionId: srcId, amount: 60.0);
+      for (final entry in [
+        (checking, 30),
+        (savingsA, 45),
+        (savingsB, 60),
+      ]) {
+        await db.addTransaction(
+          date: '2025-01-15',
+          description: 'Groceries',
+          amount: Decimal.fromInt(entry.$2),
+          transactionType: 'income',
+          accountId: entry.$1,
+        );
+      }
 
-      await db.rawUpdate(
-        'UPDATE transactions SET description_id = ? WHERE description_id = ? AND user_id = ?',
-        [tgtId, srcId, userId],
-      );
-      await db.rawDelete(
-        'DELETE FROM descriptions WHERE id = ? AND user_id = ?',
-        [srcId, userId],
+      expect(
+        await db.mergeDescriptions('Groceries', 'Food & Drink'),
+        isTrue,
       );
 
-      final txns = await db.rawQuery(
-        'SELECT description_id, amount FROM transactions WHERE user_id = ? ORDER BY amount',
-        [userId],
+      final txns = await db.getTransactions();
+      expect(txns, hasLength(3));
+      expect(txns.every((t) => t.descriptionName == 'Food & Drink'), isTrue);
+      expect(
+        txns.map((t) => t.amount),
+        containsAll(
+            [Decimal.fromInt(30), Decimal.fromInt(45), Decimal.fromInt(60)]),
       );
-      expect(txns.length, 3);
-      expect(txns.every((t) => t['description_id'] == tgtId), isTrue);
-      expect(txns.map((t) => t['amount']), containsAll([30.0, 45.0, 60.0]));
     });
 
     test('settings value with very long string', () async {
+      final db = DatabaseManager.instance;
       final longValue = 'x' * 10000;
-      await db.rawInsert(
-        'INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, ?, ?)',
-        [userId, 'long_val', longValue],
-      );
+      await db.setSetting('long_val', longValue);
 
-      final result = await db.rawQuery(
-        'SELECT value FROM settings WHERE key = ? AND user_id = ?',
-        ['long_val', userId],
-      );
-      expect(result.first['value'], longValue);
+      expect(await db.getSetting('long_val'), longValue);
     });
   });
 }
+
+int _fileSeq = 0;
+String newFileId() =>
+    'imp-${DateTime.now().microsecondsSinceEpoch}-${_fileSeq++}';

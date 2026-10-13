@@ -114,6 +114,7 @@ void main() {
       controller.onQrScanned('peadra://pair?node=abc&name=Peer&secret=s');
       await Future<void>.delayed(const Duration(milliseconds: 40));
       expect(controller.phase, PairingScanPhase.error);
+      expect(paired, isFalse);
       controller.reset();
       expect(controller.phase, PairingScanPhase.idle);
       expect(controller.expectedNodeId, isNull);

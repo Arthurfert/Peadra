@@ -32,7 +32,6 @@ class MDnsSyncServiceBrowser implements SyncServiceBrowser {
 
   final StreamController<DiscoveredService> _controller =
       StreamController<DiscoveredService>.broadcast();
-  StreamSubscription<ServiceEntry>? _subscription;
   Timer? _requeryTimer;
   bool _started = false;
   int _generation = 0;
@@ -73,7 +72,7 @@ class MDnsSyncServiceBrowser implements SyncServiceBrowser {
       stream.listen((_) {}, onError: (Object e, StackTrace st) {}, onDone: () {});
       return;
     }
-    _subscription = stream.listen(
+    stream.listen(
       (entry) {
         final service = parseDiscoveredService(
           name: entry.name,
@@ -91,7 +90,6 @@ class MDnsSyncServiceBrowser implements SyncServiceBrowser {
         _controller.addError(e, st);
       },
       onDone: () {
-        _subscription = null;
         if (_started && gen == _generation) {
           _scheduleRequery();
         }
@@ -128,7 +126,6 @@ class MDnsSyncServiceBrowser implements SyncServiceBrowser {
     // The active query session is bounded by queryTimeout; leave it alone so
     // its sockets close cleanly when it expires. Its onDone is guarded by
     // _started / the generation check and will not re-query.
-    _subscription = null;
   }
 }
 

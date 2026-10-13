@@ -140,7 +140,7 @@ class _GoalDialogState extends State<_GoalDialog> {
     });
   }
 
-  Future<void> _save(PeadraColors colors) async {
+  Future<void> _save() async {
     final target =
         Decimal.tryParse(_targetCtrl.text.trim().replaceAll(',', '.'));
     if (target == null || target <= Decimal.zero) {
@@ -410,7 +410,7 @@ class _GoalDialogState extends State<_GoalDialog> {
           child: Text(Translator.t('btn_cancel')),
         ),
         ElevatedButton(
-          onPressed: () => _save(colors),
+          onPressed: () => _save(),
           style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
           child: Text(Translator.t('btn_save'),
               style: const TextStyle(color: Colors.white)),

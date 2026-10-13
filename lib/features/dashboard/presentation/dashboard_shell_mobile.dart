@@ -46,7 +46,7 @@ class DashboardShellMobile extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            if (updateBanner != null) updateBanner!,
+            ?updateBanner,
             Expanded(child: _buildContent()),
           ],
         ),

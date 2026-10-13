@@ -94,7 +94,8 @@ final Map<String, NavView> _navViewsByKey = {
 };
 
 /// Keys of every destination, in canonical order.
-List<String> get allNavViewKeys => allNavViews.map((v) => v.key).toList();
+final List<String> allNavViewKeys =
+    List.unmodifiable(allNavViews.map((v) => v.key));
 
 /// Normalizes a stored order into a full, duplicate-free permutation of
 /// [allNavViewKeys]:
@@ -145,7 +146,9 @@ bool isValidNavOrder(List<String> order) {
 }
 
 /// Resolves keys to [NavView]s, tolerating incomplete/unknown orders.
+/// Orders that already form a valid permutation skip normalization.
 List<NavView> navViewsFor(List<String> order) {
-  final keys = parseNavOrder(order.join(','));
+  final keys =
+      isValidNavOrder(order) ? order : parseNavOrder(order.join(','));
   return keys.map((k) => _navViewsByKey[k]!).toList();
 }

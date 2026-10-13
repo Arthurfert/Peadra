@@ -64,11 +64,6 @@ class _DashboardViewState extends State<DashboardView> {
   String _lastAssetsGranularity = '';
 
   @override
-  void initState() {
-    super.initState();
-  }
-
-  @override
   void didUpdateWidget(DashboardView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.refreshSignal != oldWidget.refreshSignal) {
@@ -79,10 +74,14 @@ class _DashboardViewState extends State<DashboardView> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final currency = context.watch<SettingsProvider>().currency;
-    final monthMode = context.watch<SettingsProvider>().monthMode;
-    final categoriesView = context.watch<SettingsProvider>().dashboardPieView;
-    final assetsGranularity = context.watch<SettingsProvider>().assetsGranularity;
+    final currency =
+        context.watch<SettingsProvider>().currency;
+    final monthMode =
+        context.watch<SettingsProvider>().monthMode;
+    final categoriesView =
+        context.watch<SettingsProvider>().dashboardPieView;
+    final assetsGranularity =
+        context.watch<SettingsProvider>().assetsGranularity;
     if (currency != _lastCurrency ||
         monthMode != _lastMonthMode ||
         categoriesView != _lastDashboardPieView ||
@@ -695,7 +694,7 @@ class _DashboardViewState extends State<DashboardView> {
       _customStart = picked.start.toIso8601String().substring(0, 10);
       _customEnd = picked.end.toIso8601String().substring(0, 10);
     });
-    _loadData();
+    _loadChartData();
   }
 
   void _clearCustomRange() {
@@ -704,7 +703,7 @@ class _DashboardViewState extends State<DashboardView> {
       _customStart = null;
       _customEnd = null;
     });
-    _loadData();
+    _loadChartData();
   }
 
   Widget _buildTimeFilterButtons(PeadraColors colors) {
@@ -741,17 +740,15 @@ class _DashboardViewState extends State<DashboardView> {
                     _pickCustomRange();
                     return;
                   }
-                  final wasCustom = _isCustomRange;
                   setState(() {
                     _selectedMonths = value;
                     _customStart = null;
                     _customEnd = null;
                   });
-                  if (wasCustom) {
-                    _loadData();
-                  } else {
-                    _loadChartData();
-                  }
+                  // Preset and custom-range switches only affect the
+                  // cash-flow / assets-history charts, so reuse the light
+                  // 2-query chart loader instead of the full _loadData.
+                  _loadChartData();
                 },
                 child: Container(
                   padding:
@@ -831,7 +828,7 @@ class _DashboardViewState extends State<DashboardView> {
       return {
         'label': e.key,
         'amount': e.value,
-        if (entryColor != null) 'color': entryColor,
+        'color': ?entryColor,
       };
     }).toList();
 
@@ -962,14 +959,17 @@ class _DashboardViewState extends State<DashboardView> {
 
   @override
   Widget build(BuildContext context) {
-    final themeName = context.watch<ThemeProvider>().themeName;
+    final themeName =
+        context.select<ThemeProvider, String>((t) => t.themeName);
     final colors = PeadraTheme.getColors(themeName);
-    final currency = context.watch<SettingsProvider>().currency;
+    final currency = context.select<SettingsProvider, String>((s) => s.currency);
     final maxPieCategories =
-        context.watch<SettingsProvider>().maxPieCategories;
-    final lineChartDots = context.watch<SettingsProvider>().lineChartDots;
-    final isTagMode = context.watch<SettingsProvider>().dashboardPieView == 'tags';
-    final username = context.watch<AuthProvider>().username;
+        context.select<SettingsProvider, int>((s) => s.maxPieCategories);
+    final lineChartDots =
+        context.select<SettingsProvider, bool>((s) => s.lineChartDots);
+    final isTagMode =
+        context.select<SettingsProvider, bool>((s) => s.dashboardPieView == 'tags');
+    final username = context.select<AuthProvider, String>((a) => a.username);
 
     if (_loading) {
       return Center(

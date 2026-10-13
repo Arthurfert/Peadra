@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,43 +22,30 @@ import '../helpers/in_memory_storage_backend.dart';
 import 'test_crdt_schema.dart';
 
 class FakeSyncAdvertiser implements SyncServiceAdvertiser {
-  int advertiseCount = 0;
-  int stopCount = 0;
-
   @override
   Future<void> advertise({
     required String nodeId,
     required String deviceName,
     required int protocolVersion,
     required int port,
-  }) async {
-    advertiseCount++;
-  }
+  }) async {}
 
   @override
-  Future<void> stop() async {
-    stopCount++;
-  }
+  Future<void> stop() async {}
 }
 
 class FakeSyncBrowser implements SyncServiceBrowser {
   final StreamController<DiscoveredService> _controller =
       StreamController<DiscoveredService>.broadcast();
-  int startCount = 0;
-  int stopCount = 0;
 
   @override
   Stream<DiscoveredService> get services => _controller.stream;
 
   @override
-  Future<void> start() async {
-    startCount++;
-  }
+  Future<void> start() async {}
 
   @override
-  Future<void> stop() async {
-    stopCount++;
-  }
+  Future<void> stop() async {}
 
   void emit(DiscoveredService service) => _controller.add(service);
 }
@@ -169,9 +155,6 @@ class SyncTestDevice {
     List<Object?> args = const [],
   ]) =>
       crdt.query(sql, args);
-
-  Future<String> keyB64() async =>
-      base64Encode(await key?.extractBytes() ?? const []);
 
   Future<void> dispose() async {
     await stop();

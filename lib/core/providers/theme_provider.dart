@@ -3,22 +3,33 @@ import '../database/database_manager.dart';
 import '../services/log_service.dart';
 import '../theme/peadra_colors.dart';
 
-class ThemeProvider extends ChangeNotifier {
+class ThemeProvider extends ChangeNotifier with WidgetsBindingObserver {
   String _themeName = PeadraTheme.systemThemeName;
 
   ThemeProvider() {
     // Rebuild listeners when the OS brightness changes while the
-    // 'system' theme is active.
+    // 'system' theme is active. Uses an observer (not the global
+    // onPlatformBrightnessChanged setter) so other listeners are kept.
     try {
-      WidgetsBinding.instance.platformDispatcher.onPlatformBrightnessChanged =
-          () {
-        if (_themeName == PeadraTheme.systemThemeName) {
-          notifyListeners();
-        }
-      };
+      WidgetsBinding.instance.addObserver(this);
     } catch (_) {
       // No binding (e.g. unit tests): themes still resolve with a fallback.
     }
+  }
+
+  @override
+  void didChangePlatformBrightness() {
+    if (_themeName == PeadraTheme.systemThemeName) {
+      notifyListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    try {
+      WidgetsBinding.instance.removeObserver(this);
+    } catch (_) {}
+    super.dispose();
   }
 
   String get themeName => _themeName;
@@ -34,6 +45,7 @@ class ThemeProvider extends ChangeNotifier {
       : (isDark ? ThemeMode.dark : ThemeMode.light);
 
   void setTheme(String name) {
+    if (_themeName == name) return;
     LogService().log('Theme changed to $name');
     _themeName = name;
     notifyListeners();

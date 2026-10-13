@@ -33,7 +33,9 @@ class PeadraModal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final themeName = context.watch<ThemeProvider>().themeName;
+    // Callers already pass resolved colors in title/content/actions, so a
+    // read is enough here; no rebuild needed when the theme changes.
+    final themeName = context.read<ThemeProvider>().themeName;
     final colors = PeadraTheme.getColors(themeName);
     if (ResponsiveLayout.isPhone(context)) {
       return _buildSheet(context, colors);

@@ -251,7 +251,7 @@ class _PeersListScreenState extends State<PeersListScreen> {
                       : ListView.separated(
                           padding: const EdgeInsets.all(16),
                           itemCount: _peers.length,
-                          separatorBuilder: (_, __) =>
+                          separatorBuilder: (_, _) =>
                               const SizedBox(height: 8),
                           itemBuilder: (context, index) =>
                               _buildPeerTile(colors, _peers[index]),

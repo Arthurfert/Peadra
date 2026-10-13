@@ -68,7 +68,6 @@ class Translator {
       'cat_rename_success': 'Renamed \'{old}\' to \'{new}\'',
       'cat_rename_failed': 'Failed to rename description',
       'trans_title': 'Transactions',
-      'trans_subtitle': 'View and manage your recent transactions.',
       'trans_date': 'Date',
       'trans_amount': 'Amount',
       'trans_description': 'Description',
@@ -106,8 +105,6 @@ class Translator {
       'hint_income': 'Ex: Salary, Social Security...',
       'segment_all': 'All',
       'rec_title': 'Recurring Transactions',
-      'rec_subtitle': 'Manage your scheduled transactions.',
-      'rec_new': 'New Recurring Transaction',
       'rec_edit': 'Edit Recurring Transaction',
       'rec_frequency': 'Frequency',
       'rec_interval': 'Interval',
@@ -117,7 +114,6 @@ class Translator {
       'rec_yearly': 'Yearly',
       'rec_day_of_week': 'Day of week',
       'rec_day_of_month': 'Day of month',
-      'rec_start_date': 'Start date',
       'rec_end_date': 'End date',
       'rec_no_end_date': 'No end date',
       'rec_next_due': 'Next due',
@@ -142,7 +138,6 @@ class Translator {
       'rec_freq_every_monthly': 'Every {interval} months',
       'rec_freq_every_yearly': 'Every {interval} years',
       'rec_enable': 'Recurring transaction',
-      'rec_requires_recurring': 'Enable "Recurring transaction" to save in this list',
       'rec_sort_by': 'Sort by',
       'rec_sort_next_due': 'Next due',
       'rec_sort_tag': 'Tag',
@@ -317,7 +312,6 @@ class Translator {
       'sync_scan_desc': 'Scan another device\'s QR code to pair with it.',
       'sync_manage': 'Manage devices',
       'sync_manage_desc': 'View, sync or remove your paired devices.',
-      'sync_peers_title': 'Paired devices',
       'sync_peers_empty': 'No paired devices yet.\nPair a device to keep your data in sync between devices.',
       'sync_peers_load_failed': 'Couldn\'t load paired devices.',
       'sync_retry': 'Try again',
@@ -555,7 +549,6 @@ class Translator {
       'cat_rename_success': "Renommage de '{old}' en '{new}' r\u00e9ussi",
       'cat_rename_failed': '\u00c9chec du renommage de la description',
       'trans_title': 'Transactions',
-      'trans_subtitle': 'Consultez et g\u00e9rez vos transactions r\u00e9centes.',
       'trans_date': 'Date',
       'trans_amount': 'Montant',
       'trans_description': 'Description',
@@ -595,8 +588,6 @@ class Translator {
       'hint_income': 'Ex: Salaire, Allocations...',
       'segment_all': 'Tous',
       'rec_title': 'Transactions r\u00e9currentes',
-      'rec_subtitle': 'G\u00e9rez vos transactions planifi\u00e9es.',
-      'rec_new': 'Nouvelle transaction r\u00e9currente',
       'rec_edit': 'Modifier la transaction r\u00e9currente',
       'rec_frequency': 'Fr\u00e9quence',
       'rec_interval': 'Intervalle',
@@ -606,7 +597,6 @@ class Translator {
       'rec_yearly': 'Annuel',
       'rec_day_of_week': 'Jour de la semaine',
       'rec_day_of_month': 'Jour du mois',
-      'rec_start_date': 'Date de d\u00e9but',
       'rec_end_date': 'Date de fin',
       'rec_no_end_date': 'Sans date de fin',
       'rec_next_due': 'Prochaine \u00e9ch\u00e9ance',
@@ -631,7 +621,6 @@ class Translator {
       'rec_freq_every_monthly': 'Tous les {interval} mois',
       'rec_freq_every_yearly': 'Tous les {interval} ans',
       'rec_enable': 'Transaction r\u00e9currente',
-      'rec_requires_recurring': 'Activez \u00ab Transaction r\u00e9currente \u00bb pour enregistrer dans cette liste',
       'rec_sort_by': 'Trier par',
       'rec_sort_next_due': 'Prochaine \u00e9ch\u00e9ance',
       'rec_sort_tag': 'Tag',
@@ -821,7 +810,6 @@ class Translator {
       'sync_scan_desc': 'Scannez le QR code d\'un autre appareil pour vous associer avec lui.',
       'sync_manage': 'G\u00e9rer les appareils',
       'sync_manage_desc': 'Consultez, synchronisez ou supprimez vos appareils associ\u00e9s.',
-      'sync_peers_title': 'Appareils associ\u00e9s',
       'sync_peers_empty': 'Aucun appareil associ\u00e9.\nAssociez un appareil pour synchroniser vos donn\u00e9es entre appareils.',
       'sync_peers_load_failed': 'Impossible de charger les appareils associ\u00e9s.',
       'sync_retry': 'R\u00e9essayer',
@@ -1063,7 +1051,6 @@ class Translator {
       'cat_rename_success': 'Se renombró \'{old}\' a \'{new}\'',
       'cat_rename_failed': 'No se pudo renombrar la descripción',
       'trans_title': 'Transacciones',
-      'trans_subtitle': 'Consulta y gestiona tus transacciones recientes.',
       'trans_date': 'Fecha',
       'trans_amount': 'Importe',
       'trans_description': 'Descripción',
@@ -1101,8 +1088,6 @@ class Translator {
       'hint_income': 'Ej.: nómina, pensión...',
       'segment_all': 'Todo',
       'rec_title': 'Transacciones recurrentes',
-      'rec_subtitle': 'Gestiona tus transacciones programadas.',
-      'rec_new': 'Nueva transacción recurrente',
       'rec_edit': 'Editar transacción recurrente',
       'rec_frequency': 'Frecuencia',
       'rec_interval': 'Intervalo',
@@ -1112,7 +1097,6 @@ class Translator {
       'rec_yearly': 'Anual',
       'rec_day_of_week': 'Día de la semana',
       'rec_day_of_month': 'Día del mes',
-      'rec_start_date': 'Fecha de inicio',
       'rec_end_date': 'Fecha de fin',
       'rec_no_end_date': 'Sin fecha de fin',
       'rec_next_due': 'Próximo vencimiento',
@@ -1137,7 +1121,6 @@ class Translator {
       'rec_freq_every_monthly': 'Cada {interval} meses',
       'rec_freq_every_yearly': 'Cada {interval} años',
       'rec_enable': 'Transacción recurrente',
-      'rec_requires_recurring': 'Activa «Transacción recurrente» para guardar en esta lista',
       'rec_sort_by': 'Ordenar por',
       'rec_sort_next_due': 'Próximo vencimiento',
       'rec_sort_tag': 'Etiqueta',
@@ -1313,7 +1296,6 @@ class Translator {
       'sync_scan_desc': 'Escanea el código QR de otro dispositivo para vincularte con él.',
       'sync_manage': 'Gestionar dispositivos',
       'sync_manage_desc': 'Consulta, sincroniza o elimina tus dispositivos vinculados.',
-      'sync_peers_title': 'Dispositivos vinculados',
       'sync_peers_empty': 'Aún no hay dispositivos vinculados.\nVincula un dispositivo para mantener tus datos sincronizados entre dispositivos.',
       'sync_peers_load_failed': 'No se pudieron cargar los dispositivos vinculados.',
       'sync_retry': 'Reintentar',
@@ -1501,19 +1483,16 @@ class Translator {
     }
     return text;
   }
-
   static const _monthKeys = [
     'month_jan', 'month_feb', 'month_mar', 'month_apr',
     'month_may', 'month_jun', 'month_jul', 'month_aug',
     'month_sep', 'month_oct', 'month_nov', 'month_dec',
   ];
-
   static const _monthAbbrKeys = [
     'month_jan_abbr', 'month_feb_abbr', 'month_mar_abbr', 'month_apr_abbr',
     'month_may_abbr', 'month_jun_abbr', 'month_jul_abbr', 'month_aug_abbr',
     'month_sep_abbr', 'month_oct_abbr', 'month_nov_abbr', 'month_dec_abbr',
   ];
-
   /// Formats a "YYYY-MM-DD" date string to a localized human-readable form
   /// such as "12 August 2026" or "12 août 2026".
   /// With [compact] true, uses abbreviated months: "12 Aug 2026".
@@ -1527,7 +1506,6 @@ class Translator {
     final monthName = t(keys[(month - 1).clamp(0, 11)]);
     return '$day $monthName $year';
   }
-
   static Map<String, String> get availableLanguages => {
         'en': t('param_language_en'),
         'fr': t('param_language_fr'),

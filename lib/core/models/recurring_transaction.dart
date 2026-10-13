@@ -43,52 +43,6 @@ class RecurringTransaction {
     this.updatedAt,
   });
 
-  bool get isIncome => transactionType == 'income';
-  bool get isExpense => transactionType == 'expense';
-
-  RecurringTransaction copyWith({
-    String? id,
-    String? userId,
-    String? accountId,
-    String? descriptionId,
-    String? tagId,
-    bool clearTag = false,
-    Decimal? amount,
-    String? transactionType,
-    String? currency,
-    String? notes,
-    String? frequency,
-    int? interval,
-    int? dayOfWeek,
-    int? dayOfMonth,
-    String? startDate,
-    String? endDate,
-    bool clearEndDate = false,
-    String? nextDueDate,
-    bool? active,
-  }) =>
-      RecurringTransaction(
-        id: id ?? this.id,
-        userId: userId ?? this.userId,
-        accountId: accountId ?? this.accountId,
-        descriptionId: descriptionId ?? this.descriptionId,
-        tagId: clearTag ? null : (tagId ?? this.tagId),
-        amount: amount ?? this.amount,
-        transactionType: transactionType ?? this.transactionType,
-        currency: currency ?? this.currency,
-        notes: notes ?? this.notes,
-        frequency: frequency ?? this.frequency,
-        interval: interval ?? this.interval,
-        dayOfWeek: dayOfWeek ?? this.dayOfWeek,
-        dayOfMonth: dayOfMonth ?? this.dayOfMonth,
-        startDate: startDate ?? this.startDate,
-        endDate: clearEndDate ? null : (endDate ?? this.endDate),
-        nextDueDate: nextDueDate ?? this.nextDueDate,
-        active: active ?? this.active,
-        createdAt: createdAt,
-        updatedAt: updatedAt,
-      );
-
   Map<String, dynamic> toMap() => {
         if (id != null) 'id': id,
         'user_id': userId,
@@ -178,40 +132,4 @@ class RecurringTransactionWithDetails extends RecurringTransaction {
     this.generatedCount = 0,
   });
 
-  factory RecurringTransactionWithDetails.fromMap(Map<String, dynamic> map) =>
-      RecurringTransactionWithDetails(
-        id: map['id'] as String?,
-        userId: map['user_id'] as String,
-        accountId: map['account_id'] as String?,
-        descriptionId: map['description_id'] as String?,
-        tagId: map['tag_id'] as String?,
-        amount: _parseDecimal(map['amount']),
-        transactionType: map['transaction_type'] as String,
-        currency: map['currency'] as String? ?? 'EUR',
-        notes: map['notes'] as String?,
-        frequency: map['frequency'] as String,
-        interval: map['interval'] as int? ?? 1,
-        dayOfWeek: map['day_of_week'] as int?,
-        dayOfMonth: map['day_of_month'] as int?,
-        startDate: map['start_date'] as String,
-        endDate: map['end_date'] as String?,
-        nextDueDate: map['next_due_date'] as String,
-        active: (map['active'] as int? ?? 1) == 1,
-        createdAt: map['created_at'] as String?,
-        updatedAt: map['updated_at'] as String?,
-        accountName: map['account_name'] as String?,
-        accountColor: map['account_color'] as String?,
-        accountCurrency: map['account_currency'] as String?,
-        descriptionName: map['description_name'] as String?,
-        tagName: map['tag_name'] as String?,
-        tagColor: map['tag_color'] as String?,
-        generatedCount: map['generated_count'] as int? ?? 0,
-      );
-
-  static Decimal _parseDecimal(dynamic value) {
-    if (value == null) return Decimal.zero;
-    if (value is Decimal) return value;
-    if (value is num) return Decimal.parse(value.toString());
-    return Decimal.tryParse(value.toString()) ?? Decimal.zero;
-  }
 }

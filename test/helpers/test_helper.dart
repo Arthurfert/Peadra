@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:cryptography/cryptography.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+import 'package:peadra/core/services/auth_service.dart';
 import 'package:peadra/core/services/encryption_service.dart';
 
 /// Initialize sqflite_ffi for desktop testing.
@@ -144,18 +145,8 @@ Future<int> seedTestUser(Database db, {String username = 'testuser', String pass
   );
 }
 
-/// Simple SHA-256 hash for test passwords (mirrors AuthService.hashPassword).
-String _hashPassword(String password) {
-  // For testing, use a simple deterministic hash
-  // In production, AuthService uses crypto:sha256
-  var bytes = password.codeUnits;
-  var hash = 0;
-  for (var byte in bytes) {
-    hash = ((hash << 5) - hash) + byte;
-    hash = hash & hash;
-  }
-  return hash.toRadixString(16);
-}
+/// Password hash for seeded test users (delegates to the production hash).
+String _hashPassword(String password) => AuthService.hashPassword(password);
 
 /// Seed test accounts for a user.
 Future<List<int>> seedTestAccounts(Database db, int userId, {List<double>? startingAmounts}) async {
@@ -218,18 +209,18 @@ Future<int> seedTestTransaction(
 // ==================== ENCRYPTION HELPERS ====================
 
 /// Deterministic test password and salt for reproducible key derivation.
-const String testPassword = 'test_password_123';
-final Uint8List testSalt = Uint8List.fromList(
+const String _testPassword = 'test_password_123';
+final Uint8List _testSalt = Uint8List.fromList(
   List<int>.generate(32, (i) => i + 1),
 );
 
 /// Derives a test encryption key from the fixed test password and salt.
 /// Uses fewer iterations for faster tests.
 Future<SecretKey> deriveTestKey({
-  String password = testPassword,
+  String password = _testPassword,
   Uint8List? salt,
 }) async {
-  return EncryptionService.deriveKey(password, salt ?? testSalt);
+  return EncryptionService.deriveKey(password, salt ?? _testSalt);
 }
 
 /// Encrypts a string using the test key.

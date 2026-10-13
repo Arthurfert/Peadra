@@ -1,1499 +1,1288 @@
+import 'package:decimal/decimal.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import '../helpers/test_helper.dart';
 
-Future<Database> _openTestDb() async {
-  return databaseFactoryFfi.openDatabase(
-    inMemoryDatabasePath,
-    options: OpenDatabaseOptions(
-      version: 1,
-      onCreate: (db, version) async {
-        await db.execute('''
-          CREATE TABLE users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT NOT NULL UNIQUE,
-            password_hash TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE accounts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            name TEXT NOT NULL,
-            type TEXT NOT NULL DEFAULT 'savings' CHECK(type IN ('checking', 'savings')),
-            color TEXT DEFAULT '#1976D2',
-            currency TEXT DEFAULT 'EUR',
-            starting_amount REAL DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(user_id, name),
-            FOREIGN KEY (user_id) REFERENCES users(id)
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE descriptions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            name TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(user_id, name),
-            FOREIGN KEY (user_id) REFERENCES users(id)
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE transactions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            account_id INTEGER,
-            description_id INTEGER,
-            tag_id INTEGER,
-            date DATE NOT NULL,
-            amount REAL NOT NULL,
-            transaction_type TEXT NOT NULL CHECK(transaction_type IN ('income', 'expense', 'transfer')),
-            currency TEXT DEFAULT 'EUR',
-            notes TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id),
-            FOREIGN KEY (account_id) REFERENCES accounts(id),
-            FOREIGN KEY (description_id) REFERENCES descriptions(id),
-            FOREIGN KEY (tag_id) REFERENCES tags(id)
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE exchange_rates (
-            from_currency TEXT NOT NULL,
-            to_currency TEXT NOT NULL,
-            rate REAL NOT NULL,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (from_currency, to_currency)
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE imported_files (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            file_hash TEXT NOT NULL,
-            filename TEXT,
-            imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(user_id, file_hash),
-            FOREIGN KEY (user_id) REFERENCES users(id)
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE settings (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            key TEXT NOT NULL,
-            value TEXT,
-            UNIQUE(user_id, key),
-            FOREIGN KEY (user_id) REFERENCES users(id)
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE tags (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            name TEXT NOT NULL,
-            color TEXT DEFAULT '#1976D2',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(user_id, name),
-            FOREIGN KEY (user_id) REFERENCES users(id)
-          )
-        ''');
-      },
-    ),
-  );
-}
+import 'package:peadra/core/database/database_manager.dart';
+import 'package:peadra/core/models/transaction.dart';
 
 void main() {
-  late Database db;
-  late int userId;
-  late List<int> accountIds;
+  sqfliteFfiInit();
 
-  setUpAll(() {
-    initializeTestDatabase();
-  });
+  late List<String> accountIds;
+  late String myUserId;
+
+  Future<List<TransactionWithDetails>> allTxns() =>
+      DatabaseManager.instance.getTransactions();
+
+  Future<TransactionWithDetails> txnById(String id) async {
+    final txns = await allTxns();
+    return txns.firstWhere((t) => t.id == id);
+  }
 
   setUp(() async {
-    db = await _openTestDb();
-    userId = await seedTestUser(db);
-    accountIds = await seedTestAccounts(db, userId);
+    myUserId = 'user-${DateTime.now().microsecondsSinceEpoch}';
+    await DatabaseManager.instance.openInMemoryForTest(userId: myUserId);
+    final db = DatabaseManager.instance;
+    final a = await db.addAccount(
+        'Checking Account', '#4CAF50', 'checking', 'EUR');
+    final b = await db.addAccount(
+        'Savings Account A', '#2196F3', 'savings', 'EUR');
+    final c = await db.addAccount(
+        'Savings Account B', '#009688', 'savings', 'EUR');
+    accountIds = [a!, b!, c!];
   });
-
-  tearDown(() async {
-    await db.close();
-  });
-
-  Future<int> getOrCreateDescription(String name) async {
-    final existing = await db.query(
-      'descriptions',
-      where: 'user_id = ? AND name = ?',
-      whereArgs: [userId, name],
-    );
-    if (existing.isNotEmpty) return existing.first['id'] as int;
-    return await db.insert('descriptions', {
-      'user_id': userId,
-      'name': name,
-    });
-  }
-
-  Future<String?> getAccountCurrency(int accountId) async {
-    final result = await db.rawQuery(
-      'SELECT currency FROM accounts WHERE id = ? AND user_id = ?',
-      [accountId, userId],
-    );
-    if (result.isEmpty) return null;
-    return result.first['currency'] as String?;
-  }
-
-  Future<int> addTransaction({
-    required String date,
-    required String description,
-    required double amount,
-    required String transactionType,
-    int? accountId,
-    String? notes,
-    String? currency,
-  }) async {
-    final descId = await getOrCreateDescription(description);
-    String effectiveCurrency = currency ?? 'EUR';
-    if (accountId != null) {
-      final acctCurrency = await getAccountCurrency(accountId);
-      if (acctCurrency != null) effectiveCurrency = acctCurrency;
-    }
-    return await db.insert('transactions', {
-      'user_id': userId,
-      'account_id': accountId,
-      'description_id': descId,
-      'date': date,
-      'amount': amount,
-      'transaction_type': transactionType,
-      'currency': effectiveCurrency,
-      'notes': notes,
-    });
-  }
-
-  Future<bool> updateTransaction(
-    int transactionId, {
-    String? date,
-    String? description,
-    double? amount,
-    String? transactionType,
-    int? accountId,
-    String? notes,
-    String? currency,
-  }) async {
-    final updates = <String, dynamic>{};
-    if (date != null) updates['date'] = date;
-    if (amount != null) updates['amount'] = amount;
-    if (transactionType != null) updates['transaction_type'] = transactionType;
-    if (accountId != null) updates['account_id'] = accountId;
-    if (notes != null) updates['notes'] = notes;
-    if (currency != null) updates['currency'] = currency;
-    if (description != null) {
-      updates['description_id'] = await getOrCreateDescription(description);
-    }
-    if (updates.isEmpty) return false;
-    updates['updated_at'] = DateTime.now().toIso8601String();
-    final count = await db.update(
-      'transactions',
-      updates,
-      where: 'id = ? AND user_id = ?',
-      whereArgs: [transactionId, userId],
-    );
-    return count > 0;
-  }
-
-  Future<bool> deleteTransaction(int transactionId) async {
-    final count = await db.delete(
-      'transactions',
-      where: 'id = ? AND user_id = ?',
-      whereArgs: [transactionId, userId],
-    );
-    return count > 0;
-  }
-
-  Future<List<Map<String, dynamic>>> getTransactions({
-    int? limit,
-    int offset = 0,
-    String searchQuery = '',
-    Set<int>? accountIds,
-  }) async {
-    final where = <String>['t.user_id = ?'];
-    final args = <dynamic>[userId];
-    if (searchQuery.isNotEmpty) {
-      where.add('(LOWER(d.name) LIKE ? OR LOWER(a.name) LIKE ?)');
-      final sq = '%${searchQuery.toLowerCase()}%';
-      args.addAll([sq, sq]);
-    }
-    if (accountIds != null && accountIds.isNotEmpty) {
-      final placeholders = accountIds.map((_) => '?').join(',');
-      where.add('t.account_id IN ($placeholders)');
-      args.addAll(accountIds);
-    }
-    var query = '''
-      SELECT t.*, a.name as account_name, a.color as account_color,
-             a.currency as account_currency, d.name as description_name
-      FROM transactions t
-      LEFT JOIN accounts a ON t.account_id = a.id
-      LEFT JOIN descriptions d ON t.description_id = d.id
-      WHERE ${where.join(' AND ')}
-      ORDER BY t.date DESC, t.id DESC
-    ''';
-    if (limit != null) {
-      query += ' LIMIT ? OFFSET ?';
-      args.addAll([limit, offset]);
-    }
-    return await db.rawQuery(query, args);
-  }
-
-  Future<List<Map<String, dynamic>>> getTransactionsByPeriod(
-      String startDate, String endDate) async {
-    return await db.rawQuery('''
-      SELECT t.*, a.name as account_name, a.color as account_color,
-             a.currency as account_currency, d.name as description_name
-      FROM transactions t
-      LEFT JOIN accounts a ON t.account_id = a.id
-      LEFT JOIN descriptions d ON t.description_id = d.id
-      WHERE t.date BETWEEN ? AND ? AND t.user_id = ?
-      ORDER BY t.date DESC
-    ''', [startDate, endDate, userId]);
-  }
-
-  Future<String?> getEarliestTransactionDate() async {
-    final result = await db.rawQuery(
-      'SELECT MIN(date) FROM transactions WHERE user_id = ?',
-      [userId],
-    );
-    return result.first['MIN(date)'] as String?;
-  }
 
   group('Adding transactions', () {
     test('adds an income transaction with account', () async {
-      final id = await addTransaction(
+      final db = DatabaseManager.instance;
+      final id = await db.addTransaction(
         date: '2025-01-15',
         description: 'Salary',
-        amount: 3000.0,
+        amount: Decimal.fromInt(3000),
         transactionType: 'income',
         accountId: accountIds[0],
       );
 
-      expect(id, greaterThan(0));
-      final rows = await db.query('transactions', where: 'id = ?', whereArgs: [id]);
-      expect(rows.length, 1);
-      expect(rows.first['date'], '2025-01-15');
-      expect(rows.first['amount'], 3000.0);
-      expect(rows.first['transaction_type'], 'income');
-      expect(rows.first['account_id'], accountIds[0]);
-      expect(rows.first['currency'], 'EUR');
+      expect(id, isNotNull);
+      final txn = await txnById(id!);
+      expect(txn.date, '2025-01-15');
+      expect(txn.amount, Decimal.fromInt(3000));
+      expect(txn.transactionType, 'income');
+      expect(txn.accountId, accountIds[0]);
+      expect(txn.currency, 'EUR');
     });
 
     test('adds an expense transaction', () async {
-      final id = await addTransaction(
+      final db = DatabaseManager.instance;
+      final id = await db.addTransaction(
         date: '2025-03-10',
         description: 'Groceries',
-        amount: 55.75,
+        amount: Decimal.parse('55.75'),
         transactionType: 'expense',
         accountId: accountIds[0],
       );
 
-      final rows = await db.query('transactions', where: 'id = ?', whereArgs: [id]);
-      expect(rows.first['transaction_type'], 'expense');
-      expect(rows.first['amount'], 55.75);
+      final txn = await txnById(id!);
+      expect(txn.transactionType, 'expense');
+      expect(txn.amount, Decimal.parse('55.75'));
     });
 
     test('adds a transfer transaction', () async {
-      final id = await addTransaction(
+      final db = DatabaseManager.instance;
+      final id = await db.addTransaction(
         date: '2025-02-20',
         description: 'Transfer to Savings',
-        amount: 500.0,
+        amount: Decimal.fromInt(500),
         transactionType: 'transfer',
         accountId: accountIds[1],
       );
 
-      final rows = await db.query('transactions', where: 'id = ?', whereArgs: [id]);
-      expect(rows.first['transaction_type'], 'transfer');
+      final txn = await txnById(id!);
+      expect(txn.transactionType, 'transfer');
     });
 
     test('adds a transaction with null account', () async {
-      final id = await addTransaction(
+      final db = DatabaseManager.instance;
+      final id = await db.addTransaction(
         date: '2025-01-20',
         description: 'Cash income',
-        amount: 200.0,
+        amount: Decimal.fromInt(200),
         transactionType: 'income',
       );
 
-      final rows = await db.query('transactions', where: 'id = ?', whereArgs: [id]);
-      expect(rows.first['account_id'], isNull);
-      expect(rows.first['currency'], 'EUR');
+      final txn = await txnById(id!);
+      expect(txn.accountId, isNull);
+      expect(txn.currency, 'EUR');
     });
 
     test('adds a transaction with notes', () async {
-      final id = await addTransaction(
+      final db = DatabaseManager.instance;
+      final id = await db.addTransaction(
         date: '2025-01-25',
         description: 'Freelance work',
-        amount: 1500.0,
+        amount: Decimal.fromInt(1500),
         transactionType: 'income',
         accountId: accountIds[0],
         notes: 'Project ABC invoice',
       );
 
-      final rows = await db.query('transactions', where: 'id = ?', whereArgs: [id]);
-      expect(rows.first['notes'], 'Project ABC invoice');
+      final txn = await txnById(id!);
+      expect(txn.notes, 'Project ABC invoice');
     });
 
     test('adds a transaction with explicit currency', () async {
-      final id = await addTransaction(
+      final db = DatabaseManager.instance;
+      final id = await db.addTransaction(
         date: '2025-01-25',
         description: 'USD Income',
-        amount: 100.0,
+        amount: Decimal.fromInt(100),
         transactionType: 'income',
         currency: 'USD',
       );
 
-      final rows = await db.query('transactions', where: 'id = ?', whereArgs: [id]);
-      expect(rows.first['currency'], 'USD');
+      final txn = await txnById(id!);
+      expect(txn.currency, 'USD');
     });
 
     test('creates description record for the transaction', () async {
-      final id = await addTransaction(
+      final db = DatabaseManager.instance;
+      final id = await db.addTransaction(
         date: '2025-01-15',
         description: 'New Description',
-        amount: 100.0,
+        amount: Decimal.fromInt(100),
         transactionType: 'income',
       );
 
-      final descs = await db.query(
-        'descriptions',
-        where: 'user_id = ? AND name = ?',
-        whereArgs: [userId, 'New Description'],
-      );
-      expect(descs.length, 1);
+      final descs = (await db.getAllDescriptions())
+          .where((d) => d.name == 'New Description')
+          .toList();
+      expect(descs, hasLength(1));
 
-      final rows = await db.query('transactions', where: 'id = ?', whereArgs: [id]);
-      expect(rows.first['description_id'], descs.first['id']);
+      final txn = await txnById(id!);
+      expect(txn.descriptionId, descs.single.id);
     });
 
     test('reuses existing description with same name', () async {
-      final id1 = await addTransaction(
+      final db = DatabaseManager.instance;
+      final id1 = await db.addTransaction(
         date: '2025-01-15',
         description: 'Rent',
-        amount: 1000.0,
+        amount: Decimal.fromInt(1000),
         transactionType: 'expense',
       );
-      final id2 = await addTransaction(
+      final id2 = await db.addTransaction(
         date: '2025-02-15',
         description: 'Rent',
-        amount: 1000.0,
+        amount: Decimal.fromInt(1000),
         transactionType: 'expense',
       );
 
-      final descs = await db.query(
-        'descriptions',
-        where: 'user_id = ? AND name = ?',
-        whereArgs: [userId, 'Rent'],
-      );
-      expect(descs.length, 1);
+      final descs = (await db.getAllDescriptions())
+          .where((d) => d.name == 'Rent')
+          .toList();
+      expect(descs, hasLength(1));
 
-      final t1 = await db.query('transactions', where: 'id = ?', whereArgs: [id1]);
-      final t2 = await db.query('transactions', where: 'id = ?', whereArgs: [id2]);
-      expect(t1.first['description_id'], t2.first['description_id']);
+      final t1 = await txnById(id1!);
+      final t2 = await txnById(id2!);
+      expect(t1.descriptionId, t2.descriptionId);
     });
 
     test('multiple transactions with same description share description_id',
         () async {
-      await addTransaction(
+      final db = DatabaseManager.instance;
+      await db.addTransaction(
         date: '2025-01-01',
         description: 'Coffee',
-        amount: 5.0,
+        amount: Decimal.fromInt(5),
         transactionType: 'expense',
         accountId: accountIds[0],
       );
-      await addTransaction(
+      await db.addTransaction(
         date: '2025-01-02',
         description: 'Coffee',
-        amount: 4.5,
+        amount: Decimal.parse('4.5'),
         transactionType: 'expense',
         accountId: accountIds[0],
       );
 
-      final descs = await db.query(
-        'descriptions',
-        where: 'user_id = ? AND name = ?',
-        whereArgs: [userId, 'Coffee'],
-      );
-      expect(descs.length, 1);
+      final descs = (await db.getAllDescriptions())
+          .where((d) => d.name == 'Coffee')
+          .toList();
+      expect(descs, hasLength(1));
 
-      final txns = await db.query('transactions',
-          where: 'description_id = ?', whereArgs: [descs.first['id']]);
-      expect(txns.length, 2);
+      final txns = (await allTxns())
+          .where((t) => t.descriptionId == descs.single.id)
+          .toList();
+      expect(txns, hasLength(2));
     });
   });
 
   group('Updating transactions', () {
-    late int txnId;
+    late String txnId;
 
     setUp(() async {
-      txnId = await addTransaction(
+      final db = DatabaseManager.instance;
+      txnId = (await db.addTransaction(
         date: '2025-01-15',
         description: 'Salary',
-        amount: 3000.0,
+        amount: Decimal.fromInt(3000),
         transactionType: 'income',
         accountId: accountIds[0],
         notes: 'January salary',
-      );
+      ))!;
     });
 
     test('updates date', () async {
-      final result = await updateTransaction(txnId, date: '2025-02-01');
-      expect(result, true);
+      final db = DatabaseManager.instance;
+      final result = await db.updateTransaction(txnId, date: '2025-02-01');
+      expect(result, isTrue);
 
-      final rows = await db.query('transactions', where: 'id = ?', whereArgs: [txnId]);
-      expect(rows.first['date'], '2025-02-01');
+      expect((await txnById(txnId)).date, '2025-02-01');
     });
 
     test('updates amount', () async {
-      final result = await updateTransaction(txnId, amount: 3500.0);
-      expect(result, true);
+      final db = DatabaseManager.instance;
+      final result =
+          await db.updateTransaction(txnId, amount: Decimal.fromInt(3500));
+      expect(result, isTrue);
 
-      final rows = await db.query('transactions', where: 'id = ?', whereArgs: [txnId]);
-      expect(rows.first['amount'], 3500.0);
+      expect((await txnById(txnId)).amount, Decimal.fromInt(3500));
     });
 
     test('updates transaction type', () async {
-      final result = await updateTransaction(txnId, transactionType: 'expense');
-      expect(result, true);
+      final db = DatabaseManager.instance;
+      final result =
+          await db.updateTransaction(txnId, transactionType: 'expense');
+      expect(result, isTrue);
 
-      final rows = await db.query('transactions', where: 'id = ?', whereArgs: [txnId]);
-      expect(rows.first['transaction_type'], 'expense');
+      expect((await txnById(txnId)).transactionType, 'expense');
     });
 
     test('updates description', () async {
-      final result = await updateTransaction(txnId, description: 'Bonus');
-      expect(result, true);
+      final db = DatabaseManager.instance;
+      final result = await db.updateTransaction(txnId, description: 'Bonus');
+      expect(result, isTrue);
 
-      final rows = await db.query('transactions', where: 'id = ?', whereArgs: [txnId]);
-      final descId = rows.first['description_id'] as int;
-      final desc = await db.query('descriptions', where: 'id = ?', whereArgs: [descId]);
-      expect(desc.first['name'], 'Bonus');
+      expect((await txnById(txnId)).descriptionName, 'Bonus');
     });
 
     test('updates notes', () async {
-      final result = await updateTransaction(txnId, notes: 'Updated note');
-      expect(result, true);
+      final db = DatabaseManager.instance;
+      final result =
+          await db.updateTransaction(txnId, notes: 'Updated note');
+      expect(result, isTrue);
 
-      final rows = await db.query('transactions', where: 'id = ?', whereArgs: [txnId]);
-      expect(rows.first['notes'], 'Updated note');
+      expect((await txnById(txnId)).notes, 'Updated note');
     });
 
     test('updates account', () async {
-      final result = await updateTransaction(txnId, accountId: accountIds[1]);
-      expect(result, true);
+      final db = DatabaseManager.instance;
+      final result =
+          await db.updateTransaction(txnId, accountId: accountIds[1]);
+      expect(result, isTrue);
 
-      final rows = await db.query('transactions', where: 'id = ?', whereArgs: [txnId]);
-      expect(rows.first['account_id'], accountIds[1]);
+      expect((await txnById(txnId)).accountId, accountIds[1]);
     });
 
     test('updates currency', () async {
-      final result = await updateTransaction(txnId, currency: 'USD');
-      expect(result, true);
+      final db = DatabaseManager.instance;
+      final result = await db.updateTransaction(txnId, currency: 'USD');
+      expect(result, isTrue);
 
-      final rows = await db.query('transactions', where: 'id = ?', whereArgs: [txnId]);
-      expect(rows.first['currency'], 'USD');
+      expect((await txnById(txnId)).currency, 'USD');
     });
 
     test('partial update with multiple fields', () async {
-      final result = await updateTransaction(
+      final db = DatabaseManager.instance;
+      final result = await db.updateTransaction(
         txnId,
         date: '2025-06-15',
-        amount: 4000.0,
+        amount: Decimal.fromInt(4000),
         notes: 'June bonus',
       );
-      expect(result, true);
+      expect(result, isTrue);
 
-      final rows = await db.query('transactions', where: 'id = ?', whereArgs: [txnId]);
-      expect(rows.first['date'], '2025-06-15');
-      expect(rows.first['amount'], 4000.0);
-      expect(rows.first['notes'], 'June bonus');
-      expect(rows.first['transaction_type'], 'income');
-      expect(rows.first['account_id'], accountIds[0]);
+      final txn = await txnById(txnId);
+      expect(txn.date, '2025-06-15');
+      expect(txn.amount, Decimal.fromInt(4000));
+      expect(txn.notes, 'June bonus');
+      expect(txn.transactionType, 'income');
+      expect(txn.accountId, accountIds[0]);
     });
 
     test('returns false when no fields provided', () async {
-      final result = await updateTransaction(txnId);
-      expect(result, false);
+      final db = DatabaseManager.instance;
+      final result = await db.updateTransaction(txnId);
+      expect(result, isFalse);
     });
 
     test('returns false for non-existent transaction', () async {
-      final result = await updateTransaction(9999, amount: 100.0);
-      expect(result, false);
+      final db = DatabaseManager.instance;
+      final result = await db.updateTransaction('non-existent-id',
+          amount: Decimal.fromInt(100));
+      expect(result, isFalse);
     });
 
     test('updates description and creates new description record', () async {
-      await updateTransaction(txnId, description: 'New Description');
+      final db = DatabaseManager.instance;
+      await db.updateTransaction(txnId, description: 'New Description');
 
-      final rows = await db.query('transactions', where: 'id = ?', whereArgs: [txnId]);
-      final descId = rows.first['description_id'] as int;
-      final desc = await db.query('descriptions', where: 'id = ?', whereArgs: [descId]);
-      expect(desc.first['name'], 'New Description');
+      expect((await txnById(txnId)).descriptionName, 'New Description');
     });
 
     test('sets updated_at timestamp on update', () async {
-      final before = await db.query('transactions', where: 'id = ?', whereArgs: [txnId]);
-      final oldUpdated = before.first['updated_at'] as String?;
+      final db = DatabaseManager.instance;
+      final before = await txnById(txnId);
+      final oldUpdated = before.updatedAt;
 
       await Future.delayed(const Duration(milliseconds: 10));
-      await updateTransaction(txnId, amount: 100.0);
+      await db.updateTransaction(txnId, amount: Decimal.fromInt(100));
 
-      final after = await db.query('transactions', where: 'id = ?', whereArgs: [txnId]);
-      final newUpdated = after.first['updated_at'] as String?;
+      final after = await txnById(txnId);
+      final newUpdated = after.updatedAt;
 
       expect(newUpdated, isNotNull);
       if (oldUpdated != null) {
-        expect(newUpdated != oldUpdated, true);
+        expect(newUpdated != oldUpdated, isTrue);
       }
     });
   });
 
   group('Deleting transactions', () {
     test('deletes an existing transaction', () async {
-      final id = await addTransaction(
+      final db = DatabaseManager.instance;
+      final id = (await db.addTransaction(
         date: '2025-01-15',
         description: 'To Delete',
-        amount: 50.0,
+        amount: Decimal.fromInt(50),
         transactionType: 'expense',
-      );
+      ))!;
 
-      final result = await deleteTransaction(id);
-      expect(result, true);
+      final result = await db.deleteTransaction(id);
+      expect(result, isTrue);
 
-      final rows = await db.query('transactions', where: 'id = ?', whereArgs: [id]);
-      expect(rows.isEmpty, true);
+      expect(await allTxns(), isEmpty);
     });
 
     test('returns false for non-existent transaction', () async {
-      final result = await deleteTransaction(9999);
-      expect(result, false);
+      final db = DatabaseManager.instance;
+      final result = await db.deleteTransaction('non-existent-id');
+      expect(result, isFalse);
     });
 
     test('does not affect other users transactions', () async {
-      final otherUserId = await seedTestUser(db, username: 'otheruser');
-      final otherId = await seedTestTransaction(
-        db,
-        otherUserId,
+      final db = DatabaseManager.instance;
+      final otherUserId = 'other-${DateTime.now().microsecondsSinceEpoch}';
+      db.setSessionUserId(otherUserId);
+      await db.addTransaction(
         date: '2025-01-15',
-        amount: 100.0,
+        description: 'Other user txn',
+        amount: Decimal.fromInt(100),
         transactionType: 'income',
       );
+      db.setSessionUserId(myUserId);
 
-      final id = await addTransaction(
+      final id = (await db.addTransaction(
         date: '2025-01-15',
         description: 'My Transaction',
-        amount: 100.0,
+        amount: Decimal.fromInt(100),
         transactionType: 'income',
-      );
+      ))!;
 
-      await deleteTransaction(id);
+      await db.deleteTransaction(id);
+      expect(await allTxns(), isEmpty);
 
-      final otherRows =
-          await db.query('transactions', where: 'id = ?', whereArgs: [otherId]);
-      expect(otherRows.length, 1);
+      db.setSessionUserId(otherUserId);
+      final otherTxns = await allTxns();
+      expect(otherTxns, hasLength(1));
+      db.setSessionUserId(myUserId);
     });
 
     test('deletes multiple transactions independently', () async {
-      final id1 = await addTransaction(
+      final db = DatabaseManager.instance;
+      final id1 = (await db.addTransaction(
         date: '2025-01-01',
         description: 'T1',
-        amount: 10.0,
+        amount: Decimal.fromInt(10),
         transactionType: 'expense',
-      );
-      final id2 = await addTransaction(
+      ))!;
+      final id2 = (await db.addTransaction(
         date: '2025-01-02',
         description: 'T2',
-        amount: 20.0,
+        amount: Decimal.fromInt(20),
         transactionType: 'expense',
-      );
+      ))!;
 
-      await deleteTransaction(id1);
+      await db.deleteTransaction(id1);
 
-      final remaining = await db.query('transactions', orderBy: 'id');
-      expect(remaining.length, 1);
-      expect(remaining.first['id'], id2);
+      final remaining = await allTxns();
+      expect(remaining, hasLength(1));
+      expect(remaining.single.id, id2);
     });
 
     test('does not delete description record when transaction is deleted',
         () async {
-      final id = await addTransaction(
+      final db = DatabaseManager.instance;
+      final id = (await db.addTransaction(
         date: '2025-01-15',
         description: 'Keep Description',
-        amount: 100.0,
+        amount: Decimal.fromInt(100),
         transactionType: 'income',
-      );
+      ))!;
 
-      final txn = await db.query('transactions', where: 'id = ?', whereArgs: [id]);
-      final descId = txn.first['description_id'] as int;
+      final descId = (await txnById(id)).descriptionId;
 
-      await deleteTransaction(id);
+      await db.deleteTransaction(id);
 
-      final desc =
-          await db.query('descriptions', where: 'id = ?', whereArgs: [descId]);
-      expect(desc.length, 1);
+      final descs = await db.getAllDescriptions();
+      expect(descs.where((d) => d.id == descId), hasLength(1));
     });
   });
 
   group('Querying transactions with filters', () {
     setUp(() async {
-      await addTransaction(
+      final db = DatabaseManager.instance;
+      await db.addTransaction(
         date: '2025-01-10',
         description: 'Groceries',
-        amount: 50.0,
+        amount: Decimal.fromInt(50),
         transactionType: 'expense',
         accountId: accountIds[0],
       );
-      await addTransaction(
+      await db.addTransaction(
         date: '2025-01-15',
         description: 'Salary',
-        amount: 3000.0,
+        amount: Decimal.fromInt(3000),
         transactionType: 'income',
         accountId: accountIds[0],
       );
-      await addTransaction(
+      await db.addTransaction(
         date: '2025-01-20',
         description: 'Groceries',
-        amount: 30.0,
+        amount: Decimal.fromInt(30),
         transactionType: 'expense',
         accountId: accountIds[1],
       );
-      await addTransaction(
+      await db.addTransaction(
         date: '2025-01-25',
         description: 'Transfer to Checking',
-        amount: 200.0,
+        amount: Decimal.fromInt(200),
         transactionType: 'transfer',
         accountId: accountIds[2],
       );
     });
 
     test('returns all transactions without filters', () async {
-      final results = await getTransactions();
-      expect(results.length, 4);
+      final db = DatabaseManager.instance;
+      final results = await db.getTransactions();
+      expect(results, hasLength(4));
     });
 
     test('searches by description name (case-insensitive)', () async {
-      final results = await getTransactions(searchQuery: 'groceries');
-      expect(results.length, 2);
+      final db = DatabaseManager.instance;
+      final results = await db.getTransactions(searchQuery: 'groceries');
+      expect(results, hasLength(2));
       for (final r in results) {
-        expect(
-          (r['description_name'] as String).toLowerCase(),
-          contains('groceries'),
-        );
+        expect(r.descriptionName!.toLowerCase(), contains('groceries'));
       }
     });
 
     test('searches by account name (case-insensitive)', () async {
-      final results = await getTransactions(searchQuery: 'savings');
-      expect(results.length, 2);
+      final db = DatabaseManager.instance;
+      final results = await db.getTransactions(searchQuery: 'savings');
+      expect(results, hasLength(2));
     });
 
     test('filters by single account ID', () async {
-      final results = await getTransactions(accountIds: {accountIds[0]});
-      expect(results.length, 2);
+      final db = DatabaseManager.instance;
+      final results =
+          await db.getTransactions(accountIds: {accountIds[0]});
+      expect(results, hasLength(2));
       for (final r in results) {
-        expect(r['account_id'], accountIds[0]);
+        expect(r.accountId, accountIds[0]);
       }
     });
 
     test('filters by multiple account IDs', () async {
-      final results =
-          await getTransactions(accountIds: {accountIds[0], accountIds[1]});
-      expect(results.length, 3);
+      final db = DatabaseManager.instance;
+      final results = await db.getTransactions(
+          accountIds: {accountIds[0], accountIds[1]});
+      expect(results, hasLength(3));
     });
 
     test('applies limit', () async {
-      final results = await getTransactions(limit: 2);
-      expect(results.length, 2);
+      final db = DatabaseManager.instance;
+      final results = await db.getTransactions(limit: 2);
+      expect(results, hasLength(2));
     });
 
     test('applies offset', () async {
-      final all = await getTransactions();
-      final offsetResults = await getTransactions(offset: 2, limit: 2);
-      expect(offsetResults.length, 2);
-      expect(offsetResults.first['id'], all[2]['id']);
+      final db = DatabaseManager.instance;
+      final all = await db.getTransactions();
+      final offsetResults =
+          await db.getTransactions(offset: 2, limit: 2);
+      expect(offsetResults, hasLength(2));
+      expect(offsetResults.first.id, all[2].id);
     });
 
     test('search combined with account filter', () async {
-      final results = await getTransactions(
+      final db = DatabaseManager.instance;
+      final results = await db.getTransactions(
         searchQuery: 'groceries',
         accountIds: {accountIds[0]},
       );
-      expect(results.length, 1);
-      expect(results.first['description_name'], 'Groceries');
-      expect(results.first['account_id'], accountIds[0]);
+      expect(results, hasLength(1));
+      expect(results.single.descriptionName, 'Groceries');
+      expect(results.single.accountId, accountIds[0]);
     });
 
     test('returns empty list for non-matching search', () async {
-      final results = await getTransactions(searchQuery: 'nonexistent');
-      expect(results.isEmpty, true);
+      final db = DatabaseManager.instance;
+      final results = await db.getTransactions(searchQuery: 'nonexistent');
+      expect(results, isEmpty);
     });
 
     test('returns empty list for non-matching account IDs', () async {
-      final results = await getTransactions(accountIds: {9999});
-      expect(results.isEmpty, true);
+      final db = DatabaseManager.instance;
+      final results =
+          await db.getTransactions(accountIds: {'non-existent-id'});
+      expect(results, isEmpty);
     });
 
     test('includes joined account and description details', () async {
-      final results = await getTransactions();
+      final db = DatabaseManager.instance;
+      final results = await db.getTransactions();
       final groceries =
-          results.firstWhere((r) => r['description_name'] == 'Groceries');
-      expect(groceries['account_name'], isNotNull);
-      expect(groceries['account_color'], isNotNull);
-      expect(groceries['account_currency'], isNotNull);
-      expect(groceries['description_name'], 'Groceries');
+          results.firstWhere((r) => r.descriptionName == 'Groceries');
+      expect(groceries.accountName, isNotNull);
+      expect(groceries.accountColor, isNotNull);
+      expect(groceries.accountCurrency, isNotNull);
+      expect(groceries.descriptionName, 'Groceries');
     });
 
     test('results ordered by date descending, then id descending', () async {
-      final results = await getTransactions();
+      final db = DatabaseManager.instance;
+      final results = await db.getTransactions();
       for (var i = 0; i < results.length - 1; i++) {
-        final dateA = results[i]['date'] as String;
-        final dateB = results[i + 1]['date'] as String;
-        expect(dateA.compareTo(dateB) >= 0, true);
+        final dateA = results[i].date;
+        final dateB = results[i + 1].date;
+        expect(dateA.compareTo(dateB) >= 0, isTrue);
       }
     });
 
     test('returns transaction with null account details', () async {
-      await addTransaction(
+      final db = DatabaseManager.instance;
+      await db.addTransaction(
         date: '2025-02-01',
         description: 'No Account',
-        amount: 10.0,
+        amount: Decimal.fromInt(10),
         transactionType: 'income',
       );
 
-      final results = await getTransactions();
-      final noAccount = results.firstWhere((r) => r['account_id'] == null);
-      expect(noAccount['account_name'], isNull);
-      expect(noAccount['account_color'], isNull);
+      final results = await db.getTransactions();
+      final noAccount = results.firstWhere((r) => r.accountId == null);
+      expect(noAccount.accountName, isNull);
+      expect(noAccount.accountColor, isNull);
     });
   });
 
   group('Period-based queries', () {
     setUp(() async {
-      await addTransaction(
+      final db = DatabaseManager.instance;
+      await db.addTransaction(
         date: '2025-01-05',
         description: 'Jan Income',
-        amount: 100.0,
+        amount: Decimal.fromInt(100),
         transactionType: 'income',
       );
-      await addTransaction(
+      await db.addTransaction(
         date: '2025-01-15',
         description: 'Jan Expense',
-        amount: 200.0,
+        amount: Decimal.fromInt(200),
         transactionType: 'expense',
       );
-      await addTransaction(
+      await db.addTransaction(
         date: '2025-02-10',
         description: 'Feb Income',
-        amount: 300.0,
+        amount: Decimal.fromInt(300),
         transactionType: 'income',
       );
-      await addTransaction(
+      await db.addTransaction(
         date: '2025-03-01',
         description: 'Mar Expense',
-        amount: 50.0,
+        amount: Decimal.fromInt(50),
         transactionType: 'expense',
       );
     });
 
     test('returns transactions within date range (inclusive)', () async {
+      final db = DatabaseManager.instance;
       final results =
-          await getTransactionsByPeriod('2025-01-01', '2025-01-31');
-      expect(results.length, 2);
+          await db.getTransactionsByPeriod('2025-01-01', '2025-01-31');
+      expect(results, hasLength(2));
     });
 
     test('returns transactions in February', () async {
+      final db = DatabaseManager.instance;
       final results =
-          await getTransactionsByPeriod('2025-02-01', '2025-02-28');
-      expect(results.length, 1);
-      expect(results.first['date'], '2025-02-10');
+          await db.getTransactionsByPeriod('2025-02-01', '2025-02-28');
+      expect(results, hasLength(1));
+      expect(results.single.date, '2025-02-10');
     });
 
     test('returns empty for range with no transactions', () async {
+      final db = DatabaseManager.instance;
       final results =
-          await getTransactionsByPeriod('2024-12-01', '2024-12-31');
-      expect(results.isEmpty, true);
+          await db.getTransactionsByPeriod('2024-12-01', '2024-12-31');
+      expect(results, isEmpty);
     });
 
     test('single-day range', () async {
+      final db = DatabaseManager.instance;
       final results =
-          await getTransactionsByPeriod('2025-01-15', '2025-01-15');
-      expect(results.length, 1);
-      expect(results.first['date'], '2025-01-15');
+          await db.getTransactionsByPeriod('2025-01-15', '2025-01-15');
+      expect(results, hasLength(1));
+      expect(results.single.date, '2025-01-15');
     });
 
     test('wide range captures all transactions', () async {
+      final db = DatabaseManager.instance;
       final results =
-          await getTransactionsByPeriod('2020-01-01', '2030-12-31');
-      expect(results.length, 4);
+          await db.getTransactionsByPeriod('2020-01-01', '2030-12-31');
+      expect(results, hasLength(4));
     });
 
     test('results ordered by date descending', () async {
+      final db = DatabaseManager.instance;
       final results =
-          await getTransactionsByPeriod('2025-01-01', '2025-03-31');
-      expect(results.length, 4);
+          await db.getTransactionsByPeriod('2025-01-01', '2025-03-31');
+      expect(results, hasLength(4));
       for (var i = 0; i < results.length - 1; i++) {
-        final dateA = results[i]['date'] as String;
-        final dateB = results[i + 1]['date'] as String;
-        expect(dateA.compareTo(dateB) >= 0, true);
+        final dateA = results[i].date;
+        final dateB = results[i + 1].date;
+        expect(dateA.compareTo(dateB) >= 0, isTrue);
       }
     });
 
     test('does not return transactions from other users', () async {
-      final otherUserId = await seedTestUser(db, username: 'otheruser');
-      await seedTestTransaction(
-        db,
-        otherUserId,
+      final db = DatabaseManager.instance;
+      final otherUserId = 'other-${DateTime.now().microsecondsSinceEpoch}';
+      db.setSessionUserId(otherUserId);
+      await db.addTransaction(
         date: '2025-01-10',
-        amount: 999.0,
+        description: 'Other user txn',
+        amount: Decimal.fromInt(999),
         transactionType: 'income',
       );
+      db.setSessionUserId(myUserId);
 
       final results =
-          await getTransactionsByPeriod('2025-01-01', '2025-01-31');
-      expect(results.length, 2);
+          await db.getTransactionsByPeriod('2025-01-01', '2025-01-31');
+      expect(results, hasLength(2));
       for (final r in results) {
-        expect(r['user_id'], userId);
+        expect(r.userId, myUserId);
       }
     });
   });
 
   group('Earliest transaction date', () {
     test('returns null when no transactions exist', () async {
-      final result = await getEarliestTransactionDate();
+      final db = DatabaseManager.instance;
+      final result = await db.getFirstTransactionDate();
       expect(result, isNull);
     });
 
     test('returns earliest date among transactions', () async {
-      await addTransaction(
+      final db = DatabaseManager.instance;
+      await db.addTransaction(
         date: '2025-06-01',
         description: 'D1',
-        amount: 10.0,
+        amount: Decimal.fromInt(10),
         transactionType: 'income',
       );
-      await addTransaction(
+      await db.addTransaction(
         date: '2025-01-15',
         description: 'D2',
-        amount: 20.0,
+        amount: Decimal.fromInt(20),
         transactionType: 'expense',
       );
-      await addTransaction(
+      await db.addTransaction(
         date: '2025-03-20',
         description: 'D3',
-        amount: 30.0,
+        amount: Decimal.fromInt(30),
         transactionType: 'income',
       );
 
-      final result = await getEarliestTransactionDate();
+      final result = await db.getFirstTransactionDate();
       expect(result, '2025-01-15');
     });
 
     test('returns single date when only one transaction exists', () async {
-      await addTransaction(
+      final db = DatabaseManager.instance;
+      await db.addTransaction(
         date: '2025-08-20',
         description: 'D1',
-        amount: 50.0,
+        amount: Decimal.fromInt(50),
         transactionType: 'income',
       );
 
-      final result = await getEarliestTransactionDate();
+      final result = await db.getFirstTransactionDate();
       expect(result, '2025-08-20');
     });
 
     test('only considers current user transactions', () async {
-      final otherUserId = await seedTestUser(db, username: 'otheruser');
-      await seedTestTransaction(
-        db,
-        otherUserId,
+      final db = DatabaseManager.instance;
+      final otherUserId = 'other-${DateTime.now().microsecondsSinceEpoch}';
+      db.setSessionUserId(otherUserId);
+      await db.addTransaction(
         date: '2020-01-01',
-        amount: 10.0,
+        description: 'Other',
+        amount: Decimal.fromInt(10),
         transactionType: 'income',
       );
-      await addTransaction(
+      db.setSessionUserId(myUserId);
+      await db.addTransaction(
         date: '2025-06-01',
         description: 'D1',
-        amount: 20.0,
+        amount: Decimal.fromInt(20),
         transactionType: 'income',
       );
 
-      final result = await getEarliestTransactionDate();
+      final result = await db.getFirstTransactionDate();
       expect(result, '2025-06-01');
     });
   });
 
   group('Currency resolution from accounts', () {
     test('returns EUR for checking account', () async {
-      final result = await getAccountCurrency(accountIds[0]);
+      final db = DatabaseManager.instance;
+      final result = await db.getAccountCurrency(accountIds[0]);
       expect(result, 'EUR');
     });
 
     test('returns EUR for savings account A', () async {
-      final result = await getAccountCurrency(accountIds[1]);
+      final db = DatabaseManager.instance;
+      final result = await db.getAccountCurrency(accountIds[1]);
       expect(result, 'EUR');
     });
 
     test('returns EUR for savings account B', () async {
-      final result = await getAccountCurrency(accountIds[2]);
+      final db = DatabaseManager.instance;
+      final result = await db.getAccountCurrency(accountIds[2]);
       expect(result, 'EUR');
     });
 
     test('returns null for non-existent account', () async {
-      final result = await getAccountCurrency(9999);
+      final db = DatabaseManager.instance;
+      final result = await db.getAccountCurrency('non-existent-id');
       expect(result, isNull);
     });
 
     test('transaction inherits account currency when account provided',
         () async {
-      await db.update(
-        'accounts',
-        {'currency': 'USD'},
-        where: 'id = ?',
-        whereArgs: [accountIds[0]],
-      );
+      final db = DatabaseManager.instance;
+      await db.updateAccount(
+          accountIds[0], 'Checking Account', '#4CAF50',
+          currency: 'USD');
 
-      final id = await addTransaction(
+      final id = (await db.addTransaction(
         date: '2025-01-15',
         description: 'USD Transaction',
-        amount: 100.0,
+        amount: Decimal.fromInt(100),
         transactionType: 'income',
         accountId: accountIds[0],
-      );
+      ))!;
 
-      final rows =
-          await db.query('transactions', where: 'id = ?', whereArgs: [id]);
-      expect(rows.first['currency'], 'USD');
+      expect((await txnById(id)).currency, 'USD');
     });
 
     test('transaction uses default EUR when no account provided', () async {
-      final id = await addTransaction(
+      final db = DatabaseManager.instance;
+      final id = (await db.addTransaction(
         date: '2025-01-15',
         description: 'No Account Transaction',
-        amount: 100.0,
+        amount: Decimal.fromInt(100),
         transactionType: 'income',
-      );
+      ))!;
 
-      final rows =
-          await db.query('transactions', where: 'id = ?', whereArgs: [id]);
-      expect(rows.first['currency'], 'EUR');
+      expect((await txnById(id)).currency, 'EUR');
     });
 
     test('transaction uses explicit currency when no account provided',
         () async {
-      final id = await addTransaction(
+      final db = DatabaseManager.instance;
+      final id = (await db.addTransaction(
         date: '2025-01-15',
         description: 'Explicit Currency',
-        amount: 100.0,
+        amount: Decimal.fromInt(100),
         transactionType: 'income',
         currency: 'GBP',
-      );
+      ))!;
 
-      final rows =
-          await db.query('transactions', where: 'id = ?', whereArgs: [id]);
-      expect(rows.first['currency'], 'GBP');
+      expect((await txnById(id)).currency, 'GBP');
     });
 
     test('account currency takes precedence over explicit currency', () async {
-      await db.update(
-        'accounts',
-        {'currency': 'CHF'},
-        where: 'id = ?',
-        whereArgs: [accountIds[0]],
-      );
+      final db = DatabaseManager.instance;
+      await db.updateAccount(
+          accountIds[0], 'Checking Account', '#4CAF50',
+          currency: 'CHF');
 
-      final id = await addTransaction(
+      final id = (await db.addTransaction(
         date: '2025-01-15',
         description: 'Currency Test',
-        amount: 100.0,
+        amount: Decimal.fromInt(100),
         transactionType: 'income',
         accountId: accountIds[0],
         currency: 'GBP',
-      );
+      ))!;
 
-      final rows =
-          await db.query('transactions', where: 'id = ?', whereArgs: [id]);
-      expect(rows.first['currency'], 'CHF');
+      expect((await txnById(id)).currency, 'CHF');
     });
   });
 
   group('Edge cases', () {
     test('transaction with zero amount', () async {
-      final id = await addTransaction(
+      final db = DatabaseManager.instance;
+      final id = (await db.addTransaction(
         date: '2025-01-15',
         description: 'Zero Amount',
-        amount: 0.0,
+        amount: Decimal.zero,
         transactionType: 'income',
-      );
+      ))!;
 
-      final rows =
-          await db.query('transactions', where: 'id = ?', whereArgs: [id]);
-      expect(rows.first['amount'], 0.0);
+      expect((await txnById(id)).amount, Decimal.zero);
     });
 
     test('transaction with very large amount', () async {
-      final id = await addTransaction(
+      final db = DatabaseManager.instance;
+      final id = (await db.addTransaction(
         date: '2025-01-15',
         description: 'Large Amount',
-        amount: 999999999.99,
+        amount: Decimal.parse('999999999.99'),
         transactionType: 'income',
-      );
+      ))!;
 
-      final rows =
-          await db.query('transactions', where: 'id = ?', whereArgs: [id]);
-      expect(rows.first['amount'], closeTo(999999999.99, 0.01));
+      expect((await txnById(id)).amount,
+          Decimal.parse('999999999.99'));
     });
 
     test('transaction with very small decimal amount', () async {
-      final id = await addTransaction(
+      final db = DatabaseManager.instance;
+      final id = (await db.addTransaction(
         date: '2025-01-15',
         description: 'Small Amount',
-        amount: 0.01,
+        amount: Decimal.parse('0.01'),
         transactionType: 'expense',
-      );
+      ))!;
 
-      final rows =
-          await db.query('transactions', where: 'id = ?', whereArgs: [id]);
-      expect(rows.first['amount'], 0.01);
+      expect((await txnById(id)).amount, Decimal.parse('0.01'));
     });
 
     test('transaction with negative amount (allowed by schema)', () async {
-      final id = await addTransaction(
+      final db = DatabaseManager.instance;
+      final id = (await db.addTransaction(
         date: '2025-01-15',
         description: 'Negative Amount',
-        amount: -50.0,
+        amount: Decimal.parse('-50'),
         transactionType: 'income',
-      );
+      ))!;
 
-      final rows =
-          await db.query('transactions', where: 'id = ?', whereArgs: [id]);
-      expect(rows.first['amount'], -50.0);
+      expect((await txnById(id)).amount, Decimal.parse('-50'));
     });
 
     test('transaction with empty description name', () async {
-      final id = await addTransaction(
+      final db = DatabaseManager.instance;
+      final id = (await db.addTransaction(
         date: '2025-01-15',
         description: '',
-        amount: 10.0,
+        amount: Decimal.fromInt(10),
         transactionType: 'income',
-      );
+      ))!;
 
-      final rows =
-          await db.query('transactions', where: 'id = ?', whereArgs: [id]);
-      final descId = rows.first['description_id'] as int;
-      final desc =
-          await db.query('descriptions', where: 'id = ?', whereArgs: [descId]);
-      expect(desc.first['name'], '');
+      // Prod never creates a junk empty-string description row:
+      // description_id stays null instead.
+      final txn = await txnById(id);
+      expect(txn.descriptionId, isNull);
+      expect(txn.descriptionName, isNull);
     });
 
     test('transaction with null notes', () async {
-      final id = await addTransaction(
+      final db = DatabaseManager.instance;
+      final id = (await db.addTransaction(
         date: '2025-01-15',
         description: 'No Notes',
-        amount: 10.0,
+        amount: Decimal.fromInt(10),
         transactionType: 'income',
-      );
+      ))!;
 
-      final rows =
-          await db.query('transactions', where: 'id = ?', whereArgs: [id]);
-      expect(rows.first['notes'], isNull);
+      expect((await txnById(id)).notes, isNull);
     });
 
     test('transaction with special characters in notes', () async {
-      final id = await addTransaction(
+      final db = DatabaseManager.instance;
+      final id = (await db.addTransaction(
         date: '2025-01-15',
         description: 'Special Notes',
-        amount: 10.0,
+        amount: Decimal.fromInt(10),
         transactionType: 'income',
         notes: 'Line1\nLine2\tTab "Quotes" \'Single\' <HTML>',
-      );
+      ))!;
 
-      final rows =
-          await db.query('transactions', where: 'id = ?', whereArgs: [id]);
-      expect(rows.first['notes'], 'Line1\nLine2\tTab "Quotes" \'Single\' <HTML>');
+      expect((await txnById(id)).notes,
+          'Line1\nLine2\tTab "Quotes" \'Single\' <HTML>');
     });
 
     test('transaction with unicode description', () async {
-      final id = await addTransaction(
+      final db = DatabaseManager.instance;
+      final id = (await db.addTransaction(
         date: '2025-01-15',
         description: 'Café Ñoño 日本語',
-        amount: 10.0,
+        amount: Decimal.fromInt(10),
         transactionType: 'income',
-      );
+      ))!;
 
-      final rows =
-          await db.query('transactions', where: 'id = ?', whereArgs: [id]);
-      final descId = rows.first['description_id'] as int;
-      final desc =
-          await db.query('descriptions', where: 'id = ?', whereArgs: [descId]);
-      expect(desc.first['name'], 'Café Ñoño 日本語');
+      expect((await txnById(id)).descriptionName, 'Café Ñoño 日本語');
     });
 
     test('updating notes to empty string', () async {
-      final id = await addTransaction(
+      final db = DatabaseManager.instance;
+      final id = (await db.addTransaction(
         date: '2025-01-15',
         description: 'Notes Test',
-        amount: 10.0,
+        amount: Decimal.fromInt(10),
         transactionType: 'income',
         notes: 'Has notes',
-      );
+      ))!;
 
-      final result = await updateTransaction(id, notes: '');
-      expect(result, true);
+      final result = await db.updateTransaction(id, notes: '');
+      expect(result, isTrue);
 
-      final rows =
-          await db.query('transactions', where: 'id = ?', whereArgs: [id]);
-      expect(rows.first['notes'], '');
+      expect((await txnById(id)).notes, '');
     });
 
     test('many transactions with same description do not create duplicate descriptions',
         () async {
+      final db = DatabaseManager.instance;
       for (var i = 0; i < 10; i++) {
-        await addTransaction(
+        await db.addTransaction(
           date: '2025-01-${(i + 1).toString().padLeft(2, '0')}',
           description: 'Recurring Expense',
-          amount: (i + 1) * 10.0,
+          amount: Decimal.fromInt((i + 1) * 10),
           transactionType: 'expense',
         );
       }
 
-      final descs = await db.query(
-        'descriptions',
-        where: 'user_id = ? AND name = ?',
-        whereArgs: [userId, 'Recurring Expense'],
-      );
-      expect(descs.length, 1);
+      final descs = (await db.getAllDescriptions())
+          .where((d) => d.name == 'Recurring Expense')
+          .toList();
+      expect(descs, hasLength(1));
 
-      final allTxns = await db.query('transactions');
-      expect(allTxns.length, 10);
+      expect(await allTxns(), hasLength(10));
     });
 
-    test('description with different case creates separate records', () async {
-      await addTransaction(
+    test('description lookup is case-insensitive (no duplicate rows)',
+        () async {
+      final db = DatabaseManager.instance;
+      await db.addTransaction(
         date: '2025-01-15',
         description: 'Groceries',
-        amount: 10.0,
+        amount: Decimal.fromInt(10),
         transactionType: 'expense',
       );
-      await addTransaction(
+      await db.addTransaction(
         date: '2025-01-16',
         description: 'groceries',
-        amount: 20.0,
+        amount: Decimal.fromInt(20),
         transactionType: 'expense',
       );
 
-      final descs = await db.query(
-        'descriptions',
-        where: 'user_id = ? AND (name = ? OR name = ?)',
-        whereArgs: [userId, 'Groceries', 'groceries'],
-      );
-      expect(descs.length, 2);
+      // Prod getOrCreateDescription matches case-insensitively, so both
+      // transactions share a single description row.
+      final txns = await allTxns();
+      expect(txns, hasLength(2));
+      expect(txns[0].descriptionId, txns[1].descriptionId);
+      final descs = await db.getAllDescriptions();
+      final matches = descs
+          .where((d) => d.name.toLowerCase() == 'groceries')
+          .toList();
+      expect(matches, hasLength(1));
     });
 
     test('deleting transaction does not affect account', () async {
-      final id = await addTransaction(
+      final db = DatabaseManager.instance;
+      final id = (await db.addTransaction(
         date: '2025-01-15',
         description: 'Delete Me',
-        amount: 100.0,
+        amount: Decimal.fromInt(100),
         transactionType: 'income',
         accountId: accountIds[0],
-      );
+      ))!;
 
-      await deleteTransaction(id);
+      await db.deleteTransaction(id);
 
-      final acct = await db
-          .query('accounts', where: 'id = ?', whereArgs: [accountIds[0]]);
-      expect(acct.length, 1);
+      expect(await db.getAllAccounts(), hasLength(3));
     });
 
     test('deleting transaction does not affect other descriptions', () async {
-      final descId = await getOrCreateDescription('Shared Desc');
-      final id1 = await addTransaction(
+      final db = DatabaseManager.instance;
+      final descId = await db.getOrCreateDescription('Shared Desc');
+      final id1 = (await db.addTransaction(
         date: '2025-01-15',
         description: 'Shared Desc',
-        amount: 100.0,
+        amount: Decimal.fromInt(100),
         transactionType: 'income',
-      );
-      final id2 = await addTransaction(
+      ))!;
+      final id2 = (await db.addTransaction(
         date: '2025-01-20',
         description: 'Shared Desc',
-        amount: 200.0,
+        amount: Decimal.fromInt(200),
         transactionType: 'income',
-      );
+      ))!;
 
-      await deleteTransaction(id1);
+      await db.deleteTransaction(id1);
 
-      final remaining = await db.query('transactions',
-          where: 'description_id = ?', whereArgs: [descId]);
-      expect(remaining.length, 1);
-      expect(remaining.first['id'], id2);
+      final remaining = (await allTxns())
+          .where((t) => t.descriptionId == descId)
+          .toList();
+      expect(remaining, hasLength(1));
+      expect(remaining.single.id, id2);
     });
 
     test('different users can have descriptions with same name', () async {
-      final otherUserId = await seedTestUser(db, username: 'user2');
-      await addTransaction(
+      final db = DatabaseManager.instance;
+      await db.addTransaction(
         date: '2025-01-15',
         description: 'Shared Name',
-        amount: 10.0,
+        amount: Decimal.fromInt(10),
         transactionType: 'income',
       );
-      final otherDescId = await db.insert('descriptions', {
-        'user_id': otherUserId,
-        'name': 'Shared Name',
-      });
-      await seedTestTransaction(
-        db,
-        otherUserId,
-        descriptionId: otherDescId,
-        date: '2025-01-15',
-        amount: 20.0,
-        transactionType: 'income',
-      );
+      final myDescId = (await txnById(
+              (await allTxns()).single.id!))
+          .descriptionId;
 
-      final userDescs = await db.query(
-        'descriptions',
-        where: 'user_id = ? AND name = ?',
-        whereArgs: [userId, 'Shared Name'],
+      final otherUserId = 'user2-${DateTime.now().microsecondsSinceEpoch}';
+      db.setSessionUserId(otherUserId);
+      final otherDescId = await db.getOrCreateDescription('Shared Name');
+      await db.addTransaction(
+        date: '2025-01-15',
+        description: 'Shared Name',
+        amount: Decimal.fromInt(20),
+        transactionType: 'income',
       );
-      final otherDescs = await db.query(
-        'descriptions',
-        where: 'user_id = ? AND name = ?',
-        whereArgs: [otherUserId, 'Shared Name'],
-      );
-      expect(userDescs.length, 1);
-      expect(otherDescs.length, 1);
-      expect(userDescs.first['id'] != otherDescs.first['id'], true);
+      final otherDescs = (await db.getAllDescriptions())
+          .where((d) => d.name == 'Shared Name')
+          .toList();
+      db.setSessionUserId(myUserId);
+      final myDescs = (await db.getAllDescriptions())
+          .where((d) => d.name == 'Shared Name')
+          .toList();
+
+      expect(myDescs, hasLength(1));
+      expect(otherDescs, hasLength(1));
+      expect(myDescs.single.id != otherDescs.single.id, isTrue);
+      expect(myDescId, myDescs.single.id);
+      expect(otherDescId, otherDescs.single.id);
     });
 
     test('multiple transactions across dates with mixed types', () async {
-      await addTransaction(
+      final db = DatabaseManager.instance;
+      await db.addTransaction(
         date: '2025-01-01',
         description: 'Income',
-        amount: 5000.0,
+        amount: Decimal.fromInt(5000),
         transactionType: 'income',
       );
-      await addTransaction(
+      await db.addTransaction(
         date: '2025-01-05',
         description: 'Expense',
-        amount: 200.0,
+        amount: Decimal.fromInt(200),
         transactionType: 'expense',
       );
-      await addTransaction(
+      await db.addTransaction(
         date: '2025-01-10',
         description: 'Transfer',
-        amount: 1000.0,
+        amount: Decimal.fromInt(1000),
         transactionType: 'transfer',
       );
-      await addTransaction(
+      await db.addTransaction(
         date: '2025-01-15',
         description: 'Income',
-        amount: 500.0,
+        amount: Decimal.fromInt(500),
         transactionType: 'income',
       );
 
-      final incomeTxns = await db.query(
-        'transactions',
-        where: 'user_id = ? AND transaction_type = ?',
-        whereArgs: [userId, 'income'],
-      );
-      expect(incomeTxns.length, 2);
-
-      final expenseTxns = await db.query(
-        'transactions',
-        where: 'user_id = ? AND transaction_type = ?',
-        whereArgs: [userId, 'expense'],
-      );
-      expect(expenseTxns.length, 1);
-
-      final transferTxns = await db.query(
-        'transactions',
-        where: 'user_id = ? AND transaction_type = ?',
-        whereArgs: [userId, 'transfer'],
-      );
-      expect(transferTxns.length, 1);
+      final txns = await allTxns();
+      expect(txns.where((t) => t.transactionType == 'income'), hasLength(2));
+      expect(
+          txns.where((t) => t.transactionType == 'expense'), hasLength(1));
+      expect(
+          txns.where((t) => t.transactionType == 'transfer'), hasLength(1));
     });
 
     test('update on description field creates description if needed', () async {
-      final id = await addTransaction(
+      final db = DatabaseManager.instance;
+      final id = (await db.addTransaction(
         date: '2025-01-15',
         description: 'Old Desc',
-        amount: 100.0,
+        amount: Decimal.fromInt(100),
         transactionType: 'income',
-      );
+      ))!;
 
-      await updateTransaction(id, description: 'Brand New Desc');
+      await db.updateTransaction(id, description: 'Brand New Desc');
 
-      final rows =
-          await db.query('transactions', where: 'id = ?', whereArgs: [id]);
-      final descId = rows.first['description_id'] as int;
-      final desc =
-          await db.query('descriptions', where: 'id = ?', whereArgs: [descId]);
-      expect(desc.first['name'], 'Brand New Desc');
+      expect((await txnById(id)).descriptionName, 'Brand New Desc');
     });
 
     test('getTransactions returns correct joined data for transfer', () async {
-      final id = await addTransaction(
+      final db = DatabaseManager.instance;
+      final id = (await db.addTransaction(
         date: '2025-01-15',
         description: 'Transfer to Savings',
-        amount: 500.0,
+        amount: Decimal.fromInt(500),
         transactionType: 'transfer',
         accountId: accountIds[1],
         notes: 'Monthly savings',
-      );
+      ))!;
 
-      final results = await getTransactions();
-      final transfer = results.firstWhere((r) => r['id'] == id);
-      expect(transfer['account_name'], 'Savings Account A');
-      expect(transfer['account_color'], '#2196F3');
-      expect(transfer['description_name'], 'Transfer to Savings');
-      expect(transfer['notes'], 'Monthly savings');
+      final results = await db.getTransactions();
+      final transfer = results.firstWhere((r) => r.id == id);
+      expect(transfer.accountName, 'Savings Account A');
+      expect(transfer.accountColor, '#2196F3');
+      expect(transfer.descriptionName, 'Transfer to Savings');
+      expect(transfer.notes, 'Monthly savings');
     });
 
     test('period query returns empty for swapped dates', () async {
-      await addTransaction(
+      final db = DatabaseManager.instance;
+      await db.addTransaction(
         date: '2025-01-15',
         description: 'Test',
-        amount: 100.0,
+        amount: Decimal.fromInt(100),
         transactionType: 'income',
       );
 
       final results =
-          await getTransactionsByPeriod('2025-01-31', '2025-01-01');
-      expect(results.isEmpty, true);
+          await db.getTransactionsByPeriod('2025-01-31', '2025-01-01');
+      expect(results, isEmpty);
     });
 
     test('getTransactions with empty account IDs set behaves as no filter',
         () async {
-      await addTransaction(
+      final db = DatabaseManager.instance;
+      await db.addTransaction(
         date: '2025-01-15',
         description: 'Test',
-        amount: 100.0,
+        amount: Decimal.fromInt(100),
         transactionType: 'income',
       );
 
-      final withEmpty = await getTransactions(accountIds: {});
-      final without = await getTransactions();
+      final withEmpty = await db.getTransactions(accountIds: {});
+      final without = await db.getTransactions();
       expect(withEmpty.length, without.length);
     });
   });
 
   group('tag_id on transactions', () {
     test('addTransaction with tag_id', () async {
-      final tagId = await seedTestTag(db, userId, 'Groceries');
+      final db = DatabaseManager.instance;
+      final tagId = (await db.createTag(name: 'Groceries'))!;
 
-      final id = await db.insert('transactions', {
-        'user_id': userId,
-        'account_id': accountIds[0],
-        'date': '2025-06-01',
-        'amount': 25.0,
-        'transaction_type': 'expense',
-        'currency': 'EUR',
-        'tag_id': tagId,
-      });
+      final id = (await db.addTransaction(
+        date: '2025-06-01',
+        description: 'Groceries run',
+        amount: Decimal.fromInt(25),
+        transactionType: 'expense',
+        accountId: accountIds[0],
+        tagId: tagId,
+      ))!;
 
-      final row = (await db.query('transactions', where: 'id = ?', whereArgs: [id])).first;
-      expect(row['tag_id'], tagId);
+      final txn = await txnById(id);
+      expect(txn.tagId, tagId);
     });
 
     test('updateTransaction can set tag_id', () async {
-      final tagId = await seedTestTag(db, userId, 'Groceries');
+      final db = DatabaseManager.instance;
+      final tagId = (await db.createTag(name: 'Groceries'))!;
 
-      final id = await db.insert('transactions', {
-        'user_id': userId,
-        'date': '2025-06-01',
-        'amount': 25.0,
-        'transaction_type': 'expense',
-      });
+      final id = (await db.addTransaction(
+        date: '2025-06-01',
+        description: 'Groceries run',
+        amount: Decimal.fromInt(25),
+        transactionType: 'expense',
+      ))!;
 
-      await db.update('transactions', {'tag_id': tagId},
-          where: 'id = ?', whereArgs: [id]);
+      await db.updateTransaction(id, tagId: tagId);
 
-      final row = (await db.query('transactions', where: 'id = ?', whereArgs: [id])).first;
-      expect(row['tag_id'], tagId);
+      expect((await txnById(id)).tagId, tagId);
     });
 
     test('updateTransaction can clear tag_id', () async {
-      final tagId = await seedTestTag(db, userId, 'Groceries');
+      final db = DatabaseManager.instance;
+      final tagId = (await db.createTag(name: 'Groceries'))!;
 
-      final id = await db.insert('transactions', {
-        'user_id': userId,
-        'date': '2025-06-01',
-        'amount': 25.0,
-        'transaction_type': 'expense',
-        'tag_id': tagId,
-      });
+      final id = (await db.addTransaction(
+        date: '2025-06-01',
+        description: 'Tagged',
+        amount: Decimal.fromInt(25),
+        transactionType: 'expense',
+        tagId: tagId,
+      ))!;
 
-      await db.update('transactions', {'tag_id': null},
-          where: 'id = ?', whereArgs: [id]);
+      await db.updateTransaction(id, clearTag: true);
 
-      final row = (await db.query('transactions', where: 'id = ?', whereArgs: [id])).first;
-      expect(row['tag_id'], isNull);
+      expect((await txnById(id)).tagId, isNull);
     });
 
     test('getTransactions with tag_ids filter', () async {
-      final tag1 = await seedTestTag(db, userId, 'Groceries');
-      final tag2 = await seedTestTag(db, userId, 'Trip');
+      final db = DatabaseManager.instance;
+      final tag1 = (await db.createTag(name: 'Groceries'))!;
+      final tag2 = (await db.createTag(name: 'Trip'))!;
 
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], tagId: tag1, amount: 10.0, transactionType: 'expense', date: '2025-06-01');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], tagId: tag2, amount: 20.0, transactionType: 'expense', date: '2025-06-02');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], amount: 30.0, transactionType: 'expense', date: '2025-06-03');
+      await db.addTransaction(
+          date: '2025-06-01',
+          description: 'T1',
+          amount: Decimal.fromInt(10),
+          transactionType: 'expense',
+          accountId: accountIds[0],
+          tagId: tag1);
+      await db.addTransaction(
+          date: '2025-06-02',
+          description: 'T2',
+          amount: Decimal.fromInt(20),
+          transactionType: 'expense',
+          accountId: accountIds[0],
+          tagId: tag2);
+      await db.addTransaction(
+          date: '2025-06-03',
+          description: 'T3',
+          amount: Decimal.fromInt(30),
+          transactionType: 'expense',
+          accountId: accountIds[0]);
 
-      final rows = await db.rawQuery('''
-        SELECT t.*, tg.name as tag_name, tg.color as tag_color
-        FROM transactions t
-        LEFT JOIN tags tg ON t.tag_id = tg.id
-        WHERE t.user_id = ? AND t.tag_id IN (?, ?)
-        ORDER BY t.date DESC
-      ''', [userId, tag1, tag2]);
-
-      expect(rows.length, 2);
+      final rows = await db.getTransactions(tagIds: {tag1, tag2});
+      expect(rows, hasLength(2));
     });
 
     test('getTransactions JOIN includes tag_name and tag_color', () async {
-      final tagId = await seedTestTag(db, userId, 'Trip', color: '#D32F2F');
+      final db = DatabaseManager.instance;
+      final tagId =
+          (await db.createTag(name: 'Trip', color: '#D32F2F'))!;
 
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], tagId: tagId, amount: 100.0, transactionType: 'expense', date: '2025-06-01');
+      await db.addTransaction(
+          date: '2025-06-01',
+          description: 'Trip expense',
+          amount: Decimal.fromInt(100),
+          transactionType: 'expense',
+          accountId: accountIds[0],
+          tagId: tagId);
 
-      final rows = await db.rawQuery('''
-        SELECT t.*, tg.name as tag_name, tg.color as tag_color
-        FROM transactions t
-        LEFT JOIN tags tg ON t.tag_id = tg.id
-        WHERE t.user_id = ?
-      ''', [userId]);
-
-      expect(rows.first['tag_name'], 'Trip');
-      expect(rows.first['tag_color'], '#D32F2F');
+      final rows = await db.getTransactions();
+      expect(rows.single.tagName, 'Trip');
+      expect(rows.single.tagColor, '#D32F2F');
     });
 
     test('getTransactions search matches tag_name', () async {
-      final tagId = await seedTestTag(db, userId, 'Vacation');
+      final db = DatabaseManager.instance;
+      final tagId = (await db.createTag(name: 'Vacation'))!;
 
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], tagId: tagId, amount: 500.0, transactionType: 'expense', date: '2025-06-01');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], amount: 10.0, transactionType: 'expense', date: '2025-06-02');
+      await db.addTransaction(
+          date: '2025-06-01',
+          description: 'Tagged expense',
+          amount: Decimal.fromInt(500),
+          transactionType: 'expense',
+          accountId: accountIds[0],
+          tagId: tagId);
+      await db.addTransaction(
+          date: '2025-06-02',
+          description: 'Plain expense',
+          amount: Decimal.fromInt(10),
+          transactionType: 'expense',
+          accountId: accountIds[0]);
 
-      final rows = await db.rawQuery('''
-        SELECT t.*, tg.name as tag_name
-        FROM transactions t
-        LEFT JOIN tags tg ON t.tag_id = tg.id
-        WHERE t.user_id = ?
-      ''', [userId]);
-
-      final matched = rows.where((r) {
-        final tag = r['tag_name'] as String?;
-        return tag?.toLowerCase().contains('vacat') ?? false;
-      }).toList();
-      expect(matched.length, 1);
+      final rows = await db.getTransactions(searchQuery: 'vacat');
+      expect(rows, hasLength(1));
+      expect(rows.single.tagName, 'Vacation');
     });
   });
 }

@@ -44,13 +44,12 @@ class ExportService {
     String? startDate,
     String? endDate,
   }) async {
-    var transactions =
-        await _db.getTransactions(accountIds: {accountId});
-    if (startDate != null && endDate != null) {
-      transactions = transactions
-          .where((t) => t.date.compareTo(startDate) >= 0 && t.date.compareTo(endDate) <= 0)
-          .toList();
-    }
+    // The date filter lives in SQL (indexed) instead of pulling the whole
+    // account history into Dart first.
+    final transactions = (startDate != null && endDate != null)
+        ? await _db.getTransactionsByPeriod(startDate, endDate,
+            accountIds: {accountId})
+        : await _db.getTransactions(accountIds: {accountId});
     // Chronological order, like a bank statement.
     transactions.sort((a, b) => a.date.compareTo(b.date));
 

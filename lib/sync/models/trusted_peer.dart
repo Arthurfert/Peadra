@@ -36,20 +36,15 @@ class TrustedPeer {
   });
 
   TrustedPeer copyWith({
-    String? deviceName,
-    String? sharedSecret,
     String? dbEncryptionKey,
-    bool clearDbEncryptionKey = false,
     Hlc? lastSyncHlc,
     DateTime? lastSeen,
   }) =>
       TrustedPeer(
         peerId: peerId,
-        deviceName: deviceName ?? this.deviceName,
-        sharedSecret: sharedSecret ?? this.sharedSecret,
-        dbEncryptionKey: clearDbEncryptionKey
-            ? null
-            : (dbEncryptionKey ?? this.dbEncryptionKey),
+        deviceName: deviceName,
+        sharedSecret: sharedSecret,
+        dbEncryptionKey: dbEncryptionKey ?? this.dbEncryptionKey,
         lastSyncHlc: lastSyncHlc ?? this.lastSyncHlc,
         createdAt: createdAt,
         lastSeen: lastSeen ?? this.lastSeen,

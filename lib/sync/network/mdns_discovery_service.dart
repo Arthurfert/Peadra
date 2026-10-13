@@ -36,6 +36,11 @@ class MDnsDiscoveryService {
   /// swallowed by the dedup window below. Dialers use it to refresh a cached
   /// address (the peer may have a new IP/port) without triggering a new sync.
   final Map<String, DiscoveredService> _latestByNode = {};
+  final Map<String, DateTime> _latestSeen = {};
+
+  /// Sightings older than this are dropped so offline/rogue nodeIds can't
+  /// accumulate forever. Kept well above [dedupWindow].
+  static const Duration sightingTtl = Duration(minutes: 10);
 
   /// Emits peers discovered on the local network, minus the local node.
   Stream<DiscoveredService> get onServiceFound => _controller.stream;
@@ -63,7 +68,7 @@ class MDnsDiscoveryService {
     }
   }
 
-  Future<void> stopAdvertising() => advertiser.stop();
+  Future<void> _stopAdvertising() => advertiser.stop();
 
   Future<void> startBrowsing({required String localNodeId}) async {
     _localNodeId = localNodeId;
@@ -81,29 +86,46 @@ class MDnsDiscoveryService {
   DiscoveredService? latestFor(String nodeId) => _latestByNode[nodeId];
 
   void _onService(DiscoveredService service) {
+    final now = _now();
     _latestByNode[service.nodeId] = service;
+    _latestSeen[service.nodeId] = now;
+    _evictStaleSightings(now);
     if (service.nodeId == _localNodeId) {
       return;
     }
     final last = _lastEmitted[service.nodeId];
-    if (last != null && _now().difference(last) < dedupWindow) {
+    if (last != null && now.difference(last) < dedupWindow) {
       return;
     }
-    _lastEmitted[service.nodeId] = _now();
+    _lastEmitted[service.nodeId] = now;
     _controller.add(service);
   }
 
-  Future<void> stopBrowsing() async {
+  void _evictStaleSightings(DateTime now) {
+    final cutoff = now.subtract(sightingTtl);
+    final stale = [
+      for (final entry in _latestSeen.entries)
+        if (entry.value.isBefore(cutoff)) entry.key,
+    ];
+    for (final nodeId in stale) {
+      _latestByNode.remove(nodeId);
+      _latestSeen.remove(nodeId);
+      _lastEmitted.remove(nodeId);
+    }
+  }
+
+  Future<void> _stopBrowsing() async {
     await _browserSubscription?.cancel();
     _browserSubscription = null;
     await browser.stop();
   }
 
   Future<void> stop() async {
-    await stopBrowsing();
-    await stopAdvertising();
+    await _stopBrowsing();
+    await _stopAdvertising();
     await _multicastLock.release();
     _lastEmitted.clear();
     _latestByNode.clear();
+    _latestSeen.clear();
   }
 }

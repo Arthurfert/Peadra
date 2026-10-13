@@ -5,8 +5,6 @@ import '../../../core/i18n/translator.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/database/database_manager.dart';
-import '../../../core/models/account.dart';
-import '../../../core/models/tag.dart';
 import '../../../core/models/recurring_transaction.dart';
 import '../../../core/theme/peadra_colors.dart';
 import 'widgets/transaction_modal.dart';
@@ -30,8 +28,7 @@ class RecurringView extends StatefulWidget {
 class _RecurringViewState extends State<RecurringView> {
   final _db = DatabaseManager.instance;
   List<RecurringTransactionWithDetails> _items = [];
-  List<Account> _accounts = [];
-  List<Tag> _tags = [];
+  List<RecurringTransactionWithDetails> _sorted = [];
   bool _loading = true;
   _RecurringSort _sortBy = _RecurringSort.nextDue;
 
@@ -41,7 +38,7 @@ class _RecurringViewState extends State<RecurringView> {
     _loadData();
   }
 
-  List<RecurringTransactionWithDetails> get _sortedItems {
+  void _refreshSorted() {
     final sorted = [..._items];
     switch (_sortBy) {
       case _RecurringSort.tag:
@@ -74,22 +71,17 @@ class _RecurringViewState extends State<RecurringView> {
             (a, b) => (a.nextDueDate).compareTo(b.nextDueDate));
         break;
     }
-    return sorted;
+    _sorted = sorted;
   }
 
   Future<void> _loadData() async {
     await _db.generateDueRecurring();
-    final results = await Future.wait([
-      _db.getAllAccounts(),
-      _db.getAllTags(),
-      _db.getRecurringTransactions(),
-    ]);
+    final items = await _db.getRecurringTransactions();
 
     if (mounted) {
       setState(() {
-        _accounts = results[0] as List<Account>;
-        _tags = results[1] as List<Tag>;
-        _items = results[2] as List<RecurringTransactionWithDetails>;
+        _items = items;
+        _refreshSorted();
         _loading = false;
       });
     }
@@ -238,20 +230,16 @@ class _RecurringViewState extends State<RecurringView> {
         iconTheme: IconThemeData(color: colors.text),
       ),
       body: isPhone
-          ? _buildContent(colors, currency)
+          ? _buildContent(colors, currency, isPhone)
           : Padding(
-              padding: EdgeInsets.fromLTRB(
-                  ResponsiveLayout.isPhone(context) ? 16 : 24,
-                  24,
-                  ResponsiveLayout.isPhone(context) ? 16 : 24,
-                  0),
-              child: _buildContent(colors, currency),
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+              child: _buildContent(colors, currency, isPhone),
             ),
     );
   }
 
-  Widget _buildContent(PeadraColors colors, String currency) {
-    final items = _sortedItems;
+  Widget _buildContent(PeadraColors colors, String currency, bool isPhone) {
+    final items = _sorted;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -281,7 +269,7 @@ class _RecurringViewState extends State<RecurringView> {
                       onRefresh: _loadData,
                       child: ListView.separated(
                         itemCount: items.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
                         itemBuilder: (context, index) =>
                             _buildTile(items[index], colors, currency),
                       ),
@@ -341,8 +329,10 @@ class _RecurringViewState extends State<RecurringView> {
                           _sortItemStyle(colors, _sortBy == _RecurringSort.name)),
                 ),
               ],
-              onChanged: (v) =>
-                  setState(() => _sortBy = v ?? _RecurringSort.nextDue),
+              onChanged: (v) => setState(() {
+                _sortBy = v ?? _RecurringSort.nextDue;
+                _refreshSorted();
+              }),
             ),
           ),
         ),

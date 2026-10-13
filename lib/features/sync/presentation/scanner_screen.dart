@@ -92,27 +92,21 @@ class _ScannerScreenState extends State<ScannerScreen> {
   }
 
   Widget _buildScannerArea(PeadraColors colors) {
-    switch (_controller.phase) {
-      case PairingScanPhase.idle:
-      case PairingScanPhase.discovering:
-      case PairingScanPhase.pairing:
-      case PairingScanPhase.success:
-      case PairingScanPhase.error:
-        if (_controller.phase == PairingScanPhase.idle) {
-          return MobileScanner(
-            onDetect: _onDetect,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error) => _buildCameraError(colors),
-          );
-        }
-        if (_controller.phase == PairingScanPhase.success) {
-          return _buildSuccess(colors);
-        }
-        if (_controller.phase == PairingScanPhase.error) {
-          return _buildError(colors);
-        }
-        return _buildOverlayStatus(colors);
+    final phase = _controller.phase;
+    if (phase == PairingScanPhase.idle) {
+      return MobileScanner(
+        onDetect: _onDetect,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error) => _buildCameraError(colors),
+      );
     }
+    if (phase == PairingScanPhase.success) {
+      return _buildSuccess(colors);
+    }
+    if (phase == PairingScanPhase.error) {
+      return _buildError(colors);
+    }
+    return _buildOverlayStatus(colors);
   }
 
   Widget _buildCameraError(PeadraColors colors) {

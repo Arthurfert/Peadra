@@ -17,16 +17,18 @@ class RecurringService {
   /// that a monthly recurrence starting on the 31st keeps targeting the 31st,
   /// clamped to month length (Feb -> 28/29 -> back to 31 in March).
   static DateTime nextOccurrence(RecurringTransaction rec, DateTime current) {
-    final anchor = DateTime.parse(rec.startDate);
     switch (rec.frequency) {
       case freqDaily:
         return current.add(Duration(days: rec.interval));
       case freqWeekly:
         return current.add(Duration(days: 7 * rec.interval));
       case freqMonthly:
-        final dom = clampDay(anchor.day, current.year, current.month + rec.interval);
+        // Parsed lazily: daily/weekly (the hot paths) never touch startDate.
+        final anchorDay = DateTime.parse(rec.startDate).day;
+        final dom = clampDay(anchorDay, current.year, current.month + rec.interval);
         return DateTime(current.year, current.month + rec.interval, dom);
       case freqYearly:
+        final anchor = DateTime.parse(rec.startDate);
         final dom = clampDay(anchor.day, current.year + rec.interval, anchor.month);
         return DateTime(current.year + rec.interval, anchor.month, dom);
       default:
@@ -59,10 +61,10 @@ class RecurringService {
     return day > maxDay ? maxDay : day;
   }
 
-  static int isoWeekday(DateTime date) => date.weekday;
-
   static String dateOnly(DateTime date) =>
-      date.toIso8601String().substring(0, 10);
+      '${date.year.toString().padLeft(4, '0')}-'
+      '${date.month.toString().padLeft(2, '0')}-'
+      '${date.day.toString().padLeft(2, '0')}';
 
   /// Plans the next batch of occurrences for [rec].
   ///

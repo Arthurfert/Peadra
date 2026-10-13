@@ -21,7 +21,47 @@ const _monthAbbrKeys = [
   'month_dec_abbr',
 ];
 
-class DashboardViewDesktop extends StatelessWidget {
+class _BarCache {
+  final List<String> displayMonths;
+  final Map<String, double> expenseByMonth;
+  final Map<String, double> incomeByMonth;
+  final Map<String, double> expenseFutureByMonth;
+  final Map<String, double> incomeFutureByMonth;
+  final double maxY;
+
+  const _BarCache({
+    required this.displayMonths,
+    required this.expenseByMonth,
+    required this.incomeByMonth,
+    required this.expenseFutureByMonth,
+    required this.incomeFutureByMonth,
+    required this.maxY,
+  });
+}
+
+class _LineCache {
+  final List<FlSpot> spots;
+  final List<String> labels;
+  final List<bool> futureFlags;
+  final AxisScale axis;
+  final int boundary;
+  final bool hasFuture;
+  final List<FlSpot> solidSpots;
+  final List<FlSpot> futureSpots;
+
+  const _LineCache({
+    required this.spots,
+    required this.labels,
+    required this.futureFlags,
+    required this.axis,
+    required this.boundary,
+    required this.hasFuture,
+    required this.solidSpots,
+    required this.futureSpots,
+  });
+}
+
+class DashboardViewDesktop extends StatefulWidget {
   final Widget header;
   final Widget totalAsset;
   final Widget statCards;
@@ -29,6 +69,7 @@ class DashboardViewDesktop extends StatelessWidget {
   final Widget expensePie;
   final Widget incomePie;
   final Widget assetsPie;
+  final Widget averageSection;
   final PeadraColors colors;
   final List<Map<String, dynamic>> cashFlowData;
   final List<Map<String, dynamic>> assetsHistory;
@@ -43,6 +84,7 @@ class DashboardViewDesktop extends StatelessWidget {
     required this.expensePie,
     required this.incomePie,
     required this.assetsPie,
+    required this.averageSection,
     required this.colors,
     required this.cashFlowData,
     required this.assetsHistory,
@@ -50,158 +92,16 @@ class DashboardViewDesktop extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: ResponsiveLayout.pagePaddingAll(context),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(child: header),
-              const SizedBox(width: 24),
-              ConstrainedBox(
-                constraints: const BoxConstraints(minWidth: 280, maxWidth: 380),
-                child: totalAsset,
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          statCards,
-          const SizedBox(height: 24),
-          cashFlowSection,
-          const SizedBox(height: 24),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                  flex: 1, child: _buildInflowsOutflowsChart(colors)),
-              const SizedBox(width: 16),
-              Expanded(
-                  flex: 1, child: _buildTotalAssetsChart(colors)),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: expensePie),
-              const SizedBox(width: 16),
-              Expanded(child: incomePie),
-              const SizedBox(width: 16),
-              Expanded(child: assetsPie),
-            ],
-          ),
-          const SizedBox(height: 80),
-        ],
-      ),
-    );
-  }
+  State<DashboardViewDesktop> createState() => _DashboardViewDesktopState();
+}
 
-  Widget _buildInflowsOutflowsChart(PeadraColors colors) {
-    return Card(
-      color: colors.surface,
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  Translator.t('dash_inflows_outflows'),
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: colors.text,
-                  ),
-                ),
-                Row(
-                  children: [
-                    _buildLegendDot(colors.success,
-                        Translator.t('dash_inflows')),
-                    const SizedBox(width: 16),
-                    _buildLegendDot(colors.error,
-                        Translator.t('dash_outflows')),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              height: 220,
-              child: _buildBarChart(colors),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+class _DashboardViewDesktopState extends State<DashboardViewDesktop> {
+  List<Map<String, dynamic>>? _cashRef;
+  _BarCache? _barCache;
+  List<Map<String, dynamic>>? _assetsRef;
+  _LineCache? _lineCache;
 
-  Widget _buildTotalAssetsChart(PeadraColors colors) {
-    final hasFuture =
-        assetsHistory.any((e) => (e['isFuture'] as bool?) ?? false);
-    return Card(
-      color: colors.surface,
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              runSpacing: 8,
-              spacing: 12,
-              children: [
-                Text(
-                  Translator.t('dash_total_assets'),
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: colors.text,
-                  ),
-                ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildLegendDot(colors.chartAsset,
-                        Translator.t('dash_total_assets')),
-                    if (hasFuture) ...[
-                      const SizedBox(width: 16),
-                      _buildForecastLegendDot(
-                          colors.chartAsset.withValues(alpha: 0.65),
-                          Translator.t('dash_forecast')),
-                    ],
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              height: 220,
-              child: _buildLineChart(colors),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBarChart(PeadraColors colors) {
-    if (cashFlowData.isEmpty) {
-      return Center(
-        child: Text(Translator.t('dashboard_no_data'),
-            style: TextStyle(color: colors.textSecondary)),
-      );
-    }
-
+  _BarCache _buildBarCache(List<Map<String, dynamic>> cashFlowData) {
     final expenseData =
         cashFlowData.where((d) => d['type'] == 'expense').toList();
     final incomeData =
@@ -264,6 +164,249 @@ class DashboardViewDesktop extends StatelessWidget {
     }
     if (maxY == 0.0) maxY = 1.0;
 
+    return _BarCache(
+      displayMonths: displayMonths,
+      expenseByMonth: expenseByMonth,
+      incomeByMonth: incomeByMonth,
+      expenseFutureByMonth: expenseFutureByMonth,
+      incomeFutureByMonth: incomeFutureByMonth,
+      maxY: maxY,
+    );
+  }
+
+  _LineCache _buildLineCache(List<Map<String, dynamic>> assetsHistory) {
+    final spots = <FlSpot>[];
+    final labels = <String>[];
+    final futureFlags = <bool>[];
+
+    for (int i = 0; i < assetsHistory.length; i++) {
+      spots.add(FlSpot(
+          i.toDouble(), (assetsHistory[i]['value'] as num).toDouble()));
+      labels.add(assetsHistory[i]['label'] as String);
+      futureFlags.add((assetsHistory[i]['isFuture'] as bool?) ?? false);
+    }
+
+    double minY = spots.first.y;
+    double maxY = spots.first.y;
+    for (final s in spots) {
+      if (s.y < minY) minY = s.y;
+      if (s.y > maxY) maxY = s.y;
+    }
+    final axis = niceAxisScale(minY, maxY);
+
+    // Split the series at the last known (non-future) point so future
+    // transactions render as a dotted forecast continuation. The boundary
+    // point belongs to both series to keep the line continuous.
+    int boundary = -1;
+    for (int i = 0; i < futureFlags.length; i++) {
+      if (!futureFlags[i]) boundary = i;
+    }
+    final hasFuture = boundary >= 0 && boundary < spots.length - 1;
+    final solidSpots = hasFuture ? spots.sublist(0, boundary + 1) : spots;
+    final futureSpots = hasFuture ? spots.sublist(boundary) : <FlSpot>[];
+
+    return _LineCache(
+      spots: spots,
+      labels: labels,
+      futureFlags: futureFlags,
+      axis: axis,
+      boundary: boundary,
+      hasFuture: hasFuture,
+      solidSpots: solidSpots,
+      futureSpots: futureSpots,
+    );
+  }
+
+  _BarCache? _barData() {
+    if (widget.cashFlowData.isEmpty) return null;
+    if (!identical(widget.cashFlowData, _cashRef) || _barCache == null) {
+      _cashRef = widget.cashFlowData;
+      _barCache = _buildBarCache(widget.cashFlowData);
+    }
+    return _barCache;
+  }
+
+  _LineCache? _lineData() {
+    if (widget.assetsHistory.isEmpty) return null;
+    if (!identical(widget.assetsHistory, _assetsRef) || _lineCache == null) {
+      _assetsRef = widget.assetsHistory;
+      _lineCache = _buildLineCache(widget.assetsHistory);
+    }
+    return _lineCache;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = widget.colors;
+    return SingleChildScrollView(
+      padding: ResponsiveLayout.pagePaddingAll(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(child: widget.header),
+              const SizedBox(width: 24),
+              ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 280, maxWidth: 380),
+                child: widget.totalAsset,
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          widget.statCards,
+          const SizedBox(height: 24),
+          widget.cashFlowSection,
+          const SizedBox(height: 24),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                  flex: 1, child: _buildInflowsOutflowsChart(colors)),
+              const SizedBox(width: 16),
+              Expanded(
+                  flex: 1, child: _buildTotalAssetsChart(colors)),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: widget.expensePie),
+              const SizedBox(width: 16),
+              Expanded(child: widget.incomePie),
+              const SizedBox(width: 16),
+              Expanded(child: widget.assetsPie),
+            ],
+          ),
+          const SizedBox(height: 24),
+          widget.averageSection,
+          const SizedBox(height: 80),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInflowsOutflowsChart(PeadraColors colors) {
+    return Card(
+      color: colors.surface,
+      shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  Translator.t('dash_inflows_outflows'),
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: colors.text,
+                  ),
+                ),
+                Row(
+                  children: [
+                    _buildLegendDot(colors.success,
+                        Translator.t('dash_inflows')),
+                    const SizedBox(width: 16),
+                    _buildLegendDot(colors.error,
+                        Translator.t('dash_outflows')),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 220,
+              child: _buildBarChart(colors),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTotalAssetsChart(PeadraColors colors) {
+    final hasFuture =
+        widget.assetsHistory.any((e) => (e['isFuture'] as bool?) ?? false);
+    return Card(
+      color: colors.surface,
+      shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              runSpacing: 8,
+              spacing: 12,
+              children: [
+                Text(
+                  Translator.t('dash_total_assets'),
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: colors.text,
+                  ),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildLegendDot(colors.chartAsset,
+                        Translator.t('dash_total_assets')),
+                    if (hasFuture) ...[
+                      const SizedBox(width: 16),
+                      _buildForecastLegendDot(
+                          colors.chartAsset.withValues(alpha: 0.65),
+                          Translator.t('dash_forecast')),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 220,
+              child: _buildLineChart(colors),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBarChart(PeadraColors colors) {
+    final cache = _barData();
+    if (cache == null) {
+      return Center(
+        child: Text(Translator.t('dashboard_no_data'),
+            style: TextStyle(color: colors.textSecondary)),
+      );
+    }
+
+    final displayMonths = cache.displayMonths;
+    final expenseByMonth = cache.expenseByMonth;
+    final incomeByMonth = cache.incomeByMonth;
+    final expenseFutureByMonth = cache.expenseFutureByMonth;
+    final incomeFutureByMonth = cache.incomeFutureByMonth;
+    final maxY = cache.maxY;
+
+    // Cache month-abbr labels once per build instead of per tick per frame.
+    final monthAbbrs =
+        List<String>.generate(12, (i) => Translator.t(_monthAbbrKeys[i]));
+    final bottomLabels = <String>[
+      for (final m in displayMonths)
+        monthAbbrs[((int.tryParse(m.split('-').last) ?? 1) - 1).clamp(0, 11)],
+    ];
+
     final barGroups = <BarChartGroupData>[];
     for (int i = 0; i < displayMonths.length; i++) {
       final m = displayMonths[i];
@@ -289,7 +432,8 @@ class DashboardViewDesktop extends StatelessWidget {
       );
     }
 
-    return BarChart(
+    return RepaintBoundary(
+      child: BarChart(
       BarChartData(
         alignment: BarChartAlignment.spaceAround,
         maxY: maxY * 1.2,
@@ -331,16 +475,11 @@ class DashboardViewDesktop extends StatelessWidget {
               showTitles: true,
               getTitlesWidget: (value, meta) {
                 final idx = value.toInt();
-                if (idx >= 0 && idx < displayMonths.length) {
-                  final m = displayMonths[idx];
-                  final monthNum =
-                      int.tryParse(m.split('-').last) ?? 1;
-                  final label = Translator.t(
-                      _monthAbbrKeys[(monthNum - 1).clamp(0, 11)]);
+                if (idx >= 0 && idx < bottomLabels.length) {
                   return Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
-                      label,
+                      bottomLabels[idx],
                       style: TextStyle(
                           color: colors.textSecondary, fontSize: 11),
                     ),
@@ -382,50 +521,31 @@ class DashboardViewDesktop extends StatelessWidget {
         borderData: FlBorderData(show: false),
         barGroups: barGroups,
       ),
+      ),
     );
   }
 
   Widget _buildLineChart(PeadraColors colors) {
-    if (assetsHistory.isEmpty) {
+    final cache = _lineData();
+    if (cache == null) {
       return Center(
         child: Text(Translator.t('dashboard_no_data'),
             style: TextStyle(color: colors.textSecondary)),
       );
     }
 
-    final spots = <FlSpot>[];
-    final labels = <String>[];
-    final futureFlags = <bool>[];
-
-    for (int i = 0; i < assetsHistory.length; i++) {
-      spots.add(FlSpot(
-          i.toDouble(), (assetsHistory[i]['value'] as num).toDouble()));
-      labels.add(assetsHistory[i]['label'] as String);
-      futureFlags.add((assetsHistory[i]['isFuture'] as bool?) ?? false);
-    }
-
-    double minY = spots.first.y;
-    double maxY = spots.first.y;
-    for (final s in spots) {
-      if (s.y < minY) minY = s.y;
-      if (s.y > maxY) maxY = s.y;
-    }
-    final axis = niceAxisScale(minY, maxY);
+    final spots = cache.spots;
+    final labels = cache.labels;
+    final axis = cache.axis;
+    final boundary = cache.boundary;
+    final hasFuture = cache.hasFuture;
+    final solidSpots = cache.solidSpots;
+    final futureSpots = cache.futureSpots;
 
     final lineColor = colors.chartAsset;
 
-    // Split the series at the last known (non-future) point so future
-    // transactions render as a dotted forecast continuation. The boundary
-    // point belongs to both series to keep the line continuous.
-    int boundary = -1;
-    for (int i = 0; i < futureFlags.length; i++) {
-      if (!futureFlags[i]) boundary = i;
-    }
-    final hasFuture = boundary >= 0 && boundary < spots.length - 1;
-    final solidSpots = hasFuture ? spots.sublist(0, boundary + 1) : spots;
-    final futureSpots = hasFuture ? spots.sublist(boundary) : <FlSpot>[];
-
-    return LineChart(
+    return RepaintBoundary(
+      child: LineChart(
       LineChartData(
         minX: 0,
         maxX: (spots.length - 1).toDouble(),
@@ -449,9 +569,9 @@ class DashboardViewDesktop extends StatelessWidget {
               return spots.map((s) {
                 final idx = s.x.toInt();
                 String label;
-                if (idx < assetsHistory.length) {
-                  label = (assetsHistory[idx]['tooltipLabel'] as String?) ??
-                      (assetsHistory[idx]['label'] as String? ?? '');
+                if (idx < widget.assetsHistory.length) {
+                  label = (widget.assetsHistory[idx]['tooltipLabel'] as String?) ??
+                      (widget.assetsHistory[idx]['label'] as String? ?? '');
                 } else {
                   label = idx < labels.length ? labels[idx] : '';
                 }
@@ -530,7 +650,7 @@ class DashboardViewDesktop extends StatelessWidget {
             barWidth: 2,
             isStrokeCapRound: true,
             dotData: FlDotData(
-              show: showLineDots && solidSpots.length <= 12,
+              show: widget.showLineDots && solidSpots.length <= 12,
               getDotPainter: (spot, pct, bar, idx) =>
                   FlDotCirclePainter(
                 radius: 3,
@@ -557,6 +677,7 @@ class DashboardViewDesktop extends StatelessWidget {
               belowBarData: BarAreaData(show: false),
             ),
         ],
+      ),
       ),
     );
   }

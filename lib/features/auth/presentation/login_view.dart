@@ -69,6 +69,7 @@ class _LoginViewState extends State<LoginView> {
       }
       if (lastUser != null) {
         final savedTheme = await _db.getThemeForUser(lastUser);
+        if (!mounted) return;
         if (savedTheme != null) {
           context.read<ThemeProvider>().setTheme(savedTheme);
         }
@@ -324,7 +325,6 @@ class _LoginViewState extends State<LoginView> {
   Widget build(BuildContext context) {
     final themeName = context.watch<ThemeProvider>().themeName;
     final colors = PeadraTheme.getColors(themeName);
-    final isDark = context.watch<ThemeProvider>().isDark;
 
     if (_isInitializing) {
       return Scaffold(

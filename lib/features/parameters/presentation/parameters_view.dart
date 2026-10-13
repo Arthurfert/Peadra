@@ -15,6 +15,7 @@ import '../../../core/providers/update_provider.dart';
 import '../../../core/database/database_manager.dart';
 import '../../../core/models/account.dart';
 import '../../../core/theme/peadra_colors.dart';
+import '../../../core/utils/nav_views.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/biometric_service.dart';
 import '../../../core/services/currency_service.dart';
@@ -49,11 +50,49 @@ class _ParametersViewState extends State<ParametersView> {
   _UpdateStatus _updateStatus = _UpdateStatus.idle;
   bool _biometricAvailable = false;
 
+  // Hoisted username field controller: built once, synced when the stored
+  // username changes externally, disposed with the state.
+  TextEditingController? _usernameCtrl;
+  String? _usernameSynced;
+
   @override
   void initState() {
     super.initState();
     _loadVersion();
     _checkBiometricAvailability();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncUsernameController();
+  }
+
+  @override
+  void didUpdateWidget(covariant ParametersView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncUsernameController();
+  }
+
+  @override
+  void dispose() {
+    _usernameCtrl?.dispose();
+    super.dispose();
+  }
+
+  void _syncUsernameController() {
+    final username = context.read<AuthProvider>().username;
+    if (_usernameCtrl == null) {
+      _usernameCtrl = TextEditingController(text: username);
+      _usernameSynced = username;
+    } else if (_usernameSynced != username &&
+        _usernameCtrl!.text == _usernameSynced) {
+      // External change only: never clobber in-progress edits.
+      _usernameCtrl!.text = username;
+      _usernameSynced = username;
+    } else {
+      _usernameSynced = username;
+    }
   }
 
   Future<void> _checkBiometricAvailability() async {
@@ -69,7 +108,7 @@ class _ParametersViewState extends State<ParametersView> {
   Future<void> _checkForUpdate() async {
     setState(() => _updateStatus = _UpdateStatus.checking);
     try {
-      await context.read<UpdateProvider>().checkForUpdate();
+      await context.read<UpdateProvider>().checkForUpdate(force: true);
       if (!mounted) return;
       final update = context.read<UpdateProvider>().availableUpdate;
       setState(() {
@@ -90,8 +129,6 @@ class _ParametersViewState extends State<ParametersView> {
     final colors = PeadraTheme.getColors(themeName);
     final settings = context.watch<SettingsProvider>();
     final lang = context.watch<LanguageProvider>();
-    final auth = context.watch<AuthProvider>();
-    final updateProvider = context.watch<UpdateProvider>();
 
     final isPhone = ResponsiveLayout.isPhone(context);
 
@@ -100,7 +137,7 @@ class _ParametersViewState extends State<ParametersView> {
       appBar: isPhone ? null : AppBar(
         title: Text(Translator.t('param_title'),
             style: TextStyle(color: colors.text)),
-        backgroundColor: colors.surface,
+        backgroundColor: colors.bg,
         iconTheme: IconThemeData(color: colors.text),
         automaticallyImplyLeading: widget.showBackButton,
       ),
@@ -123,8 +160,10 @@ class _ParametersViewState extends State<ParametersView> {
           _buildSection(Translator.t('param_general'), colors, [
             _buildLanguageTile(lang, colors),
             _buildCurrencyTile(settings, colors),
-            _buildThemeTile(colors),
+            _buildThemeTile(colors, themeName),
             if (isPhone) _buildNavLabelsTile(settings, colors),
+            if (isPhone) _buildNavOrderTile(settings, colors),
+            _buildStatSubtitlesTile(settings, colors),
           ], icon: Icons.settings),
           const SizedBox(height: 8),
           _buildSection(Translator.t('param_transactions'), colors, [
@@ -147,7 +186,7 @@ class _ParametersViewState extends State<ParametersView> {
           ], icon: Icons.storage),
           const SizedBox(height: 8),
           _buildSection(Translator.t('param_security'), colors, [
-            _buildUsernameTile(auth, colors),
+            _buildUsernameTile(colors),
             _buildPasswordTile(colors),
             if (_biometricAvailable) _buildBiometricTile(settings, colors),
           ], icon: Icons.shield),
@@ -168,8 +207,12 @@ class _ParametersViewState extends State<ParametersView> {
             _buildVersionTile(colors),
             _buildCheckUpdateTile(colors),
             _buildHideUpdateNotificationsTile(settings, colors),
-            if (updateProvider.availableUpdate != null)
-              _buildUpdateAvailableTile(colors, updateProvider.availableUpdate!),
+            Selector<UpdateProvider, UpdateInfo?>(
+              selector: (_, u) => u.availableUpdate,
+              builder: (_, update, _) => update == null
+                  ? const SizedBox.shrink()
+                  : _buildUpdateAvailableTile(colors, update),
+            ),
           ], icon: Icons.system_update),
           const SizedBox(height: 8),
           _buildSection(Translator.t('param_feedback'), colors, [
@@ -233,6 +276,7 @@ class _ParametersViewState extends State<ParametersView> {
           // so they can reach out manually instead of nothing happening.
           await Clipboard.setData(
               const ClipboardData(text: _feedbackEmail));
+          if (!mounted) return;
           PeadraNotification.show(context,
               message: Translator.t('param_feedback_no_mail_app'),
               type: NotificationType.warning);
@@ -428,15 +472,14 @@ class _ParametersViewState extends State<ParametersView> {
     );
   }
 
-  Widget _buildThemeTile(PeadraColors colors) {
-    final themeProvider = context.watch<ThemeProvider>();
+  Widget _buildThemeTile(PeadraColors colors, String themeName) {
     return ListTile(
       title: Text(Translator.t('param_theme_label'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_theme_desc'),
           style: TextStyle(color: colors.textSecondary, fontSize: 12)),
       trailing: DropdownButton<String>(
-        value: themeProvider.themeName,
+        value: themeName,
         dropdownColor: colors.surface,
         style: TextStyle(color: colors.text),
         items: [
@@ -470,7 +513,7 @@ class _ParametersViewState extends State<ParametersView> {
         ],
         onChanged: (v) async {
           if (v != null) {
-            themeProvider.setTheme(v);
+            context.read<ThemeProvider>().setTheme(v);
             await _db.setSetting('theme_mode', v);
           }
         },
@@ -497,6 +540,183 @@ class _ParametersViewState extends State<ParametersView> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildStatSubtitlesTile(SettingsProvider settings, PeadraColors colors) {
+    final isPhone = ResponsiveLayout.isPhone(context);
+
+    final toggle = Switch(
+      value: settings.showStatSubtitles,
+      onChanged: (value) => settings.setShowStatSubtitles(value, _db),
+      activeThumbColor: colors.accent,
+    );
+
+    if (isPhone) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(Translator.t('param_stat_subtitles'),
+                style: TextStyle(color: colors.text)),
+            const SizedBox(height: 4),
+            Text(Translator.t('param_stat_subtitles_desc'),
+                style: TextStyle(color: colors.textSecondary, fontSize: 12)),
+            const SizedBox(height: 12),
+            toggle,
+          ],
+        ),
+      );
+    }
+
+    return ListTile(
+      title: Text(Translator.t('param_stat_subtitles'),
+          style: TextStyle(color: colors.text)),
+      subtitle: Text(Translator.t('param_stat_subtitles_desc'),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
+      trailing: toggle,
+    );
+  }
+
+  Widget _buildNavOrderTile(SettingsProvider settings, PeadraColors colors) {
+    final firstNavViews = navViewsFor(settings.navOrder)
+        .take(mobileNavBarSlots)
+        .map((v) => v.label)
+        .join(', ');
+
+    return ListTile(
+      title: Text(Translator.t('param_nav_order'),
+          style: TextStyle(color: colors.text)),
+      subtitle: Text(
+        firstNavViews.isEmpty
+            ? Translator.t('param_nav_order_desc')
+            : '${Translator.t('param_nav_order_desc')}\n$firstNavViews',
+        style: TextStyle(color: colors.textSecondary, fontSize: 12),
+      ),
+      isThreeLine: true,
+      trailing: Icon(Icons.swap_vert, color: colors.accent),
+      onTap: () => _showNavOrderModal(settings, colors),
+    );
+  }
+
+  /// Lets the user drag the mobile destinations into their preferred order:
+  /// the first [mobileNavBarSlots] go into the bottom bar, the rest into the
+  /// burger menu.
+  void _showNavOrderModal(SettingsProvider settings, PeadraColors colors) {
+    showPeadraModal(
+      context: context,
+      builder: (ctx) {
+        // Working copy so a cancelled edit leaves the saved order untouched.
+        final order = List<String>.of(settings.navOrder);
+
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            final views = navViewsFor(order);
+            final barCount = mobileNavBarSlots;
+
+            void reset() =>
+                setModalState(() => order
+                  ..clear()
+                  ..addAll(defaultNavOrder));
+
+            return PeadraModal(
+              title: Text(Translator.t('param_nav_order'),
+                  style: TextStyle(color: colors.text)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    Translator.t('param_nav_order_hint'),
+                    style: TextStyle(
+                        color: colors.textSecondary, fontSize: 12, height: 1.4),
+                  ),
+                  const SizedBox(height: 12),
+                  ReorderableListView(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    buildDefaultDragHandles: false,
+                    // onReorderItem already reports newIndex relative to
+                    // the list without the dragged item.
+                    onReorderItem: (oldIndex, newIndex) {
+                      setModalState(() {
+                        final item = order.removeAt(oldIndex);
+                        order.insert(newIndex, item);
+                      });
+                    },
+                    children: [
+                      for (var i = 0; i < views.length; i++)
+                        ListTile(
+                          key: ValueKey(views[i].key),
+                          contentPadding: EdgeInsets.zero,
+                          leading: CircleAvatar(
+                            radius: 14,
+                            backgroundColor: i < barCount
+                                ? colors.accent
+                                : colors.placeholderColor,
+                            child: Text(
+                              '${i + 1}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          title: Text(views[i].label,
+                              style: TextStyle(color: colors.text)),
+                          subtitle: Text(
+                            i < barCount
+                                ? Translator.t('param_nav_order_bar')
+                                : Translator.t('param_nav_order_menu'),
+                            style: TextStyle(
+                                color: colors.textSecondary, fontSize: 11),
+                          ),
+                          trailing: ReorderableDragStartListener(
+                            index: i,
+                            child: Icon(Icons.drag_handle,
+                                color: colors.placeholderColor),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: reset,
+                    child: Text(Translator.t('param_nav_order_reset'),
+                        style: TextStyle(color: colors.textSecondary)),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: Text(Translator.t('btn_cancel'),
+                      style: TextStyle(color: colors.textSecondary)),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    final saved =
+                        await settings.setNavOrder(order, _db);
+                    if (!ctx.mounted) return;
+                    Navigator.of(ctx).pop();
+                    if (saved && mounted) {
+                      PeadraNotification.show(context,
+                          message: Translator.t('param_nav_order_saved'));
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colors.accent,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: Text(Translator.t('btn_save')),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -531,14 +751,14 @@ class _ParametersViewState extends State<ParametersView> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildToggleButton(
+          _buildPillButton(
             label: Translator.t('param_categories_descriptions'),
             icon: Icons.description,
             isSelected: settings.categoriesView == 'descriptions',
             colors: colors,
             onTap: () => settings.setCategoriesView('descriptions', _db),
           ),
-          _buildToggleButton(
+          _buildPillButton(
             label: Translator.t('param_categories_tags'),
             icon: Icons.tag,
             isSelected: settings.categoriesView == 'tags',
@@ -587,14 +807,14 @@ class _ParametersViewState extends State<ParametersView> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildToggleButton(
+          _buildPillButton(
             label: Translator.t('param_categories_descriptions'),
             icon: Icons.description,
             isSelected: settings.dashboardPieView == 'descriptions',
             colors: colors,
             onTap: () => settings.setDashboardPieView('descriptions', _db),
           ),
-          _buildToggleButton(
+          _buildPillButton(
             label: Translator.t('param_categories_tags'),
             icon: Icons.tag,
             isSelected: settings.dashboardPieView == 'tags',
@@ -680,14 +900,14 @@ class _ParametersViewState extends State<ParametersView> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildToggleButton(
+          _buildPillButton(
             label: Translator.t('param_assets_monthly'),
             icon: Icons.calendar_month,
             isSelected: settings.assetsGranularity == 'monthly',
             colors: colors,
             onTap: () => settings.setAssetsGranularity('monthly', _db),
           ),
-          _buildToggleButton(
+          _buildPillButton(
             label: Translator.t('param_assets_daily'),
             icon: Icons.today,
             isSelected: settings.assetsGranularity == 'daily',
@@ -737,14 +957,14 @@ class _ParametersViewState extends State<ParametersView> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildMonthModeButton(
+          _buildPillButton(
             label: Translator.t('param_calendar_month'),
             icon: Icons.calendar_month,
             isSelected: isStrict,
             colors: colors,
             onTap: () => settings.setMonthMode('strict', _db),
           ),
-          _buildMonthModeButton(
+          _buildPillButton(
             label: Translator.t('param_rolling_30'),
             icon: Icons.update,
             isSelected: !isStrict,
@@ -782,42 +1002,7 @@ class _ParametersViewState extends State<ParametersView> {
     );
   }
 
-  Widget _buildMonthModeButton({
-    required String label,
-    required IconData icon,
-    required bool isSelected,
-    required PeadraColors colors,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected ? colors.accent : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon,
-                size: 14,
-                color: isSelected ? Colors.white : colors.placeholderColor),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                color: isSelected ? Colors.white : colors.placeholderColor,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildToggleButton({
+  Widget _buildPillButton({
     required String label,
     required IconData icon,
     required bool isSelected,
@@ -1080,8 +1265,23 @@ class _ParametersViewState extends State<ParametersView> {
     );
   }
 
-  Widget _buildUsernameTile(AuthProvider auth, PeadraColors colors) {
-    final controller = TextEditingController(text: auth.username);
+  Widget _buildUsernameTile(PeadraColors colors) {
+    // Narrow rebuilds: only this tile rebuilds when username/userId change,
+    // not the whole page.
+    return Selector<AuthProvider, (String, String?)>(
+      selector: (_, auth) => (auth.username, auth.userId),
+      builder: (context, data, _) {
+        final username = data.$1;
+        final userId = data.$2;
+        final controller =
+            _usernameCtrl ??= TextEditingController(text: username);
+        return _buildUsernameContent(colors, controller, username, userId);
+      },
+    );
+  }
+
+  Widget _buildUsernameContent(PeadraColors colors,
+      TextEditingController controller, String username, String? userId) {
     final isPhone = ResponsiveLayout.isPhone(context);
 
     final usernameField = SizedBox(
@@ -1110,12 +1310,12 @@ class _ParametersViewState extends State<ParametersView> {
           fillColor: colors.bg,
         ),
         onSubmitted: (value) async {
-          if (value.trim().isEmpty || value.trim() == auth.username) return;
+          if (value.trim().isEmpty || value.trim() == username) return;
           try {
             final success =
-                await _authService.updateUsername(auth.userId!, value.trim());
+                await _authService.updateUsername(userId!, value.trim());
             if (success && mounted) {
-              auth.setUsername(value.trim());
+              context.read<AuthProvider>().setUsername(value.trim());
               PeadraNotification.show(context, message: Translator.t('param_username_saved'));
             }
           } catch (e) {
@@ -1319,6 +1519,7 @@ class _ParametersViewState extends State<ParametersView> {
                       if (success && mounted) {
                         await _biometricService.clearCredentials();
                         await settings.setBiometricEnabled(false, _db);
+                        if (!ctx.mounted || !mounted) return;
                         Navigator.of(ctx).pop();
                         PeadraNotification.show(context, message: Translator.t('param_biometric_re_enable'), type: NotificationType.warning);
                       }
@@ -1358,6 +1559,7 @@ class _ParametersViewState extends State<ParametersView> {
             }
             return;
           }
+          if (!mounted) return;
           final auth = context.read<AuthProvider>();
           await _biometricService.saveCredentials(auth.userId!, auth.username, encryptionKey: _db.encryptionKey);
           await settings.setBiometricEnabled(true, _db);
@@ -1942,6 +2144,7 @@ class _ParametersViewState extends State<ParametersView> {
               try {
                 final success = await _db.deleteUserAccount(password);
                 if (success && mounted) {
+                  if (!ctx.mounted || !mounted) return;
                   Navigator.of(ctx).pop();
                   final auth = context.read<AuthProvider>();
                   auth.logout(_db);

@@ -36,6 +36,10 @@ class PeadraNotification {
     );
 
     _entries.add(entry);
+    if (_entries.length > 3) {
+      final oldest = _entries.removeAt(0);
+      oldest.remove();
+    }
     state.insert(entry);
   }
 

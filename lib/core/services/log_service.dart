@@ -14,6 +14,12 @@ class LogService {
 
   final List<LogEntry> _entries = [];
 
+  /// Cap on retained entries: the log is a debug aid, not storage.
+  static const int maxEntries = 2000;
+
+  static final DateFormat _timeFormat = DateFormat('HH:mm:ss');
+  static final DateFormat _fileStampFormat = DateFormat('yyyyMMdd_HHmmss');
+
   void _attachErrorHandlers() {
     FlutterError.onError = (details) {
       _add('ERROR', details.exceptionAsString(), details.stack?.toString());
@@ -46,6 +52,9 @@ class LogService {
       message: message,
       stack: stack,
     ));
+    if (_entries.length > maxEntries) {
+      _entries.removeRange(0, _entries.length - maxEntries);
+    }
   }
 
   String buildContent() {
@@ -56,7 +65,7 @@ class LogService {
     buffer.writeln('${'=' * 60}\n');
 
     for (final entry in _entries) {
-      final time = DateFormat('HH:mm:ss').format(entry.timestamp);
+      final time = _timeFormat.format(entry.timestamp);
       buffer.writeln('[$time] [${entry.level}] ${entry.message}');
       if (entry.stack != null) {
         buffer.writeln(entry.stack);
@@ -66,10 +75,10 @@ class LogService {
     return buffer.toString();
   }
 
-  Future<String> export({String? targetPath}) async {
-    final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+  Future<String> export() async {
+    final timestamp = _fileStampFormat.format(DateTime.now());
     final name = 'peadra_log_$timestamp.txt';
-    final filePath = targetPath ?? '/storage/emulated/0/Download/$name';
+    final filePath = '/storage/emulated/0/Download/$name';
     final file = File(filePath);
     await file.create(recursive: true);
     await file.writeAsString(buildContent());

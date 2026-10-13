@@ -1,428 +1,423 @@
+import 'package:decimal/decimal.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import '../helpers/test_helper.dart';
+
+import 'package:peadra/core/database/database_manager.dart';
 
 void main() {
-  late Database db;
-  late int userId;
+  sqfliteFfiInit();
 
-  setUpAll(() {
-    initializeTestDatabase();
-  });
+  String today() => DateTime.now().toIso8601String().substring(0, 10);
 
   setUp(() async {
-    db = await createTestDatabase();
-    userId = await seedTestUser(db);
-  });
-
-  tearDown(() async {
-    await db.close();
+    await DatabaseManager.instance
+        .openInMemoryForTest(userId: 'user-${DateTime.now().microsecondsSinceEpoch}');
   });
 
   group('Tag CRUD', () {
     test('createTag inserts and returns id', () async {
-      final id = await db.insert('tags', {
-        'user_id': userId,
-        'name': 'Groceries',
-        'color': '#388E3C',
-      });
-      expect(id, isA<int>());
-      expect(id, greaterThan(0));
+      final db = DatabaseManager.instance;
 
-      final rows = await db.query('tags', where: 'id = ?', whereArgs: [id]);
-      expect(rows.length, 1);
-      expect(rows.first['name'], 'Groceries');
-      expect(rows.first['color'], '#388E3C');
-      expect(rows.first['user_id'], userId);
+      final id = await db.createTag(name: 'Groceries', color: '#388E3C');
+      expect(id, isNotNull);
+      expect(id, isNotEmpty);
+
+      final tags = await db.getAllTags();
+      expect(tags, hasLength(1));
+      expect(tags.single.id, id);
+      expect(tags.single.name, 'Groceries');
+      expect(tags.single.color, '#388E3C');
     });
 
     test('getAllTags returns all tags for user ordered by name', () async {
-      await seedTestTag(db, userId, 'Trip');
-      await seedTestTag(db, userId, 'Groceries');
-      await seedTestTag(db, userId, 'Taxes');
+      final db = DatabaseManager.instance;
+      await db.createTag(name: 'Trip');
+      await db.createTag(name: 'Groceries');
+      await db.createTag(name: 'Taxes');
 
-      final rows = await db.query('tags',
-          where: 'user_id = ?', whereArgs: [userId], orderBy: 'name ASC');
-      expect(rows.length, 3);
-      expect(rows[0]['name'], 'Groceries');
-      expect(rows[1]['name'], 'Taxes');
-      expect(rows[2]['name'], 'Trip');
+      final tags = await db.getAllTags();
+      expect(tags, hasLength(3));
+      expect(tags.map((t) => t.name).toList(),
+          ['Groceries', 'Taxes', 'Trip']);
     });
 
     test('getAllTags returns empty list when no tags', () async {
-      final rows = await db.query('tags',
-          where: 'user_id = ?', whereArgs: [userId]);
-      expect(rows, isEmpty);
+      final db = DatabaseManager.instance;
+      expect(await db.getAllTags(), isEmpty);
     });
 
     test('tag colors map mirrors getTagColors by name', () async {
-      await seedTestTag(db, userId, 'Groceries', color: '#388E3C');
-      await seedTestTag(db, userId, 'Trip', color: '#D32F2F');
+      final db = DatabaseManager.instance;
+      await db.createTag(name: 'Groceries', color: '#388E3C');
+      await db.createTag(name: 'Trip', color: '#D32F2F');
 
-      final rows = await db.query('tags',
-          where: 'user_id = ?', whereArgs: [userId]);
-      final colors = {
-        for (final r in rows)
-          (r['name'] as String): (r['color'] as String? ?? '#1976D2'),
-      };
-
-      expect(colors, {
+      expect(await db.getTagColors(), {
         'Groceries': '#388E3C',
         'Trip': '#D32F2F',
       });
     });
 
     test('UNIQUE constraint prevents duplicate tag names per user', () async {
-      await seedTestTag(db, userId, 'Groceries');
+      final db = DatabaseManager.instance;
+      await db.createTag(name: 'Groceries');
       expect(
-        () => seedTestTag(db, userId, 'Groceries'),
-        throwsA(isA<DatabaseException>()),
+        () => db.createTag(name: 'Groceries'),
+        throwsA(anything),
       );
     });
 
     test('same tag name allowed for different users', () async {
-      final userId2 = await seedTestUser(db, username: 'user2');
-      await seedTestTag(db, userId, 'Groceries');
-      await seedTestTag(db, userId2, 'Groceries');
+      final db = DatabaseManager.instance;
+      final userA = db.userId!;
+      await db.createTag(name: 'Groceries');
 
-      final rows = await db.query('tags', where: 'name = ?', whereArgs: ['Groceries']);
-      expect(rows.length, 2);
+      final userB = 'user-${DateTime.now().microsecondsSinceEpoch}-b';
+      db.setSessionUserId(userB);
+      final idB = await db.createTag(name: 'Groceries');
+      expect(idB, isNotNull);
+      expect((await db.getAllTags()).map((t) => t.name), ['Groceries']);
+
+      db.setSessionUserId(userA);
+      expect((await db.getAllTags()).map((t) => t.name), ['Groceries']);
     });
 
     test('updateTag updates name and color', () async {
-      final id = await seedTestTag(db, userId, 'Old Name');
-      final count = await db.update(
-        'tags',
-        {'name': 'New Name', 'color': '#D32F2F'},
-        where: 'id = ? AND user_id = ?',
-        whereArgs: [id, userId],
+      final db = DatabaseManager.instance;
+      final id = await db.createTag(name: 'Old Name');
+      expect(
+        await db.updateTag(id!, name: 'New Name', color: '#D32F2F'),
+        isTrue,
       );
-      expect(count, 1);
 
-      final row = (await db.query('tags', where: 'id = ?', whereArgs: [id])).first;
-      expect(row['name'], 'New Name');
-      expect(row['color'], '#D32F2F');
+      final tags = await db.getAllTags();
+      expect(tags, hasLength(1));
+      expect(tags.single.name, 'New Name');
+      expect(tags.single.color, '#D32F2F');
     });
 
     test('deleteTag removes tag', () async {
-      final id = await seedTestTag(db, userId, 'ToDelete');
-      final count = await db.delete(
-        'tags',
-        where: 'id = ? AND user_id = ?',
-        whereArgs: [id, userId],
-      );
-      expect(count, 1);
-
-      final rows = await db.query('tags', where: 'id = ?', whereArgs: [id]);
-      expect(rows, isEmpty);
+      final db = DatabaseManager.instance;
+      final id = await db.createTag(name: 'ToDelete');
+      expect(await db.deleteTag(id!), isTrue);
+      expect(await db.getAllTags(), isEmpty);
     });
 
     test('deleteTag does not affect other users tags', () async {
-      final userId2 = await seedTestUser(db, username: 'user2');
-      final id1 = await seedTestTag(db, userId, 'MyTag');
-      final id2 = await seedTestTag(db, userId2, 'MyTag');
+      final db = DatabaseManager.instance;
+      final userA = db.userId!;
+      final idA = await db.createTag(name: 'MyTag');
 
-      await db.delete('tags',
-          where: 'id = ? AND user_id = ?', whereArgs: [id1, userId]);
+      final userB = 'user-${DateTime.now().microsecondsSinceEpoch}-b';
+      db.setSessionUserId(userB);
+      await db.createTag(name: 'MyTag');
 
-      final rows = await db.query('tags', where: 'id = ?', whereArgs: [id2]);
-      expect(rows.length, 1);
+      db.setSessionUserId(userA);
+      expect(await db.deleteTag(idA!), isTrue);
+      expect(await db.getAllTags(), isEmpty);
+
+      db.setSessionUserId(userB);
+      expect((await db.getAllTags()).map((t) => t.name), ['MyTag']);
+
+      db.setSessionUserId(userA);
     });
   });
 
   group('Tag on transactions', () {
     test('transaction can reference a tag via tag_id', () async {
-      final accountId = (await seedTestAccounts(db, userId)).first;
-      final descId = await seedTestDescription(db, userId, 'Food');
-      final tagId = await seedTestTag(db, userId, 'Groceries');
+      final db = DatabaseManager.instance;
+      final accountId = await db.addAccount(
+          'Checking', '#4CAF50', 'checking', 'EUR');
+      final tagId = await db.createTag(name: 'Groceries');
 
-      final txnId = await seedTestTransaction(
-        db,
-        userId,
-        accountId: accountId,
-        descriptionId: descId,
-        tagId: tagId,
-        amount: 42.5,
+      await db.addTransaction(
+        date: today(),
+        description: 'Food',
+        amount: Decimal.parse('42.5'),
         transactionType: 'expense',
+        accountId: accountId,
+        tagId: tagId,
       );
 
-      final row = (await db.query('transactions', where: 'id = ?', whereArgs: [txnId])).first;
-      expect(row['tag_id'], tagId);
+      final txns = await db.getTransactions();
+      expect(txns, hasLength(1));
+      expect(txns.single.tagId, tagId);
     });
 
     test('transaction with null tag_id works', () async {
-      final accountId = (await seedTestAccounts(db, userId)).first;
-      final descId = await seedTestDescription(db, userId, 'Food');
+      final db = DatabaseManager.instance;
+      final accountId = await db.addAccount(
+          'Checking', '#4CAF50', 'checking', 'EUR');
 
-      final txnId = await seedTestTransaction(
-        db,
-        userId,
-        accountId: accountId,
-        descriptionId: descId,
-        amount: 10.0,
+      await db.addTransaction(
+        date: today(),
+        description: 'Food',
+        amount: Decimal.fromInt(10),
         transactionType: 'expense',
+        accountId: accountId,
       );
 
-      final row = (await db.query('transactions', where: 'id = ?', whereArgs: [txnId])).first;
-      expect(row['tag_id'], isNull);
+      final txns = await db.getTransactions();
+      expect(txns, hasLength(1));
+      expect(txns.single.tagId, isNull);
     });
 
     test('JOIN tags table returns tag_name and tag_color', () async {
-      final accountId = (await seedTestAccounts(db, userId)).first;
-      final descId = await seedTestDescription(db, userId, 'Food');
-      final tagId = await seedTestTag(db, userId, 'Groceries', color: '#388E3C');
+      final db = DatabaseManager.instance;
+      final accountId = await db.addAccount(
+          'Checking', '#4CAF50', 'checking', 'EUR');
+      final tagId =
+          await db.createTag(name: 'Groceries', color: '#388E3C');
 
-      final txnId = await seedTestTransaction(
-        db,
-        userId,
-        accountId: accountId,
-        descriptionId: descId,
-        tagId: tagId,
-        amount: 25.0,
+      await db.addTransaction(
+        date: today(),
+        description: 'Food',
+        amount: Decimal.fromInt(25),
         transactionType: 'expense',
+        accountId: accountId,
+        tagId: tagId,
       );
 
-      final rows = await db.rawQuery('''
-        SELECT t.*, tg.name as tag_name, tg.color as tag_color
-        FROM transactions t
-        LEFT JOIN tags tg ON t.tag_id = tg.id
-        WHERE t.id = ?
-      ''', [txnId]);
-
-      expect(rows.first['tag_name'], 'Groceries');
-      expect(rows.first['tag_color'], '#388E3C');
+      final txns = await db.getTransactions();
+      expect(txns.single.tagName, 'Groceries');
+      expect(txns.single.tagColor, '#388E3C');
     });
 
     test('JOIN tags returns null when no tag assigned', () async {
-      final accountId = (await seedTestAccounts(db, userId)).first;
-      final descId = await seedTestDescription(db, userId, 'Food');
+      final db = DatabaseManager.instance;
+      final accountId = await db.addAccount(
+          'Checking', '#4CAF50', 'checking', 'EUR');
 
-      final txnId = await seedTestTransaction(
-        db,
-        userId,
-        accountId: accountId,
-        descriptionId: descId,
-        amount: 10.0,
+      await db.addTransaction(
+        date: today(),
+        description: 'Food',
+        amount: Decimal.fromInt(10),
         transactionType: 'expense',
+        accountId: accountId,
       );
 
-      final rows = await db.rawQuery('''
-        SELECT t.*, tg.name as tag_name, tg.color as tag_color
-        FROM transactions t
-        LEFT JOIN tags tg ON t.tag_id = tg.id
-        WHERE t.id = ?
-      ''', [txnId]);
-
-      expect(rows.first['tag_name'], isNull);
-      expect(rows.first['tag_color'], isNull);
+      final txns = await db.getTransactions();
+      expect(txns.single.tagName, isNull);
+      expect(txns.single.tagColor, isNull);
     });
 
     test('setting tag_id to NULL untags transaction', () async {
-      final accountId = (await seedTestAccounts(db, userId)).first;
-      final descId = await seedTestDescription(db, userId, 'Food');
-      final tagId = await seedTestTag(db, userId, 'Groceries');
+      final db = DatabaseManager.instance;
+      final accountId = await db.addAccount(
+          'Checking', '#4CAF50', 'checking', 'EUR');
+      final tagId = await db.createTag(name: 'Groceries');
 
-      final txnId = await seedTestTransaction(
-        db,
-        userId,
-        accountId: accountId,
-        descriptionId: descId,
-        tagId: tagId,
-        amount: 30.0,
+      final txnId = await db.addTransaction(
+        date: today(),
+        description: 'Food',
+        amount: Decimal.fromInt(30),
         transactionType: 'expense',
+        accountId: accountId,
+        tagId: tagId,
       );
 
-      await db.rawUpdate(
-        'UPDATE transactions SET tag_id = NULL WHERE id = ?',
-        [txnId],
-      );
+      expect(await db.updateTransaction(txnId!, clearTag: true), isTrue);
 
-      final row = (await db.query('transactions', where: 'id = ?', whereArgs: [txnId])).first;
-      expect(row['tag_id'], isNull);
+      final txns = await db.getTransactions();
+      expect(txns.single.tagId, isNull);
     });
 
     test('deleting a tag unsets tag_id on all its transactions', () async {
-      final accountId = (await seedTestAccounts(db, userId)).first;
-      final descId = await seedTestDescription(db, userId, 'Food');
-      final tagId = await seedTestTag(db, userId, 'Groceries');
+      final db = DatabaseManager.instance;
+      final accountId = await db.addAccount(
+          'Checking', '#4CAF50', 'checking', 'EUR');
+      final tagId = await db.createTag(name: 'Groceries');
 
-      final txn1 = await seedTestTransaction(db, userId,
-          accountId: accountId, descriptionId: descId, tagId: tagId, amount: 10.0, transactionType: 'expense');
-      final txn2 = await seedTestTransaction(db, userId,
-          accountId: accountId, descriptionId: descId, tagId: tagId, amount: 20.0, transactionType: 'expense');
-
-      await db.rawUpdate(
-        'UPDATE transactions SET tag_id = NULL WHERE tag_id = ? AND user_id = ?',
-        [tagId, userId],
+      await db.addTransaction(
+        date: today(),
+        description: 'Food',
+        amount: Decimal.fromInt(10),
+        transactionType: 'expense',
+        accountId: accountId,
+        tagId: tagId,
       );
-      await db.delete('tags', where: 'id = ? AND user_id = ?', whereArgs: [tagId, userId]);
+      await db.addTransaction(
+        date: today(),
+        description: 'Food',
+        amount: Decimal.fromInt(20),
+        transactionType: 'expense',
+        accountId: accountId,
+        tagId: tagId,
+      );
 
-      final row1 = (await db.query('transactions', where: 'id = ?', whereArgs: [txn1])).first;
-      final row2 = (await db.query('transactions', where: 'id = ?', whereArgs: [txn2])).first;
-      expect(row1['tag_id'], isNull);
-      expect(row2['tag_id'], isNull);
+      expect(await db.deleteTag(tagId!), isTrue);
 
-      final tagRows = await db.query('tags', where: 'id = ?', whereArgs: [tagId]);
-      expect(tagRows, isEmpty);
+      final txns = await db.getTransactions();
+      expect(txns, hasLength(2));
+      expect(txns.every((t) => t.tagId == null), isTrue);
+      expect(await db.getAllTags(), isEmpty);
     });
 
     test('filtering transactions by tag IDs works', () async {
-      final accountId = (await seedTestAccounts(db, userId)).first;
-      final descId = await seedTestDescription(db, userId, 'Food');
-      final tag1 = await seedTestTag(db, userId, 'Groceries');
-      final tag2 = await seedTestTag(db, userId, 'Trip');
+      final db = DatabaseManager.instance;
+      final accountId = await db.addAccount(
+          'Checking', '#4CAF50', 'checking', 'EUR');
+      final tag1 = await db.createTag(name: 'Groceries');
+      final tag2 = await db.createTag(name: 'Trip');
 
-      await seedTestTransaction(db, userId,
-          accountId: accountId, descriptionId: descId, tagId: tag1, amount: 10.0, transactionType: 'expense');
-      await seedTestTransaction(db, userId,
-          accountId: accountId, descriptionId: descId, tagId: tag2, amount: 20.0, transactionType: 'expense');
-      await seedTestTransaction(db, userId,
-          accountId: accountId, descriptionId: descId, amount: 30.0, transactionType: 'expense');
+      Future<void> addExpense(String? tag) => db.addTransaction(
+            date: today(),
+            description: 'Food',
+            amount: Decimal.fromInt(10),
+            transactionType: 'expense',
+            accountId: accountId,
+            tagId: tag,
+          );
+      await addExpense(tag1);
+      await db.addTransaction(
+        date: today(),
+        description: 'Food',
+        amount: Decimal.fromInt(20),
+        transactionType: 'expense',
+        accountId: accountId,
+        tagId: tag2,
+      );
+      await addExpense(null);
 
-      final rows = await db.rawQuery('''
-        SELECT t.*
-        FROM transactions t
-        WHERE t.user_id = ? AND t.tag_id IN (?, ?)
-      ''', [userId, tag1, tag2]);
-
-      expect(rows.length, 2);
+      final filtered = await db.getTransactions(tagIds: {tag1!, tag2!});
+      expect(filtered, hasLength(2));
     });
 
     test('search by tag name via JOIN', () async {
-      final accountId = (await seedTestAccounts(db, userId)).first;
-      final descId = await seedTestDescription(db, userId, 'Food');
-      final tagId = await seedTestTag(db, userId, 'Groceries');
+      final db = DatabaseManager.instance;
+      final accountId = await db.addAccount(
+          'Checking', '#4CAF50', 'checking', 'EUR');
+      final tagId = await db.createTag(name: 'Groceries');
 
-      await seedTestTransaction(db, userId,
-          accountId: accountId, descriptionId: descId, tagId: tagId, amount: 15.0, transactionType: 'expense');
-      await seedTestTransaction(db, userId,
-          accountId: accountId, descriptionId: descId, amount: 25.0, transactionType: 'expense');
+      await db.addTransaction(
+        date: today(),
+        description: 'Dinner',
+        amount: Decimal.fromInt(15),
+        transactionType: 'expense',
+        accountId: accountId,
+        tagId: tagId,
+      );
+      await db.addTransaction(
+        date: today(),
+        description: 'Dinner',
+        amount: Decimal.fromInt(25),
+        transactionType: 'expense',
+        accountId: accountId,
+      );
 
-      final rows = await db.rawQuery('''
-        SELECT t.*, tg.name as tag_name
-        FROM transactions t
-        LEFT JOIN tags tg ON t.tag_id = tg.id
-        WHERE t.user_id = ? AND tg.name LIKE ?
-      ''', [userId, '%grocer%']);
-
-      expect(rows.length, 1);
-      expect(rows.first['tag_name'], 'Groceries');
+      final rows = await db.getTransactions(searchQuery: 'grocer');
+      expect(rows, hasLength(1));
+      expect(rows.single.tagName, 'Groceries');
     });
   });
 
   group('getTopTags SQL', () {
     test('returns tags ordered by total amount', () async {
-      final accountId = (await seedTestAccounts(db, userId)).first;
-      final descId = await seedTestDescription(db, userId, 'Food');
-      final tag1 = await seedTestTag(db, userId, 'Groceries');
-      final tag2 = await seedTestTag(db, userId, 'Trip');
+      final db = DatabaseManager.instance;
+      final accountId = await db.addAccount(
+          'Checking', '#4CAF50', 'checking', 'EUR');
+      final tag1 = await db.createTag(name: 'Groceries');
+      final tag2 = await db.createTag(name: 'Trip');
 
-      await seedTestTransaction(db, userId,
-          accountId: accountId, descriptionId: descId, tagId: tag1,
-          amount: 100.0, transactionType: 'expense', date: '2025-06-01');
-      await seedTestTransaction(db, userId,
-          accountId: accountId, descriptionId: descId, tagId: tag1,
-          amount: 50.0, transactionType: 'expense', date: '2025-06-15');
-      await seedTestTransaction(db, userId,
-          accountId: accountId, descriptionId: descId, tagId: tag2,
-          amount: 200.0, transactionType: 'expense', date: '2025-06-10');
+      Future<void> addExpense(String? tag, int amount) => db.addTransaction(
+            date: today(),
+            description: 'Spending',
+            amount: Decimal.fromInt(amount),
+            transactionType: 'expense',
+            accountId: accountId,
+            tagId: tag,
+          );
+      await addExpense(tag1, 100);
+      await addExpense(tag1, 50);
+      await addExpense(tag2, 200);
 
-      final rows = await db.rawQuery('''
-        SELECT tg.name as tag, SUM(t.amount) as total, COUNT(*) as count
-        FROM transactions t
-        LEFT JOIN tags tg ON t.tag_id = tg.id
-        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-          AND t.tag_id IS NOT NULL
-        GROUP BY tg.name
-        ORDER BY total DESC
-      ''', ['expense', '2025-01-01', '2025-12-31', userId]);
-
-      expect(rows.length, 2);
-      expect(rows[0]['tag'], 'Trip');
-      expect(rows[0]['total'], 200.0);
-      expect(rows[1]['tag'], 'Groceries');
-      expect(rows[1]['total'], 150.0);
+      final top = await db.getTopTags();
+      expect(top, hasLength(2));
+      expect(top[0]['tag'], 'Trip');
+      expect(top[0]['total'], 200.0);
+      expect(top[1]['tag'], 'Groceries');
+      expect(top[1]['total'], 150.0);
     });
 
     test('respects minCount filter', () async {
-      final accountId = (await seedTestAccounts(db, userId)).first;
-      final descId = await seedTestDescription(db, userId, 'Food');
-      final tag1 = await seedTestTag(db, userId, 'Groceries');
+      final db = DatabaseManager.instance;
+      final accountId = await db.addAccount(
+          'Checking', '#4CAF50', 'checking', 'EUR');
+      final tag1 = await db.createTag(name: 'Groceries');
 
-      await seedTestTransaction(db, userId,
-          accountId: accountId, descriptionId: descId, tagId: tag1,
-          amount: 10.0, transactionType: 'expense', date: '2025-06-01');
+      await db.addTransaction(
+        date: today(),
+        description: 'Spending',
+        amount: Decimal.fromInt(10),
+        transactionType: 'expense',
+        accountId: accountId,
+        tagId: tag1,
+      );
 
-      final rows = await db.rawQuery('''
-        SELECT tg.name as tag, COUNT(*) as count
-        FROM transactions t
-        LEFT JOIN tags tg ON t.tag_id = tg.id
-        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-          AND t.tag_id IS NOT NULL
-        GROUP BY tg.name
-        HAVING count >= ?
-      ''', ['expense', '2025-01-01', '2025-12-31', userId, 2]);
-
-      expect(rows, isEmpty);
+      expect(await db.getTopTags(minCount: 2), isEmpty);
     });
   });
 
   group('getTagMonthlyData SQL', () {
     test('returns monthly breakdown per tag', () async {
-      final accountId = (await seedTestAccounts(db, userId)).first;
-      final descId = await seedTestDescription(db, userId, 'Food');
-      final tagId = await seedTestTag(db, userId, 'Groceries');
+      final db = DatabaseManager.instance;
+      final accountId = await db.addAccount(
+          'Checking', '#4CAF50', 'checking', 'EUR');
+      final tagId = await db.createTag(name: 'Groceries');
 
-      await seedTestTransaction(db, userId,
-          accountId: accountId, descriptionId: descId, tagId: tagId,
-          amount: 100.0, transactionType: 'expense', date: '2025-06-01');
-      await seedTestTransaction(db, userId,
-          accountId: accountId, descriptionId: descId, tagId: tagId,
-          amount: 50.0, transactionType: 'income', date: '2025-06-15');
-      await seedTestTransaction(db, userId,
-          accountId: accountId, descriptionId: descId, tagId: tagId,
-          amount: 75.0, transactionType: 'expense', date: '2025-07-01');
+      final now = DateTime.now();
+      final monthNow = today().substring(0, 7);
+      final pastDate = now
+          .subtract(const Duration(days: 40))
+          .toIso8601String()
+          .substring(0, 10);
+      final monthPast = pastDate.substring(0, 7);
+      final startDate = now
+          .subtract(const Duration(days: 60))
+          .toIso8601String()
+          .substring(0, 10);
 
-      final rows = await db.rawQuery('''
-        SELECT t.amount, t.transaction_type, t.date, tg.name as tag_name
-        FROM transactions t
-        LEFT JOIN tags tg ON t.tag_id = tg.id
-        WHERE t.date >= ? AND t.date <= ? AND t.user_id = ?
-          AND t.tag_id IS NOT NULL
-      ''', ['2025-01-01', '2025-12-31', userId]);
+      Future<void> add(String date, int amount, String type) =>
+          db.addTransaction(
+            date: date,
+            description: 'Spending',
+            amount: Decimal.fromInt(amount),
+            transactionType: type,
+            accountId: accountId,
+            tagId: tagId,
+          );
+      await add(today(), 100, 'expense');
+      await add(today(), 50, 'income');
+      await add(pastDate, 75, 'expense');
 
-      expect(rows.length, 3);
-
-      final byMonth = <String, List>{};
-      for (final r in rows) {
-        final month = (r['date'] as String).substring(0, 7);
-        byMonth.putIfAbsent(month, () => []).add(r);
-      }
-
-      expect(byMonth['2025-06']!.length, 2);
-      expect(byMonth['2025-07']!.length, 1);
+      final data = await db.getTagMonthlyData(startDate, today());
+      expect(data.containsKey('Groceries'), isTrue);
+      expect(data['Groceries']![monthNow]!['expense'], 100.0);
+      expect(data['Groceries']![monthNow]!['income'], 50.0);
+      expect(data['Groceries']![monthPast]!['expense'], 75.0);
     });
 
     test('excludes untagged transactions', () async {
-      final accountId = (await seedTestAccounts(db, userId)).first;
-      final descId = await seedTestDescription(db, userId, 'Food');
+      final db = DatabaseManager.instance;
+      final accountId = await db.addAccount(
+          'Checking', '#4CAF50', 'checking', 'EUR');
 
-      await seedTestTransaction(db, userId,
-          accountId: accountId, descriptionId: descId,
-          amount: 100.0, transactionType: 'expense', date: '2025-06-01');
-      await seedTestTransaction(db, userId,
-          accountId: accountId, descriptionId: descId,
-          amount: 50.0, transactionType: 'expense', date: '2025-06-15');
+      final now = DateTime.now();
+      final startDate = now
+          .subtract(const Duration(days: 60))
+          .toIso8601String()
+          .substring(0, 10);
 
-      final rows = await db.rawQuery('''
-        SELECT t.amount, tg.name as tag_name
-        FROM transactions t
-        LEFT JOIN tags tg ON t.tag_id = tg.id
-        WHERE t.date >= ? AND t.date <= ? AND t.user_id = ?
-          AND t.tag_id IS NOT NULL
-      ''', ['2025-01-01', '2025-12-31', userId]);
+      for (final amount in [100, 50]) {
+        await db.addTransaction(
+          date: today(),
+          description: 'Spending',
+          amount: Decimal.fromInt(amount),
+          transactionType: 'expense',
+          accountId: accountId,
+        );
+      }
 
-      expect(rows, isEmpty);
+      expect(await db.getTagMonthlyData(startDate, today()), isEmpty);
     });
   });
 }

@@ -323,9 +323,16 @@ class PeadraTheme {
     return themes[themeName] ?? themes['dark']!;
   }
 
+  static final Map<String, Color> _hexCache = {};
+
   static Color hexToColor(String hex) {
-    hex = hex.replaceFirst('#', '');
-    if (hex.length == 6) hex = 'FF$hex';
-    return Color(int.parse(hex, radix: 16));
+    final cached = _hexCache[hex];
+    if (cached != null) return cached;
+    var normalized = hex.replaceFirst('#', '');
+    if (normalized.length == 6) normalized = 'FF$normalized';
+    final color = Color(int.parse(normalized, radix: 16));
+    // Bounded: hex strings come from a small fixed palette + user colors.
+    if (_hexCache.length < 256) _hexCache[hex] = color;
+    return color;
   }
 }

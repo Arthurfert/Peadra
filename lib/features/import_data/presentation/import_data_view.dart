@@ -34,6 +34,8 @@ class _ImportDataViewState extends State<ImportDataView> {
   ImportResult? _result;
   List<ImportMapping>? _userMappings;
 
+  static const _previewRowLimit = 20;
+
   @override
   void initState() {
     super.initState();
@@ -386,6 +388,19 @@ class _ImportDataViewState extends State<ImportDataView> {
   Widget _buildConfigStep(PeadraColors colors) {
     if (_preview == null) return const SizedBox.shrink();
 
+    // Hoisted once per build: current mapping per column + counts of each
+    // mapping in use elsewhere, so rows do O(1) lookups instead of O(n).
+    final mappingByColumn = <int, ColumnMapping>{
+      for (final m in _userMappings ?? const <ImportMapping>[])
+        m.columnIndex: m.mapping,
+    };
+    final useCounts = <ColumnMapping, int>{};
+    for (final m in mappingByColumn.values) {
+      if (m != ColumnMapping.unused) {
+        useCounts[m] = (useCounts[m] ?? 0) + 1;
+      }
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -496,7 +511,17 @@ class _ImportDataViewState extends State<ImportDataView> {
                 Divider(height: 1, color: colors.borderColor),
                 // Column rows
                 for (int i = 0; i < _preview!.headers.length; i++) ...[
-                  _buildColumnMappingRow(i, colors),
+                  _buildColumnMappingRow(
+                    i,
+                    colors,
+                    mappingByColumn[i] ?? ColumnMapping.unused,
+                    {
+                      for (final entry in useCounts.entries)
+                        if (entry.value > 1 ||
+                            mappingByColumn[i] != entry.key)
+                          entry.key,
+                    },
+                  ),
                   if (i < _preview!.headers.length - 1) Divider(height: 1, color: colors.borderColor),
                 ],
               ],
@@ -513,6 +538,15 @@ class _ImportDataViewState extends State<ImportDataView> {
                 color: colors.text),
           ),
           const SizedBox(height: 8),
+          if (_preview!.rows.length > _previewRowLimit)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                '${Translator.t('import_preview')} '
+                '($_previewRowLimit/${_preview!.rows.length})',
+                style: TextStyle(fontSize: 11, color: colors.textSecondary),
+              ),
+            ),
           Container(
             decoration: BoxDecoration(
               border: Border.all(color: colors.borderColor),
@@ -528,6 +562,7 @@ class _ImportDataViewState extends State<ImportDataView> {
                                 fontSize: 11, color: colors.textSecondary, fontWeight: FontWeight.w500))))
                     .toList(),
                 rows: _preview!.rows
+                    .take(_previewRowLimit)
                     .map((row) => DataRow(
                           cells: row
                               .map((cell) => DataCell(Text(cell,
@@ -545,17 +580,10 @@ class _ImportDataViewState extends State<ImportDataView> {
     );
   }
 
-  Widget _buildColumnMappingRow(int columnIndex, PeadraColors colors) {
+Widget _buildColumnMappingRow(int columnIndex, PeadraColors colors,
+    ColumnMapping currentMapping, Set<ColumnMapping> usedElsewhere) {
     final header = _preview!.headers[columnIndex];
-    final currentMapping = _userMappings
-        ?.firstWhere((m) => m.columnIndex == columnIndex,
-            orElse: () => ImportMapping(columnIndex, ColumnMapping.unused))
-        .mapping ?? ColumnMapping.unused;
-
-    final usedMappings = _userMappings
-        ?.where((m) => m.columnIndex != columnIndex && m.mapping != ColumnMapping.unused)
-        .map((m) => m.mapping)
-        .toSet() ?? {};
+    final usedMappings = usedElsewhere;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

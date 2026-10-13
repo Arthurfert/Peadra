@@ -6,6 +6,26 @@ import '../../../../core/theme/peadra_colors.dart';
 import '../../../../core/i18n/translator.dart';
 import '../../../../core/services/currency_service.dart';
 
+class _PieSlice {
+  final String label;
+  final double amount;
+  final double displayAmount;
+  final String itemCurrency;
+  final Color color;
+  final String formatted;
+  final double pct;
+
+  const _PieSlice({
+    required this.label,
+    required this.amount,
+    required this.displayAmount,
+    required this.itemCurrency,
+    required this.color,
+    required this.formatted,
+    required this.pct,
+  });
+}
+
 class CategoryPieChart extends StatefulWidget {
   final List<Map<String, dynamic>> data;
   final PeadraColors colors;
@@ -31,12 +51,147 @@ class CategoryPieChart extends StatefulWidget {
 }
 
 class _CategoryPieChartState extends State<CategoryPieChart> {
+  static const chartColors = [
+    Color(0xFF2196F3),
+    Color(0xFFF44336),
+    Color(0xFF4CAF50),
+    Color(0xFFFF9800),
+    Color(0xFF9C27B0),
+    Color(0xFF00BCD4),
+    Color(0xFFFF5722),
+    Color(0xFF607D8B),
+  ];
+
   int? _touchedIndex;
+  double _total = 0.0;
+  List<_PieSlice> _slices = const [];
+  List<PieChartSectionData> _sections = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _recompute();
+  }
+
+  @override
+  void didUpdateWidget(CategoryPieChart oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(widget.data, oldWidget.data) ||
+        widget.maxCategories != oldWidget.maxCategories ||
+        widget.currency != oldWidget.currency ||
+        !identical(widget.colors, oldWidget.colors)) {
+      _recompute();
+    }
+  }
 
   double _toDouble(dynamic v) {
     if (v is Decimal) return v.toDouble();
     if (v is num) return v.toDouble();
     return 0.0;
+  }
+
+  void _recompute() {
+    final total =
+        widget.data.fold<double>(0.0, (sum, d) => sum + _toDouble(d['amount']));
+    if (widget.data.isEmpty || total == 0.0) {
+      _total = total;
+      _slices = const [];
+      _sections = const [];
+      return;
+    }
+
+    final sortedData = List<Map<String, dynamic>>.from(widget.data)
+      ..sort(
+          (a, b) => _toDouble(b['amount']).compareTo(_toDouble(a['amount'])));
+
+    final top = <Map<String, dynamic>>[];
+    double otherAmount = 0.0;
+    for (int i = 0; i < sortedData.length; i++) {
+      final d = sortedData[i];
+      if (i < widget.maxCategories) {
+        top.add(d);
+      } else {
+        otherAmount += _toDouble(d['amount']);
+      }
+    }
+
+    final slices = <_PieSlice>[];
+    for (int i = 0; i < top.length; i++) {
+      final d = top[i];
+      final amount = _toDouble(d['amount']);
+      final color = d.containsKey('color') && d['color'] != null
+          ? PeadraTheme.hexToColor(d['color'] as String)
+          : chartColors[i % chartColors.length];
+      final itemCurrency = (d['currency'] as String?) ?? widget.currency;
+      final displayAmount = _toDouble(d['nativeValue'] ?? d['amount']);
+      final formatted = CurrencyService.formatAmount(
+          Decimal.parse(displayAmount.toStringAsFixed(2)), itemCurrency);
+      slices.add(_PieSlice(
+        label: d['label'] as String? ?? '',
+        amount: amount,
+        displayAmount: displayAmount,
+        itemCurrency: itemCurrency,
+        color: color,
+        formatted: formatted,
+        pct: total == 0.0 ? 0.0 : amount / total * 100,
+      ));
+    }
+    if (otherAmount > 0.0) {
+      final label = Translator.t('dash_other');
+      final itemCurrency = widget.currency;
+      final formatted = CurrencyService.formatAmount(
+          Decimal.parse(otherAmount.toStringAsFixed(2)), itemCurrency);
+      slices.add(_PieSlice(
+        label: label,
+        amount: otherAmount,
+        displayAmount: otherAmount,
+        itemCurrency: itemCurrency,
+        color: chartColors[top.length % chartColors.length],
+        formatted: formatted,
+        pct: total == 0.0 ? 0.0 : otherAmount / total * 100,
+      ));
+    }
+
+    _total = total;
+    _slices = slices;
+    _rebuildSections();
+  }
+
+  void _rebuildSections() {
+    final sections = <PieChartSectionData>[];
+    for (int i = 0; i < _slices.length; i++) {
+      final s = _slices[i];
+      final isTouched = _touchedIndex == i;
+      sections.add(
+        PieChartSectionData(
+          value: s.amount,
+          title: isTouched ? s.formatted : '',
+          color: s.color,
+          radius: isTouched ? 55.0 : 45.0,
+          titleStyle: const TextStyle(
+            color: Colors.white,
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      );
+    }
+    _sections = sections;
+  }
+
+  void _handleTouch(FlTouchEvent event, dynamic pieTouchResponse) {
+    int? newIndex;
+    if (event.isInterestedForInteractions &&
+        pieTouchResponse != null &&
+        pieTouchResponse.touchedSection != null) {
+      newIndex = pieTouchResponse.touchedSection!.touchedSectionIndex as int;
+    }
+    if (newIndex != _touchedIndex) {
+      setState(() {
+        _touchedIndex = newIndex;
+        _rebuildSections();
+      });
+    }
   }
 
   Widget _backButton({bool ignore = false}) {
@@ -90,9 +245,7 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
 
   @override
   Widget build(BuildContext context) {
-    final total = widget.data.fold<double>(
-        0.0, (sum, d) => sum + _toDouble(d['amount']));
-    if (widget.data.isEmpty || total == 0.0) {
+    if (_slices.isEmpty || _total == 0.0) {
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -107,67 +260,6 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
             ),
           ),
         ],
-      );
-    }
-
-    final chartColors = [
-      const Color(0xFF2196F3),
-      const Color(0xFFF44336),
-      const Color(0xFF4CAF50),
-      const Color(0xFFFF9800),
-      const Color(0xFF9C27B0),
-      const Color(0xFF00BCD4),
-      const Color(0xFFFF5722),
-      const Color(0xFF607D8B),
-    ];
-
-    final sortedData = List<Map<String, dynamic>>.from(widget.data)
-      ..sort((a, b) =>
-          _toDouble(b['amount']).compareTo(_toDouble(a['amount'])));
-
-    final processedData = <Map<String, dynamic>>[];
-    double otherAmount = 0.0;
-    for (int i = 0; i < sortedData.length; i++) {
-      final d = sortedData[i];
-      final amount = _toDouble(d['amount']);
-      if (i < widget.maxCategories) {
-        processedData.add(d);
-      } else {
-        otherAmount += amount;
-      }
-    }
-    if (otherAmount > 0.0) {
-      processedData.add(
-          {'label': Translator.t('dash_other'), 'amount': otherAmount});
-    }
-
-    final sections = <PieChartSectionData>[];
-    for (int i = 0; i < processedData.length; i++) {
-      final d = processedData[i];
-      final amount = _toDouble(d['amount']);
-      final color = d.containsKey('color') && d['color'] != null
-          ? PeadraTheme.hexToColor(d['color'] as String)
-          : chartColors[i % chartColors.length];
-      final isTouched = _touchedIndex == i;
-      final radius = isTouched ? 55.0 : 45.0;
-
-      final itemCurrency = (d['currency'] as String?) ?? widget.currency;
-      final displayAmount = _toDouble(d['nativeValue'] ?? d['amount']);
-
-      sections.add(
-        PieChartSectionData(
-          value: amount,
-          title: isTouched
-              ? CurrencyService.formatAmount(Decimal.parse(displayAmount.toStringAsFixed(2)), itemCurrency)
-              : '',
-          color: color,
-          radius: radius,
-          titleStyle: const TextStyle(
-            color: Colors.white,
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
       );
     }
 
@@ -186,34 +278,23 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
                 child: PieChart(
                   PieChartData(
                     pieTouchData: PieTouchData(
-                      touchCallback:
-                          (FlTouchEvent event, pieTouchResponse) {
+                      touchCallback: (FlTouchEvent event, pieTouchResponse) {
                         if (event is FlTapUpEvent &&
                             pieTouchResponse?.touchedSection != null &&
                             widget.onSectionTap != null) {
                           final tapIdx = pieTouchResponse!
                               .touchedSection!.touchedSectionIndex;
-                          if (tapIdx >= 0 && tapIdx < processedData.length) {
-                            final label =
-                                processedData[tapIdx]['label'] as String? ?? '';
+                          if (tapIdx >= 0 && tapIdx < _slices.length) {
+                            final label = _slices[tapIdx].label;
                             if (label.isNotEmpty) {
                               widget.onSectionTap!(label);
                             }
                           }
                         }
-                        setState(() {
-                          if (!event.isInterestedForInteractions ||
-                              pieTouchResponse == null ||
-                              pieTouchResponse.touchedSection == null) {
-                            _touchedIndex = null;
-                            return;
-                          }
-                          _touchedIndex = pieTouchResponse
-                              .touchedSection!.touchedSectionIndex;
-                        });
+                        _handleTouch(event, pieTouchResponse);
                       },
                     ),
-                    sections: sections,
+                    sections: _sections,
                     centerSpaceRadius: 25,
                     sectionsSpace: 2,
                     borderData: FlBorderData(show: false),
@@ -229,35 +310,23 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                     for (int i = 0;
-                        i < processedData.length &&
+                        i < _slices.length &&
                             i < widget.maxCategories + 1;
                         i++) ...[
                       Builder(
                         builder: (context) {
-                          final legendLabel =
-                              processedData[i]['label'] as String? ?? '';
+                          final s = _slices[i];
                           final tappable = widget.onSectionTap != null &&
-                              legendLabel.isNotEmpty;
+                              s.label.isNotEmpty;
                           final item = _legendItem(
-                            color: processedData[i].containsKey('color') &&
-                                    processedData[i]['color'] != null
-                                ? PeadraTheme.hexToColor(
-                                    processedData[i]['color'] as String)
-                                : chartColors[i % chartColors.length],
-                            label: legendLabel,
-                            amount: _toDouble(processedData[i]['amount']),
-                            displayAmount: _toDouble(processedData[i]['nativeValue'] ?? processedData[i]['amount']),
-                            itemCurrency:
-                                (processedData[i]['currency'] as String?) ??
-                                    widget.currency,
-                            pct: _toDouble(processedData[i]['amount']) /
-                                total *
-                                100,
+                            color: s.color,
+                            label: s.label,
+                            displayAmount: s.formatted,
                           );
                           if (!tappable) return item;
                           return InkWell(
                             borderRadius: BorderRadius.circular(4),
-                            onTap: () => widget.onSectionTap!(legendLabel),
+                            onTap: () => widget.onSectionTap!(s.label),
                             child: item,
                           );
                         },
@@ -278,10 +347,7 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
   Widget _legendItem({
     required Color color,
     required String label,
-    required double amount,
-    required double displayAmount,
-    required String itemCurrency,
-    required double pct,
+    required String displayAmount,
   }) {
     return Row(
       children: [
@@ -302,7 +368,7 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
           ),
         ),
         Text(
-          CurrencyService.formatAmount(Decimal.parse(displayAmount.toStringAsFixed(2)), itemCurrency),
+          displayAmount,
           style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
         ),
       ],

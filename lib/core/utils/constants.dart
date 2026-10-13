@@ -1,4 +1,4 @@
-const int dbVersion = 8;
+const int dbVersion = 9;
 const String dbName = 'peadra.db';
 
 const int defaultDisplayLimit = 30;
@@ -11,6 +11,7 @@ const String defaultDashboardPieView = 'tags';
 const bool defaultLineChartDots = true;
 const String defaultAssetsGranularity = 'monthly';
 const bool defaultShowNavLabels = false;
+const bool defaultShowStatSubtitles = true;
 const bool defaultHideUpdateNotifications = false;
 
 const int globalSettingsUserId = 0;

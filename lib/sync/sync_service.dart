@@ -50,9 +50,6 @@ class SyncService {
 
   Future<void> forgetPeer(String peerId) => _peerStorage.delete(peerId);
 
-  /// Whether Wi-Fi is currently available.
-  bool get isWifiAvailable => _wifiMonitor.isWifiAvailable;
-
   /// Emits devices seen on the local network (used while scanning a QR).
   Stream<DiscoveredService> get onPeerDiscovered =>
       _manager?.discovery.onServiceFound ?? const Stream.empty();

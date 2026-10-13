@@ -63,8 +63,6 @@ class ImportPreview {
   final List<String> headers;
   final List<List<String>> rows;
   final List<ImportMapping> suggestedMappings;
-  final String detectedType;
-  final CsvDialect detectedDialect;
   final String? filePath;
   final String? fileHash;
   final bool alreadyImported;
@@ -73,8 +71,6 @@ class ImportPreview {
     required this.headers,
     required this.rows,
     required this.suggestedMappings,
-    required this.detectedType,
-    required this.detectedDialect,
     this.filePath,
     this.fileHash,
     this.alreadyImported = false,
@@ -114,12 +110,6 @@ class ImportService {
   static const int maxErrors = 50;
 
   // --- Keyword lists for type detection ---
-  static final _incomeKeywords = [
-    'income', 'credit', 'deposit', 'transfer in', 'revenue',
-    'reçu', 'dépôt', 'transfert entrant',
-    'ingreso', 'ingresos', 'abono', 'abonos', 'transferencia entrante',
-  ];
-
   static final _dateKeywords = ['date', 'day', 'time', 'posted', 'transaction date', 'fecha', 'día', 'dia'];
   static final _amountKeywords = ['amount', 'sum', 'total', 'value', 'montant', 'valeur', 'importe', 'cantidad'];
   static final _creditKeywords = ['credit', 'credit amount', 'crédit', 'abono', 'haber'];
@@ -131,8 +121,12 @@ class ImportService {
   /// Calculate the SHA-256 hash of a file (hex string).
   Future<String> calculateFileHash(String path) async {
     final bytes = await _readFileBytes(path);
-    return sha256.convert(bytes).toString();
+    return hashBytes(bytes);
   }
+
+  /// SHA-256 hex digest of in-memory [bytes]. Shared by the preview/import
+  /// paths so the digest logic lives in one place.
+  static String hashBytes(List<int> bytes) => sha256.convert(bytes).toString();
 
   /// Legacy (pre-hardening) hash, kept only to recognise files that were
   /// marked as imported by older app versions.
@@ -248,7 +242,7 @@ class ImportService {
   /// Parse CSV content and auto-detect column mappings.
   Future<ImportPreview> previewCsv(String filePath, {String? delimiter}) async {
     final bytes = await _readFileBytes(filePath);
-    final hash = sha256.convert(bytes).toString();
+    final hash = hashBytes(bytes);
 
     // Check if already imported (current marker, plus legacy marker for
     // files imported by older app versions).
@@ -264,22 +258,10 @@ class ImportService {
     // Auto-detect column mappings
     final mappings = _autoMapColumns(headers);
 
-    // Detect type from header name
-    String detectedType = 'expense';
-    final headerLower = headers.join(' ').toLowerCase();
-    for (final kw in _incomeKeywords) {
-      if (headerLower.contains(kw)) {
-        detectedType = 'income';
-        break;
-      }
-    }
-
     return ImportPreview(
       headers: headers,
       rows: dataRows.take(5).toList(),
       suggestedMappings: mappings,
-      detectedType: detectedType,
-      detectedDialect: dialect,
       filePath: filePath,
       fileHash: hash,
       alreadyImported: alreadyImported,
@@ -924,7 +906,7 @@ class ImportService {
     }
 
     final bytes = await _readFileBytes(filePath);
-    final hash = sha256.convert(bytes).toString();
+    final hash = hashBytes(bytes);
 
     if (expectedFileHash != null && expectedFileHash != hash) {
       throw Exception('The file changed since the preview; please pick it again');

@@ -60,7 +60,7 @@ class UpdateService {
   Future<UpdateInfo?> checkForUpdate() async {
     try {
       final url = Uri.parse(
-          'https://api.github.com/repos/Arthurfert/Peadra/releases/latest');
+          'https://api.github.com/repos/$_repoOwner/$_repoName/releases/latest');
       final response = await http.get(url).timeout(const Duration(seconds: 10));
 
       LogService().log('Update check: HTTP ${response.statusCode}');

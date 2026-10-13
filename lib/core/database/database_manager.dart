@@ -33,6 +33,7 @@ class DatabaseManager {
   final Map<String, String?> _appSettingCache = {};
   final Map<String, String> _descriptionCache = {};
   final Map<String, double?> _exchangeRateCache = {};
+  final Map<String, String?> _accountCurrencyCache = {};
   SecretKey? _encryptionKey;
   final Uuid _uuid = const Uuid();
 
@@ -646,6 +647,12 @@ class DatabaseManager {
         'CREATE INDEX IF NOT EXISTS idx_goals_user ON goals(user_id)',
       );
     }
+    // v8 -> v9: indexes for recurring/goal/account lookups.
+    // _createIndexes is idempotent (IF NOT EXISTS), so re-running it
+    // backfills the new indexes on existing databases.
+    if (oldVersion < 9) {
+      await _createIndexes(db);
+    }
   }
 
   Future<void> _createIndexes(CrdtTableExecutor db) async {
@@ -669,6 +676,21 @@ class DatabaseManager {
     );
     await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_goals_user ON goals(user_id)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_transactions_recurring ON transactions(recurring_id)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_recurring_account ON recurring_transactions(account_id)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_goals_account ON goals(account_id)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_goals_tag ON goals(tag_id)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_accounts_type_user ON accounts(type, user_id)',
     );
   }
 
@@ -887,6 +909,8 @@ void setUserId(String userId) {
     _userId = userId;
     _descriptionCache.clear();
     _exchangeRateCache.clear();
+    _accountCurrencyCache.clear();
+    _invalidateTagColorsCache();
     _insertDefaultAccounts();
     cleanupUnusedDescriptions();
   }
@@ -900,6 +924,8 @@ void setUserId(String userId) {
     _userId = userId;
     _descriptionCache.clear();
     _exchangeRateCache.clear();
+    _accountCurrencyCache.clear();
+    _invalidateTagColorsCache();
   }
 
   Future<void> _insertDefaultAccounts() async {
@@ -1049,6 +1075,7 @@ void setUserId(String userId) {
     args.add(accountId);
     args.add(_userId);
     await db.execute(sql, args);
+    _accountCurrencyCache.remove('${_userId}_$accountId');
 
     if (updateNameInTransactions && oldName != name) {
       await _updateTransferNames(db, oldName, name);
@@ -1156,6 +1183,7 @@ void setUserId(String userId) {
       'DELETE FROM goals WHERE account_id = ? AND user_id = ?',
       [accountId, _userId],
     );
+    _accountCurrencyCache.remove('${_userId}_$accountId');
     return true;
   }
 
@@ -1449,6 +1477,7 @@ void setUserId(String userId) {
       'INSERT INTO tags (id, user_id, name, color) VALUES (?1, ?2, ?3, ?4)',
       [id, _userId, name, color],
     );
+    _invalidateTagColorsCache();
     return id;
   }
 
@@ -1504,6 +1533,7 @@ void setUserId(String userId) {
       'DELETE FROM tags WHERE id = ? AND user_id = ?',
       [tagId, _userId],
     );
+    _invalidateTagColorsCache();
     return true;
   }
 
@@ -1531,6 +1561,7 @@ void setUserId(String userId) {
     args.add(tagId);
     args.add(_userId);
     await db.execute(sql, args);
+    _invalidateTagColorsCache();
     return true;
   }
 
@@ -1548,12 +1579,17 @@ void setUserId(String userId) {
     );
     await db.execute('DELETE FROM tags WHERE id = ? AND user_id = ?', [tagId, _userId]);
     await db.execute('DELETE FROM goals WHERE tag_id = ? AND user_id = ?', [tagId, _userId]);
+    _invalidateTagColorsCache();
     return true;
   }
 
   // ==================== TRANSACTIONS ====================
 
   Future<String?> getAccountCurrency(String accountId) async {
+    final cacheKey = '${_userId}_$accountId';
+    if (_accountCurrencyCache.containsKey(cacheKey)) {
+      return _accountCurrencyCache[cacheKey];
+    }
     final db = await database;
     final result = await db.query(
       'SELECT currency FROM accounts WHERE id = ? AND user_id = ? AND is_deleted = 0',
@@ -1561,8 +1597,10 @@ void setUserId(String userId) {
     );
     if (result.isEmpty) return null;
     final curr = result.first['currency'] as String?;
-    if (curr != null && CurrencyService.isValid(curr)) return curr;
-    return null;
+    final valid =
+        curr != null && CurrencyService.isValid(curr) ? curr : null;
+    _accountCurrencyCache[cacheKey] = valid;
+    return valid;
   }
 
   Future<String?> addTransaction({
@@ -1668,6 +1706,50 @@ void setUserId(String userId) {
     return true;
   }
 
+  Future<TransactionWithDetails> _transactionFromRow(
+      Map<String, Object?> r) async {
+    final decrypted = await Future.wait([
+      _decryptAmount(r['amount']),
+      _decryptValue(r['notes']),
+      _decryptValue(r['account_name']),
+      _decryptValue(r['description_name']),
+    ]);
+    return TransactionWithDetails(
+      id: r['id'] as String?,
+      userId: r['user_id'] as String,
+      accountId: r['account_id'] as String?,
+      descriptionId: r['description_id'] as String?,
+      tagId: r['tag_id'] as String?,
+      date: r['date'] as String,
+      amount: decrypted[0] as Decimal,
+      transactionType: r['transaction_type'] as String,
+      currency: r['currency'] as String? ?? 'EUR',
+      notes: decrypted[1] as String?,
+      recurringId: r['recurring_id'] as String?,
+      createdAt: r['created_at'] as String?,
+      updatedAt: r['updated_at'] as String?,
+      accountName: decrypted[2] as String?,
+      accountColor: r['account_color'] as String?,
+      accountCurrency: r['account_currency'] as String?,
+      descriptionName: decrypted[3] as String?,
+      tagName: r['tag_name'] as String?,
+      tagColor: r['tag_color'] as String?,
+      recurringFrequency: r['recurring_frequency'] as String?,
+    );
+  }
+
+  static const _txnJoin = '''
+      SELECT t.*, a.name as account_name, a.color as account_color,
+             a.currency as account_currency, d.name as description_name,
+             tg.name as tag_name, tg.color as tag_color,
+             rt.frequency as recurring_frequency
+      FROM transactions t
+      LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0
+      LEFT JOIN descriptions d ON t.description_id = d.id AND d.is_deleted = 0
+      LEFT JOIN tags tg ON t.tag_id = tg.id AND tg.is_deleted = 0
+      LEFT JOIN recurring_transactions rt ON t.recurring_id = rt.id AND rt.is_deleted = 0
+  ''';
+
   Future<List<TransactionWithDetails>> getTransactions({
     int? limit,
     int offset = 0,
@@ -1692,60 +1774,38 @@ void setUserId(String userId) {
       args.addAll(tagIds);
     }
 
+    // Without a search filter the ordering is fully determined by SQL, so
+    // paginate there instead of decrypting the whole history in Dart.
+    // Encrypted fields can't be filtered in SQL, so the search path still
+    // scans (with an early break once the page is filled).
+    final paginated = searchQuery.isEmpty && limit != null;
     final query = '''
-      SELECT t.*, a.name as account_name, a.color as account_color,
-             a.currency as account_currency, d.name as description_name,
-             tg.name as tag_name, tg.color as tag_color,
-             rt.frequency as recurring_frequency
-      FROM transactions t
-      LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0
-      LEFT JOIN descriptions d ON t.description_id = d.id AND d.is_deleted = 0
-      LEFT JOIN tags tg ON t.tag_id = tg.id AND tg.is_deleted = 0
-      LEFT JOIN recurring_transactions rt ON t.recurring_id = rt.id AND rt.is_deleted = 0
+      $_txnJoin
       WHERE ${where.join(' AND ')}
       ORDER BY t.date DESC, COALESCE(t.updated_at, t.created_at) DESC, t.id DESC
+      ${paginated ? 'LIMIT ? OFFSET ?' : ''}
     ''';
+    if (paginated) args.addAll([limit, offset]);
 
     final rows = await db.query(query, args);
+
+    if (paginated) {
+      return Future.wait(rows.map(_transactionFromRow));
+    }
 
     final results = <TransactionWithDetails>[];
     final sq = searchQuery.toLowerCase();
     for (final r in rows) {
-      final amount = await _decryptAmount(r['amount']);
-      final notes = await _decryptValue(r['notes']);
-      final accountName = await _decryptValue(r['account_name']);
-      final descriptionName = await _decryptValue(r['description_name']);
+      final txn = await _transactionFromRow(r);
 
       if (searchQuery.isNotEmpty) {
-        final descMatch = descriptionName?.toLowerCase().contains(sq) ?? false;
-        final acctMatch = accountName?.toLowerCase().contains(sq) ?? false;
-        final tagName = r['tag_name'] as String?;
-        final tagMatch = tagName?.toLowerCase().contains(sq) ?? false;
+        final descMatch = txn.descriptionName?.toLowerCase().contains(sq) ?? false;
+        final acctMatch = txn.accountName?.toLowerCase().contains(sq) ?? false;
+        final tagMatch = txn.tagName?.toLowerCase().contains(sq) ?? false;
         if (!descMatch && !acctMatch && !tagMatch) continue;
       }
 
-      results.add(TransactionWithDetails(
-        id: r['id'] as String?,
-        userId: r['user_id'] as String,
-        accountId: r['account_id'] as String?,
-        descriptionId: r['description_id'] as String?,
-        tagId: r['tag_id'] as String?,
-        date: r['date'] as String,
-        amount: amount,
-        transactionType: r['transaction_type'] as String,
-        currency: r['currency'] as String? ?? 'EUR',
-        notes: notes,
-        recurringId: r['recurring_id'] as String?,
-        createdAt: r['created_at'] as String?,
-        updatedAt: r['updated_at'] as String?,
-        accountName: accountName,
-        accountColor: r['account_color'] as String?,
-        accountCurrency: r['account_currency'] as String?,
-        descriptionName: descriptionName,
-        tagName: r['tag_name'] as String?,
-        tagColor: r['tag_color'] as String?,
-        recurringFrequency: r['recurring_frequency'] as String?,
-      ));
+      results.add(txn);
 
       if (limit != null && results.length >= limit + offset) break;
     }
@@ -1755,101 +1815,53 @@ void setUserId(String userId) {
 
   Future<List<TransactionWithDetails>> getTransactionsByKeys(
       Iterable<({String accountId, String date, String type})> keys) async {
-    if (keys.isEmpty) return const [];
+    final keyList = keys.toList();
+    if (keyList.isEmpty) return const [];
     final db = await database;
-    final results = <TransactionWithDetails>[];
 
-    for (final k in keys) {
-      final rows = await db.query(
-        '''
-        SELECT t.*, a.name as account_name, a.color as account_color,
-               a.currency as account_currency, d.name as description_name,
-               tg.name as tag_name, tg.color as tag_color,
-               rt.frequency as recurring_frequency
-        FROM transactions t
-        LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0
-        LEFT JOIN descriptions d ON t.description_id = d.id AND d.is_deleted = 0
-        LEFT JOIN tags tg ON t.tag_id = tg.id AND tg.is_deleted = 0
-        LEFT JOIN recurring_transactions rt ON t.recurring_id = rt.id AND rt.is_deleted = 0
-        WHERE t.user_id = ? AND t.is_deleted = 0
-          AND t.account_id = ? AND t.date = ? AND t.transaction_type = ?
-        ''',
-        [_userId, k.accountId, k.date, k.type],
-      );
-
-      for (final r in rows) {
-        final amount = await _decryptAmount(r['amount']);
-        final notes = await _decryptValue(r['notes']);
-        final accountName = await _decryptValue(r['account_name']);
-        final descriptionName = await _decryptValue(r['description_name']);
-        results.add(TransactionWithDetails(
-          id: r['id'] as String?,
-          userId: r['user_id'] as String,
-          accountId: r['account_id'] as String?,
-          descriptionId: r['description_id'] as String?,
-          tagId: r['tag_id'] as String?,
-          date: r['date'] as String,
-          amount: amount,
-          transactionType: r['transaction_type'] as String,
-          currency: r['currency'] as String? ?? 'EUR',
-          notes: notes,
-          recurringId: r['recurring_id'] as String?,
-          createdAt: r['created_at'] as String?,
-          updatedAt: r['updated_at'] as String?,
-          accountName: accountName,
-          accountColor: r['account_color'] as String?,
-          accountCurrency: r['account_currency'] as String?,
-          descriptionName: descriptionName,
-          tagName: r['tag_name'] as String?,
-          tagColor: r['tag_color'] as String?,
-          recurringFrequency: r['recurring_frequency'] as String?,
-        ));
-      }
+    final placeholders = keyList.map((_) => '(?, ?, ?)').join(', ');
+    final args = <Object?>[_userId];
+    for (final k in keyList) {
+      args.addAll([k.accountId, k.date, k.type]);
     }
-    return results;
+
+    final rows = await db.query(
+      '''
+      $_txnJoin
+      WHERE t.user_id = ? AND t.is_deleted = 0
+        AND (t.account_id, t.date, t.transaction_type) IN ($placeholders)
+      ''',
+      args,
+    );
+    return Future.wait(rows.map(_transactionFromRow));
   }
 
   Future<List<TransactionWithDetails>> getTransactionsByPeriod(
-      String startDate, String endDate) async {
+    String startDate,
+    String endDate, {
+    Set<String>? accountIds,
+  }) async {
     final db = await database;
+    final where = <String>[
+      't.date BETWEEN ? AND ?',
+      't.user_id = ?',
+      't.is_deleted = 0',
+    ];
+    final args = <Object?>[startDate, endDate, _userId];
+    if (accountIds != null && accountIds.isNotEmpty) {
+      final placeholders = accountIds.map((_) => '?').join(', ');
+      where.add('t.account_id IN ($placeholders)');
+      args.addAll(accountIds);
+    }
     final rows = await db.query('''
-      SELECT t.*, a.name as account_name, a.color as account_color,
-             a.currency as account_currency, d.name as description_name,
-             tg.name as tag_name, tg.color as tag_color,
-             rt.frequency as recurring_frequency
-      FROM transactions t
-      LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0
-      LEFT JOIN descriptions d ON t.description_id = d.id AND d.is_deleted = 0
-      LEFT JOIN tags tg ON t.tag_id = tg.id AND tg.is_deleted = 0
-      LEFT JOIN recurring_transactions rt ON t.recurring_id = rt.id AND rt.is_deleted = 0
-      WHERE t.date BETWEEN ? AND ? AND t.user_id = ? AND t.is_deleted = 0
+      $_txnJoin
+      WHERE ${where.join(' AND ')}
       ORDER BY t.date DESC
-    ''', [startDate, endDate, _userId]);
+    ''', args);
 
     final results = <TransactionWithDetails>[];
     for (final r in rows) {
-      results.add(TransactionWithDetails(
-        id: r['id'] as String?,
-        userId: r['user_id'] as String,
-        accountId: r['account_id'] as String?,
-        descriptionId: r['description_id'] as String?,
-        tagId: r['tag_id'] as String?,
-        date: r['date'] as String,
-        amount: await _decryptAmount(r['amount']),
-        transactionType: r['transaction_type'] as String,
-        currency: r['currency'] as String? ?? 'EUR',
-        notes: await _decryptValue(r['notes']),
-        recurringId: r['recurring_id'] as String?,
-        createdAt: r['created_at'] as String?,
-        updatedAt: r['updated_at'] as String?,
-        accountName: await _decryptValue(r['account_name']),
-        accountColor: r['account_color'] as String?,
-        accountCurrency: r['account_currency'] as String?,
-        descriptionName: await _decryptValue(r['description_name']),
-        tagName: r['tag_name'] as String?,
-        tagColor: r['tag_color'] as String?,
-        recurringFrequency: r['recurring_frequency'] as String?,
-      ));
+      results.add(await _transactionFromRow(r));
     }
     return results;
   }
@@ -1882,7 +1894,7 @@ void setUserId(String userId) {
 
     final start = DateTime.parse(startDate);
     final anchorDay = start.day;
-    final computedDow = dayOfWeek ?? RecurringService.isoWeekday(start);
+    final computedDow = dayOfWeek ?? start.weekday;
     final computedDom = dayOfMonth ?? anchorDay;
 
     final id = _newId();
@@ -2088,14 +2100,6 @@ void setUserId(String userId) {
     await db.execute(
       'DELETE FROM transactions WHERE recurring_id = ? AND user_id = ? AND date > ?',
       [recurringId, _userId, todayStr],
-    );
-  }
-
-  Future<void> clearRecurringOccurrenceDeleted(String recurringId, String date) async {
-    final db = await database;
-    await db.execute(
-      'DELETE FROM recurring_exceptions WHERE recurring_id = ? AND date = ?',
-      [recurringId, date],
     );
   }
 
@@ -2610,6 +2614,89 @@ void setUserId(String userId) {
     return {'income': income, 'expenses': expenses, 'balance': income - expenses};
   }
 
+  /// Lifetime totals used for the dashboard averages section.
+  ///
+  /// Same conventions as [getMonthlySummary]: checking accounts only
+  /// (plus orphan transactions), transfers excluded, past and present
+  /// transactions only. [months] counts calendar months from the first
+  /// recorded transaction to today (minimum 1).
+  Future<Map<String, dynamic>> getLifetimeStats({String targetCurrency = 'EUR'}) async {
+    final db = await database;
+    final now = DateTime.now();
+    final endDate = now.toIso8601String().substring(0, 10);
+
+    final firstDate = await getFirstTransactionDate();
+    int months = 1;
+    if (firstDate != null) {
+      final first = DateTime.parse(firstDate);
+      months = (now.year - first.year) * 12 + (now.month - first.month) + 1;
+      if (months < 1) months = 1;
+    }
+
+    final acctRows = await db.query(
+      'SELECT starting_amount, currency FROM accounts WHERE user_id = ? AND is_deleted = 0',
+      [_userId],
+    );
+    Decimal startingTotal = Decimal.zero;
+    for (final row in acctRows) {
+      final amount = await _decryptAmount(row['starting_amount']);
+      final acctCurrency = (row['currency'] as String?) ?? 'EUR';
+      if (amount == Decimal.zero) continue;
+      if (acctCurrency == targetCurrency) {
+        startingTotal += amount;
+      } else {
+        final rate = await getExchangeRate(acctCurrency, targetCurrency);
+        startingTotal += amount * Decimal.parse((rate ?? 1.0).toString());
+      }
+    }
+
+    final txnRows = await db.query(
+      'SELECT t.amount, t.transaction_type, t.account_id, '
+      'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency, a.type as account_type, '
+      'd.name as description_name '
+      'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
+      'LEFT JOIN descriptions d ON t.description_id = d.id AND d.is_deleted = 0 '
+      'WHERE t.date <= ? AND t.user_id = ? AND t.is_deleted = 0',
+      [endDate, _userId],
+    );
+
+    Decimal income = Decimal.zero;
+    Decimal expenses = Decimal.zero;
+    for (final row in txnRows) {
+      final accountType = row['account_type'] as String?;
+      final hasAccount = row['account_id'] != null;
+      if (accountType != 'checking' && hasAccount) continue;
+
+      final desc = await _decryptValue(row['description_name']);
+      if (desc != null && _isTransferDescription(desc)) continue;
+
+      final amount = await _decryptAmount(row['amount']);
+      final type = row['transaction_type'] as String;
+      final txnCurrency = (row['currency'] as String?) ?? 'EUR';
+
+      Decimal convertedAmount;
+      if (txnCurrency == targetCurrency) {
+        convertedAmount = amount;
+      } else {
+        final rate = await getExchangeRate(txnCurrency, targetCurrency);
+        convertedAmount = amount * Decimal.parse((rate ?? 1.0).toString());
+      }
+
+      if (type == 'income') {
+        income += convertedAmount;
+      } else if (type == 'expense') {
+        expenses += convertedAmount;
+      }
+    }
+    return {
+      'income': income,
+      'expenses': expenses,
+      'startingTotal': startingTotal,
+      'firstDate': firstDate,
+      'months': months,
+    };
+  }
+
   Future<List<Map<String, dynamic>>> getAccountsDistribution(
       {String targetCurrency = 'EUR', String? endDate}) async {
     final db = await database;
@@ -2963,11 +3050,7 @@ void setUserId(String userId) {
     final db = await database;
     final now = DateTime.now();
 
-    final earliestResult = await db.query(
-      'SELECT MIN(date) as earliest FROM transactions WHERE user_id = ? AND is_deleted = 0',
-      [_userId],
-    );
-    final earliestDate = earliestResult.first['earliest'] as String?;
+    final earliestDate = await getFirstTransactionDate();
 
     int effectiveMonths = months;
     if (earliestDate != null) {
@@ -3523,17 +3606,30 @@ void setUserId(String userId) {
     );
   }
 
+  Map<String, String>? _tagColorsCache;
+  String? _tagColorsCacheUser;
+
   Future<Map<String, String>> getTagColors() async {
     if (_userId == null) return {};
+    if (_tagColorsCache != null && _tagColorsCacheUser == _userId) {
+      return _tagColorsCache!;
+    }
     final db = await database;
     final rows = await db.query(
       'SELECT name, color FROM tags WHERE user_id = ? AND is_deleted = 0',
       [_userId],
     );
-    return {
+    _tagColorsCache = {
       for (final r in rows)
         (r['name'] as String): (r['color'] as String? ?? '#1976D2'),
     };
+    _tagColorsCacheUser = _userId;
+    return _tagColorsCache!;
+  }
+
+  void _invalidateTagColorsCache() {
+    _tagColorsCache = null;
+    _tagColorsCacheUser = null;
   }
 
   // ==================== GOALS ====================
@@ -3954,6 +4050,8 @@ void setUserId(String userId) {
         }
       }
       _exchangeRateCache.clear();
+    _accountCurrencyCache.clear();
+    _invalidateTagColorsCache();
       return true;
     } catch (_) {
       return false;
@@ -3978,14 +4076,6 @@ void setUserId(String userId) {
     );
     if (result.isNotEmpty) rate = (result.first['rate'] as num).toDouble();
 
-    if (rate == null && fromCurrency == 'EUR') {
-      result = await db.query(
-        'SELECT rate FROM exchange_rates WHERE from_currency = ? AND to_currency = ? AND is_deleted = 0',
-        ['EUR', toCurrency],
-      );
-      if (result.isNotEmpty) rate = (result.first['rate'] as num).toDouble();
-    }
-
     if (rate == null) {
       // Inverse
       result = await db.query(
@@ -3995,8 +4085,11 @@ void setUserId(String userId) {
       if (result.isNotEmpty) rate = 1.0 / (result.first['rate'] as num).toDouble();
     }
 
-    if (rate == null) {
-      // Via EUR
+    if (rate == null && fromCurrency != 'EUR' && toCurrency != 'EUR') {
+      // Via EUR. Guarded to pairs where neither side is EUR: EUR-based
+      // pairs resolve via direct/inverse lookups above, and recursing
+      // here with fromCurrency == 'EUR' would re-enter this same branch
+      // forever on an empty rates table.
       final fromEur = await getExchangeRate('EUR', fromCurrency);
       final toEur = await getExchangeRate('EUR', toCurrency);
       if (fromEur != null && toEur != null) rate = toEur / fromEur;
@@ -4037,15 +4130,6 @@ void setUserId(String userId) {
 
   // ==================== CRDT (SYNC) HELPERS ====================
 
-  /// Changes this node's CRDT identity. Safe to call after opening the
-  /// database; used when the node id is first provisioned.
-  Future<void> resetCrdtNodeId(String nodeId) async {
-    final crdt = await database;
-    await crdt.resetNodeId(nodeId);
-  }
-
-  String? get crdtNodeId => _database?.nodeId;
-
   /// Generates a changeset of all rows modified after [since]. Used by the
   /// sync layer.
   Future<CrdtChangeset> getChangeset({String? since, Iterable<String>? onlyTables}) async {
@@ -4064,6 +4148,8 @@ void setUserId(String userId) {
     _settingCache.clear();
     _appSettingCache.clear();
     _exchangeRateCache.clear();
+    _accountCurrencyCache.clear();
+    _invalidateTagColorsCache();
   }
 
   // ==================== CLOSE ====================
@@ -4216,6 +4302,8 @@ void setUserId(String userId) {
     _appSettingCache.clear();
     _descriptionCache.clear();
     _exchangeRateCache.clear();
+    _accountCurrencyCache.clear();
+    _invalidateTagColorsCache();
     _userId = null;
     _encryptionKey = null;
 

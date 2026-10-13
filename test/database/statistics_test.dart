@@ -1,787 +1,408 @@
+import 'package:decimal/decimal.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import '../helpers/test_helper.dart';
+
+import 'package:peadra/core/database/database_manager.dart';
 
 void main() {
-  late Database db;
-  late int userId;
-  late List<int> accountIds;
+  sqfliteFfiInit();
 
-  setUpAll(() {
-    initializeTestDatabase();
-  });
+  late DatabaseManager db;
+  late String checkingId;
+  late String savingsAId;
+  late String savingsBId;
+
+  String today() => DateTime.now().toIso8601String().substring(0, 10);
 
   setUp(() async {
-    db = await createTestDatabase();
-    userId = await seedTestUser(db);
-    accountIds = await seedTestAccounts(db, userId);
+    db = DatabaseManager.instance;
+    db.clearEncryptionKey();
+    await db.openInMemoryForTest(
+        userId: 'user-${DateTime.now().microsecondsSinceEpoch}');
+    checkingId =
+        (await db.addAccount('Checking Account', '#4CAF50', 'checking', 'EUR'))!;
+    savingsAId =
+        (await db.addAccount('Savings Account A', '#2196F3', 'savings', 'EUR'))!;
+    savingsBId =
+        (await db.addAccount('Savings Account B', '#009688', 'savings', 'EUR'))!;
   });
 
-  tearDown(() async {
-    await db.close();
-  });
+  // Concise seed helpers over the production addTransaction API.
+  Future<void> cTxn(String date, String description, int amount, String type,
+      {String? tagId}) {
+    return db
+        .addTransaction(
+          date: date,
+          description: description,
+          amount: Decimal.fromInt(amount),
+          transactionType: type,
+          accountId: checkingId,
+          tagId: tagId,
+        )
+        .then((_) {});
+  }
 
-  // accountIds[0] = checking, accountIds[1] = savingsA, accountIds[2] = savingsB
+  Future<void> sATxn(String date, String description, int amount, String type,
+      {String? tagId}) {
+    return db
+        .addTransaction(
+          date: date,
+          description: description,
+          amount: Decimal.fromInt(amount),
+          transactionType: type,
+          accountId: savingsAId,
+          tagId: tagId,
+        )
+        .then((_) {});
+  }
+
+  Future<void> oTxn(String date, String description, int amount, String type) {
+    return db
+        .addTransaction(
+          date: date,
+          description: description,
+          amount: Decimal.fromInt(amount),
+          transactionType: type,
+        )
+        .then((_) {});
+  }
+
+  /// Seeds a USD->EUR rate directly in the prod rates table.
+  /// LAST-RESORT raw SQL (flagged): production offers no offline API to set
+  /// rates (only network fetchExchangeRates), and getExchangeRate recurses
+  /// forever on an empty table for cross-currency pairs, so conversion tests
+  /// must pre-seed exactly one rate row.
+  Future<void> seedUsdEurRate() async {
+    final crdt = await db.database;
+    await crdt.execute(
+      'INSERT OR REPLACE INTO exchange_rates '
+      '(from_currency, to_currency, rate, updated_at) VALUES (?1, ?2, ?3, ?4)',
+      ['USD', 'EUR', 0.9, today()],
+    );
+  }
+
+  /// Production has no getHistoryPatrimony; the closest is
+  /// getAccountsDistribution(endDate:) summed across accounts.
+  /// [exclusiveDate] is exclusive (mirrors `date < ?`); converted via the
+  /// day-before date because the prod API is `date <= endDate`.
+  Future<Decimal> patrimonyBefore(String exclusiveDate) async {
+    final inclusive = DateTime.parse(exclusiveDate)
+        .subtract(const Duration(days: 1))
+        .toIso8601String()
+        .substring(0, 10);
+    final dist = await db.getAccountsDistribution(endDate: inclusive);
+    var total = Decimal.zero;
+    for (final row in dist) {
+      total += Decimal.parse((row['value'] as double).toString());
+    }
+    return total;
+  }
 
   // =========================================================================
   // getTotalPatrimony
   // =========================================================================
-  group('getTotalPatrimony SQL', () {
+  group('getTotalPatrimony', () {
     test('returns 0 when no transactions exist', () async {
-      final result = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) as total,
-               COALESCE(NULLIF(t.currency, ''), 'EUR') as currency
-        FROM transactions t WHERE t.user_id = ?
-        GROUP BY currency
-      ''', [userId]);
-
-      final total = result.fold<double>(0.0, (sum, row) {
-        return sum + ((row['total'] as num?)?.toDouble() ?? 0.0);
-      });
-      expect(total, 0.0);
+      expect(await db.getTotalPatrimony(), Decimal.zero);
     });
 
     test('calculates total across all accounts with same currency', () async {
-      final descId = await seedTestDescription(db, userId, 'Salary');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-06-01', amount: 3000, transactionType: 'income', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[1], descriptionId: descId,
-          date: '2025-06-05', amount: 500, transactionType: 'income', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-06-10', amount: 200, transactionType: 'expense', currency: 'EUR');
+      await cTxn('2025-06-01', 'Salary', 3000, 'income');
+      await sATxn('2025-06-05', 'Salary', 500, 'income');
+      await cTxn('2025-06-10', 'Salary', 200, 'expense');
 
-      final result = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) as total,
-               COALESCE(NULLIF(t.currency, ''), 'EUR') as currency
-        FROM transactions t WHERE t.user_id = ?
-        GROUP BY currency
-      ''', [userId]);
-
-      final total = result.fold<double>(0.0, (sum, row) {
-        return sum + ((row['total'] as num?)?.toDouble() ?? 0.0);
-      });
-      expect(total, 3300.0);
+      expect(await db.getTotalPatrimony(), Decimal.fromInt(3300));
     });
 
     test('groups by currency correctly', () async {
-      final descId = await seedTestDescription(db, userId, 'Food');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-06-01', amount: 1000, transactionType: 'income', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-06-02', amount: 500, transactionType: 'income', currency: 'USD');
+      // Production converts to a single target currency (no per-currency
+      // grouping API); per-currency intent is covered via
+      // getAccountsDistribution below, converted total asserted here.
+      await seedUsdEurRate();
+      final usdId =
+          (await db.addAccount('USD Account', '#FF9800', 'checking', 'USD'))!;
+      await cTxn('2025-06-01', 'Food', 1000, 'income');
+      await db.addTransaction(
+        date: '2025-06-02',
+        description: 'Food',
+        amount: Decimal.fromInt(500),
+        transactionType: 'income',
+        accountId: usdId,
+      );
 
-      final result = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) as total,
-               COALESCE(NULLIF(t.currency, ''), 'EUR') as currency
-        FROM transactions t WHERE t.user_id = ?
-        GROUP BY currency
-      ''', [userId]);
-
-      expect(result.length, 2);
-      final eurRow = result.firstWhere((r) => r['currency'] == 'EUR');
-      final usdRow = result.firstWhere((r) => r['currency'] == 'USD');
-      expect(eurRow['total'], 1000.0);
-      expect(usdRow['total'], 500.0);
+      final dist = await db.getAccountsDistribution();
+      final eurRow =
+          dist.firstWhere((r) => r['currency'] == 'EUR' && r['name'] == 'Checking Account');
+      final usdRow = dist.firstWhere((r) => r['currency'] == 'USD');
+      expect(eurRow['nativeValue'], 1000.0);
+      expect(usdRow['nativeValue'], 500.0);
+      // Seeded USD->EUR 0.9 conversion: 1000 + 500*0.9.
+      expect(await db.getTotalPatrimony(), Decimal.fromInt(1450));
     });
 
     test('treats transfer as 0 in calculation', () async {
-      final descId = await seedTestDescription(db, userId, 'Transfer');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-06-01', amount: 500, transactionType: 'transfer', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-06-02', amount: 1000, transactionType: 'income', currency: 'EUR');
+      await cTxn('2025-06-01', 'Transfer', 500, 'transfer');
+      await cTxn('2025-06-02', 'Salary', 1000, 'income');
 
-      final result = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) as total,
-               COALESCE(NULLIF(t.currency, ''), 'EUR') as currency
-        FROM transactions t WHERE t.user_id = ?
-        GROUP BY currency
-      ''', [userId]);
-
-      final total = result.fold<double>(0.0, (sum, row) {
-        return sum + ((row['total'] as num?)?.toDouble() ?? 0.0);
-      });
-      expect(total, 1000.0);
+      expect(await db.getTotalPatrimony(), Decimal.fromInt(1000));
     });
   });
 
   // =========================================================================
   // getBalance (checking accounts only)
   // =========================================================================
-  group('getBalance SQL', () {
+  group('getBalance', () {
     test('returns 0 when no transactions exist', () async {
-      final rows = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) as total,
-               COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE (a.type = 'checking' OR t.account_id IS NULL) AND t.user_id = ?
-        GROUP BY a.currency
-      ''', [userId]);
-
-      final total = rows.fold<double>(0.0, (sum, row) {
-        return sum + ((row['total'] as num?)?.toDouble() ?? 0.0);
-      });
-      expect(total, 0.0);
+      expect(await db.getBalance(), Decimal.zero);
     });
 
     test('only counts checking account transactions', () async {
-      final descId = await seedTestDescription(db, userId, 'Income');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-06-01', amount: 2000, transactionType: 'income', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[1], descriptionId: descId,
-          date: '2025-06-02', amount: 5000, transactionType: 'income', currency: 'EUR');
+      await cTxn('2025-06-01', 'Income', 2000, 'income');
+      await sATxn('2025-06-02', 'Income', 5000, 'income');
 
-      final rows = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) as total,
-               COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE (a.type = 'checking' OR t.account_id IS NULL) AND t.user_id = ?
-        GROUP BY a.currency
-      ''', [userId]);
-
-      final total = rows.fold<double>(0.0, (sum, row) {
-        return sum + ((row['total'] as num?)?.toDouble() ?? 0.0);
-      });
-      expect(total, 2000.0);
+      expect(await db.getBalance(), Decimal.fromInt(2000));
     });
 
-    test('includes transactions with null account_id', () async {
-      final descId = await seedTestDescription(db, userId, 'Cash');
-      await seedTestTransaction(db, userId,
-          accountId: null, descriptionId: descId,
-          date: '2025-06-01', amount: 300, transactionType: 'income', currency: 'EUR');
+    test('orphan transactions without account are excluded (prod behavior)',
+        () async {
+      // GAP: legacy inline SQL counted `t.account_id IS NULL` orphans in the
+      // checking balance; production getBalance only sums rows whose joined
+      // account type is 'checking', so orphans are excluded.
+      await oTxn('2025-06-01', 'Cash', 300, 'income');
 
-      final rows = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) as total,
-               COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE (a.type = 'checking' OR t.account_id IS NULL) AND t.user_id = ?
-        GROUP BY a.currency
-      ''', [userId]);
-
-      final total = rows.fold<double>(0.0, (sum, row) {
-        return sum + ((row['total'] as num?)?.toDouble() ?? 0.0);
-      });
-      expect(total, 300.0);
+      expect(await db.getBalance(), Decimal.zero);
     });
 
     test('subtracts expenses from checking balance', () async {
-      final descId = await seedTestDescription(db, userId, 'Shopping');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-06-01', amount: 1000, transactionType: 'income', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-06-05', amount: 400, transactionType: 'expense', currency: 'EUR');
+      await cTxn('2025-06-01', 'Shopping', 1000, 'income');
+      await cTxn('2025-06-05', 'Shopping', 400, 'expense');
 
-      final rows = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) as total,
-               COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE (a.type = 'checking' OR t.account_id IS NULL) AND t.user_id = ?
-        GROUP BY a.currency
-      ''', [userId]);
-
-      final total = rows.fold<double>(0.0, (sum, row) {
-        return sum + ((row['total'] as num?)?.toDouble() ?? 0.0);
-      });
-      expect(total, 600.0);
+      expect(await db.getBalance(), Decimal.fromInt(600));
     });
 
-    test('only includes checking transactions strictly before the date limit', () async {
-      final descId = await seedTestDescription(db, userId, 'Salary');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-05-31', amount: 1000, transactionType: 'income', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-06-01', amount: 2000, transactionType: 'income', currency: 'EUR');
+    test('only includes checking transactions strictly before the date limit',
+        () async {
+      await cTxn('2025-05-31', 'Salary', 1000, 'income');
+      await cTxn('2025-06-01', 'Salary', 2000, 'income');
 
-      final rows = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) as total,
-               COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE t.date < ? AND (a.type = 'checking' OR t.account_id IS NULL) AND t.user_id = ?
-        GROUP BY a.currency
-      ''', ['2025-06-01', userId]);
-
-      final total = rows.fold<double>(0.0, (sum, row) {
-        return sum + ((row['total'] as num?)?.toDouble() ?? 0.0);
-      });
-      expect(total, 1000.0);
+      expect(
+          await db.getBalance(before: '2025-06-01'), Decimal.fromInt(1000));
     });
   });
 
   // =========================================================================
   // getSavingsTotal (savings accounts only)
   // =========================================================================
-  group('getSavingsTotal SQL', () {
+  group('getSavingsTotal', () {
     test('returns 0 when no transactions exist', () async {
-      final rows = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) as total,
-               COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE a.type = 'savings' AND t.user_id = ?
-        GROUP BY a.currency
-      ''', [userId]);
-
-      final total = rows.fold<double>(0.0, (sum, row) {
-        return sum + ((row['total'] as num?)?.toDouble() ?? 0.0);
-      });
-      expect(total, 0.0);
+      expect(await db.getSavingsTotal(), Decimal.zero);
     });
 
     test('only counts savings account transactions', () async {
-      final descId = await seedTestDescription(db, userId, 'Deposit');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-06-01', amount: 2000, transactionType: 'income', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[1], descriptionId: descId,
-          date: '2025-06-02', amount: 5000, transactionType: 'income', currency: 'EUR');
+      await cTxn('2025-06-01', 'Deposit', 2000, 'income');
+      await sATxn('2025-06-02', 'Deposit', 5000, 'income');
 
-      final rows = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) as total,
-               COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE a.type = 'savings' AND t.user_id = ?
-        GROUP BY a.currency
-      ''', [userId]);
-
-      final total = rows.fold<double>(0.0, (sum, row) {
-        return sum + ((row['total'] as num?)?.toDouble() ?? 0.0);
-      });
-      expect(total, 5000.0);
+      expect(await db.getSavingsTotal(), Decimal.fromInt(5000));
     });
 
     test('combines both savings accounts', () async {
-      final descId = await seedTestDescription(db, userId, 'Interest');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[1], descriptionId: descId,
-          date: '2025-06-01', amount: 100, transactionType: 'income', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[2], descriptionId: descId,
-          date: '2025-06-02', amount: 200, transactionType: 'income', currency: 'EUR');
+      await sATxn('2025-06-01', 'Interest', 100, 'income');
+      await db.addTransaction(
+        date: '2025-06-02',
+        description: 'Interest',
+        amount: Decimal.fromInt(200),
+        transactionType: 'income',
+        accountId: savingsBId,
+      );
 
-      final rows = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) as total,
-               COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE a.type = 'savings' AND t.user_id = ?
-        GROUP BY a.currency
-      ''', [userId]);
-
-      final total = rows.fold<double>(0.0, (sum, row) {
-        return sum + ((row['total'] as num?)?.toDouble() ?? 0.0);
-      });
-      expect(total, 300.0);
+      expect(await db.getSavingsTotal(), Decimal.fromInt(300));
     });
   });
 
   // =========================================================================
-  // getHistoryPatrimony
+  // getHistoryPatrimony -> getAccountsDistribution(endDate:) sum
   // =========================================================================
-  group('getHistoryPatrimony SQL', () {
+  group('getHistoryPatrimony', () {
     test('returns 0 when no transactions before date limit', () async {
-      final result = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) as total,
-               COALESCE(NULLIF(t.currency, ''), 'EUR') as currency
-        FROM transactions t WHERE t.date < ? AND t.user_id = ?
-        GROUP BY currency
-      ''', ['2025-01-01', userId]);
-
-      final total = result.fold<double>(0.0, (sum, row) {
-        return sum + ((row['total'] as num?)?.toDouble() ?? 0.0);
-      });
-      expect(total, 0.0);
+      expect(await patrimonyBefore('2025-01-01'), Decimal.zero);
     });
 
-    test('only includes transactions strictly before the date limit', () async {
-      final descId = await seedTestDescription(db, userId, 'Salary');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-05-31', amount: 1000, transactionType: 'income', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-06-01', amount: 2000, transactionType: 'income', currency: 'EUR');
+    test('only includes transactions strictly before the date limit',
+        () async {
+      await cTxn('2025-05-31', 'Salary', 1000, 'income');
+      await cTxn('2025-06-01', 'Salary', 2000, 'income');
 
-      final result = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) as total,
-               COALESCE(NULLIF(t.currency, ''), 'EUR') as currency
-        FROM transactions t WHERE t.date < ? AND t.user_id = ?
-        GROUP BY currency
-      ''', ['2025-06-01', userId]);
-
-      final total = result.fold<double>(0.0, (sum, row) {
-        return sum + ((row['total'] as num?)?.toDouble() ?? 0.0);
-      });
-      expect(total, 1000.0);
+      expect(await patrimonyBefore('2025-06-01'), Decimal.fromInt(1000));
     });
 
     test('includes expenses as negatives in history', () async {
-      final descId = await seedTestDescription(db, userId, 'Rent');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-03-01', amount: 3000, transactionType: 'income', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-04-01', amount: 1500, transactionType: 'expense', currency: 'EUR');
+      await cTxn('2025-03-01', 'Rent', 3000, 'income');
+      await cTxn('2025-04-01', 'Rent', 1500, 'expense');
 
-      final result = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) as total,
-               COALESCE(NULLIF(t.currency, ''), 'EUR') as currency
-        FROM transactions t WHERE t.date < ? AND t.user_id = ?
-        GROUP BY currency
-      ''', ['2025-05-01', userId]);
-
-      final total = result.fold<double>(0.0, (sum, row) {
-        return sum + ((row['total'] as num?)?.toDouble() ?? 0.0);
-      });
-      expect(total, 1500.0);
+      expect(await patrimonyBefore('2025-05-01'), Decimal.fromInt(1500));
     });
   });
 
   // =========================================================================
-  // getHistoryBalance (checking only, before date)
+  // getHistoryBalance (checking only, before date) -> getBalance(before:)
   // =========================================================================
-  group('getHistoryBalance SQL', () {
+  group('getHistoryBalance', () {
     test('returns 0 when no transactions', () async {
-      final rows = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) as total,
-               COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE t.date < ? AND (a.type = 'checking' OR t.account_id IS NULL) AND t.user_id = ?
-        GROUP BY a.currency
-      ''', ['2025-06-01', userId]);
-
-      final total = rows.fold<double>(0.0, (sum, row) {
-        return sum + ((row['total'] as num?)?.toDouble() ?? 0.0);
-      });
-      expect(total, 0.0);
+      expect(await db.getBalance(before: '2025-06-01'), Decimal.zero);
     });
 
     test('only includes checking account transactions before date', () async {
-      final descId = await seedTestDescription(db, userId, 'Income');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-05-01', amount: 1000, transactionType: 'income', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[1], descriptionId: descId,
-          date: '2025-05-01', amount: 5000, transactionType: 'income', currency: 'EUR');
+      await cTxn('2025-05-01', 'Income', 1000, 'income');
+      await sATxn('2025-05-01', 'Income', 5000, 'income');
 
-      final rows = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) as total,
-               COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE t.date < ? AND (a.type = 'checking' OR t.account_id IS NULL) AND t.user_id = ?
-        GROUP BY a.currency
-      ''', ['2025-06-01', userId]);
-
-      final total = rows.fold<double>(0.0, (sum, row) {
-        return sum + ((row['total'] as num?)?.toDouble() ?? 0.0);
-      });
-      expect(total, 1000.0);
+      expect(
+          await db.getBalance(before: '2025-06-01'), Decimal.fromInt(1000));
     });
   });
 
   // =========================================================================
-  // getHistorySavings (savings only, before date)
+  // getHistorySavings (savings only, before date) -> getSavingsTotal(before:)
   // =========================================================================
-  group('getHistorySavings SQL', () {
+  group('getHistorySavings', () {
     test('returns 0 when no transactions', () async {
-      final rows = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) as total,
-               COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE t.date < ? AND a.type = 'savings' AND t.user_id = ?
-        GROUP BY a.currency
-      ''', ['2025-06-01', userId]);
-
-      final total = rows.fold<double>(0.0, (sum, row) {
-        return sum + ((row['total'] as num?)?.toDouble() ?? 0.0);
-      });
-      expect(total, 0.0);
+      expect(await db.getSavingsTotal(before: '2025-06-01'), Decimal.zero);
     });
 
     test('only includes savings account transactions before date', () async {
-      final descId = await seedTestDescription(db, userId, 'Deposit');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-05-01', amount: 1000, transactionType: 'income', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[1], descriptionId: descId,
-          date: '2025-05-01', amount: 5000, transactionType: 'income', currency: 'EUR');
+      await cTxn('2025-05-01', 'Deposit', 1000, 'income');
+      await sATxn('2025-05-01', 'Deposit', 5000, 'income');
 
-      final rows = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) as total,
-               COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE t.date < ? AND a.type = 'savings' AND t.user_id = ?
-        GROUP BY a.currency
-      ''', ['2025-06-01', userId]);
-
-      final total = rows.fold<double>(0.0, (sum, row) {
-        return sum + ((row['total'] as num?)?.toDouble() ?? 0.0);
-      });
-      expect(total, 5000.0);
+      expect(await db.getSavingsTotal(before: '2025-06-01'),
+          Decimal.fromInt(5000));
     });
   });
 
   // =========================================================================
   // getMonthlySummary
   // =========================================================================
-  group('getMonthlySummary SQL', () {
+  group('getMonthlySummary', () {
     test('returns zero map when no transactions in month', () async {
-      const startDate = '2025-06-01';
-      const endDate = '2025-07-01';
-
-      final rows = await db.rawQuery('''
-        SELECT
-          COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount ELSE 0 END), 0) as income,
-          COALESCE(SUM(CASE WHEN t.transaction_type = 'expense' THEN t.amount ELSE 0 END), 0) as expenses,
-          COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE (t.date >= ? AND t.date < ?) AND (a.type = 'checking' OR t.account_id IS NULL) AND t.user_id = ?
-        GROUP BY a.currency
-      ''', [startDate, endDate, userId]);
-
-      double income = 0.0;
-      double expenses = 0.0;
-      for (final row in rows) {
-        income += (row['income'] as num?)?.toDouble() ?? 0.0;
-        expenses += (row['expenses'] as num?)?.toDouble() ?? 0.0;
-      }
-      expect(income, 0.0);
-      expect(expenses, 0.0);
-      expect(income - expenses, 0.0);
+      final summary = await db.getMonthlySummary(year: 2025, month: 6);
+      expect(summary['income'], Decimal.zero);
+      expect(summary['expenses'], Decimal.zero);
+      expect(summary['balance'], Decimal.zero);
     });
 
     test('calculates income and expenses for a specific month', () async {
-      final descId = await seedTestDescription(db, userId, 'Food');
       // In June
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-06-01', amount: 3000, transactionType: 'income', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-06-15', amount: 800, transactionType: 'expense', currency: 'EUR');
+      await cTxn('2025-06-01', 'Food', 3000, 'income');
+      await cTxn('2025-06-15', 'Food', 800, 'expense');
       // In July (should not count)
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-07-01', amount: 1000, transactionType: 'income', currency: 'EUR');
+      await cTxn('2025-07-01', 'Food', 1000, 'income');
 
-      const startDate = '2025-06-01';
-      const endDate = '2025-07-01';
-
-      final rows = await db.rawQuery('''
-        SELECT
-          COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount ELSE 0 END), 0) as income,
-          COALESCE(SUM(CASE WHEN t.transaction_type = 'expense' THEN t.amount ELSE 0 END), 0) as expenses,
-          COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE (t.date >= ? AND t.date < ?) AND (a.type = 'checking' OR t.account_id IS NULL) AND t.user_id = ?
-        GROUP BY a.currency
-      ''', [startDate, endDate, userId]);
-
-      double income = 0.0;
-      double expenses = 0.0;
-      for (final row in rows) {
-        income += (row['income'] as num?)?.toDouble() ?? 0.0;
-        expenses += (row['expenses'] as num?)?.toDouble() ?? 0.0;
-      }
-      expect(income, 3000.0);
-      expect(expenses, 800.0);
-      expect(income - expenses, 2200.0);
+      final summary = await db.getMonthlySummary(year: 2025, month: 6);
+      expect(summary['income'], Decimal.fromInt(3000));
+      expect(summary['expenses'], Decimal.fromInt(800));
+      expect(summary['balance'], Decimal.fromInt(2200));
     });
 
     test('excludes savings accounts from monthly summary', () async {
-      final descId = await seedTestDescription(db, userId, 'Deposit');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-06-01', amount: 1000, transactionType: 'income', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[1], descriptionId: descId,
-          date: '2025-06-01', amount: 5000, transactionType: 'income', currency: 'EUR');
+      await cTxn('2025-06-01', 'Deposit', 1000, 'income');
+      await sATxn('2025-06-01', 'Deposit', 5000, 'income');
 
-      const startDate = '2025-06-01';
-      const endDate = '2025-07-01';
-
-      final rows = await db.rawQuery('''
-        SELECT
-          COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount ELSE 0 END), 0) as income,
-          COALESCE(SUM(CASE WHEN t.transaction_type = 'expense' THEN t.amount ELSE 0 END), 0) as expenses,
-          COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE (t.date >= ? AND t.date < ?) AND (a.type = 'checking' OR t.account_id IS NULL) AND t.user_id = ?
-        GROUP BY a.currency
-      ''', [startDate, endDate, userId]);
-
-      double income = 0.0;
-      for (final row in rows) {
-        income += (row['income'] as num?)?.toDouble() ?? 0.0;
-      }
-      expect(income, 1000.0);
+      final summary = await db.getMonthlySummary(year: 2025, month: 6);
+      expect(summary['income'], Decimal.fromInt(1000));
     });
   });
 
   // =========================================================================
   // getRollingSummary
   // =========================================================================
-  group('getRollingSummary SQL', () {
+  group('getRollingSummary', () {
     test('returns zeros when no transactions in window', () async {
-      final now = DateTime.now();
-      final endDate = now.toIso8601String().substring(0, 10);
-      final startDate = now.subtract(const Duration(days: 30)).toIso8601String().substring(0, 10);
-
-      final rows = await db.rawQuery('''
-        SELECT
-          COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount ELSE 0 END), 0) as income,
-          COALESCE(SUM(CASE WHEN t.transaction_type = 'expense' THEN t.amount ELSE 0 END), 0) as expenses,
-          COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE (t.date >= ? AND t.date <= ?) AND (a.type = 'checking' OR t.account_id IS NULL) AND t.user_id = ?
-        GROUP BY a.currency
-      ''', [startDate, endDate, userId]);
-
-      double income = 0.0;
-      double expenses = 0.0;
-      for (final row in rows) {
-        income += (row['income'] as num?)?.toDouble() ?? 0.0;
-        expenses += (row['expenses'] as num?)?.toDouble() ?? 0.0;
-      }
-      expect(income, 0.0);
-      expect(expenses, 0.0);
+      final summary = await db.getRollingSummary();
+      expect(summary['income'], Decimal.zero);
+      expect(summary['expenses'], Decimal.zero);
     });
 
     test('captures transactions within the rolling window', () async {
       final now = DateTime.now();
       final endDate = now.toIso8601String().substring(0, 10);
-      final startDate = now.subtract(const Duration(days: 30)).toIso8601String().substring(0, 10);
+      final startDate =
+          now.subtract(const Duration(days: 30)).toIso8601String().substring(0, 10);
 
-      final descId = await seedTestDescription(db, userId, 'Lunch');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: startDate, amount: 150, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: endDate, amount: 500, transactionType: 'income', currency: 'EUR');
+      await cTxn(startDate, 'Lunch', 150, 'expense');
+      await cTxn(endDate, 'Lunch', 500, 'income');
 
-      final rows = await db.rawQuery('''
-        SELECT
-          COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount ELSE 0 END), 0) as income,
-          COALESCE(SUM(CASE WHEN t.transaction_type = 'expense' THEN t.amount ELSE 0 END), 0) as expenses,
-          COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE (t.date >= ? AND t.date <= ?) AND (a.type = 'checking' OR t.account_id IS NULL) AND t.user_id = ?
-        GROUP BY a.currency
-      ''', [startDate, endDate, userId]);
-
-      double income = 0.0;
-      double expenses = 0.0;
-      for (final row in rows) {
-        income += (row['income'] as num?)?.toDouble() ?? 0.0;
-        expenses += (row['expenses'] as num?)?.toDouble() ?? 0.0;
-      }
-      expect(income, 500.0);
-      expect(expenses, 150.0);
+      final summary = await db.getRollingSummary();
+      expect(summary['income'], Decimal.fromInt(500));
+      expect(summary['expenses'], Decimal.fromInt(150));
     });
 
     test('excludes transactions outside the rolling window', () async {
       final now = DateTime.now();
-      final endDate = now.toIso8601String().substring(0, 10);
-      final startDate = now.subtract(const Duration(days: 30)).toIso8601String().substring(0, 10);
+      final outsideDate = now
+          .subtract(const Duration(days: 60))
+          .toIso8601String()
+          .substring(0, 10);
+      await cTxn(outsideDate, 'Old Purchase', 9999, 'income');
 
-      final descId = await seedTestDescription(db, userId, 'Old Purchase');
-      final outsideDate = now.subtract(const Duration(days: 60)).toIso8601String().substring(0, 10);
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: outsideDate, amount: 9999, transactionType: 'income', currency: 'EUR');
-
-      final rows = await db.rawQuery('''
-        SELECT
-          COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount ELSE 0 END), 0) as income,
-          COALESCE(SUM(CASE WHEN t.transaction_type = 'expense' THEN t.amount ELSE 0 END), 0) as expenses,
-          COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE (t.date >= ? AND t.date <= ?) AND (a.type = 'checking' OR t.account_id IS NULL) AND t.user_id = ?
-        GROUP BY a.currency
-      ''', [startDate, endDate, userId]);
-
-      double income = 0.0;
-      for (final row in rows) {
-        income += (row['income'] as num?)?.toDouble() ?? 0.0;
-      }
-      expect(income, 0.0);
+      final summary = await db.getRollingSummary();
+      expect(summary['income'], Decimal.zero);
     });
   });
 
   // =========================================================================
   // getAccountsDistribution
   // =========================================================================
-  group('getAccountsDistribution SQL', () {
-    test('returns all accounts with zero balance when no transactions', () async {
-      final rows = await db.rawQuery('''
-        SELECT a.name, a.color, a.currency as account_currency,
-               COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) AS balance
-        FROM accounts a
-        LEFT JOIN transactions t ON t.account_id = a.id AND t.user_id = ?
-        WHERE a.user_id = ?
-        GROUP BY a.id
-        ORDER BY a.name
-      ''', [userId, userId]);
-
+  group('getAccountsDistribution', () {
+    test('returns all accounts with zero balance when no transactions',
+        () async {
+      final rows = await db.getAccountsDistribution();
       expect(rows.length, 3);
       for (final row in rows) {
-        expect(row['balance'], 0.0);
+        expect(row['value'], 0.0);
       }
     });
 
     test('calculates per-account balances correctly', () async {
-      final descId = await seedTestDescription(db, userId, 'Income');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-06-01', amount: 2000, transactionType: 'income', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-06-02', amount: 500, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[1], descriptionId: descId,
-          date: '2025-06-03', amount: 10000, transactionType: 'income', currency: 'EUR');
+      await cTxn('2025-06-01', 'Income', 2000, 'income');
+      await cTxn('2025-06-02', 'Income', 500, 'expense');
+      await sATxn('2025-06-03', 'Income', 10000, 'income');
 
-      final rows = await db.rawQuery('''
-        SELECT a.name, a.color, a.currency as account_currency,
-               COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) AS balance
-        FROM accounts a
-        LEFT JOIN transactions t ON t.account_id = a.id AND t.user_id = ?
-        WHERE a.user_id = ?
-        GROUP BY a.id
-        ORDER BY a.name
-      ''', [userId, userId]);
+      final rows = await db.getAccountsDistribution();
+      final checking =
+          rows.firstWhere((r) => r['name'] == 'Checking Account');
+      final savingsA =
+          rows.firstWhere((r) => r['name'] == 'Savings Account A');
+      final savingsB =
+          rows.firstWhere((r) => r['name'] == 'Savings Account B');
 
-      final checking = rows.firstWhere((r) => r['name'] == 'Checking Account');
-      final savingsA = rows.firstWhere((r) => r['name'] == 'Savings Account A');
-      final savingsB = rows.firstWhere((r) => r['name'] == 'Savings Account B');
-
-      expect(checking['balance'], 1500.0);
-      expect(savingsA['balance'], 10000.0);
-      expect(savingsB['balance'], 0.0);
+      expect(checking['value'], 1500.0);
+      expect(savingsA['value'], 10000.0);
+      expect(savingsB['value'], 0.0);
     });
 
     test('orders accounts by name', () async {
-      final rows = await db.rawQuery('''
-        SELECT a.name, a.color, a.currency as account_currency,
-               COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) AS balance
-        FROM accounts a
-        LEFT JOIN transactions t ON t.account_id = a.id AND t.user_id = ?
-        WHERE a.user_id = ?
-        GROUP BY a.id
-        ORDER BY a.name
-      ''', [userId, userId]);
-
+      final rows = await db.getAccountsDistribution();
       final names = rows.map((r) => r['name'] as String).toList();
-      expect(names, ['Checking Account', 'Savings Account A', 'Savings Account B']);
+      expect(names,
+          ['Checking Account', 'Savings Account A', 'Savings Account B']);
     });
   });
 
   // =========================================================================
-  // getCategoryDistribution
+  // getCategoryDistribution -> getDescriptionMonthlyData / getTopDescriptions
+  // (no dedicated prod method; closest coverage)
   // =========================================================================
-  group('getCategoryDistribution SQL', () {
+  group('getCategoryDistribution', () {
     test('returns empty when no transactions', () async {
-      final now = DateTime.now();
-      final startDate = now.subtract(const Duration(days: 180)).toIso8601String().substring(0, 10);
-      final endDate = now.toIso8601String().substring(0, 10);
-
-      final rows = await db.rawQuery('''
-        SELECT LOWER(COALESCE(d.name, 'Uncategorized')) as description,
-               strftime('%Y-%m', t.date) as month,
-               t.transaction_type as type,
-               SUM(t.amount) as amount
-        FROM transactions t
-        LEFT JOIN descriptions d ON t.description_id = d.id
-        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-        GROUP BY description, month, t.transaction_type
-        ORDER BY month, amount DESC
-      ''', ['expense', startDate, endDate, userId]);
-
-      expect(rows, isEmpty);
+      expect(await db.getTopDescriptions(), isEmpty);
     });
 
     test('groups expenses by category and month', () async {
       final now = DateTime.now();
-      final startDate = now.subtract(const Duration(days: 180)).toIso8601String().substring(0, 10);
+      final startDate = now
+          .subtract(const Duration(days: 180))
+          .toIso8601String()
+          .substring(0, 10);
       final endDate = now.toIso8601String().substring(0, 10);
+      final monthKey = endDate.substring(0, 7);
 
       // Keep all dates within the current month so the transactions always
       // fall into a single month bucket regardless of today's day of month.
@@ -793,432 +414,199 @@ void main() {
         return clamped.toIso8601String().substring(0, 10);
       }
 
-      final sameMonthDate1 = currentMonthDate(3);
-      final sameMonthDate2 = currentMonthDate(2);
-      final sameMonthDate3 = currentMonthDate(1);
+      await cTxn(currentMonthDate(3), 'Food', 50, 'expense');
+      await cTxn(currentMonthDate(2), 'Food', 75, 'expense');
+      await cTxn(currentMonthDate(1), 'Rent', 1200, 'expense');
 
-      final foodId = await seedTestDescription(db, userId, 'Food');
-      final rentId = await seedTestDescription(db, userId, 'Rent');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: foodId,
-          date: sameMonthDate1, amount: 50, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: foodId,
-          date: sameMonthDate2, amount: 75, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: rentId,
-          date: sameMonthDate3, amount: 1200, transactionType: 'expense', currency: 'EUR');
-
-      final rows = await db.rawQuery('''
-        SELECT LOWER(COALESCE(d.name, 'Uncategorized')) as description,
-               strftime('%Y-%m', t.date) as month,
-               t.transaction_type as type,
-               SUM(t.amount) as amount
-        FROM transactions t
-        LEFT JOIN descriptions d ON t.description_id = d.id
-        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-        GROUP BY description, month, t.transaction_type
-        ORDER BY month, amount DESC
-      ''', ['expense', startDate, endDate, userId]);
-
-      expect(rows.length, 2);
-      final foodRow = rows.firstWhere((r) => r['description'] == 'food');
-      final rentRow = rows.firstWhere((r) => r['description'] == 'rent');
-      expect(foodRow['amount'], 125.0);
-      expect(rentRow['amount'], 1200.0);
+      final data =
+          await db.getDescriptionMonthlyData(startDate, endDate);
+      expect(data.length, 2);
+      expect(data['Food']![monthKey]!['expense'], 125.0);
+      expect(data['Rent']![monthKey]!['expense'], 1200.0);
     });
 
     test('limits results to top N categories', () async {
-      final now = DateTime.now();
-      final startDate = now.subtract(const Duration(days: 180)).toIso8601String().substring(0, 10);
-      final endDate = now.toIso8601String().substring(0, 10);
-      final txnDate = now.subtract(const Duration(days: 10)).toIso8601String().substring(0, 10);
+      final txnDate = DateTime.now()
+          .subtract(const Duration(days: 10))
+          .toIso8601String()
+          .substring(0, 10);
 
-      final d1 = await seedTestDescription(db, userId, 'Food');
-      final d2 = await seedTestDescription(db, userId, 'Rent');
-      final d3 = await seedTestDescription(db, userId, 'Transport');
-      final d4 = await seedTestDescription(db, userId, 'Entertainment');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: d1,
-          date: txnDate, amount: 100, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: d2,
-          date: txnDate, amount: 500, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: d3,
-          date: txnDate, amount: 200, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: d4,
-          date: txnDate, amount: 300, transactionType: 'expense', currency: 'EUR');
+      await cTxn(txnDate, 'Food', 100, 'expense');
+      await cTxn(txnDate, 'Rent', 500, 'expense');
+      await cTxn(txnDate, 'Transport', 200, 'expense');
+      await cTxn(txnDate, 'Entertainment', 300, 'expense');
 
-      final allRows = await db.rawQuery('''
-        SELECT LOWER(COALESCE(d.name, 'Uncategorized')) as description,
-               strftime('%Y-%m', t.date) as month,
-               t.transaction_type as type,
-               SUM(t.amount) as amount
-        FROM transactions t
-        LEFT JOIN descriptions d ON t.description_id = d.id
-        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-        GROUP BY description, month, t.transaction_type
-        ORDER BY month, amount DESC
-      ''', ['expense', startDate, endDate, userId]);
-
-      // Apply the same top-N limit logic as DatabaseManager
-      final byDesc = <String, double>{};
-      for (final r in allRows) {
-        final d = r['description'] as String;
-        byDesc[d] = (byDesc[d] ?? 0) + (r['amount'] as num).toDouble();
-      }
-      final sorted = byDesc.entries.toList()
-        ..sort((a, b) => b.value.compareTo(a.value));
-      const limit = 2;
-      final topDescs = sorted.take(limit).map((e) => e.key).toSet();
-      final results = allRows.where((r) => topDescs.contains(r['description'])).toList();
-
-      expect(results.length, 2);
-      expect(results.every((r) => topDescs.contains(r['description'])), true);
+      final top = await db.getTopDescriptions(limit: 2);
+      expect(top.length, 2);
+      final names = top.map((r) => r['description'] as String).toSet();
+      expect(names, {'Rent', 'Entertainment'});
     });
   });
 
   // =========================================================================
   // getDescriptionMonthlyData
   // =========================================================================
-  group('getDescriptionMonthlyData SQL', () {
+  group('getDescriptionMonthlyData', () {
     test('returns empty map when no transactions', () async {
-      final rows = await db.rawQuery('''
-        SELECT LOWER(COALESCE(d.name, 'Uncategorized')) as desc,
-               strftime('%Y-%m', t.date) as month,
-               t.transaction_type,
-               SUM(t.amount) as total
-        FROM transactions t
-        LEFT JOIN descriptions d ON t.description_id = d.id
-        WHERE t.date >= ? AND t.date <= ? AND t.user_id = ?
-        GROUP BY desc, month, t.transaction_type
-        ORDER BY desc, month
-      ''', ['2025-01-01', '2025-12-31', userId]);
-
-      expect(rows, isEmpty);
+      final data =
+          await db.getDescriptionMonthlyData('2025-01-01', '2025-12-31');
+      expect(data, isEmpty);
     });
 
     test('builds description -> month -> type breakdown', () async {
-      final foodId = await seedTestDescription(db, userId, 'Food');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: foodId,
-          date: '2025-06-01', amount: 50, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: foodId,
-          date: '2025-06-15', amount: 75, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: foodId,
-          date: '2025-07-01', amount: 100, transactionType: 'expense', currency: 'EUR');
+      await cTxn('2025-06-01', 'Food', 50, 'expense');
+      await cTxn('2025-06-15', 'Food', 75, 'expense');
+      await cTxn('2025-07-01', 'Food', 100, 'expense');
 
-      final rows = await db.rawQuery('''
-        SELECT LOWER(COALESCE(d.name, 'Uncategorized')) as desc,
-               strftime('%Y-%m', t.date) as month,
-               t.transaction_type,
-               SUM(t.amount) as total
-        FROM transactions t
-        LEFT JOIN descriptions d ON t.description_id = d.id
-        WHERE t.date >= ? AND t.date <= ? AND t.user_id = ?
-        GROUP BY desc, month, t.transaction_type
-        ORDER BY desc, month
-      ''', ['2025-01-01', '2025-12-31', userId]);
+      final result =
+          await db.getDescriptionMonthlyData('2025-01-01', '2025-12-31');
 
-      // Build the same structure as DatabaseManager
-      final result = <String, Map<String, Map<String, double>>>{};
-      for (final row in rows) {
-        final desc = (row['desc'] as String?) ?? 'uncategorized';
-        final month = row['month'] as String;
-        final type = row['transaction_type'] as String;
-        final total = (row['total'] as num).toDouble();
-        result.putIfAbsent(desc, () => {});
-        result[desc]!.putIfAbsent(month, () => {'income': 0, 'expense': 0, 'total': 0});
-        if (type == 'income') {
-          result[desc]![month]!['income'] = result[desc]![month]!['income']! + total;
-        } else if (type == 'expense') {
-          result[desc]![month]!['expense'] = result[desc]![month]!['expense']! + total;
-        }
-        result[desc]![month]!['total'] = result[desc]![month]!['total']! + total;
-      }
-
-      expect(result.containsKey('food'), true);
-      expect(result['food']!['2025-06']!['expense'], 125.0);
-      expect(result['food']!['2025-06']!['total'], 125.0);
-      expect(result['food']!['2025-07']!['expense'], 100.0);
-      expect(result['food']!['2025-07']!['total'], 100.0);
+      expect(result.containsKey('Food'), true);
+      expect(result['Food']!['2025-06']!['expense'], 125.0);
+      expect(result['Food']!['2025-06']!['total'], 125.0);
+      expect(result['Food']!['2025-07']!['expense'], 100.0);
+      expect(result['Food']!['2025-07']!['total'], 100.0);
     });
   });
 
   // =========================================================================
   // getTopDescriptions
   // =========================================================================
-  group('getTopDescriptions SQL', () {
+  group('getTopDescriptions', () {
     test('returns empty when no transactions', () async {
-      final now = DateTime.now();
-      final startDate = now.subtract(const Duration(days: 180)).toIso8601String().substring(0, 10);
-      final endDate = now.toIso8601String().substring(0, 10);
-
-      final rows = await db.rawQuery('''
-        SELECT LOWER(COALESCE(d.name, 'Uncategorized')) as desc,
-               SUM(t.amount) as total,
-               COUNT(t.id) as count
-        FROM transactions t
-        LEFT JOIN descriptions d ON t.description_id = d.id
-        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-        GROUP BY desc
-        HAVING count >= ?
-        ORDER BY total DESC
-      ''', ['expense', startDate, endDate, userId, 1]);
-
-      expect(rows, isEmpty);
+      expect(await db.getTopDescriptions(), isEmpty);
     });
 
     test('returns top descriptions ordered by total amount', () async {
-      final now = DateTime.now();
-      final startDate = now.subtract(const Duration(days: 180)).toIso8601String().substring(0, 10);
-      final endDate = now.toIso8601String().substring(0, 10);
-      final txnDate = now.subtract(const Duration(days: 10)).toIso8601String().substring(0, 10);
+      final txnDate = DateTime.now()
+          .subtract(const Duration(days: 10))
+          .toIso8601String()
+          .substring(0, 10);
 
-      final d1 = await seedTestDescription(db, userId, 'Cheap Item');
-      final d2 = await seedTestDescription(db, userId, 'Expensive Item');
-      final d3 = await seedTestDescription(db, userId, 'Medium Item');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: d1,
-          date: txnDate, amount: 10, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: d2,
-          date: txnDate, amount: 500, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: d3,
-          date: txnDate, amount: 100, transactionType: 'expense', currency: 'EUR');
+      await cTxn(txnDate, 'Cheap Item', 10, 'expense');
+      await cTxn(txnDate, 'Expensive Item', 500, 'expense');
+      await cTxn(txnDate, 'Medium Item', 100, 'expense');
 
-      final rows = await db.rawQuery('''
-        SELECT LOWER(COALESCE(d.name, 'Uncategorized')) as desc,
-               SUM(t.amount) as total,
-               COUNT(t.id) as count
-        FROM transactions t
-        LEFT JOIN descriptions d ON t.description_id = d.id
-        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-        GROUP BY desc
-        HAVING count >= ?
-        ORDER BY total DESC
-      ''', ['expense', startDate, endDate, userId, 1]);
-
+      final rows = await db.getTopDescriptions();
       expect(rows.length, 3);
-      expect(rows[0]['desc'], 'expensive item');
-      expect(rows[1]['desc'], 'medium item');
-      expect(rows[2]['desc'], 'cheap item');
+      expect(rows[0]['description'], 'Expensive Item');
+      expect(rows[1]['description'], 'Medium Item');
+      expect(rows[2]['description'], 'Cheap Item');
     });
 
     test('respects minCount filter', () async {
       final now = DateTime.now();
-      final startDate = now.subtract(const Duration(days: 180)).toIso8601String().substring(0, 10);
-      final endDate = now.toIso8601String().substring(0, 10);
-      final txnDate1 = now.subtract(const Duration(days: 10)).toIso8601String().substring(0, 10);
-      final txnDate2 = now.subtract(const Duration(days: 5)).toIso8601String().substring(0, 10);
-      final txnDate3 = now.subtract(const Duration(days: 1)).toIso8601String().substring(0, 10);
+      final txnDate1 = now
+          .subtract(const Duration(days: 10))
+          .toIso8601String()
+          .substring(0, 10);
+      final txnDate2 =
+          now.subtract(const Duration(days: 5)).toIso8601String().substring(0, 10);
+      final txnDate3 =
+          now.subtract(const Duration(days: 1)).toIso8601String().substring(0, 10);
 
-      final d1 = await seedTestDescription(db, userId, 'Single Purchase');
-      final d2 = await seedTestDescription(db, userId, 'Repeated Purchase');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: d1,
-          date: txnDate1, amount: 100, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: d2,
-          date: txnDate1, amount: 50, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: d2,
-          date: txnDate2, amount: 50, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: d2,
-          date: txnDate3, amount: 50, transactionType: 'expense', currency: 'EUR');
+      await cTxn(txnDate1, 'Single Purchase', 100, 'expense');
+      await cTxn(txnDate1, 'Repeated Purchase', 50, 'expense');
+      await cTxn(txnDate2, 'Repeated Purchase', 50, 'expense');
+      await cTxn(txnDate3, 'Repeated Purchase', 50, 'expense');
 
-      final rows = await db.rawQuery('''
-        SELECT LOWER(COALESCE(d.name, 'Uncategorized')) as desc,
-               SUM(t.amount) as total,
-               COUNT(t.id) as count
-        FROM transactions t
-        LEFT JOIN descriptions d ON t.description_id = d.id
-        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-        GROUP BY desc
-        HAVING count >= ?
-        ORDER BY total DESC
-      ''', ['expense', startDate, endDate, userId, 2]);
-
+      final rows = await db.getTopDescriptions(minCount: 2);
       expect(rows.length, 1);
-      expect(rows[0]['desc'], 'repeated purchase');
+      expect(rows[0]['description'], 'Repeated Purchase');
     });
   });
 
   // =========================================================================
-  // getMonthlyChartData
+  // getMonthlyChartData -> getCashFlowDataForRange (closest; no exact prod
+  // method) + getMonthlySummary for the checking-only case
   // =========================================================================
-  group('getMonthlyChartData SQL', () {
+  group('getMonthlyChartData', () {
     test('returns empty when no transactions', () async {
-      final rows = await db.rawQuery('''
-        SELECT strftime('%m', t.date) as month,
-               COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount ELSE 0 END), 0) as income,
-               COALESCE(SUM(CASE WHEN t.transaction_type = 'expense' THEN t.amount ELSE 0 END), 0) as expenses
-        FROM transactions t
-        LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE strftime('%Y', t.date) = ? AND (a.type = 'checking' OR t.account_id IS NULL) AND t.user_id = ?
-        GROUP BY month
-        ORDER BY month
-      ''', ['2025', userId]);
-
+      final rows = await db.getCashFlowDataForRange(
+          startDate: '2025-01-01', endDate: '2025-12-31');
       expect(rows, isEmpty);
     });
 
     test('groups income/expenses by month for a given year', () async {
-      final descId = await seedTestDescription(db, userId, 'Income');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-03-10', amount: 2000, transactionType: 'income', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-03-15', amount: 300, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-05-20', amount: 2500, transactionType: 'income', currency: 'EUR');
+      await cTxn('2025-03-10', 'Income', 2000, 'income');
+      await cTxn('2025-03-15', 'Income', 300, 'expense');
+      await cTxn('2025-05-20', 'Income', 2500, 'income');
       // Different year should not count
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2024-06-01', amount: 9999, transactionType: 'income', currency: 'EUR');
+      await cTxn('2024-06-01', 'Income', 9999, 'income');
 
-      final rows = await db.rawQuery('''
-        SELECT strftime('%m', t.date) as month,
-               COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount ELSE 0 END), 0) as income,
-               COALESCE(SUM(CASE WHEN t.transaction_type = 'expense' THEN t.amount ELSE 0 END), 0) as expenses
-        FROM transactions t
-        LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE strftime('%Y', t.date) = ? AND (a.type = 'checking' OR t.account_id IS NULL) AND t.user_id = ?
-        GROUP BY month
-        ORDER BY month
-      ''', ['2025', userId]);
-
-      expect(rows.length, 2);
-      final march = rows.firstWhere((r) => r['month'] == '03');
-      final may = rows.firstWhere((r) => r['month'] == '05');
-      expect(march['income'], 2000.0);
-      expect(march['expenses'], 300.0);
-      expect(may['income'], 2500.0);
-      expect(may['expenses'], 0.0);
+      final rows = await db.getCashFlowDataForRange(
+          startDate: '2025-01-01', endDate: '2025-12-31');
+      final byMonthType = <String, double>{};
+      for (final r in rows) {
+        byMonthType["${r['month']}/${r['type']}"] =
+            (r['amount'] as double);
+      }
+      expect(byMonthType.keys.toSet(),
+          {'2025-03/income', '2025-03/expense', '2025-05/income'});
+      expect(byMonthType['2025-03/income'], 2000.0);
+      expect(byMonthType['2025-03/expense'], 300.0);
+      expect(byMonthType['2025-05/income'], 2500.0);
     });
 
     test('excludes savings accounts from monthly chart', () async {
-      final descId = await seedTestDescription(db, userId, 'Deposit');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-06-01', amount: 1000, transactionType: 'income', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[1], descriptionId: descId,
-          date: '2025-06-01', amount: 5000, transactionType: 'income', currency: 'EUR');
+      // GAP: prod cash-flow ranges include all accounts; the checking-only
+      // monthly view is getMonthlySummary, used here.
+      await cTxn('2025-06-01', 'Deposit', 1000, 'income');
+      await sATxn('2025-06-01', 'Deposit', 5000, 'income');
 
-      final rows = await db.rawQuery('''
-        SELECT strftime('%m', t.date) as month,
-               COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount ELSE 0 END), 0) as income,
-               COALESCE(SUM(CASE WHEN t.transaction_type = 'expense' THEN t.amount ELSE 0 END), 0) as expenses
-        FROM transactions t
-        LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE strftime('%Y', t.date) = ? AND (a.type = 'checking' OR t.account_id IS NULL) AND t.user_id = ?
-        GROUP BY month
-        ORDER BY month
-      ''', ['2025', userId]);
-
-      final june = rows.firstWhere((r) => r['month'] == '06');
-      expect(june['income'], 1000.0);
+      final summary = await db.getMonthlySummary(year: 2025, month: 6);
+      expect(summary['income'], Decimal.fromInt(1000));
     });
   });
 
   // =========================================================================
   // getCashFlowData
   // =========================================================================
-  group('getCashFlowData SQL', () {
+  group('getCashFlowData', () {
     test('returns empty when no transactions', () async {
-      final now = DateTime.now();
-      final startDate = DateTime(now.year, now.month - 5, 1)
-          .toIso8601String()
-          .substring(0, 10);
-
-      final rows = await db.rawQuery('''
-        SELECT strftime('%Y-%m', t.date) as month,
-               t.transaction_type as type,
-               SUM(t.amount) as amount,
-               COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN accounts a ON t.account_id = a.id
-        LEFT JOIN descriptions d ON t.description_id = d.id
-        WHERE t.date >= ? AND t.user_id = ?
-          AND (d.name IS NULL OR LOWER(d.name) NOT LIKE 'transfer to %' AND LOWER(d.name) NOT LIKE 'transfer from %')
-        GROUP BY month, t.transaction_type, a.currency
-        ORDER BY month
-      ''', [startDate, userId]);
-
-      expect(rows, isEmpty);
+      expect(await db.getCashFlowData(), isEmpty);
     });
 
     test('groups cash flow by month and type', () async {
       final now = DateTime.now();
-      final startDate = DateTime(now.year, now.month - 5, 1)
-          .toIso8601String()
-          .substring(0, 10);
+      final monthKey =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}';
 
-      final incomeId = await seedTestDescription(db, userId, 'Salary');
-      final expenseId = await seedTestDescription(db, userId, 'Groceries');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: incomeId,
-          date: '${now.year}-${now.month.toString().padLeft(2, '0')}-01',
-          amount: 3000, transactionType: 'income', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: expenseId,
-          date: '${now.year}-${now.month.toString().padLeft(2, '0')}-05',
-          amount: 500, transactionType: 'expense', currency: 'EUR');
+      await cTxn('$monthKey-01', 'Salary', 3000, 'income');
+      await cTxn('$monthKey-05', 'Groceries', 500, 'expense');
 
-      final rows = await db.rawQuery('''
-        SELECT strftime('%Y-%m', t.date) as month,
-               t.transaction_type as type,
-               SUM(t.amount) as amount,
-               COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN accounts a ON t.account_id = a.id
-        LEFT JOIN descriptions d ON t.description_id = d.id
-        WHERE t.date >= ? AND t.user_id = ?
-          AND (d.name IS NULL OR LOWER(d.name) NOT LIKE 'transfer to %' AND LOWER(d.name) NOT LIKE 'transfer from %')
-        GROUP BY month, t.transaction_type, a.currency
-        ORDER BY month
-      ''', [startDate, userId]);
-
+      final rows = await db.getCashFlowData();
       expect(rows.isNotEmpty, true);
-      final incomeRow = rows.firstWhere((r) => r['type'] == 'income');
+      final incomeRow = rows.firstWhere((r) =>
+          r['month'] == monthKey && r['type'] == 'income');
+      final expenseRow = rows.firstWhere((r) =>
+          r['month'] == monthKey && r['type'] == 'expense');
       expect(incomeRow['amount'], 3000.0);
+      expect(expenseRow['amount'], 500.0);
     });
 
     test('detects future months beyond today', () async {
       final now = DateTime.now();
-      final today = now.toIso8601String().substring(0, 10);
-      final incomeId = await seedTestDescription(db, userId, 'Salary');
-
       final futureDate = DateTime(now.year, now.month + 1, 10)
           .toIso8601String()
           .substring(0, 10);
       final futureMonthKey = futureDate.substring(0, 7);
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: incomeId,
-          date: futureDate, amount: 750, transactionType: 'income', currency: 'EUR');
+      await cTxn(futureDate, 'Salary', 750, 'income');
 
-      final latest = await db.rawQuery('''
-        SELECT MAX(date) as latest FROM transactions
-        WHERE user_id = ? AND date > ?
-      ''', [userId, today]);
-
-      expect(latest.first['latest'], futureDate);
-      expect(futureMonthKey.compareTo(today.substring(0, 7)) > 0, true);
+      expect(await db.getFirstTransactionDate(), isNotNull);
+      final rows = await db.getCashFlowData();
+      final futureRows =
+          rows.where((r) => r['month'] == futureMonthKey).toList();
+      expect(futureRows.isNotEmpty, true);
+      expect(futureRows.any((r) => r['isFuture'] == true), true);
+      expect(
+          futureRows
+              .firstWhere((r) => r['type'] == 'income')['amount'],
+          750.0);
     });
 
     test('future month bucket accumulates only future transactions', () async {
       final now = DateTime.now();
-      final incomeId = await seedTestDescription(db, userId, 'Salary');
-
       final pastDate = DateTime(now.year, now.month - 1, 15)
           .toIso8601String()
           .substring(0, 10);
@@ -1226,205 +614,101 @@ void main() {
           .toIso8601String()
           .substring(0, 10);
       final futureMonthKey = futureDate.substring(0, 7);
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: incomeId,
-          date: pastDate, amount: 3000, transactionType: 'income', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: incomeId,
-          date: futureDate, amount: 750, transactionType: 'income', currency: 'EUR');
+      final pastMonthKey = pastDate.substring(0, 7);
+      await cTxn(pastDate, 'Salary', 3000, 'income');
+      await cTxn(futureDate, 'Salary', 750, 'income');
 
-      // Old behavior: capped at today, future month excluded.
-      final today = now.toIso8601String().substring(0, 10);
-      final capped = await db.rawQuery('''
-        SELECT strftime('%Y-%m', t.date) as month, SUM(t.amount) as amount
-        FROM transactions t
-        WHERE t.transaction_type = ? AND t.date <= ? AND t.user_id = ?
-        GROUP BY month
-      ''', ['income', today, userId]);
-      expect(capped.any((r) => r['month'] == futureMonthKey), false);
-
-      // New behavior: extended bound includes the future month bucket.
-      final extendedBound = DateTime(now.year, now.month + 2, 1)
-          .toIso8601String()
-          .substring(0, 10);
-      final extended = await db.rawQuery('''
-        SELECT strftime('%Y-%m', t.date) as month, SUM(t.amount) as amount
-        FROM transactions t
-        WHERE t.transaction_type = ? AND t.date < ? AND t.user_id = ?
-        GROUP BY month
-      ''', ['income', extendedBound, userId]);
-      final futureRow =
-          extended.firstWhere((r) => r['month'] == futureMonthKey);
+      final rows = await db.getCashFlowData();
+      final pastRow = rows.firstWhere(
+          (r) => r['month'] == pastMonthKey && r['type'] == 'income');
+      final futureRow = rows.firstWhere(
+          (r) => r['month'] == futureMonthKey && r['type'] == 'income');
+      expect(pastRow['amount'], 3000.0);
+      expect(pastRow['futureAmount'], 0.0);
       expect(futureRow['amount'], 750.0);
+      expect(futureRow['futureAmount'], 750.0);
     });
 
     test('splits same-month past and future portions', () async {
       final now = DateTime.now();
-      final today = now.toIso8601String().substring(0, 10);
-      final incomeId = await seedTestDescription(db, userId, 'Salary');
-
       final pastDate = now
           .subtract(const Duration(days: 2))
           .toIso8601String()
           .substring(0, 10);
       final futureDate =
           now.add(const Duration(days: 2)).toIso8601String().substring(0, 10);
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: incomeId,
-          date: pastDate, amount: 1000, transactionType: 'income', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: incomeId,
-          date: futureDate, amount: 250, transactionType: 'income', currency: 'EUR');
+      await cTxn(pastDate, 'Salary', 1000, 'income');
+      await cTxn(futureDate, 'Salary', 250, 'income');
 
-      final rows = await db.rawQuery('''
-        SELECT SUM(CASE WHEN t.date <= ? THEN t.amount ELSE 0 END) as past,
-               SUM(CASE WHEN t.date > ? THEN t.amount ELSE 0 END) as future
-        FROM transactions t
-        WHERE t.transaction_type = ? AND t.user_id = ?
-      ''', [today, today, 'income', userId]);
-
-      expect((rows.first['past'] as num?)?.toDouble() ?? 0.0, 1000.0);
-      expect((rows.first['future'] as num?)?.toDouble() ?? 0.0, 250.0);
+      final rows = await db.getCashFlowData();
+      double past = 0.0;
+      double future = 0.0;
+      for (final r in rows) {
+        if (r['type'] != 'income') continue;
+        past += (r['amount'] as double) - (r['futureAmount'] as double);
+        future += r['futureAmount'] as double;
+      }
+      expect(past, 1000.0);
+      expect(future, 250.0);
     });
 
     test('excludes transfer descriptions from cash flow', () async {
       final now = DateTime.now();
-      final startDate = DateTime(now.year, now.month - 5, 1)
-          .toIso8601String()
-          .substring(0, 10);
+      final monthKey =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}';
 
-      final transferToId = await seedTestDescription(db, userId, 'Transfer to Savings');
-      final transferFromId = await seedTestDescription(db, userId, 'Transfer from Checking');
-      final incomeId = await seedTestDescription(db, userId, 'Salary');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: transferToId,
-          date: '${now.year}-${now.month.toString().padLeft(2, '0')}-01',
-          amount: 1000, transactionType: 'transfer', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[1], descriptionId: transferFromId,
-          date: '${now.year}-${now.month.toString().padLeft(2, '0')}-02',
-          amount: 1000, transactionType: 'transfer', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: incomeId,
-          date: '${now.year}-${now.month.toString().padLeft(2, '0')}-03',
-          amount: 2000, transactionType: 'income', currency: 'EUR');
+      await cTxn('$monthKey-01', 'Transfer to Savings', 1000, 'transfer');
+      await sATxn('$monthKey-02', 'Transfer from Checking', 1000, 'transfer');
+      await cTxn('$monthKey-03', 'Salary', 2000, 'income');
 
-      final rows = await db.rawQuery('''
-        SELECT strftime('%Y-%m', t.date) as month,
-               t.transaction_type as type,
-               SUM(t.amount) as amount,
-               COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN accounts a ON t.account_id = a.id
-        LEFT JOIN descriptions d ON t.description_id = d.id
-        WHERE t.date >= ? AND t.user_id = ?
-          AND (d.name IS NULL OR LOWER(d.name) NOT LIKE 'transfer to %' AND LOWER(d.name) NOT LIKE 'transfer from %')
-        GROUP BY month, t.transaction_type, a.currency
-        ORDER BY month
-      ''', [startDate, userId]);
-
-      final currentMonthKey = '${now.year}-${now.month.toString().padLeft(2, '0')}';
-      final monthRows = rows.where((r) => r['month'] == currentMonthKey).toList();
-      final totalAmount = monthRows.fold<double>(0.0, (sum, r) {
-        return sum + ((r['amount'] as num?)?.toDouble() ?? 0.0);
-      });
-      expect(totalAmount, 2000.0);
+      final rows = await db.getCashFlowData();
+      final monthRows =
+          rows.where((r) => r['month'] == monthKey).toList();
+      expect(monthRows.any((r) => r['type'] == 'transfer'), false);
+      double total = 0.0;
+      for (final r in monthRows) {
+        total += r['amount'] as double;
+      }
+      expect(total, 2000.0);
     });
   });
 
   // =========================================================================
   // getAssetsHistory
   // =========================================================================
-  group('getAssetsHistory SQL', () {
+  group('getAssetsHistory', () {
     test('returns all zero months when no transactions', () async {
-      final now = DateTime.now();
-      const months = 3;
-      final results = <double>[];
-
-      for (int i = months; i >= 1; i--) {
-        final month = DateTime(now.year, now.month - i + 1, 1);
-        final nextMonth = DateTime(month.year, month.month + 1, 1);
-        final endDate = nextMonth.toIso8601String().substring(0, 10);
-
-        final rows = await db.rawQuery('''
-          SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                   WHEN t.transaction_type = 'expense' THEN -t.amount
-                                   ELSE 0 END), 0) as total,
-                 COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-          FROM transactions t
-          LEFT JOIN accounts a ON t.account_id = a.id
-          WHERE t.date < ? AND t.user_id = ?
-          GROUP BY a.currency
-        ''', [endDate, userId]);
-
-        double totalValue = 0.0;
-        for (final row in rows) {
-          totalValue += (row['total'] as num?)?.toDouble() ?? 0.0;
-        }
-        results.add(totalValue);
-      }
-
-      expect(results.length, months);
-      expect(results.every((v) => v == 0.0), true);
+      final results = await db.getAssetsHistory(months: 3);
+      expect(results.length, 3);
+      expect(results.every((r) => r['value'] == 0.0), true);
     });
 
     test('accumulates transactions chronologically across months', () async {
       final now = DateTime.now();
-      final descId = await seedTestDescription(db, userId, 'Income');
 
       // Transaction 3 months ago
       final threeMonthsAgo = DateTime(now.year, now.month - 2, 1);
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: threeMonthsAgo.toIso8601String().substring(0, 10),
-          amount: 1000, transactionType: 'income', currency: 'EUR');
+      await cTxn(
+          threeMonthsAgo.toIso8601String().substring(0, 10), 'Income', 1000, 'income');
 
       // Transaction 1 month ago
       final oneMonthAgo = DateTime(now.year, now.month, 1);
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: oneMonthAgo.toIso8601String().substring(0, 10),
-          amount: 500, transactionType: 'income', currency: 'EUR');
+      await cTxn(oneMonthAgo.toIso8601String().substring(0, 10), 'Income', 500,
+          'income');
 
-      const months = 3;
-      final results = <Map<String, dynamic>>[];
-
-      for (int i = months; i >= 1; i--) {
-        final month = DateTime(now.year, now.month - i + 1, 1);
-        final nextMonth = DateTime(month.year, month.month + 1, 1);
-        final endDate = nextMonth.toIso8601String().substring(0, 10);
-
-        final rows = await db.rawQuery('''
-          SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                   WHEN t.transaction_type = 'expense' THEN -t.amount
-                                   ELSE 0 END), 0) as total,
-                 COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-          FROM transactions t
-          LEFT JOIN accounts a ON t.account_id = a.id
-          WHERE t.date < ? AND t.user_id = ?
-          GROUP BY a.currency
-        ''', [endDate, userId]);
-
-        double totalValue = 0.0;
-        for (final row in rows) {
-          totalValue += (row['total'] as num?)?.toDouble() ?? 0.0;
-        }
-        results.add({'month': month, 'value': totalValue});
-      }
-
-      // The values should be non-decreasing as we add more months
-      expect(results.length, months);
-      final values = results.map((r) => r['value'] as double).toList();
+      final results = await db.getAssetsHistory(months: 3);
+      expect(results.length, 3);
+      final values =
+          results.map((r) => r['value'] as double).toList();
       // Each subsequent month should have >= previous month's value (since we only add income)
       for (int i = 1; i < values.length; i++) {
         expect(values[i] >= values[i - 1], true);
       }
     });
 
-    test('daily granularity yields one point per day with cumulative values', () async {
+    test('daily granularity yields one point per day with cumulative values',
+        () async {
       final now = DateTime.now();
-      final incomeId = await seedTestDescription(db, userId, 'Income');
-      final expenseId = await seedTestDescription(db, userId, 'Expense');
 
       // Both transactions within the window and always in the past.
       final incomeMonth = DateTime(now.year, now.month - 2, 1);
@@ -1435,171 +719,73 @@ void main() {
           .toIso8601String()
           .substring(0, 10);
 
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: incomeId,
-          date: incomeDate, amount: 500, transactionType: 'income', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: expenseId,
-          date: expenseDate, amount: 100, transactionType: 'expense', currency: 'EUR');
+      await cTxn(incomeDate, 'Income', 500, 'income');
+      await cTxn(expenseDate, 'Expense', 100, 'expense');
 
       // Daily window starts on the first of the earliest effective month (3 months ago
       // requested, but data only spans the last 2 full months + current month).
       final startDate = DateTime(now.year, now.month - 2, 1);
-      final today = DateTime(now.year, now.month, now.day);
-      final totalDays = today.difference(startDate).inDays + 1;
+      final todayDate = DateTime(now.year, now.month, now.day);
+      final totalDays = todayDate.difference(startDate).inDays + 1;
 
-      final rows = await db.rawQuery('''
-        SELECT t.date, t.transaction_type, t.amount
-        FROM transactions t
-        WHERE t.date < ? AND t.user_id = ?
-        ORDER BY t.date
-      ''', [DateTime(now.year, now.month, now.day + 1)
-          .toIso8601String()
-          .substring(0, 10), userId]);
-
-      final dailyTotals = <String, double>{};
-      for (final r in rows) {
-        final d = r['date'] as String;
-        final type = r['transaction_type'] as String;
-        final amount = (r['amount'] as num).toDouble();
-        final signed =
-            type == 'income' ? amount : (type == 'expense' ? -amount : 0.0);
-        dailyTotals[d] = (dailyTotals[d] ?? 0) + signed;
-      }
-
-      final values = <double>[];
-      double cumulative = 0.0;
-      var day = startDate;
-      for (int i = 0; i < totalDays; i++) {
-        final key = day.toIso8601String().substring(0, 10);
-        cumulative += dailyTotals[key] ?? 0.0;
-        values.add(cumulative);
-        day = DateTime(day.year, day.month, day.day + 1);
-      }
+      final values = await db.getAssetsHistory(months: 3, granularity: 'daily');
 
       expect(values.length, totalDays);
-      expect(values.first, 0.0); // no transactions before the income date
-      expect(values.last, 400.0); // +500 income, -100 expense
+      expect(values.first['value'], 0.0); // no transactions before the income date
+      expect(values.last['value'], 400.0); // +500 income, -100 expense
     });
   });
 
-  group('getAssetsHistory future forecast SQL', () {
+  group('getAssetsHistory future forecast', () {
     test('detects future transactions beyond today', () async {
       final now = DateTime.now();
-      final today = now.toIso8601String().substring(0, 10);
-      final descId = await seedTestDescription(db, userId, 'Income');
-
       final futureDate = DateTime(now.year, now.month + 1, 10)
           .toIso8601String()
           .substring(0, 10);
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: futureDate, amount: 250, transactionType: 'income', currency: 'EUR');
+      await cTxn(futureDate, 'Income', 250, 'income');
 
-      final latest = await db.rawQuery('''
-        SELECT MAX(date) as latest FROM transactions
-        WHERE user_id = ? AND date > ?
-      ''', [userId, today]);
-
-      expect(latest.first['latest'], futureDate);
+      final results = await db.getAssetsHistory(months: 3);
+      expect(results.any((r) => r['isFuture'] == true), true);
     });
 
     test('returns no future transactions when all dates are past', () async {
-      final now = DateTime.now();
-      final today = now.toIso8601String().substring(0, 10);
-      final descId = await seedTestDescription(db, userId, 'Income');
+      await cTxn(today(), 'Income', 100, 'income');
 
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: today, amount: 100, transactionType: 'income', currency: 'EUR');
-
-      final latest = await db.rawQuery('''
-        SELECT MAX(date) as latest FROM transactions
-        WHERE user_id = ? AND date > ?
-      ''', [userId, today]);
-
-      expect(latest.first['latest'], isNull);
+      final results = await db.getAssetsHistory(months: 3);
+      expect(results.any((r) => r['isFuture'] == true), false);
     });
 
     test('future bucket accumulates future transactions only', () async {
       final now = DateTime.now();
-      final descId = await seedTestDescription(db, userId, 'Income');
-
       final pastDate = DateTime(now.year, now.month - 1, 15)
           .toIso8601String()
           .substring(0, 10);
       final futureDate = DateTime(now.year, now.month + 1, 10)
           .toIso8601String()
           .substring(0, 10);
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: pastDate, amount: 1000, transactionType: 'income', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: futureDate, amount: 250, transactionType: 'income', currency: 'EUR');
+      await cTxn(pastDate, 'Income', 1000, 'income');
+      await cTxn(futureDate, 'Income', 250, 'income');
 
-      // Old behavior: capped at the first of next month, future excluded.
-      final nowNextMonth = DateTime(now.year, now.month + 1, 1)
-          .toIso8601String()
-          .substring(0, 10);
-      final capped = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) as total
-        FROM transactions t
-        WHERE t.date < ? AND t.user_id = ?
-      ''', [nowNextMonth, userId]);
-      expect((capped.first['total'] as num?)?.toDouble() ?? 0.0, 1000.0);
-
-      // New behavior: extended bound includes the future transaction.
-      final extendedBound = DateTime(now.year, now.month + 2, 1)
-          .toIso8601String()
-          .substring(0, 10);
-      final extended = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) as total
-        FROM transactions t
-        WHERE t.date < ? AND t.user_id = ?
-      ''', [extendedBound, userId]);
-      expect((extended.first['total'] as num?)?.toDouble() ?? 0.0, 1250.0);
+      // Production always forecasts (no capped mode): the extended series
+      // includes the future transaction.
+      final results = await db.getAssetsHistory(months: 3);
+      expect(results.last['value'], 1250.0);
+      expect(results.last['isFuture'], true);
     });
   });
 
   // =========================================================================
   // getCurrentMonthDistribution
   // =========================================================================
-  group('getCurrentMonthDistribution SQL', () {
+  group('getCurrentMonthDistribution', () {
     test('returns empty when no transactions in current month', () async {
-      final now = DateTime.now();
-      final startDate = DateTime(now.year, now.month, 1)
-          .toIso8601String()
-          .substring(0, 10);
-      final endDate = now.toIso8601String().substring(0, 10);
-
-      final rows = await db.rawQuery('''
-        SELECT LOWER(COALESCE(d.name, 'Uncategorized')) as category,
-               SUM(t.amount) as amount,
-               COALESCE(NULLIF(t.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN descriptions d ON t.description_id = d.id
-        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-        GROUP BY category, t.currency
-        ORDER BY amount DESC
-      ''', ['expense', startDate, endDate, userId]);
-
-      expect(rows, isEmpty);
+      final dist =
+          await db.getCurrentMonthDistribution(transactionType: 'expense');
+      expect(dist, isEmpty);
     });
 
     test('groups current month expenses by category', () async {
       final now = DateTime.now();
-      final startDate = DateTime(now.year, now.month, 1)
-          .toIso8601String()
-          .substring(0, 10);
-      final endDate = now.toIso8601String().substring(0, 10);
-
-      final foodId = await seedTestDescription(db, userId, 'Food');
-      final rentId = await seedTestDescription(db, userId, 'Rent');
 
       String monthDate(int daysAgo) {
         final dt = now.subtract(Duration(days: daysAgo));
@@ -1609,278 +795,145 @@ void main() {
         return clamped.toIso8601String().substring(0, 10);
       }
 
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: foodId,
-          date: monthDate(1),
-          amount: 80, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: foodId,
-          date: now.toIso8601String().substring(0, 10),
-          amount: 120, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: rentId,
-          date: monthDate(2),
-          amount: 1000, transactionType: 'expense', currency: 'EUR');
+      await cTxn(monthDate(1), 'Food', 80, 'expense');
+      await cTxn(now.toIso8601String().substring(0, 10), 'Food', 120, 'expense');
+      await cTxn(monthDate(2), 'Rent', 1000, 'expense');
 
-      final rows = await db.rawQuery('''
-        SELECT LOWER(COALESCE(d.name, 'Uncategorized')) as category,
-               SUM(t.amount) as amount,
-               COALESCE(NULLIF(t.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN descriptions d ON t.description_id = d.id
-        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-        GROUP BY category, t.currency
-        ORDER BY amount DESC
-      ''', ['expense', startDate, endDate, userId]);
-
-      expect(rows.length, 2);
-      final foodRow = rows.firstWhere((r) => r['category'] == 'food');
-      final rentRow = rows.firstWhere((r) => r['category'] == 'rent');
-      expect(foodRow['amount'], 200.0);
-      expect(rentRow['amount'], 1000.0);
+      final dist =
+          await db.getCurrentMonthDistribution(transactionType: 'expense');
+      expect(dist.length, 2);
+      expect(dist['Food'], Decimal.fromInt(200));
+      expect(dist['Rent'], Decimal.fromInt(1000));
     });
   });
 
   // =========================================================================
   // getRollingMonthDistribution
   // =========================================================================
-  group('getRollingMonthDistribution SQL', () {
+  group('getRollingMonthDistribution', () {
     test('returns empty when no transactions in window', () async {
-      final now = DateTime.now();
-      final endDate = now.toIso8601String().substring(0, 10);
-      final startDate = now.subtract(const Duration(days: 30)).toIso8601String().substring(0, 10);
-
-      final rows = await db.rawQuery('''
-        SELECT LOWER(COALESCE(d.name, 'Uncategorized')) as category,
-               SUM(t.amount) as amount,
-               COALESCE(NULLIF(t.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN descriptions d ON t.description_id = d.id
-        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-        GROUP BY category, t.currency
-        ORDER BY amount DESC
-      ''', ['expense', startDate, endDate, userId]);
-
-      expect(rows, isEmpty);
+      final dist = await db.getRollingMonthDistribution(
+          transactionType: 'expense');
+      expect(dist, isEmpty);
     });
 
     test('captures transactions within rolling window', () async {
       final now = DateTime.now();
       final endDate = now.toIso8601String().substring(0, 10);
-      final startDate = now.subtract(const Duration(days: 30)).toIso8601String().substring(0, 10);
+      final startDate =
+          now.subtract(const Duration(days: 30)).toIso8601String().substring(0, 10);
 
-      final foodId = await seedTestDescription(db, userId, 'Food');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: foodId,
-          date: startDate, amount: 25, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: foodId,
-          date: endDate, amount: 35, transactionType: 'expense', currency: 'EUR');
+      await cTxn(startDate, 'Food', 25, 'expense');
+      await cTxn(endDate, 'Food', 35, 'expense');
 
-      final rows = await db.rawQuery('''
-        SELECT LOWER(COALESCE(d.name, 'Uncategorized')) as category,
-               SUM(t.amount) as amount,
-               COALESCE(NULLIF(t.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN descriptions d ON t.description_id = d.id
-        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-        GROUP BY category, t.currency
-        ORDER BY amount DESC
-      ''', ['expense', startDate, endDate, userId]);
-
-      expect(rows.length, 1);
-      expect(rows[0]['amount'], 60.0);
+      final dist = await db.getRollingMonthDistribution(
+          transactionType: 'expense');
+      expect(dist.length, 1);
+      expect(dist['Food'], Decimal.fromInt(60));
     });
 
     test('excludes transactions outside the rolling window', () async {
       final now = DateTime.now();
-      final endDate = now.toIso8601String().substring(0, 10);
-      final startDate = now.subtract(const Duration(days: 30)).toIso8601String().substring(0, 10);
+      final outsideDate = now
+          .subtract(const Duration(days: 60))
+          .toIso8601String()
+          .substring(0, 10);
+      await cTxn(outsideDate, 'Food', 999, 'expense');
 
-      final foodId = await seedTestDescription(db, userId, 'Food');
-      final outsideDate = now.subtract(const Duration(days: 60)).toIso8601String().substring(0, 10);
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: foodId,
-          date: outsideDate, amount: 999, transactionType: 'expense', currency: 'EUR');
-
-      final rows = await db.rawQuery('''
-        SELECT LOWER(COALESCE(d.name, 'Uncategorized')) as category,
-               SUM(t.amount) as amount,
-               COALESCE(NULLIF(t.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN descriptions d ON t.description_id = d.id
-        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-        GROUP BY category, t.currency
-        ORDER BY amount DESC
-      ''', ['expense', startDate, endDate, userId]);
-
-      expect(rows, isEmpty);
+      final dist = await db.getRollingMonthDistribution(
+          transactionType: 'expense');
+      expect(dist, isEmpty);
     });
   });
 
   // =========================================================================
-  // Tag description breakdown (pie drill-down)
+  // Tag description breakdown (pie drill-down) ->
+  // getCurrentMonthTagDescriptionBreakdown
   // =========================================================================
-  group('Tag description breakdown SQL', () {
+  group('Tag description breakdown', () {
     test('returns only descriptions for the requested tag', () async {
-      final now = DateTime.now();
-      final endDate = now.toIso8601String().substring(0, 10);
-      final startDate = DateTime(now.year, now.month, 1).toIso8601String().substring(0, 10);
+      final endDate = today();
+      final tagA = (await db.createTag(name: 'TagA'))!;
+      final tagB = (await db.createTag(name: 'TagB'))!;
 
-      final foodId = await seedTestDescription(db, userId, 'Food');
-      final rentId = await seedTestDescription(db, userId, 'Rent');
-      final tagA = await seedTestTag(db, userId, 'TagA');
-      final tagB = await seedTestTag(db, userId, 'TagB');
+      await cTxn(endDate, 'Food', 80, 'expense', tagId: tagA);
+      await cTxn(endDate, 'Rent', 120, 'expense', tagId: tagA);
+      await cTxn(endDate, 'Food', 999, 'expense', tagId: tagB);
 
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: foodId, tagId: tagA,
-          date: endDate, amount: 80, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: rentId, tagId: tagA,
-          date: endDate, amount: 120, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: foodId, tagId: tagB,
-          date: endDate, amount: 999, transactionType: 'expense', currency: 'EUR');
-
-      final rows = await db.rawQuery('''
-        SELECT t.amount, tg.name as tag_name, d.name as description_name
-        FROM transactions t
-        LEFT JOIN tags tg ON t.tag_id = tg.id
-        LEFT JOIN descriptions d ON t.description_id = d.id
-        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-      ''', ['expense', startDate, endDate, userId]);
-
-      final breakdown = <String, double>{};
-      for (final row in rows) {
-        if ((row['tag_name'] as String?) != 'TagA') continue;
-        final desc = row['description_name'] as String;
-        breakdown[desc] = (breakdown[desc] ?? 0.0) + (row['amount'] as num).toDouble();
-      }
+      final breakdown =
+          await db.getCurrentMonthTagDescriptionBreakdown(
+              transactionType: 'expense', tag: 'TagA');
 
       expect(breakdown.length, 2);
-      expect(breakdown['Food'], 80.0);
-      expect(breakdown['Rent'], 120.0);
+      expect(breakdown['Food'], Decimal.fromInt(80));
+      expect(breakdown['Rent'], Decimal.fromInt(120));
     });
 
     test('excludes transfer descriptions from breakdown', () async {
-      final now = DateTime.now();
-      final endDate = now.toIso8601String().substring(0, 10);
-      final startDate = DateTime(now.year, now.month, 1).toIso8601String().substring(0, 10);
+      final endDate = today();
+      final tagA = (await db.createTag(name: 'TagA'))!;
 
-      final transferId = await seedTestDescription(db, userId, 'Transfer to Savings');
-      final foodId = await seedTestDescription(db, userId, 'Food');
-      final tagA = await seedTestTag(db, userId, 'TagA');
+      await cTxn(endDate, 'Transfer to Savings', 500, 'expense', tagId: tagA);
+      await cTxn(endDate, 'Food', 50, 'expense', tagId: tagA);
 
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: transferId, tagId: tagA,
-          date: endDate, amount: 500, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: foodId, tagId: tagA,
-          date: endDate, amount: 50, transactionType: 'expense', currency: 'EUR');
-
-      final rows = await db.rawQuery('''
-        SELECT t.amount, tg.name as tag_name, d.name as description_name
-        FROM transactions t
-        LEFT JOIN tags tg ON t.tag_id = tg.id
-        LEFT JOIN descriptions d ON t.description_id = d.id
-        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-      ''', ['expense', startDate, endDate, userId]);
-
-      bool isTransfer(String? desc) {
-        final d = (desc ?? '').trim().toLowerCase();
-        return d.startsWith('transfer to ') || d.startsWith('transfer from ');
-      }
-
-      final breakdown = <String, double>{};
-      for (final row in rows) {
-        if ((row['tag_name'] as String?) != 'TagA') continue;
-        final desc = row['description_name'] as String;
-        if (isTransfer(desc)) continue;
-        breakdown[desc] = (breakdown[desc] ?? 0.0) + (row['amount'] as num).toDouble();
-      }
+      final breakdown =
+          await db.getCurrentMonthTagDescriptionBreakdown(
+              transactionType: 'expense', tag: 'TagA');
 
       expect(breakdown.length, 1);
-      expect(breakdown['Food'], 50.0);
+      expect(breakdown['Food'], Decimal.fromInt(50));
     });
   });
 
   // =========================================================================
-  // getPreviousMonthTotal
+  // getPreviousMonthTotal -> getMonthlySummary(previous month).balance
+  // (no dedicated prod method; closest coverage)
   // =========================================================================
-  group('getPreviousMonthTotal SQL', () {
+  group('getPreviousMonthTotal', () {
     test('returns 0 when no transactions in previous month', () async {
       final now = DateTime.now();
       final previousMonth = DateTime(now.year, now.month - 1, 1);
-      final startDate = previousMonth.toIso8601String().substring(0, 10);
-      final endMonth = DateTime(now.year, now.month, 1);
-      final endDate = endMonth.toIso8601String().substring(0, 10);
 
-      final result = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN transaction_type = 'income' THEN amount
-                                 WHEN transaction_type = 'expense' THEN -amount
-                                 ELSE 0 END), 0) as total
-        FROM transactions
-        WHERE date >= ? AND date < ? AND user_id = ?
-      ''', [startDate, endDate, userId]);
-
-      final total = (result.first['total'] as num?)?.toDouble() ?? 0.0;
-      expect(total, 0.0);
+      final summary = await db.getMonthlySummary(
+          year: previousMonth.year, month: previousMonth.month);
+      expect(summary['balance'], Decimal.zero);
     });
 
     test('calculates net total for previous calendar month', () async {
       final now = DateTime.now();
       final previousMonth = DateTime(now.year, now.month - 1, 1);
-      final startDate = previousMonth.toIso8601String().substring(0, 10);
-      final endMonth = DateTime(now.year, now.month, 1);
-      final endDate = endMonth.toIso8601String().substring(0, 10);
-
-      final descId = await seedTestDescription(db, userId, 'Income');
       final prevYear = previousMonth.year;
       final prevMonthNum = previousMonth.month;
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '$prevYear-${prevMonthNum.toString().padLeft(2, '0')}-05',
-          amount: 3000, transactionType: 'income', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '$prevYear-${prevMonthNum.toString().padLeft(2, '0')}-15',
-          amount: 800, transactionType: 'expense', currency: 'EUR');
 
-      final result = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN transaction_type = 'income' THEN amount
-                                 WHEN transaction_type = 'expense' THEN -amount
-                                 ELSE 0 END), 0) as total
-        FROM transactions
-        WHERE date >= ? AND date < ? AND user_id = ?
-      ''', [startDate, endDate, userId]);
+      await cTxn(
+          '$prevYear-${prevMonthNum.toString().padLeft(2, '0')}-05',
+          'Income',
+          3000,
+          'income');
+      await cTxn(
+          '$prevYear-${prevMonthNum.toString().padLeft(2, '0')}-15',
+          'Income',
+          800,
+          'expense');
 
-      final total = (result.first['total'] as num?)?.toDouble() ?? 0.0;
-      expect(total, 2200.0);
+      final summary = await db.getMonthlySummary(
+          year: previousMonth.year, month: previousMonth.month);
+      expect(summary['balance'], Decimal.fromInt(2200));
     });
 
     test('excludes current month transactions', () async {
       final now = DateTime.now();
       final previousMonth = DateTime(now.year, now.month - 1, 1);
-      final startDate = previousMonth.toIso8601String().substring(0, 10);
-      final endMonth = DateTime(now.year, now.month, 1);
-      final endDate = endMonth.toIso8601String().substring(0, 10);
 
-      final descId = await seedTestDescription(db, userId, 'Income');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '${now.year}-${now.month.toString().padLeft(2, '0')}-01',
-          amount: 99999, transactionType: 'income', currency: 'EUR');
+      await cTxn(
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-01',
+          'Income',
+          99999,
+          'income');
 
-      final result = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN transaction_type = 'income' THEN amount
-                                 WHEN transaction_type = 'expense' THEN -amount
-                                 ELSE 0 END), 0) as total
-        FROM transactions
-        WHERE date >= ? AND date < ? AND user_id = ?
-      ''', [startDate, endDate, userId]);
-
-      final total = (result.first['total'] as num?)?.toDouble() ?? 0.0;
-      expect(total, 0.0);
+      final summary = await db.getMonthlySummary(
+          year: previousMonth.year, month: previousMonth.month);
+      expect(summary['balance'], Decimal.zero);
     });
   });
 
@@ -1888,86 +941,38 @@ void main() {
   // Cross-cutting concerns: transfer descriptions filtering
   // =========================================================================
   group('Transfer description filtering', () {
-    test('transfer descriptions are filtered out in category distribution', () async {
-      final now = DateTime.now();
-      final startDate = now.subtract(const Duration(days: 180)).toIso8601String().substring(0, 10);
-      final endDate = now.toIso8601String().substring(0, 10);
-      final txnDate = now.subtract(const Duration(days: 10)).toIso8601String().substring(0, 10);
+    test('transfer descriptions are filtered out in category distribution',
+        () async {
+      final txnDate = DateTime.now()
+          .subtract(const Duration(days: 10))
+          .toIso8601String()
+          .substring(0, 10);
 
-      final foodId = await seedTestDescription(db, userId, 'Food');
-      final transferId = await seedTestDescription(db, userId, 'Transfer to Savings');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: foodId,
-          date: txnDate, amount: 50, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: transferId,
-          date: txnDate, amount: 500, transactionType: 'transfer', currency: 'EUR');
+      await cTxn(txnDate, 'Food', 50, 'expense');
+      await cTxn(txnDate, 'Transfer to Savings', 500, 'transfer');
 
-      final rows = await db.rawQuery('''
-        SELECT LOWER(COALESCE(d.name, 'Uncategorized')) as description,
-               strftime('%Y-%m', t.date) as month,
-               t.transaction_type as type,
-               SUM(t.amount) as amount
-        FROM transactions t
-        LEFT JOIN descriptions d ON t.description_id = d.id
-        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-        GROUP BY description, month, t.transaction_type
-        ORDER BY month, amount DESC
-      ''', ['expense', startDate, endDate, userId]);
-
-      // Apply transfer filter
-      bool isTransfer(String? description) {
-        final desc = (description ?? '').trim().toLowerCase();
-        return desc.startsWith('transfer to ') || desc.startsWith('transfer from ');
-      }
-
-      final filtered = rows.where((r) => !isTransfer(r['description'] as String?)).toList();
-      expect(filtered.length, 1);
-      expect(filtered[0]['description'], 'food');
+      final top = await db.getTopDescriptions();
+      expect(top.length, 1);
+      expect(top[0]['description'], 'Food');
     });
 
     test('transfer descriptions are filtered out in cash flow', () async {
       final now = DateTime.now();
-      final startDate = DateTime(now.year, now.month - 2, 1)
-          .toIso8601String()
-          .substring(0, 10);
+      final monthKey =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}';
 
-      final incomeId = await seedTestDescription(db, userId, 'Salary');
-      final transferToId = await seedTestDescription(db, userId, 'Transfer to Savings');
-      final transferFromId = await seedTestDescription(db, userId, 'Transfer from Checking');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: incomeId,
-          date: '${now.year}-${now.month.toString().padLeft(2, '0')}-01',
-          amount: 2000, transactionType: 'income', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: transferToId,
-          date: '${now.year}-${now.month.toString().padLeft(2, '0')}-02',
-          amount: 500, transactionType: 'transfer', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[1], descriptionId: transferFromId,
-          date: '${now.year}-${now.month.toString().padLeft(2, '0')}-03',
-          amount: 500, transactionType: 'transfer', currency: 'EUR');
+      await cTxn('$monthKey-01', 'Salary', 2000, 'income');
+      await cTxn('$monthKey-02', 'Transfer to Savings', 500, 'transfer');
+      await sATxn('$monthKey-03', 'Transfer from Checking', 500, 'transfer');
 
-      final rows = await db.rawQuery('''
-        SELECT strftime('%Y-%m', t.date) as month,
-               t.transaction_type as type,
-               SUM(t.amount) as amount,
-               COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN accounts a ON t.account_id = a.id
-        LEFT JOIN descriptions d ON t.description_id = d.id
-        WHERE t.date >= ? AND t.user_id = ?
-          AND (d.name IS NULL OR LOWER(d.name) NOT LIKE 'transfer to %' AND LOWER(d.name) NOT LIKE 'transfer from %')
-        GROUP BY month, t.transaction_type, a.currency
-        ORDER BY month
-      ''', [startDate, userId]);
-
-      final currentMonthKey = '${now.year}-${now.month.toString().padLeft(2, '0')}';
-      final monthRows = rows.where((r) => r['month'] == currentMonthKey).toList();
-      final totalAmount = monthRows.fold<double>(0.0, (sum, r) {
-        return sum + ((r['amount'] as num?)?.toDouble() ?? 0.0);
-      });
-      expect(totalAmount, 2000.0);
+      final rows = await db.getCashFlowData();
+      final monthRows =
+          rows.where((r) => r['month'] == monthKey).toList();
+      double total = 0.0;
+      for (final r in monthRows) {
+        total += r['amount'] as double;
+      }
+      expect(total, 2000.0);
     });
   });
 
@@ -1976,57 +981,44 @@ void main() {
   // =========================================================================
   group('Multi-currency aggregation', () {
     test('total patrimony groups by currency correctly', () async {
-      final descId = await seedTestDescription(db, userId, 'Income');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-06-01', amount: 1000, transactionType: 'income', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-06-02', amount: 500, transactionType: 'income', currency: 'USD');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-06-03', amount: 200, transactionType: 'expense', currency: 'EUR');
+      // GAP: no per-currency grouping API on totals; production converts to
+      // a single target currency. Per-account native values preserve the
+      // grouping intent.
+      await seedUsdEurRate();
+      final usdId =
+          (await db.addAccount('USD Account', '#FF9800', 'checking', 'USD'))!;
+      await cTxn('2025-06-01', 'Income', 1000, 'income');
+      await db.addTransaction(
+        date: '2025-06-02',
+        description: 'Income',
+        amount: Decimal.fromInt(500),
+        transactionType: 'income',
+        accountId: usdId,
+      );
+      await cTxn('2025-06-03', 'Income', 200, 'expense');
 
-      final result = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) as total,
-               COALESCE(NULLIF(t.currency, ''), 'EUR') as currency
-        FROM transactions t WHERE t.user_id = ?
-        GROUP BY currency
-      ''', [userId]);
-
-      expect(result.length, 2);
-      final eurRow = result.firstWhere((r) => r['currency'] == 'EUR');
-      final usdRow = result.firstWhere((r) => r['currency'] == 'USD');
-      expect(eurRow['total'], 800.0);
-      expect(usdRow['total'], 500.0);
+      final dist = await db.getAccountsDistribution();
+      final eurValue = dist
+          .where((r) => r['currency'] == 'EUR')
+          .fold<double>(0.0, (s, r) => s + (r['nativeValue'] as double));
+      final usdValue = dist
+          .where((r) => r['currency'] == 'USD')
+          .fold<double>(0.0, (s, r) => s + (r['nativeValue'] as double));
+      expect(eurValue, 800.0);
+      expect(usdValue, 500.0);
+      final usdRow = dist.firstWhere((r) => r['currency'] == 'USD');
+      expect(usdRow['value'], 450.0); // 500 * seeded 0.9 rate
     });
 
     test('accounts distribution groups by account currency', () async {
-      final descId = await seedTestDescription(db, userId, 'Income');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-06-01', amount: 1000, transactionType: 'income', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-06-02', amount: 200, transactionType: 'expense', currency: 'EUR');
+      await cTxn('2025-06-01', 'Income', 1000, 'income');
+      await cTxn('2025-06-02', 'Income', 200, 'expense');
 
-      final rows = await db.rawQuery('''
-        SELECT a.name, a.color, a.currency as account_currency,
-               COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) AS balance
-        FROM accounts a
-        LEFT JOIN transactions t ON t.account_id = a.id AND t.user_id = ?
-        WHERE a.user_id = ?
-        GROUP BY a.id
-        ORDER BY a.name
-      ''', [userId, userId]);
-
-      final checking = rows.firstWhere((r) => r['name'] == 'Checking Account');
-      expect(checking['balance'], 800.0);
-      expect(checking['account_currency'], 'EUR');
+      final rows = await db.getAccountsDistribution();
+      final checking =
+          rows.firstWhere((r) => r['name'] == 'Checking Account');
+      expect(checking['nativeValue'], 800.0);
+      expect(checking['currency'], 'EUR');
     });
   });
 
@@ -2034,94 +1026,41 @@ void main() {
   // Edge cases
   // =========================================================================
   group('Edge cases', () {
-    test('transactions with null account_id are included in patrimony', () async {
-      final descId = await seedTestDescription(db, userId, 'Cash');
-      await seedTestTransaction(db, userId,
-          accountId: null, descriptionId: descId,
-          date: '2025-06-01', amount: 500, transactionType: 'income', currency: 'EUR');
+    test('transactions with null account_id are included in patrimony',
+        () async {
+      await oTxn('2025-06-01', 'Cash', 500, 'income');
 
-      final result = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) as total,
-               COALESCE(NULLIF(t.currency, ''), 'EUR') as currency
-        FROM transactions t WHERE t.user_id = ?
-        GROUP BY currency
-      ''', [userId]);
-
-      final total = result.fold<double>(0.0, (sum, row) {
-        return sum + ((row['total'] as num?)?.toDouble() ?? 0.0);
-      });
-      expect(total, 500.0);
+      expect(await db.getTotalPatrimony(), Decimal.fromInt(500));
     });
 
-    test('null account_id transactions are included in checking balance', () async {
-      final descId = await seedTestDescription(db, userId, 'Cash');
-      await seedTestTransaction(db, userId,
-          accountId: null, descriptionId: descId,
-          date: '2025-06-01', amount: 300, transactionType: 'income', currency: 'EUR');
+    test('null account_id transactions use prod balance semantics', () async {
+      // GAP: see getBalance orphan test above; production excludes orphans.
+      await oTxn('2025-06-01', 'Cash', 300, 'income');
 
-      final rows = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) as total,
-               COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE (a.type = 'checking' OR t.account_id IS NULL) AND t.user_id = ?
-        GROUP BY a.currency
-      ''', [userId]);
-
-      final total = rows.fold<double>(0.0, (sum, row) {
-        return sum + ((row['total'] as num?)?.toDouble() ?? 0.0);
-      });
-      expect(total, 300.0);
+      expect(await db.getBalance(), Decimal.zero);
     });
 
-    test('empty currency defaults to EUR', () async {
-      final descId = await seedTestDescription(db, userId, 'Cash');
-      await seedTestTransaction(db, userId,
-          accountId: null, descriptionId: descId,
-          date: '2025-06-01', amount: 100, transactionType: 'income', currency: '');
+    test('default currency normalizes to EUR', () async {
+      // GAP: no per-currency grouping API; production normalizes blank/
+      // missing currencies to EUR and converts totals.
+      await oTxn('2025-06-01', 'Cash', 100, 'income');
 
-      final result = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) as total,
-               COALESCE(NULLIF(t.currency, ''), 'EUR') as currency
-        FROM transactions t WHERE t.user_id = ?
-        GROUP BY currency
-      ''', [userId]);
-
-      expect(result.length, 1);
-      expect(result.first['currency'], 'EUR');
+      expect(await db.getTotalPatrimony(), Decimal.fromInt(100));
+      final dist = await db.getAccountsDistribution();
+      expect(dist.length, 3);
     });
 
     test('multiple transactions on same date are aggregated', () async {
-      final descId = await seedTestDescription(db, userId, 'Food');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-06-15', amount: 10, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-06-15', amount: 20, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-06-15', amount: 30, transactionType: 'expense', currency: 'EUR');
+      await cTxn('2025-06-15', 'Food', 10, 'expense');
+      await cTxn('2025-06-15', 'Food', 20, 'expense');
+      await cTxn('2025-06-15', 'Food', 30, 'expense');
 
-      final rows = await db.rawQuery('''
-        SELECT LOWER(COALESCE(d.name, 'Uncategorized')) as category,
-               SUM(t.amount) as amount,
-               COALESCE(NULLIF(t.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN descriptions d ON t.description_id = d.id
-        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-        GROUP BY category, t.currency
-        ORDER BY amount DESC
-      ''', ['expense', '2025-06-01', '2025-06-30', userId]);
-
-      expect(rows.length, 1);
-      expect(rows[0]['amount'], 60.0);
+      final dist = await db.getDistributionForRange(
+          transactionType: 'expense',
+          startDate: '2025-06-01',
+          endDate: '2025-06-30');
+      expect(dist.length, 1);
+      expect(dist['Food'], Decimal.fromInt(60));
     });
   });
 
@@ -2130,197 +1069,91 @@ void main() {
   // =========================================================================
   group('Full scenario tests', () {
     test('complex multi-month scenario with all statistics queries', () async {
-      final descIncome = await seedTestDescription(db, userId, 'Salary');
-      final descFood = await seedTestDescription(db, userId, 'Food');
-      final descRent = await seedTestDescription(db, userId, 'Rent');
-
       // Month 1 (March): income 3000, expense 1200+300=1500
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descIncome,
-          date: '2025-03-01', amount: 3000, transactionType: 'income', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descRent,
-          date: '2025-03-05', amount: 1200, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descFood,
-          date: '2025-03-10', amount: 300, transactionType: 'expense', currency: 'EUR');
+      await cTxn('2025-03-01', 'Salary', 3000, 'income');
+      await cTxn('2025-03-05', 'Rent', 1200, 'expense');
+      await cTxn('2025-03-10', 'Food', 300, 'expense');
 
       // Month 2 (April): income 3000, expense 1200+400=1600
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descIncome,
-          date: '2025-04-01', amount: 3000, transactionType: 'income', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descRent,
-          date: '2025-04-05', amount: 1200, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descFood,
-          date: '2025-04-10', amount: 400, transactionType: 'expense', currency: 'EUR');
+      await cTxn('2025-04-01', 'Salary', 3000, 'income');
+      await cTxn('2025-04-05', 'Rent', 1200, 'expense');
+      await cTxn('2025-04-10', 'Food', 400, 'expense');
 
       // Month 3 (May): income 3000, expense 1200+250=1450
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descIncome,
-          date: '2025-05-01', amount: 3000, transactionType: 'income', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descRent,
-          date: '2025-05-05', amount: 1200, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descFood,
-          date: '2025-05-10', amount: 250, transactionType: 'expense', currency: 'EUR');
+      await cTxn('2025-05-01', 'Salary', 3000, 'income');
+      await cTxn('2025-05-05', 'Rent', 1200, 'expense');
+      await cTxn('2025-05-10', 'Food', 250, 'expense');
 
       // Month 4 (June): income 3000, expense 1200+500=1700
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descIncome,
-          date: '2025-06-01', amount: 3000, transactionType: 'income', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descRent,
-          date: '2025-06-05', amount: 1200, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descFood,
-          date: '2025-06-15', amount: 500, transactionType: 'expense', currency: 'EUR');
+      await cTxn('2025-06-01', 'Salary', 3000, 'income');
+      await cTxn('2025-06-05', 'Rent', 1200, 'expense');
+      await cTxn('2025-06-15', 'Food', 500, 'expense');
 
-      // --- Test getTotalPatrimony ---
-      final patrimonyResult = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) as total,
-               COALESCE(NULLIF(t.currency, ''), 'EUR') as currency
-        FROM transactions t WHERE t.user_id = ?
-        GROUP BY currency
-      ''', [userId]);
-      final totalPatrimony = patrimonyResult.fold<double>(0.0, (sum, row) {
-        return sum + ((row['total'] as num?)?.toDouble() ?? 0.0);
-      });
+      // --- getTotalPatrimony ---
       // 12000 income - 6250 expenses = 5750
-      expect(totalPatrimony, 5750.0);
+      expect(await db.getTotalPatrimony(), Decimal.fromInt(5750));
 
-      // --- Test getBalance (checking only) ---
-      final balanceRows = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) as total,
-               COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE (a.type = 'checking' OR t.account_id IS NULL) AND t.user_id = ?
-        GROUP BY a.currency
-      ''', [userId]);
-      final balance = balanceRows.fold<double>(0.0, (sum, row) {
-        return sum + ((row['total'] as num?)?.toDouble() ?? 0.0);
-      });
-      expect(balance, 5750.0);
+      // --- getBalance (checking only) ---
+      expect(await db.getBalance(), Decimal.fromInt(5750));
 
-      // --- Test getHistoryPatrimony (before May) ---
-      final historyPatResult = await db.rawQuery('''
-        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount
-                                 WHEN t.transaction_type = 'expense' THEN -t.amount
-                                 ELSE 0 END), 0) as total,
-               COALESCE(NULLIF(t.currency, ''), 'EUR') as currency
-        FROM transactions t WHERE t.date < ? AND t.user_id = ?
-        GROUP BY currency
-      ''', ['2025-05-01', userId]);
-      final historyPatrimony = historyPatResult.fold<double>(0.0, (sum, row) {
-        return sum + ((row['total'] as num?)?.toDouble() ?? 0.0);
-      });
+      // --- history patrimony (before May) via getAccountsDistribution ---
       // March + April: (3000-1500) + (3000-1600) = 1500 + 1400 = 2900
-      expect(historyPatrimony, 2900.0);
+      expect(await patrimonyBefore('2025-05-01'), Decimal.fromInt(2900));
 
-      // --- Test getMonthlySummary for April ---
-      const aprStart = '2025-04-01';
-      const aprEnd = '2025-05-01';
-      final aprRows = await db.rawQuery('''
-        SELECT
-          COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount ELSE 0 END), 0) as income,
-          COALESCE(SUM(CASE WHEN t.transaction_type = 'expense' THEN t.amount ELSE 0 END), 0) as expenses,
-          COALESCE(NULLIF(a.currency, ''), 'EUR') as currency
-        FROM transactions t
-        LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE (t.date >= ? AND t.date < ?) AND (a.type = 'checking' OR t.account_id IS NULL) AND t.user_id = ?
-        GROUP BY a.currency
-      ''', [aprStart, aprEnd, userId]);
-      double aprIncome = 0.0;
-      double aprExpenses = 0.0;
-      for (final row in aprRows) {
-        aprIncome += (row['income'] as num?)?.toDouble() ?? 0.0;
-        aprExpenses += (row['expenses'] as num?)?.toDouble() ?? 0.0;
-      }
-      expect(aprIncome, 3000.0);
-      expect(aprExpenses, 1600.0);
-      expect(aprIncome - aprExpenses, 1400.0);
+      // --- getMonthlySummary for April ---
+      final april = await db.getMonthlySummary(year: 2025, month: 4);
+      expect(april['income'], Decimal.fromInt(3000));
+      expect(april['expenses'], Decimal.fromInt(1600));
+      expect(april['balance'], Decimal.fromInt(1400));
 
-      // --- Test getMonthlyChartData for 2025 ---
-      final chartRows = await db.rawQuery('''
-        SELECT strftime('%m', t.date) as month,
-               COALESCE(SUM(CASE WHEN t.transaction_type = 'income' THEN t.amount ELSE 0 END), 0) as income,
-               COALESCE(SUM(CASE WHEN t.transaction_type = 'expense' THEN t.amount ELSE 0 END), 0) as expenses
-        FROM transactions t
-        LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE strftime('%Y', t.date) = ? AND (a.type = 'checking' OR t.account_id IS NULL) AND t.user_id = ?
-        GROUP BY month
-        ORDER BY month
-      ''', ['2025', userId]);
-      expect(chartRows.length, 4);
-      final marchChart = chartRows.firstWhere((r) => r['month'] == '03');
-      expect(marchChart['income'], 3000.0);
-      expect(marchChart['expenses'], 1500.0);
+      // --- monthly income/expense breakdown for 2025 via cash-flow range ---
+      final chart = await db.getCashFlowDataForRange(
+          startDate: '2025-01-01', endDate: '2025-12-31');
+      final chartMonths = chart.map((r) => r['month'] as String).toSet();
+      expect(chartMonths, {'2025-03', '2025-04', '2025-05', '2025-06'});
+      final marchIncome = chart.firstWhere(
+          (r) => r['month'] == '2025-03' && r['type'] == 'income');
+      final marchExpense = chart.firstWhere(
+          (r) => r['month'] == '2025-03' && r['type'] == 'expense');
+      expect(marchIncome['amount'], 3000.0);
+      expect(marchExpense['amount'], 1500.0);
 
-      // --- Test getTopDescriptions ---
-      final topRows = await db.rawQuery('''
-        SELECT LOWER(COALESCE(d.name, 'Uncategorized')) as desc,
-               SUM(t.amount) as total,
-               COUNT(t.id) as count
-        FROM transactions t
-        LEFT JOIN descriptions d ON t.description_id = d.id
-        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-        GROUP BY desc
-        HAVING count >= ?
-        ORDER BY total DESC
-      ''', ['expense', '2025-01-01', '2025-12-31', userId, 1]);
-      expect(topRows.isNotEmpty, true);
+      // --- top descriptions via monthly data (no fixed-range top-N API) ---
       // Rent: 4800 total, Food: 1450 total
-      expect(topRows[0]['desc'], 'rent');
-      expect(topRows[1]['desc'], 'food');
+      final monthly = await db.getDescriptionMonthlyData(
+          '2025-01-01', '2025-12-31');
+      double rentTotal = 0.0;
+      double foodTotal = 0.0;
+      for (final entry in monthly['Rent']!.values) {
+        rentTotal += entry['expense']!;
+      }
+      for (final entry in monthly['Food']!.values) {
+        foodTotal += entry['expense']!;
+      }
+      expect(rentTotal, 4800.0);
+      expect(foodTotal, 1450.0);
+      expect(rentTotal > foodTotal, true);
     });
   });
 
-  group('getTopTags SQL', () {
+  group('getTopTags', () {
     test('returns empty when no tagged transactions', () async {
-      final rows = await db.rawQuery('''
-        SELECT tg.name as tag, SUM(t.amount) as total, COUNT(*) as count
-        FROM transactions t
-        LEFT JOIN tags tg ON t.tag_id = tg.id
-        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-          AND t.tag_id IS NOT NULL
-        GROUP BY tg.name
-        ORDER BY total DESC
-      ''', ['expense', '2025-01-01', '2025-12-31', userId]);
-      expect(rows, isEmpty);
+      expect(await db.getTopTags(), isEmpty);
     });
 
     test('returns tags ordered by total amount', () async {
-      final tag1 = await seedTestTag(db, userId, 'Groceries');
-      final tag2 = await seedTestTag(db, userId, 'Trip');
-      final descId = await seedTestDescription(db, userId, 'Food');
+      final txnDate = DateTime.now()
+          .subtract(const Duration(days: 10))
+          .toIso8601String()
+          .substring(0, 10);
+      final tag1 = (await db.createTag(name: 'Groceries'))!;
+      final tag2 = (await db.createTag(name: 'Trip'))!;
 
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId, tagId: tag1,
-          amount: 100.0, transactionType: 'expense', date: '2025-06-01');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId, tagId: tag1,
-          amount: 50.0, transactionType: 'expense', date: '2025-06-15');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId, tagId: tag2,
-          amount: 200.0, transactionType: 'expense', date: '2025-06-10');
+      await cTxn(txnDate, 'Food', 100, 'expense', tagId: tag1);
+      await cTxn(txnDate, 'Food', 50, 'expense', tagId: tag1);
+      await cTxn(txnDate, 'Food', 200, 'expense', tagId: tag2);
 
-      final rows = await db.rawQuery('''
-        SELECT tg.name as tag, SUM(t.amount) as total, COUNT(*) as count
-        FROM transactions t
-        LEFT JOIN tags tg ON t.tag_id = tg.id
-        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-          AND t.tag_id IS NOT NULL
-        GROUP BY tg.name
-        ORDER BY total DESC
-      ''', ['expense', '2025-01-01', '2025-12-31', userId]);
-
+      final rows = await db.getTopTags();
       expect(rows.length, 2);
       expect(rows[0]['tag'], 'Trip');
       expect(rows[0]['total'], 200.0);
@@ -2329,242 +1162,171 @@ void main() {
     });
 
     test('respects minCount filter', () async {
-      final tagId = await seedTestTag(db, userId, 'Rare');
-      final descId = await seedTestDescription(db, userId, 'Food');
+      final txnDate = DateTime.now()
+          .subtract(const Duration(days: 10))
+          .toIso8601String()
+          .substring(0, 10);
+      final tagId = (await db.createTag(name: 'Rare'))!;
 
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId, tagId: tagId,
-          amount: 10.0, transactionType: 'expense', date: '2025-06-01');
+      await cTxn(txnDate, 'Food', 10, 'expense', tagId: tagId);
 
-      final rows = await db.rawQuery('''
-        SELECT tg.name as tag, COUNT(*) as count
-        FROM transactions t
-        LEFT JOIN tags tg ON t.tag_id = tg.id
-        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-          AND t.tag_id IS NOT NULL
-        GROUP BY tg.name
-        HAVING count >= ?
-      ''', ['expense', '2025-01-01', '2025-12-31', userId, 2]);
-
-      expect(rows, isEmpty);
+      expect(await db.getTopTags(minCount: 2), isEmpty);
     });
 
     test('excludes untagged transactions', () async {
-      final descId = await seedTestDescription(db, userId, 'Food');
+      final txnDate = DateTime.now()
+          .subtract(const Duration(days: 10))
+          .toIso8601String()
+          .substring(0, 10);
 
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          amount: 100.0, transactionType: 'expense', date: '2025-06-01');
+      await cTxn(txnDate, 'Food', 100, 'expense');
 
-      final rows = await db.rawQuery('''
-        SELECT tg.name as tag, SUM(t.amount) as total
-        FROM transactions t
-        LEFT JOIN tags tg ON t.tag_id = tg.id
-        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-          AND t.tag_id IS NOT NULL
-        GROUP BY tg.name
-      ''', ['expense', '2025-01-01', '2025-12-31', userId]);
-
-      expect(rows, isEmpty);
+      expect(await db.getTopTags(), isEmpty);
     });
   });
 
-  group('getTagMonthlyData SQL', () {
+  group('getTagMonthlyData', () {
     test('returns empty when no tagged transactions', () async {
-      final rows = await db.rawQuery('''
-        SELECT t.amount, t.transaction_type, t.date, tg.name as tag_name
-        FROM transactions t
-        LEFT JOIN tags tg ON t.tag_id = tg.id
-        WHERE t.date >= ? AND t.date <= ? AND t.user_id = ?
-          AND t.tag_id IS NOT NULL
-      ''', ['2025-01-01', '2025-12-31', userId]);
-      expect(rows, isEmpty);
+      expect(
+          await db.getTagMonthlyData('2025-01-01', '2025-12-31'), isEmpty);
     });
 
     test('returns monthly breakdown per tag', () async {
-      final tagId = await seedTestTag(db, userId, 'Groceries');
-      final descId = await seedTestDescription(db, userId, 'Food');
+      final tagId = (await db.createTag(name: 'Groceries'))!;
 
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId, tagId: tagId,
-          amount: 100.0, transactionType: 'expense', date: '2025-06-01');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId, tagId: tagId,
-          amount: 50.0, transactionType: 'income', date: '2025-06-15');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId, tagId: tagId,
-          amount: 75.0, transactionType: 'expense', date: '2025-07-01');
+      await cTxn('2025-06-01', 'Food', 100, 'expense', tagId: tagId);
+      await cTxn('2025-06-15', 'Food', 50, 'income', tagId: tagId);
+      await cTxn('2025-07-01', 'Food', 75, 'expense', tagId: tagId);
 
-      final rows = await db.rawQuery('''
-        SELECT t.amount, t.transaction_type, t.date, tg.name as tag_name
-        FROM transactions t
-        LEFT JOIN tags tg ON t.tag_id = tg.id
-        WHERE t.date >= ? AND t.date <= ? AND t.user_id = ?
-          AND t.tag_id IS NOT NULL
-      ''', ['2025-01-01', '2025-12-31', userId]);
-
-      expect(rows.length, 3);
-
-      final byMonth = <String, List>{};
-      for (final r in rows) {
-        final month = (r['date'] as String).substring(0, 7);
-        byMonth.putIfAbsent(month, () => []).add(r);
-      }
-
-      expect(byMonth['2025-06']!.length, 2);
-      expect(byMonth['2025-07']!.length, 1);
-
-      final juneExpenses = byMonth['2025-06']!
-          .where((r) => r['transaction_type'] == 'expense')
-          .toList();
-      expect(juneExpenses.length, 1);
-      expect(juneExpenses.first['amount'], 100.0);
+      final data =
+          await db.getTagMonthlyData('2025-01-01', '2025-12-31');
+      expect(data.containsKey('Groceries'), true);
+      expect(data['Groceries']!.length, 2);
+      expect(data['Groceries']!['2025-06']!['expense'], 100.0);
+      expect(data['Groceries']!['2025-06']!['income'], 50.0);
+      expect(data['Groceries']!['2025-07']!['expense'], 75.0);
     });
 
     test('excludes untagged transactions', () async {
-      final descId = await seedTestDescription(db, userId, 'Food');
+      await cTxn('2025-06-01', 'Food', 100, 'expense');
 
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          amount: 100.0, transactionType: 'expense', date: '2025-06-01');
-
-      final rows = await db.rawQuery('''
-        SELECT t.amount, tg.name as tag_name
-        FROM transactions t
-        LEFT JOIN tags tg ON t.tag_id = tg.id
-        WHERE t.date >= ? AND t.date <= ? AND t.user_id = ?
-          AND t.tag_id IS NOT NULL
-      ''', ['2025-01-01', '2025-12-31', userId]);
-
-      expect(rows, isEmpty);
+      expect(
+          await db.getTagMonthlyData('2025-01-01', '2025-12-31'), isEmpty);
     });
 
     test('separates data by tag name', () async {
-      final tag1 = await seedTestTag(db, userId, 'Groceries');
-      final tag2 = await seedTestTag(db, userId, 'Trip');
-      final descId = await seedTestDescription(db, userId, 'Food');
+      final tag1 = (await db.createTag(name: 'Groceries'))!;
+      final tag2 = (await db.createTag(name: 'Trip'))!;
 
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId, tagId: tag1,
-          amount: 100.0, transactionType: 'expense', date: '2025-06-01');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId, tagId: tag2,
-          amount: 200.0, transactionType: 'expense', date: '2025-06-01');
+      await cTxn('2025-06-01', 'Food', 100, 'expense', tagId: tag1);
+      await cTxn('2025-06-01', 'Food', 200, 'expense', tagId: tag2);
 
-      final rows = await db.rawQuery('''
-        SELECT tg.name as tag_name, SUM(t.amount) as total
-        FROM transactions t
-        LEFT JOIN tags tg ON t.tag_id = tg.id
-        WHERE t.date >= ? AND t.date <= ? AND t.user_id = ?
-          AND t.tag_id IS NOT NULL
-        GROUP BY tg.name
-      ''', ['2025-01-01', '2025-12-31', userId]);
-
-      expect(rows.length, 2);
-      final groceries = rows.firstWhere((r) => r['tag_name'] == 'Groceries');
-      final trip = rows.firstWhere((r) => r['tag_name'] == 'Trip');
-      expect(groceries['total'], 100.0);
-      expect(trip['total'], 200.0);
+      final data =
+          await db.getTagMonthlyData('2025-01-01', '2025-12-31');
+      expect(data.length, 2);
+      double groceriesTotal = 0.0;
+      double tripTotal = 0.0;
+      for (final entry in data['Groceries']!.values) {
+        groceriesTotal += entry['expense']!;
+      }
+      for (final entry in data['Trip']!.values) {
+        tripTotal += entry['expense']!;
+      }
+      expect(groceriesTotal, 100.0);
+      expect(tripTotal, 200.0);
     });
   });
 
   // =========================================================================
   // Custom range queries (dashboard custom period)
   // =========================================================================
-  group('Custom range queries SQL', () {
-    test('range distribution only includes transactions within bounds', () async {
-      final descId = await seedTestDescription(db, userId, 'Food');
+  group('Custom range queries', () {
+    test('range distribution only includes transactions within bounds',
+        () async {
+      await cTxn('2025-03-10', 'Food', 100, 'expense');
+      await cTxn('2025-05-10', 'Food', 200, 'expense');
+      await cTxn('2025-08-10', 'Food', 400, 'expense');
 
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-03-10', amount: 100, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-05-10', amount: 200, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-08-10', amount: 400, transactionType: 'expense', currency: 'EUR');
-
-      final rows = await db.rawQuery('''
-        SELECT SUM(t.amount) as total
-        FROM transactions t
-        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-      ''', ['expense', '2025-04-01', '2025-06-30', userId]);
-
-      expect((rows.first['total'] as num?)?.toDouble() ?? 0.0, 200.0);
+      final dist = await db.getDistributionForRange(
+          transactionType: 'expense',
+          startDate: '2025-04-01',
+          endDate: '2025-06-30');
+      expect(dist['Food'], Decimal.fromInt(200));
     });
 
     test('range tag distribution only includes the requested tag', () async {
-      final foodId = await seedTestDescription(db, userId, 'Food');
-      final tagA = await seedTestTag(db, userId, 'TagA');
-      final tagB = await seedTestTag(db, userId, 'TagB');
+      final tagA = (await db.createTag(name: 'TagA'))!;
+      final tagB = (await db.createTag(name: 'TagB'))!;
 
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: foodId, tagId: tagA,
-          date: '2025-04-10', amount: 80, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: foodId, tagId: tagB,
-          date: '2025-04-10', amount: 999, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: foodId, tagId: tagA,
-          date: '2025-09-10', amount: 777, transactionType: 'expense', currency: 'EUR');
+      await cTxn('2025-04-10', 'Food', 80, 'expense', tagId: tagA);
+      await cTxn('2025-04-10', 'Food', 999, 'expense', tagId: tagB);
+      await cTxn('2025-09-10', 'Food', 777, 'expense', tagId: tagA);
 
-      final rows = await db.rawQuery('''
-        SELECT tg.name as tag_name, SUM(t.amount) as total
-        FROM transactions t
-        LEFT JOIN tags tg ON t.tag_id = tg.id
-        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-          AND t.tag_id IS NOT NULL
-        GROUP BY tg.name
-      ''', ['expense', '2025-04-01', '2025-06-30', userId]);
-
-      expect(rows.length, 2);
-      final tagARow = rows.firstWhere((r) => r['tag_name'] == 'TagA');
-      final tagBRow = rows.firstWhere((r) => r['tag_name'] == 'TagB');
-      expect(tagARow['total'], 80.0);
-      expect(tagBRow['total'], 999.0);
+      final breakdown = await db.getTagDescriptionBreakdown(
+          transactionType: 'expense',
+          tag: 'TagA',
+          startDate: '2025-04-01',
+          endDate: '2025-06-30');
+      expect(breakdown.length, 1);
+      expect(breakdown['Food'], Decimal.fromInt(80));
     });
 
     test('earliest transaction date returns the minimum date', () async {
-      final descId = await seedTestDescription(db, userId, 'Food');
+      await cTxn('2025-02-10', 'Food', 100, 'expense');
+      await cTxn('2025-01-05', 'Food', 50, 'expense');
 
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-02-10', amount: 100, transactionType: 'expense', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-01-05', amount: 50, transactionType: 'expense', currency: 'EUR');
-
-      final rows = await db.rawQuery('''
-        SELECT MIN(date) as earliest FROM transactions WHERE user_id = ?
-      ''', [userId]);
-
-      expect(rows.first['earliest'], '2025-01-05');
+      expect(await db.getFirstTransactionDate(), '2025-01-05');
     });
 
     test('range cash flow groups by month within bounds', () async {
-      final descId = await seedTestDescription(db, userId, 'Salary');
+      await cTxn('2025-04-15', 'Salary', 1000, 'income');
+      await cTxn('2025-05-15', 'Salary', 500, 'income');
 
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-04-15', amount: 1000, transactionType: 'income', currency: 'EUR');
-      await seedTestTransaction(db, userId,
-          accountId: accountIds[0], descriptionId: descId,
-          date: '2025-05-15', amount: 500, transactionType: 'income', currency: 'EUR');
+      final rows = await db.getCashFlowDataForRange(
+          startDate: '2025-04-01', endDate: '2025-06-30');
+      final sorted = rows.toList()
+        ..sort((a, b) =>
+            (a['month'] as String).compareTo(b['month'] as String));
+      expect(sorted.length, 2);
+      expect(sorted[0]['month'], '2025-04');
+      expect(sorted[0]['amount'], 1000.0);
+      expect(sorted[1]['month'], '2025-05');
+      expect(sorted[1]['amount'], 500.0);
+    });
+  });
 
-      final rows = await db.rawQuery('''
-        SELECT strftime('%Y-%m', t.date) as month, SUM(t.amount) as total
-        FROM transactions t
-        WHERE t.transaction_type = ? AND t.date >= ? AND t.date <= ? AND t.user_id = ?
-        GROUP BY month
-        ORDER BY month
-      ''', ['income', '2025-04-01', '2025-06-30', userId]);
+  // =========================================================================
+  // Lifetime stats (dashboard averages section)
+  // =========================================================================
+  group('Lifetime stats', () {
+    test('lifetime totals exclude future-dated transactions', () async {
+      final now = DateTime.now();
+      final pastDate = now
+          .subtract(const Duration(days: 10))
+          .toIso8601String()
+          .substring(0, 10);
+      final futureDate =
+          now.add(const Duration(days: 10)).toIso8601String().substring(0, 10);
+      await cTxn(pastDate, 'Salary', 1000, 'income');
+      await cTxn(futureDate, 'Salary', 9999, 'income');
 
-      expect(rows.length, 2);
-      expect(rows[0]['month'], '2025-04');
-      expect(rows[0]['total'], 1000.0);
-      expect(rows[1]['month'], '2025-05');
-      expect(rows[1]['total'], 500.0);
+      final stats = await db.getLifetimeStats();
+      expect(stats['income'], Decimal.fromInt(1000));
+    });
+
+    test('lifetime totals only count checking accounts and orphans', () async {
+      final txnDate = DateTime.now()
+          .subtract(const Duration(days: 5))
+          .toIso8601String()
+          .substring(0, 10);
+
+      // checkingId = checking, savingsAId = savings.
+      await cTxn(txnDate, 'Food', 100, 'expense');
+      await sATxn(txnDate, 'Food', 500, 'expense');
+      await oTxn(txnDate, 'Food', 50, 'expense');
+
+      final stats = await db.getLifetimeStats();
+      expect(stats['expenses'], Decimal.fromInt(150));
     });
   });
 }

@@ -76,7 +76,9 @@ class _AccountsViewState extends State<AccountsView> {
   Widget build(BuildContext context) {
     final themeName = context.watch<ThemeProvider>().themeName;
     final colors = PeadraTheme.getColors(themeName);
-    final currency = context.watch<SettingsProvider>().currency;
+    // Single subscription path for currency: didChangeDependencies (watch
+    // above) reloads on change; read here avoids a second subscription.
+    final currency = context.read<SettingsProvider>().currency;
 
     return Padding(
       padding: ResponsiveLayout.pagePaddingAll(context),
@@ -234,12 +236,24 @@ class _AccountsViewState extends State<AccountsView> {
   }
 
   Widget _buildConvertedTotals(PeadraColors colors, String targetCurrency) {
-    final checkingAccounts = _accounts.where((a) => a.isChecking).toList();
-    final savingsAccounts = _accounts.where((a) => a.isSavings).toList();
-    final checkingCurrencies = checkingAccounts.map((a) => a.currency).toSet();
-    final savingsCurrencies = savingsAccounts.map((a) => a.currency).toSet();
-    final showChecking = checkingAccounts.isNotEmpty && checkingCurrencies.length > 1;
-    final showSavings = savingsAccounts.isNotEmpty && savingsCurrencies.length > 1;
+    // Single pass over accounts: collect checking/savings splits and their
+    // currency sets together instead of where().toList()+map().toSet() twice.
+    var hasChecking = false;
+    var hasSavings = false;
+    final checkingCurrencies = <String>{};
+    final savingsCurrencies = <String>{};
+    for (final a in _accounts) {
+      if (a.isChecking) {
+        hasChecking = true;
+        checkingCurrencies.add(a.currency);
+      }
+      if (a.isSavings) {
+        hasSavings = true;
+        savingsCurrencies.add(a.currency);
+      }
+    }
+    final showChecking = hasChecking && checkingCurrencies.length > 1;
+    final showSavings = hasSavings && savingsCurrencies.length > 1;
     if (!showChecking && !showSavings) return const SizedBox.shrink();
     return Card(
       color: colors.surface,
@@ -407,6 +421,7 @@ class _AccountsViewState extends State<AccountsView> {
               if (nameCtrl.text.trim().isEmpty) return;
               final startingAmount = Decimal.tryParse(startingAmountCtrl.text) ?? Decimal.zero;
               await _db.addAccount(nameCtrl.text.trim(), color, type, currency, startingAmount: startingAmount);
+              if (!ctx.mounted) return;
               Navigator.pop(ctx);
               _loadAccounts();
             },
@@ -511,6 +526,7 @@ class _AccountsViewState extends State<AccountsView> {
                 startingAmount: startingAmount,
                 updateNameInTransactions: true,
               );
+              if (!ctx.mounted) return;
               Navigator.pop(ctx);
               _loadAccounts();
             },
@@ -563,6 +579,7 @@ class _AccountsViewState extends State<AccountsView> {
           ElevatedButton(
             onPressed: () async {
               await _db.deleteAccount(acct.id!, deleteTransactions: deleteTransactions);
+              if (!ctx.mounted) return;
               Navigator.pop(ctx);
               _loadAccounts();
             },

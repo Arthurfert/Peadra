@@ -23,8 +23,8 @@ class WifiMonitor {
   bool get isWifiAvailable => _lastWifiState;
 
   /// Starts listening for connectivity changes.
-  void start() {
-    _subscription?.cancel();
+  Future<void> start() async {
+    await _subscription?.cancel();
     _subscription = _connectivity.onConnectivityChanged.listen((results) {
       final hasWifi = results.any((r) => r == ConnectivityResult.wifi);
       if (hasWifi != _lastWifiState) {
@@ -35,11 +35,15 @@ class WifiMonitor {
     });
   }
 
-  /// Checks current connectivity state.
+  /// Checks current connectivity state and emits it so stream listeners
+  /// never diverge from the last checked state.
   Future<bool> checkWifi() async {
     final results = await _connectivity.checkConnectivity();
     final hasWifi = results.any((r) => r == ConnectivityResult.wifi);
-    _lastWifiState = hasWifi;
+    if (hasWifi != _lastWifiState) {
+      _lastWifiState = hasWifi;
+      if (!_controller.isClosed) _controller.add(hasWifi);
+    }
     return hasWifi;
   }
 

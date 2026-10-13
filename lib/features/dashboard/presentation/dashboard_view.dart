@@ -13,6 +13,7 @@ import 'charts/category_pie_chart.dart';
 import 'dashboard_view_desktop.dart';
 import 'dashboard_view_mobile.dart';
 import 'widgets/custom_range_dialog.dart';
+import 'widgets/stat_card_grid.dart';
 import '../../../shared/widgets/peadra_modal.dart';
 
 class DashboardView extends StatefulWidget {
@@ -40,6 +41,7 @@ class _DashboardViewState extends State<DashboardView> {
   Map<String, Decimal> _monthlyExpenses = {};
   Map<String, Decimal> _monthlyIncomes = {};
   Map<String, String> _tagColors = {};
+  Map<String, dynamic> _lifetimeStats = {};
   String? _expenseDrillTag;
   String? _incomeDrillTag;
   bool _expenseShowAll = false;
@@ -62,11 +64,6 @@ class _DashboardViewState extends State<DashboardView> {
   String _lastAssetsGranularity = '';
 
   @override
-  void initState() {
-    super.initState();
-  }
-
-  @override
   void didUpdateWidget(DashboardView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.refreshSignal != oldWidget.refreshSignal) {
@@ -77,10 +74,14 @@ class _DashboardViewState extends State<DashboardView> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final currency = context.watch<SettingsProvider>().currency;
-    final monthMode = context.watch<SettingsProvider>().monthMode;
-    final categoriesView = context.watch<SettingsProvider>().dashboardPieView;
-    final assetsGranularity = context.watch<SettingsProvider>().assetsGranularity;
+    final currency =
+        context.watch<SettingsProvider>().currency;
+    final monthMode =
+        context.watch<SettingsProvider>().monthMode;
+    final categoriesView =
+        context.watch<SettingsProvider>().dashboardPieView;
+    final assetsGranularity =
+        context.watch<SettingsProvider>().assetsGranularity;
     if (currency != _lastCurrency ||
         monthMode != _lastMonthMode ||
         categoriesView != _lastDashboardPieView ||
@@ -190,6 +191,7 @@ class _DashboardViewState extends State<DashboardView> {
             : Future.value(<String, String>{})),
         _safeQuery(() =>
             _db.getBalance(targetCurrency: currency, before: thisMonthStart)),
+        _safeQuery(() => _db.getLifetimeStats(targetCurrency: currency)),
       ]);
 
       if (mounted) {
@@ -209,6 +211,7 @@ class _DashboardViewState extends State<DashboardView> {
           _previousBalance = (results[12] as Decimal?) ?? Decimal.zero;
           _previousSavings = (results[10] as Decimal?) ?? Decimal.zero;
           _tagColors = (results[11] as Map<String, String>?) ?? {};
+          _lifetimeStats = (results[13] as Map<String, dynamic>?) ?? {};
           _expenseDrillTag = null;
           _incomeDrillTag = null;
           _expenseShowAll = false;
@@ -376,6 +379,7 @@ class _DashboardViewState extends State<DashboardView> {
   Widget _buildStatCards(PeadraColors colors, String currency) {
     final currentIncome = _monthlySummary['income'] ?? Decimal.zero;
     final currentExpenses = _monthlySummary['expenses'] ?? Decimal.zero;
+    final showSubtitles = context.read<SettingsProvider>().showStatSubtitles;
 
     final balanceChange = _previousBalance > Decimal.zero
         ? (((_balance - _previousBalance) * Decimal.fromInt(100)) / _previousBalance).toDouble()
@@ -399,6 +403,8 @@ class _DashboardViewState extends State<DashboardView> {
         iconColor: colors.info,
         bgColor: colors.info.withValues(alpha: 0.15),
         colors: colors,
+        showSubtitle: showSubtitles,
+        subtitle: Translator.t('dash_as_of_today'),
       ),
       _buildStatCard(
         title: Translator.t('dash_income'),
@@ -408,6 +414,8 @@ class _DashboardViewState extends State<DashboardView> {
         iconColor: colors.success,
         bgColor: colors.incomeBg,
         colors: colors,
+        showSubtitle: showSubtitles,
+        subtitle: Translator.t('dash_this_month'),
       ),
       _buildStatCard(
         title: Translator.t('dash_expenses'),
@@ -418,6 +426,8 @@ class _DashboardViewState extends State<DashboardView> {
         bgColor: colors.expenseBg,
         colors: colors,
         invertChange: true,
+        showSubtitle: showSubtitles,
+        subtitle: Translator.t('dash_this_month'),
       ),
       _buildStatCard(
         title: Translator.t('dash_savings_outside'),
@@ -427,43 +437,106 @@ class _DashboardViewState extends State<DashboardView> {
         iconColor: colors.savingsIcon,
         bgColor: colors.savingsBg,
         colors: colors,
+        showSubtitle: showSubtitles,
+        subtitle: Translator.t('dash_as_of_today'),
       ),
     ];
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isWide = constraints.maxWidth > 600;
-        if (isWide) {
-          return Row(
-            children: [
-              for (int i = 0; i < cards.length; i++) ...[
-                if (i > 0) const SizedBox(width: 12),
-                Expanded(child: cards[i]),
-              ],
-            ],
-          );
-        }
-        return Column(
-          children: [
-            Row(
-              children: [
-                Expanded(child: cards[0]),
-                const SizedBox(width: 12),
-                Expanded(child: cards[1]),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(child: cards[2]),
-                const SizedBox(width: 12),
-                Expanded(child: cards[3]),
-              ],
-            ),
-          ],
-        );
-      },
+    return _buildResponsiveCards(cards);
+  }
+
+  Decimal _avgPerMonth(Decimal total, int months) {
+    if (months <= 0) return Decimal.zero;
+    return Decimal.parse((total.toDouble() / months).toStringAsFixed(2));
+  }
+
+  Widget _buildAverageSection(PeadraColors colors, String currency) {
+    final income = _lifetimeStats['income'] as Decimal? ?? Decimal.zero;
+    final expenses = _lifetimeStats['expenses'] as Decimal? ?? Decimal.zero;
+    final startingTotal =
+        _lifetimeStats['startingTotal'] as Decimal? ?? Decimal.zero;
+    final months = _lifetimeStats['months'] as int? ?? 1;
+    final showSubtitles = context.read<SettingsProvider>().showStatSubtitles;
+
+    final totalGrowth = _totalAssets - startingTotal;
+    final hasStartingCapital = startingTotal > Decimal.zero;
+    final growthPct = hasStartingCapital
+        ? ((totalGrowth * Decimal.fromInt(100)) / startingTotal).toDouble()
+        : 0.0;
+    final avgGrowthPct = months > 0 ? growthPct / months : 0.0;
+    final cards = [
+      _buildStatCard(
+        title: Translator.t('dash_avg_cost'),
+        value: CurrencyService.formatAmount(
+            _avgPerMonth(expenses, months), currency),
+        change: 0,
+        icon: Icons.receipt_long,
+        iconColor: colors.error,
+        bgColor: colors.expenseBg,
+        colors: colors,
+        hideChange: true,
+        showSubtitle: showSubtitles,
+        subtitle: Translator.t('dash_per_month'),
+      ),
+      _buildStatCard(
+        title: Translator.t('dash_avg_income'),
+        value: CurrencyService.formatAmount(
+            _avgPerMonth(income, months), currency),
+        change: 0,
+        icon: Icons.trending_up,
+        iconColor: colors.success,
+        bgColor: colors.incomeBg,
+        colors: colors,
+        hideChange: true,
+        showSubtitle: showSubtitles,
+        subtitle: Translator.t('dash_per_month'),
+      ),
+      _buildStatCard(
+        title: Translator.t('dash_avg_growth'),
+        value: CurrencyService.formatAmount(
+            _avgPerMonth(totalGrowth, months), currency),
+        change: avgGrowthPct,
+        icon: Icons.show_chart,
+        iconColor: colors.chartAsset,
+        bgColor: colors.chartAsset.withValues(alpha: 0.12),
+        colors: colors,
+        hideChange: !hasStartingCapital,
+        showSubtitle: showSubtitles,
+        subtitle: Translator.t('dash_per_month'),
+      ),
+      _buildStatCard(
+        title: Translator.t('dash_total_growth'),
+        value: CurrencyService.formatAmount(totalGrowth, currency),
+        change: growthPct,
+        icon: Icons.account_balance,
+        iconColor: colors.info,
+        bgColor: colors.info.withValues(alpha: 0.15),
+        colors: colors,
+        hideChange: !hasStartingCapital,
+        showSubtitle: showSubtitles,
+        subtitle: Translator.t('dash_since_start'),
+      ),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          Translator.t('dash_avg_section'),
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: colors.text,
+          ),
+        ),
+        const SizedBox(height: 12),
+        _buildResponsiveCards(cards),
+      ],
     );
+  }
+
+  Widget _buildResponsiveCards(List<Widget> cards) {
+    return StatCardGrid(cards: cards);
   }
 
   Widget _buildStatCard({
@@ -475,6 +548,9 @@ class _DashboardViewState extends State<DashboardView> {
     required Color bgColor,
     required PeadraColors colors,
     bool invertChange = false,
+    bool hideChange = false,
+    String? subtitle,
+    bool showSubtitle = true,
   }) {
     return Card(
       color: colors.surface,
@@ -496,12 +572,17 @@ class _DashboardViewState extends State<DashboardView> {
                   ),
                   child: Icon(icon, color: iconColor, size: 20),
                 ),
-                _buildChangeIndicator(change, colors, invert: invertChange),
+                if (hideChange)
+                  const SizedBox.shrink()
+                else
+                  _buildChangeIndicator(change, colors, invert: invertChange),
               ],
             ),
             const SizedBox(height: 12),
             Text(
               title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 12,
                 color: colors.textSecondary,
@@ -520,9 +601,23 @@ class _DashboardViewState extends State<DashboardView> {
                 ),
               ),
             ),
-          ],
+            if (showSubtitle) ...[
+              const SizedBox(height: 2),
+              Text(
+                // Always reserve the subtitle line (non-breaking space when
+                // empty) so every card keeps the same height.
+                subtitle ?? '\u00A0',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: colors.textSecondary,
+                ),
+              ),
+            ],
+            ],
+            ),
         ),
-      ),
     );
   }
 
@@ -599,7 +694,7 @@ class _DashboardViewState extends State<DashboardView> {
       _customStart = picked.start.toIso8601String().substring(0, 10);
       _customEnd = picked.end.toIso8601String().substring(0, 10);
     });
-    _loadData();
+    _loadChartData();
   }
 
   void _clearCustomRange() {
@@ -608,7 +703,7 @@ class _DashboardViewState extends State<DashboardView> {
       _customStart = null;
       _customEnd = null;
     });
-    _loadData();
+    _loadChartData();
   }
 
   Widget _buildTimeFilterButtons(PeadraColors colors) {
@@ -645,17 +740,15 @@ class _DashboardViewState extends State<DashboardView> {
                     _pickCustomRange();
                     return;
                   }
-                  final wasCustom = _isCustomRange;
                   setState(() {
                     _selectedMonths = value;
                     _customStart = null;
                     _customEnd = null;
                   });
-                  if (wasCustom) {
-                    _loadData();
-                  } else {
-                    _loadChartData();
-                  }
+                  // Preset and custom-range switches only affect the
+                  // cash-flow / assets-history charts, so reuse the light
+                  // 2-query chart loader instead of the full _loadData.
+                  _loadChartData();
                 },
                 child: Container(
                   padding:
@@ -735,7 +828,7 @@ class _DashboardViewState extends State<DashboardView> {
       return {
         'label': e.key,
         'amount': e.value,
-        if (entryColor != null) 'color': entryColor,
+        'color': ?entryColor,
       };
     }).toList();
 
@@ -866,14 +959,17 @@ class _DashboardViewState extends State<DashboardView> {
 
   @override
   Widget build(BuildContext context) {
-    final themeName = context.watch<ThemeProvider>().themeName;
+    final themeName =
+        context.select<ThemeProvider, String>((t) => t.themeName);
     final colors = PeadraTheme.getColors(themeName);
-    final currency = context.watch<SettingsProvider>().currency;
+    final currency = context.select<SettingsProvider, String>((s) => s.currency);
     final maxPieCategories =
-        context.watch<SettingsProvider>().maxPieCategories;
-    final lineChartDots = context.watch<SettingsProvider>().lineChartDots;
-    final isTagMode = context.watch<SettingsProvider>().dashboardPieView == 'tags';
-    final username = context.watch<AuthProvider>().username;
+        context.select<SettingsProvider, int>((s) => s.maxPieCategories);
+    final lineChartDots =
+        context.select<SettingsProvider, bool>((s) => s.lineChartDots);
+    final isTagMode =
+        context.select<SettingsProvider, bool>((s) => s.dashboardPieView == 'tags');
+    final username = context.select<AuthProvider, String>((a) => a.username);
 
     if (_loading) {
       return Center(
@@ -946,6 +1042,7 @@ class _DashboardViewState extends State<DashboardView> {
         colors, currency, maxPieCategories);
 
     final totalAsset = _buildTotalAssetCard(colors, currency);
+    final averageSection = _buildAverageSection(colors, currency);
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth > 800) {
@@ -957,6 +1054,7 @@ class _DashboardViewState extends State<DashboardView> {
             expensePie: expensePie,
             incomePie: incomePie,
             assetsPie: assetsPie,
+            averageSection: averageSection,
             colors: colors,
             cashFlowData: _cashFlowData,
             assetsHistory: _assetsHistory,
@@ -971,6 +1069,7 @@ class _DashboardViewState extends State<DashboardView> {
             expensePie: expensePie,
             incomePie: incomePie,
             assetsPie: assetsPie,
+            averageSection: averageSection,
             colors: colors,
             cashFlowData: _cashFlowData,
             assetsHistory: _assetsHistory,

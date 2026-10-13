@@ -14,6 +14,7 @@ import '../../../core/theme/peadra_colors.dart';
 import '../../../core/services/update_service.dart';
 import '../../../core/responsive/responsive_layout.dart';
 import '../../../core/database/database_manager.dart';
+import '../../../core/utils/nav_views.dart';
 import '../../../shared/widgets/peadra_modal.dart';
 import '../../../sync/sync_service.dart';
 import '../../auth/presentation/login_view.dart';
@@ -49,10 +50,22 @@ class _DashboardShellState extends State<DashboardShell> {
     const ParametersView(showBackButton: false),
   ];
 
-  List<Widget> get _views => [
-        DashboardView(refreshSignal: _dashboardRefreshSignal),
+  List<Widget>? _viewsCache;
+  int? _viewsSignal;
+
+  List<Widget> get _views {
+    if (_viewsCache == null || _viewsSignal != _dashboardRefreshSignal) {
+      _viewsSignal = _dashboardRefreshSignal;
+      _viewsCache = [
+        DashboardView(
+          key: ValueKey<int>(_dashboardRefreshSignal),
+          refreshSignal: _dashboardRefreshSignal,
+        ),
         ..._staticViews,
       ];
+    }
+    return _viewsCache!;
+  }
 
   @override
   void initState() {
@@ -77,7 +90,8 @@ class _DashboardShellState extends State<DashboardShell> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final currency = context.watch<SettingsProvider>().currency;
+    final currency =
+        context.watch<SettingsProvider>().currency;
     if (currency != _lastCurrency) {
       _lastCurrency = currency;
       _loadTotalPatrimony();
@@ -102,15 +116,11 @@ class _DashboardShellState extends State<DashboardShell> {
   void _onNavTap(int index) {
     // 0 dashboard, 1 transactions, 2 budgets, 3 accounts, 4 categories,
     // 5 settings (via menu on phones, gear button on desktop).
+    // Index 5 renders inline on both phone and desktop so _views[5]
+    // stays reachable in content.
     if (index == 5) {
-      if (ResponsiveLayout.isPhone(context)) {
-        setState(() => _selectedIndex = 5);
-        _loadTotalPatrimony();
-      } else {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const ParametersView()),
-        ).then((_) => _loadTotalPatrimony());
-      }
+      setState(() => _selectedIndex = 5);
+      _loadTotalPatrimony();
       return;
     }
     setState(() => _selectedIndex = index);
@@ -270,13 +280,17 @@ class _DashboardShellState extends State<DashboardShell> {
 
   @override
   Widget build(BuildContext context) {
-    final themeName = context.watch<ThemeProvider>().themeName;
+    final themeName = context.select<ThemeProvider, String>((t) => t.themeName);
     final colors = PeadraTheme.getColors(themeName);
-    final isDark = context.watch<ThemeProvider>().isDark;
-    final showNavLabels = context.watch<SettingsProvider>().showNavLabels;
-    final availableUpdate = context.watch<UpdateProvider>().availableUpdate;
+    final isDark = context.select<ThemeProvider, bool>((t) => t.isDark);
+    final showNavLabels =
+        context.select<SettingsProvider, bool>((s) => s.showNavLabels);
+    final navOrder =
+        context.select<SettingsProvider, List<String>>((s) => s.navOrder);
+    final availableUpdate =
+        context.select<UpdateProvider, UpdateInfo?>((u) => u.availableUpdate);
     final hideUpdateNotifications =
-        context.watch<SettingsProvider>().hideUpdateNotifications;
+        context.select<SettingsProvider, bool>((s) => s.hideUpdateNotifications);
 
     final updateBanner = (availableUpdate != null &&
             !_updateBannerDismissed &&
@@ -305,6 +319,7 @@ class _DashboardShellState extends State<DashboardShell> {
             onNavTap: _onNavTap,
             onLogout: _logout,
             showNavLabels: showNavLabels,
+            navViews: navViewsFor(navOrder),
             colors: colors,
           );
         }

@@ -9,12 +9,15 @@ class UpdateProvider extends ChangeNotifier {
   UpdateInfo? get availableUpdate => _availableUpdate;
   bool get checked => _checked;
 
-  Future<void> checkForUpdate() async {
+  /// Checks once per session by default; pass [force] for manual re-checks
+  /// (e.g. the settings "check for updates" button).
+  Future<void> checkForUpdate({bool force = false}) async {
+    if (_checked && !force) return;
     final update = await UpdateService().checkForUpdate();
     _checked = true;
     if (update != null) {
       _availableUpdate = update;
-      notifyListeners();
     }
+    notifyListeners();
   }
 }

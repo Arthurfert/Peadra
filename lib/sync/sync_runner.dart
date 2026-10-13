@@ -86,9 +86,9 @@ Future<Hlc?> _applyInbound(
   if (changeset.isEmpty) {
     return previous;
   }
-  await db.applyChangeset(changeset);
+  final watermark = await db.applyChangeset(changeset);
   DatabaseManager.instance.notifyRemoteDataApplied();
-  return db.lastModifiedHlc();
+  return watermark ?? db.lastModifiedHlc();
 }
 
 Hlc? _parseSince(dynamic value) =>

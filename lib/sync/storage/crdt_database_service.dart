@@ -46,13 +46,17 @@ class CrdtDatabaseService {
 
   /// Applies a changeset received from a peer (wire format: `hlc` as a raw
   /// TEXT string). Parses the timestamps before merging.
-  Future<void> applyChangeset(Map<String, dynamic> changeset) async {
+  /// Merges [changeset] and returns the resulting watermark. Returning it
+  /// directly avoids a second `getLastModified` round-trip by callers that
+  /// need the new watermark (e.g. the sync exchange).
+  Future<Hlc?> applyChangeset(Map<String, dynamic> changeset) async {
     final parsed = parseCrdtChangeset(changeset);
     if (parsed.recordCount == 0) {
-      return;
+      return lastAppliedHlc;
     }
     await _crdt.merge(parsed);
     lastAppliedHlc = await _crdt.getLastModified();
+    return lastAppliedHlc;
   }
 
   Future<Hlc> lastModifiedHlc() => _crdt.getLastModified();
@@ -84,22 +88,37 @@ class CrdtDatabaseService {
       return;
     }
     await _crdt.transaction((txn) async {
+      // One UPDATE per child table for all remaps (CASE dispatch) instead of
+      // one round-trip per remap per table.
+      const tables = [
+        'accounts',
+        'descriptions',
+        'tags',
+        'transactions',
+        'recurring_transactions',
+        'imported_files',
+        'settings',
+        'goals',
+      ];
+      final whens = <String>[];
+      final args = <Object?>[];
       for (final remap in remaps) {
-        for (final table in const [
-          'accounts',
-          'descriptions',
-          'tags',
-          'transactions',
-          'recurring_transactions',
-          'imported_files',
-          'settings',
-          'goals',
-        ]) {
-          await txn.execute(
-            'UPDATE $table SET user_id = ? WHERE user_id = ?',
-            [remap.canonicalUserId, remap.localUserId],
-          );
-        }
+        whens.add('WHEN ? THEN ?');
+        args.addAll([remap.localUserId, remap.canonicalUserId]);
+      }
+      final caseExpr = 'CASE user_id ${whens.join(' ')} END';
+      final localIds = remaps.map((r) => r.localUserId).toSet().toList();
+      final inList = localIds.map((_) => '?').join(', ');
+      for (final table in tables) {
+        await txn.execute(
+          'UPDATE $table SET user_id = $caseExpr WHERE user_id IN ($inList)',
+          [...args, ...localIds],
+        );
+      }
+      // The users-table key rewrite stays per-remap: each statement moves a
+      // distinct primary key, which a single CASE cannot express safely
+      // alongside the UNIQUE(username) constraint dance.
+      for (final remap in remaps) {
         await txn.execute(
           'UPDATE users SET id = ? WHERE id = ?',
           [remap.canonicalUserId, remap.localUserId],

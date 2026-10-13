@@ -15,7 +15,7 @@
 
 ### Fixes
 
-
+- Transfers description with a deleted account don't show "?" for the deleted account anymore
 
 ## Known issues
 

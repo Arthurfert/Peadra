@@ -70,7 +70,7 @@ You can access the developer documentation [here](https://deepwiki.com/Arthurfer
 ## Technologies
 
 - **UI Framework:** [Flutter](https://flutter.dev/) - Google's cross-platform UI toolkit for natively compiled apps
-- **Language:** [Dart](https://dart.dev/) (version 3.5+)
+- **Language:** [Dart](https://dart.dev/)
 - **Database:** [sqflite](https://pub.dev/packages/sqflite) - SQLite for Flutter
 - **Encryption:** [cryptography](https://pub.dev/packages/cryptography) - AES-256-GCM + PBKDF2 for at-rest database encryption
 

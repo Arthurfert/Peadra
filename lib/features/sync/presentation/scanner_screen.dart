@@ -255,14 +255,16 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
     return Scaffold(
       backgroundColor: colors.bg,
-      appBar: isPhone
-          ? null
-          : AppBar(
-              title: Text(Translator.t('sync_scan_title'),
-                  style: TextStyle(color: colors.text)),
-              backgroundColor: colors.surface,
-              iconTheme: IconThemeData(color: colors.text),
-            ),
+      appBar: AppBar(
+        title: isPhone
+            ? null
+            : Text(Translator.t('sync_scan_title'),
+                style: TextStyle(color: colors.text)),
+        backgroundColor: isPhone ? colors.bg : colors.surface,
+        elevation: isPhone ? 0 : null,
+        scrolledUnderElevation: isPhone ? 0 : null,
+        iconTheme: IconThemeData(color: colors.text),
+      ),
       body: SafeArea(
         child: Column(
           children: [

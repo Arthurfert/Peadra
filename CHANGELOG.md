@@ -4,7 +4,7 @@
 
 ### New
 
-
+- Refreshed settings view on mobile
 
 ### Fixes
 

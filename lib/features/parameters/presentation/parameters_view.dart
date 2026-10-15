@@ -252,52 +252,47 @@ class _ParametersViewState extends State<ParametersView> {
     }
   }
 
-  Widget _buildFeedbackTile(PeadraColors colors) {
-    final isPhone = ResponsiveLayout.isPhone(context);
+  Future<void> _sendFeedback() async {
+    final uri = Uri(
+      scheme: 'mailto',
+      path: _feedbackEmail,
+    );
+    final opened = await _openExternalUrl(uri);
+    if (!opened && mounted) {
+      // No mail app (or blocked by the OS): hand the user the address
+      // so they can reach out manually instead of nothing happening.
+      await Clipboard.setData(const ClipboardData(text: _feedbackEmail));
+      if (!mounted) return;
+      PeadraNotification.show(context,
+          message: Translator.t('param_feedback_no_mail_app'),
+          type: NotificationType.warning);
+    }
+  }
 
-    final button = ElevatedButton.icon(
+  Widget _feedbackButton(PeadraColors c) {
+    return ElevatedButton.icon(
       icon: const Icon(Icons.mail_outline, color: Colors.white, size: 16),
       label: Text(Translator.t('param_feedback_mail_me'),
           style: const TextStyle(color: Colors.white, fontSize: 12)),
       style: ElevatedButton.styleFrom(
-        backgroundColor: colors.accent,
+        backgroundColor: c.accent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
         ),
       ),
-      onPressed: () async {
-        final uri = Uri(
-          scheme: 'mailto',
-          path: _feedbackEmail,
-        );
-        final opened = await _openExternalUrl(uri);
-        if (!opened && mounted) {
-          // No mail app (or blocked by the OS): hand the user the address
-          // so they can reach out manually instead of nothing happening.
-          await Clipboard.setData(
-              const ClipboardData(text: _feedbackEmail));
-          if (!mounted) return;
-          PeadraNotification.show(context,
-              message: Translator.t('param_feedback_no_mail_app'),
-              type: NotificationType.warning);
-        }
-      },
+      onPressed: _sendFeedback,
     );
+  }
 
-    if (isPhone) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(Translator.t('param_feedback_mail_me'),
-                style: TextStyle(color: colors.text)),
-            const SizedBox(height: 4),
-            Text(Translator.t('param_feedback_text'),
-                style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-            const SizedBox(height: 12),
-            button,
-          ],
+  Widget _buildFeedbackTile(PeadraColors colors) {
+    if (ResponsiveLayout.isPhone(context)) {
+      return _mobileSettingRow(
+        colors,
+        Translator.t('param_feedback_mail_me'),
+        onTap: () => _showMobileSetting(
+          title: Translator.t('param_feedback_mail_me'),
+          subtitle: Translator.t('param_feedback_text'),
+          controlBuilder: (sheetCtx, c) => _feedbackButton(c),
         ),
       );
     }
@@ -307,7 +302,7 @@ class _ParametersViewState extends State<ParametersView> {
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_feedback_text'),
           style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-      trailing: button,
+      trailing: _feedbackButton(colors),
     );
   }
 
@@ -424,7 +419,96 @@ class _ParametersViewState extends State<ParametersView> {
     );
   }
 
+  /// Mobile-only compact row: title on the left, chevron on the right.
+  /// Tapping opens a [PeadraModal] with title, subtitle and control.
+  Widget _mobileSettingRow(
+    PeadraColors colors,
+    String title, {
+    VoidCallback? onTap,
+    Color? titleColor,
+    Widget? trailing,
+  }) {
+    final hasAction = onTap != null;
+    return ListTile(
+      title: Text(title, style: TextStyle(color: titleColor ?? colors.text)),
+      trailing: trailing ??
+          Icon(
+            Icons.chevron_right,
+            color: hasAction
+                ? colors.placeholderColor
+                : colors.placeholderColor.withValues(alpha: 0.4),
+          ),
+      onTap: onTap,
+      enabled: hasAction,
+    );
+  }
+
+  /// Opens the mobile setting modal: title as modal title, subtitle as
+  /// description, [controlBuilder] builds the live control (dropdown,
+  /// switch, button…) with a modal descendant context so provider updates
+  /// rebuild inside the sheet.
+  void _showMobileSetting({
+    required String title,
+    required String subtitle,
+    required Widget Function(BuildContext sheetContext, PeadraColors c)
+        controlBuilder,
+  }) {
+    final colors =
+        PeadraTheme.getColors(context.read<ThemeProvider>().themeName);
+    showPeadraModal(
+      context: context,
+      builder: (ctx) => PeadraModal(
+        title: Text(title,
+            style: TextStyle(
+                color: colors.text,
+                fontSize: 16,
+                fontWeight: FontWeight.w600)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(subtitle,
+                style: TextStyle(
+                    color: colors.textSecondary, fontSize: 13, height: 1.4)),
+            const SizedBox(height: 16),
+            controlBuilder(ctx, colors),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildLanguageTile(LanguageProvider lang, PeadraColors colors) {
+    if (ResponsiveLayout.isPhone(context)) {
+      return _mobileSettingRow(
+        colors,
+        Translator.t('param_language_label'),
+        onTap: () => _showMobileSetting(
+          title: Translator.t('param_language_label'),
+          subtitle: Translator.t('param_language_desc'),
+          controlBuilder: (sheetCtx, c) =>
+              Selector<LanguageProvider, String>(
+            selector: (_, l) => l.language,
+            builder: (_, current, __) => DropdownButton<String>(
+              value: current,
+              dropdownColor: c.surface,
+              style: TextStyle(color: c.text),
+              items: const [
+                DropdownMenuItem(value: 'en', child: Text('English')),
+                DropdownMenuItem(value: 'fr', child: Text('Français')),
+                DropdownMenuItem(value: 'es', child: Text('Español')),
+              ],
+              onChanged: (v) async {
+                if (v != null) {
+                  context.read<LanguageProvider>().setLanguage(v);
+                  await _db.setSetting('language', v);
+                }
+              },
+            ),
+          ),
+        ),
+      );
+    }
     return ListTile(
       title: Text(Translator.t('param_language_label'),
           style: TextStyle(color: colors.text)),
@@ -436,7 +520,7 @@ class _ParametersViewState extends State<ParametersView> {
         style: TextStyle(color: colors.text),
         items: const [
           DropdownMenuItem(value: 'en', child: Text('English')),
-          DropdownMenuItem(value: 'fr', child: Text('Fran\u00e7ais')),
+          DropdownMenuItem(value: 'fr', child: Text('Français')),
           DropdownMenuItem(value: 'es', child: Text('Español')),
         ],
         onChanged: (v) async {
@@ -450,6 +534,37 @@ class _ParametersViewState extends State<ParametersView> {
   }
 
   Widget _buildCurrencyTile(SettingsProvider settings, PeadraColors colors) {
+    if (ResponsiveLayout.isPhone(context)) {
+      return _mobileSettingRow(
+        colors,
+        Translator.t('param_currency'),
+        onTap: () => _showMobileSetting(
+          title: Translator.t('param_currency'),
+          subtitle: Translator.t('param_currency_desc'),
+          controlBuilder: (sheetCtx, c) =>
+              Selector<SettingsProvider, String>(
+            selector: (_, s) => s.currency,
+            builder: (_, current, __) => DropdownButton<String>(
+              value: current,
+              dropdownColor: c.surface,
+              style: TextStyle(color: c.text),
+              items: CurrencyService.allCodes
+                  .map((code) => DropdownMenuItem(
+                        value: code,
+                        child: Text(
+                            '$code ${CurrencyService.getSymbol(code)}'),
+                      ))
+                  .toList(),
+              onChanged: (v) async {
+                if (v != null) {
+                  await context.read<SettingsProvider>().setCurrency(v, _db);
+                }
+              },
+            ),
+          ),
+        ),
+      );
+    }
     return ListTile(
       title: Text(Translator.t('param_currency'),
           style: TextStyle(color: colors.text)),
@@ -472,100 +587,125 @@ class _ParametersViewState extends State<ParametersView> {
     );
   }
 
+  Widget _themeDropdown(PeadraColors c, String current) {
+    return DropdownButton<String>(
+      value: current,
+      dropdownColor: c.surface,
+      style: TextStyle(color: c.text),
+      items: [
+        DropdownMenuItem(
+            value: 'system', child: Text(Translator.t('param_system_theme'))),
+        DropdownMenuItem(
+            value: 'light', child: Text(Translator.t('param_light_theme'))),
+        DropdownMenuItem(
+            value: 'dark', child: Text(Translator.t('param_dark_theme'))),
+        DropdownMenuItem(
+            value: 'autumn',
+            child: Text(Translator.t('param_autumn_theme'))),
+        DropdownMenuItem(
+            value: 'summer',
+            child: Text(Translator.t('param_summer_theme'))),
+        DropdownMenuItem(
+            value: 'sakura',
+            child: Text(Translator.t('param_sakura_theme'))),
+        DropdownMenuItem(
+            value: 'spring',
+            child: Text(Translator.t('param_spring_theme'))),
+        DropdownMenuItem(
+            value: 'high_contrast_light',
+            child: Text(Translator.t('param_high_contrast_light_theme'))),
+        DropdownMenuItem(
+            value: 'high_contrast_dark',
+            child: Text(Translator.t('param_high_contrast_dark_theme'))),
+      ],
+      onChanged: (v) async {
+        if (v != null) {
+          context.read<ThemeProvider>().setTheme(v);
+          await _db.setSetting('theme_mode', v);
+        }
+      },
+    );
+  }
+
   Widget _buildThemeTile(PeadraColors colors, String themeName) {
+    if (ResponsiveLayout.isPhone(context)) {
+      return _mobileSettingRow(
+        colors,
+        Translator.t('param_theme_label'),
+        onTap: () => _showMobileSetting(
+          title: Translator.t('param_theme_label'),
+          subtitle: Translator.t('param_theme_desc'),
+          controlBuilder: (sheetCtx, c) =>
+              Selector<ThemeProvider, String>(
+            selector: (_, t) => t.themeName,
+            builder: (_, current, __) => _themeDropdown(c, current),
+          ),
+        ),
+      );
+    }
     return ListTile(
       title: Text(Translator.t('param_theme_label'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_theme_desc'),
           style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-      trailing: DropdownButton<String>(
-        value: themeName,
-        dropdownColor: colors.surface,
-        style: TextStyle(color: colors.text),
-        items: [
-          DropdownMenuItem(
-              value: 'system',
-              child: Text(Translator.t('param_system_theme'))),
-          DropdownMenuItem(
-              value: 'light',
-              child: Text(Translator.t('param_light_theme'))),
-          DropdownMenuItem(
-              value: 'dark',
-              child: Text(Translator.t('param_dark_theme'))),
-          DropdownMenuItem(
-              value: 'autumn',
-              child: Text(Translator.t('param_autumn_theme'))),
-          DropdownMenuItem(
-              value: 'summer',
-              child: Text(Translator.t('param_summer_theme'))),
-          DropdownMenuItem(
-              value: 'sakura',
-              child: Text(Translator.t('param_sakura_theme'))),
-          DropdownMenuItem(
-              value: 'spring',
-              child: Text(Translator.t('param_spring_theme'))),
-          DropdownMenuItem(
-              value: 'high_contrast_light',
-              child: Text(Translator.t('param_high_contrast_light_theme'))),
-          DropdownMenuItem(
-              value: 'high_contrast_dark',
-              child: Text(Translator.t('param_high_contrast_dark_theme'))),
-        ],
-        onChanged: (v) async {
-          if (v != null) {
-            context.read<ThemeProvider>().setTheme(v);
-            await _db.setSetting('theme_mode', v);
-          }
-        },
-      ),
+      trailing: _themeDropdown(colors, themeName),
     );
   }
 
   Widget _buildNavLabelsTile(SettingsProvider settings, PeadraColors colors) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(Translator.t('param_nav_labels'),
-              style: TextStyle(color: colors.text)),
-          const SizedBox(height: 4),
-          Text(Translator.t('param_nav_labels_desc'),
-              style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-          const SizedBox(height: 12),
-          Switch(
-            value: settings.showNavLabels,
-            onChanged: (value) => settings.setShowNavLabels(value, _db),
-            activeThumbColor: colors.accent,
+    if (ResponsiveLayout.isPhone(context)) {
+      return _mobileSettingRow(
+        colors,
+        Translator.t('param_nav_labels'),
+        onTap: () => _showMobileSetting(
+          title: Translator.t('param_nav_labels'),
+          subtitle: Translator.t('param_nav_labels_desc'),
+          controlBuilder: (sheetCtx, c) =>
+              Selector<SettingsProvider, bool>(
+            selector: (_, s) => s.showNavLabels,
+            builder: (_, current, __) => Switch(
+              value: current,
+              onChanged: (value) => context
+                  .read<SettingsProvider>()
+                  .setShowNavLabels(value, _db),
+              activeThumbColor: c.accent,
+            ),
           ),
-        ],
+        ),
+      );
+    }
+    return ListTile(
+      title: Text(Translator.t('param_nav_labels'),
+          style: TextStyle(color: colors.text)),
+      subtitle: Text(Translator.t('param_nav_labels_desc'),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12)),
+      trailing: Switch(
+        value: settings.showNavLabels,
+        onChanged: (value) => settings.setShowNavLabels(value, _db),
+        activeThumbColor: colors.accent,
       ),
     );
   }
 
   Widget _buildStatSubtitlesTile(SettingsProvider settings, PeadraColors colors) {
-    final isPhone = ResponsiveLayout.isPhone(context);
-
-    final toggle = Switch(
-      value: settings.showStatSubtitles,
-      onChanged: (value) => settings.setShowStatSubtitles(value, _db),
-      activeThumbColor: colors.accent,
-    );
-
-    if (isPhone) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(Translator.t('param_stat_subtitles'),
-                style: TextStyle(color: colors.text)),
-            const SizedBox(height: 4),
-            Text(Translator.t('param_stat_subtitles_desc'),
-                style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-            const SizedBox(height: 12),
-            toggle,
-          ],
+    if (ResponsiveLayout.isPhone(context)) {
+      return _mobileSettingRow(
+        colors,
+        Translator.t('param_stat_subtitles'),
+        onTap: () => _showMobileSetting(
+          title: Translator.t('param_stat_subtitles'),
+          subtitle: Translator.t('param_stat_subtitles_desc'),
+          controlBuilder: (sheetCtx, c) =>
+              Selector<SettingsProvider, bool>(
+            selector: (_, s) => s.showStatSubtitles,
+            builder: (_, current, __) => Switch(
+              value: current,
+              onChanged: (value) => context
+                  .read<SettingsProvider>()
+                  .setShowStatSubtitles(value, _db),
+              activeThumbColor: c.accent,
+            ),
+          ),
         ),
       );
     }
@@ -575,11 +715,22 @@ class _ParametersViewState extends State<ParametersView> {
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_stat_subtitles_desc'),
           style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-      trailing: toggle,
+      trailing: Switch(
+        value: settings.showStatSubtitles,
+        onChanged: (value) => settings.setShowStatSubtitles(value, _db),
+        activeThumbColor: colors.accent,
+      ),
     );
   }
 
   Widget _buildNavOrderTile(SettingsProvider settings, PeadraColors colors) {
+    if (ResponsiveLayout.isPhone(context)) {
+      return _mobileSettingRow(
+        colors,
+        Translator.t('param_nav_order'),
+        onTap: () => _showNavOrderModal(settings, colors),
+      );
+    }
     final firstNavViews = navViewsFor(settings.navOrder)
         .take(mobileNavBarSlots)
         .map((v) => v.label)
@@ -721,6 +872,35 @@ class _ParametersViewState extends State<ParametersView> {
   }
 
   Widget _buildDisplayLimitTile(SettingsProvider settings, PeadraColors colors) {
+    if (ResponsiveLayout.isPhone(context)) {
+      return _mobileSettingRow(
+        colors,
+        Translator.t('param_display_limit'),
+        onTap: () => _showMobileSetting(
+          title: Translator.t('param_display_limit'),
+          subtitle: Translator.t('param_display_limit_desc'),
+          controlBuilder: (sheetCtx, c) =>
+              Selector<SettingsProvider, int>(
+            selector: (_, s) => s.displayLimit,
+            builder: (_, current, __) => DropdownButton<int>(
+              value: current,
+              dropdownColor: c.surface,
+              style: TextStyle(color: c.text),
+              items: [15, 30, 50, 100]
+                  .map((n) => DropdownMenuItem(value: n, child: Text('$n')))
+                  .toList(),
+              onChanged: (v) async {
+                if (v != null) {
+                  await context
+                      .read<SettingsProvider>()
+                      .setDisplayLimit(v, _db);
+                }
+              },
+            ),
+          ),
+        ),
+      );
+    }
     return ListTile(
       title: Text(Translator.t('param_display_limit'),
           style: TextStyle(color: colors.text)),
@@ -740,12 +920,12 @@ class _ParametersViewState extends State<ParametersView> {
     );
   }
 
-  Widget _buildCategoriesViewTile(SettingsProvider settings, PeadraColors colors) {
-    final isPhone = ResponsiveLayout.isPhone(context);
-
-    final modeButtons = Container(
+  Widget _categoriesViewControl(PeadraColors c, String current) {
+    Future<void> set(String v) =>
+        context.read<SettingsProvider>().setCategoriesView(v, _db);
+    return Container(
       decoration: BoxDecoration(
-        color: colors.bg,
+        color: c.bg,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -754,35 +934,36 @@ class _ParametersViewState extends State<ParametersView> {
           _buildPillButton(
             label: Translator.t('param_categories_descriptions'),
             icon: Icons.description,
-            isSelected: settings.categoriesView == 'descriptions',
-            colors: colors,
-            onTap: () => settings.setCategoriesView('descriptions', _db),
+            isSelected: current == 'descriptions',
+            colors: c,
+            onTap: () => set('descriptions'),
           ),
           _buildPillButton(
             label: Translator.t('param_categories_tags'),
             icon: Icons.tag,
-            isSelected: settings.categoriesView == 'tags',
-            colors: colors,
-            onTap: () => settings.setCategoriesView('tags', _db),
+            isSelected: current == 'tags',
+            colors: c,
+            onTap: () => set('tags'),
           ),
         ],
       ),
     );
+  }
 
-    if (isPhone) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(Translator.t('param_categories_view'),
-                style: TextStyle(color: colors.text)),
-            const SizedBox(height: 4),
-            Text(Translator.t('param_categories_view_desc'),
-                style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-            const SizedBox(height: 12),
-            modeButtons,
-          ],
+  Widget _buildCategoriesViewTile(SettingsProvider settings, PeadraColors colors) {
+    if (ResponsiveLayout.isPhone(context)) {
+      return _mobileSettingRow(
+        colors,
+        Translator.t('param_categories_view'),
+        onTap: () => _showMobileSetting(
+          title: Translator.t('param_categories_view'),
+          subtitle: Translator.t('param_categories_view_desc'),
+          controlBuilder: (sheetCtx, c) =>
+              Selector<SettingsProvider, String>(
+            selector: (_, s) => s.categoriesView,
+            builder: (_, current, __) =>
+                _categoriesViewControl(c, current),
+          ),
         ),
       );
     }
@@ -792,16 +973,16 @@ class _ParametersViewState extends State<ParametersView> {
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_categories_view_desc'),
           style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-      trailing: modeButtons,
+      trailing: _categoriesViewControl(colors, settings.categoriesView),
     );
   }
 
-  Widget _buildDashboardPieViewTile(SettingsProvider settings, PeadraColors colors) {
-    final isPhone = ResponsiveLayout.isPhone(context);
-
-    final modeButtons = Container(
+  Widget _dashboardPieViewControl(PeadraColors c, String current) {
+    Future<void> set(String v) =>
+        context.read<SettingsProvider>().setDashboardPieView(v, _db);
+    return Container(
       decoration: BoxDecoration(
-        color: colors.bg,
+        color: c.bg,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -810,35 +991,36 @@ class _ParametersViewState extends State<ParametersView> {
           _buildPillButton(
             label: Translator.t('param_categories_descriptions'),
             icon: Icons.description,
-            isSelected: settings.dashboardPieView == 'descriptions',
-            colors: colors,
-            onTap: () => settings.setDashboardPieView('descriptions', _db),
+            isSelected: current == 'descriptions',
+            colors: c,
+            onTap: () => set('descriptions'),
           ),
           _buildPillButton(
             label: Translator.t('param_categories_tags'),
             icon: Icons.tag,
-            isSelected: settings.dashboardPieView == 'tags',
-            colors: colors,
-            onTap: () => settings.setDashboardPieView('tags', _db),
+            isSelected: current == 'tags',
+            colors: c,
+            onTap: () => set('tags'),
           ),
         ],
       ),
     );
+  }
 
-    if (isPhone) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(Translator.t('param_dashboard_pie_view'),
-                style: TextStyle(color: colors.text)),
-            const SizedBox(height: 4),
-            Text(Translator.t('param_dashboard_pie_view_desc'),
-                style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-            const SizedBox(height: 12),
-            modeButtons,
-          ],
+  Widget _buildDashboardPieViewTile(SettingsProvider settings, PeadraColors colors) {
+    if (ResponsiveLayout.isPhone(context)) {
+      return _mobileSettingRow(
+        colors,
+        Translator.t('param_dashboard_pie_view'),
+        onTap: () => _showMobileSetting(
+          title: Translator.t('param_dashboard_pie_view'),
+          subtitle: Translator.t('param_dashboard_pie_view_desc'),
+          controlBuilder: (sheetCtx, c) =>
+              Selector<SettingsProvider, String>(
+            selector: (_, s) => s.dashboardPieView,
+            builder: (_, current, __) =>
+                _dashboardPieViewControl(c, current),
+          ),
         ),
       );
     }
@@ -848,33 +1030,29 @@ class _ParametersViewState extends State<ParametersView> {
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_dashboard_pie_view_desc'),
           style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-      trailing: modeButtons,
+      trailing: _dashboardPieViewControl(colors, settings.dashboardPieView),
     );
   }
 
   Widget _buildLineChartDotsTile(SettingsProvider settings, PeadraColors colors) {
-    final isPhone = ResponsiveLayout.isPhone(context);
-
-    final toggle = Switch(
-      value: settings.lineChartDots,
-      onChanged: (value) => settings.setLineChartDots(value, _db),
-      activeThumbColor: colors.accent,
-    );
-
-    if (isPhone) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(Translator.t('param_line_chart_dots'),
-                style: TextStyle(color: colors.text)),
-            const SizedBox(height: 4),
-            Text(Translator.t('param_line_chart_dots_desc'),
-                style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-            const SizedBox(height: 12),
-            toggle,
-          ],
+    if (ResponsiveLayout.isPhone(context)) {
+      return _mobileSettingRow(
+        colors,
+        Translator.t('param_line_chart_dots'),
+        onTap: () => _showMobileSetting(
+          title: Translator.t('param_line_chart_dots'),
+          subtitle: Translator.t('param_line_chart_dots_desc'),
+          controlBuilder: (sheetCtx, c) =>
+              Selector<SettingsProvider, bool>(
+            selector: (_, s) => s.lineChartDots,
+            builder: (_, current, __) => Switch(
+              value: current,
+              onChanged: (value) => context
+                  .read<SettingsProvider>()
+                  .setLineChartDots(value, _db),
+              activeThumbColor: c.accent,
+            ),
+          ),
         ),
       );
     }
@@ -884,17 +1062,20 @@ class _ParametersViewState extends State<ParametersView> {
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_line_chart_dots_desc'),
           style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-      trailing: toggle,
+      trailing: Switch(
+        value: settings.lineChartDots,
+        onChanged: (value) => settings.setLineChartDots(value, _db),
+        activeThumbColor: colors.accent,
+      ),
     );
   }
 
-  Widget _buildAssetsGranularityTile(
-      SettingsProvider settings, PeadraColors colors) {
-    final isPhone = ResponsiveLayout.isPhone(context);
-
-    final modeButtons = Container(
+  Widget _assetsGranularityControl(PeadraColors c, String current) {
+    Future<void> set(String v) =>
+        context.read<SettingsProvider>().setAssetsGranularity(v, _db);
+    return Container(
       decoration: BoxDecoration(
-        color: colors.bg,
+        color: c.bg,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -903,35 +1084,37 @@ class _ParametersViewState extends State<ParametersView> {
           _buildPillButton(
             label: Translator.t('param_assets_monthly'),
             icon: Icons.calendar_month,
-            isSelected: settings.assetsGranularity == 'monthly',
-            colors: colors,
-            onTap: () => settings.setAssetsGranularity('monthly', _db),
+            isSelected: current == 'monthly',
+            colors: c,
+            onTap: () => set('monthly'),
           ),
           _buildPillButton(
             label: Translator.t('param_assets_daily'),
             icon: Icons.today,
-            isSelected: settings.assetsGranularity == 'daily',
-            colors: colors,
-            onTap: () => settings.setAssetsGranularity('daily', _db),
+            isSelected: current == 'daily',
+            colors: c,
+            onTap: () => set('daily'),
           ),
         ],
       ),
     );
+  }
 
-    if (isPhone) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(Translator.t('param_assets_granularity'),
-                style: TextStyle(color: colors.text)),
-            const SizedBox(height: 4),
-            Text(Translator.t('param_assets_granularity_desc'),
-                style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-            const SizedBox(height: 12),
-            modeButtons,
-          ],
+  Widget _buildAssetsGranularityTile(
+      SettingsProvider settings, PeadraColors colors) {
+    if (ResponsiveLayout.isPhone(context)) {
+      return _mobileSettingRow(
+        colors,
+        Translator.t('param_assets_granularity'),
+        onTap: () => _showMobileSetting(
+          title: Translator.t('param_assets_granularity'),
+          subtitle: Translator.t('param_assets_granularity_desc'),
+          controlBuilder: (sheetCtx, c) =>
+              Selector<SettingsProvider, String>(
+            selector: (_, s) => s.assetsGranularity,
+            builder: (_, current, __) =>
+                _assetsGranularityControl(c, current),
+          ),
         ),
       );
     }
@@ -941,17 +1124,17 @@ class _ParametersViewState extends State<ParametersView> {
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_assets_granularity_desc'),
           style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-      trailing: modeButtons,
+      trailing: _assetsGranularityControl(colors, settings.assetsGranularity),
     );
   }
 
-  Widget _buildMonthModeTile(SettingsProvider settings, PeadraColors colors) {
-    final isStrict = settings.monthMode == 'strict';
-    final isPhone = ResponsiveLayout.isPhone(context);
-
-    final modeButtons = Container(
+  Widget _monthModeControl(PeadraColors c, String current) {
+    final isStrict = current == 'strict';
+    Future<void> set(String v) =>
+        context.read<SettingsProvider>().setMonthMode(v, _db);
+    return Container(
       decoration: BoxDecoration(
-        color: colors.bg,
+        color: c.bg,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -961,34 +1144,34 @@ class _ParametersViewState extends State<ParametersView> {
             label: Translator.t('param_calendar_month'),
             icon: Icons.calendar_month,
             isSelected: isStrict,
-            colors: colors,
-            onTap: () => settings.setMonthMode('strict', _db),
+            colors: c,
+            onTap: () => set('strict'),
           ),
           _buildPillButton(
             label: Translator.t('param_rolling_30'),
             icon: Icons.update,
             isSelected: !isStrict,
-            colors: colors,
-            onTap: () => settings.setMonthMode('rolling', _db),
+            colors: c,
+            onTap: () => set('rolling'),
           ),
         ],
       ),
     );
+  }
 
-    if (isPhone) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(Translator.t('param_month_mode'),
-                style: TextStyle(color: colors.text)),
-            const SizedBox(height: 4),
-            Text(Translator.t('param_month_mode_desc'),
-                style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-            const SizedBox(height: 12),
-            modeButtons,
-          ],
+  Widget _buildMonthModeTile(SettingsProvider settings, PeadraColors colors) {
+    if (ResponsiveLayout.isPhone(context)) {
+      return _mobileSettingRow(
+        colors,
+        Translator.t('param_month_mode'),
+        onTap: () => _showMobileSetting(
+          title: Translator.t('param_month_mode'),
+          subtitle: Translator.t('param_month_mode_desc'),
+          controlBuilder: (sheetCtx, c) =>
+              Selector<SettingsProvider, String>(
+            selector: (_, s) => s.monthMode,
+            builder: (_, current, __) => _monthModeControl(c, current),
+          ),
         ),
       );
     }
@@ -998,7 +1181,7 @@ class _ParametersViewState extends State<ParametersView> {
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_month_mode_desc'),
           style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-      trailing: modeButtons,
+      trailing: _monthModeControl(colors, settings.monthMode),
     );
   }
 
@@ -1039,6 +1222,35 @@ class _ParametersViewState extends State<ParametersView> {
 
   Widget _buildMaxPieCategoriesTile(
       SettingsProvider settings, PeadraColors colors) {
+    if (ResponsiveLayout.isPhone(context)) {
+      return _mobileSettingRow(
+        colors,
+        Translator.t('param_max_categories'),
+        onTap: () => _showMobileSetting(
+          title: Translator.t('param_max_categories'),
+          subtitle: Translator.t('param_max_categories_desc'),
+          controlBuilder: (sheetCtx, c) =>
+              Selector<SettingsProvider, int>(
+            selector: (_, s) => s.maxPieCategories,
+            builder: (_, current, __) => DropdownButton<int>(
+              value: current,
+              dropdownColor: c.surface,
+              style: TextStyle(color: c.text),
+              items: [3, 5, 7, 10]
+                  .map((n) => DropdownMenuItem(value: n, child: Text('$n')))
+                  .toList(),
+              onChanged: (v) async {
+                if (v != null) {
+                  await context
+                      .read<SettingsProvider>()
+                      .setMaxPieCategories(v, _db);
+                }
+              },
+            ),
+          ),
+        ),
+      );
+    }
     return ListTile(
       title: Text(Translator.t('param_max_categories'),
           style: TextStyle(color: colors.text)),
@@ -1058,40 +1270,65 @@ class _ParametersViewState extends State<ParametersView> {
     );
   }
 
+  Future<void> _locateDatabase() async {
+    final path = _db.dbPath;
+    if (path == null) return;
+    final dir = File(path).parent.path;
+    if (Platform.isLinux) {
+      await Process.run('xdg-open', [dir]);
+    } else if (Platform.isMacOS) {
+      await Process.run('open', [dir]);
+    } else if (Platform.isWindows) {
+      await Process.run('explorer', [dir]);
+    }
+  }
+
+  Widget _locateDatabaseButton(PeadraColors c) {
+    return ElevatedButton.icon(
+      icon: const Icon(Icons.folder_open, color: Colors.white, size: 16),
+      label: Text(Translator.t('param_locate_database'),
+          style: const TextStyle(color: Colors.white, fontSize: 12)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: c.accent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+      onPressed: _locateDatabase,
+    );
+  }
+
   Widget _buildLocateDatabaseTile(PeadraColors colors) {
+    if (ResponsiveLayout.isPhone(context)) {
+      return _mobileSettingRow(
+        colors,
+        Translator.t('param_locate_database'),
+        onTap: () => _showMobileSetting(
+          title: Translator.t('param_locate_database'),
+          subtitle: Translator.t('param_locate_database_desc'),
+          controlBuilder: (sheetCtx, c) => _locateDatabaseButton(c),
+        ),
+      );
+    }
     return ListTile(
       title: Text(Translator.t('param_locate_database'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_locate_database_desc'),
           style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-      trailing: ElevatedButton.icon(
-        icon: const Icon(Icons.folder_open, color: Colors.white, size: 16),
-        label: Text(Translator.t('param_locate_database'),
-            style: const TextStyle(color: Colors.white, fontSize: 12)),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: colors.accent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-        onPressed: () async {
-          final path = _db.dbPath;
-          if (path == null) return;
-          final dir = File(path).parent.path;
-          if (Platform.isLinux) {
-            await Process.run('xdg-open', [dir]);
-          } else if (Platform.isMacOS) {
-            await Process.run('open', [dir]);
-          } else if (Platform.isWindows) {
-            await Process.run('explorer', [dir]);
-          }
-        },
-      ),
+      trailing: _locateDatabaseButton(colors),
     );
   }
 
   Widget _buildSwitchBackupTile(PeadraColors colors) {
-    final isPhone = ResponsiveLayout.isPhone(context);
+    if (ResponsiveLayout.isPhone(context)) {
+      // The backup picker is already a modal with title/subtitle/control,
+      // so open it directly for a one-step mobile flow.
+      return _mobileSettingRow(
+        colors,
+        Translator.t('param_switch_backup'),
+        onTap: () => _showSwitchBackupDialog(colors),
+      );
+    }
 
     final button = ElevatedButton.icon(
       icon: const Icon(Icons.restore, color: Colors.white, size: 16),
@@ -1105,24 +1342,6 @@ class _ParametersViewState extends State<ParametersView> {
       ),
       onPressed: () => _showSwitchBackupDialog(colors),
     );
-
-    if (isPhone) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(Translator.t('param_switch_backup'),
-                style: TextStyle(color: colors.text)),
-            const SizedBox(height: 4),
-            Text(Translator.t('param_switch_backup_desc'),
-                style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-            const SizedBox(height: 12),
-            button,
-          ],
-        ),
-      );
-    }
 
     return ListTile(
       title: Text(Translator.t('param_switch_backup'),
@@ -1280,15 +1499,34 @@ class _ParametersViewState extends State<ParametersView> {
     );
   }
 
-  Widget _buildUsernameContent(PeadraColors colors,
-      TextEditingController controller, String username, String? userId) {
-    final isPhone = ResponsiveLayout.isPhone(context);
+  Future<void> _saveUsername(String value, String username, String? userId) async {
+    if (value.trim().isEmpty || value.trim() == username || userId == null) {
+      return;
+    }
+    try {
+      final success =
+          await _authService.updateUsername(userId, value.trim());
+      if (success && mounted) {
+        context.read<AuthProvider>().setUsername(value.trim());
+        PeadraNotification.show(
+            context, message: Translator.t('param_username_saved'));
+      }
+    } catch (e) {
+      if (mounted) {
+        PeadraNotification.show(context,
+            message: e.toString(), type: NotificationType.error);
+      }
+    }
+  }
 
-    final usernameField = SizedBox(
-      width: isPhone ? double.infinity : 180,
+  Widget _usernameField(PeadraColors c, TextEditingController controller,
+      String username, String? userId,
+      {bool fullWidth = false}) {
+    return SizedBox(
+      width: fullWidth ? double.infinity : 180,
       child: TextField(
         controller: controller,
-        style: TextStyle(color: colors.text),
+        style: TextStyle(color: c.text),
         maxLength: 50,
         decoration: InputDecoration(
           isDense: true,
@@ -1296,51 +1534,35 @@ class _ParametersViewState extends State<ParametersView> {
               const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: colors.borderColor),
+            borderSide: BorderSide(color: c.borderColor),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: colors.borderColor),
+            borderSide: BorderSide(color: c.borderColor),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: colors.accent),
+            borderSide: BorderSide(color: c.accent),
           ),
           filled: true,
-          fillColor: colors.bg,
+          fillColor: c.bg,
         ),
-        onSubmitted: (value) async {
-          if (value.trim().isEmpty || value.trim() == username) return;
-          try {
-            final success =
-                await _authService.updateUsername(userId!, value.trim());
-            if (success && mounted) {
-              context.read<AuthProvider>().setUsername(value.trim());
-              PeadraNotification.show(context, message: Translator.t('param_username_saved'));
-            }
-          } catch (e) {
-            if (mounted) {
-              PeadraNotification.show(context, message: e.toString(), type: NotificationType.error);
-            }
-          }
-        },
+        onSubmitted: (value) => _saveUsername(value, username, userId),
       ),
     );
+  }
 
-    if (isPhone) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(Translator.t('param_username'),
-                style: TextStyle(color: colors.text)),
-            const SizedBox(height: 4),
-            Text(Translator.t('param_username_desc'),
-                style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-            const SizedBox(height: 12),
-            usernameField,
-          ],
+  Widget _buildUsernameContent(PeadraColors colors,
+      TextEditingController controller, String username, String? userId) {
+    if (ResponsiveLayout.isPhone(context)) {
+      return _mobileSettingRow(
+        colors,
+        Translator.t('param_username'),
+        onTap: () => _showMobileSetting(
+          title: Translator.t('param_username'),
+          subtitle: Translator.t('param_username_desc'),
+          controlBuilder: (sheetCtx, c) =>
+              _usernameField(c, controller, username, userId, fullWidth: true),
         ),
       );
     }
@@ -1350,12 +1572,19 @@ class _ParametersViewState extends State<ParametersView> {
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_username_desc'),
           style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-      trailing: usernameField,
+      trailing: _usernameField(colors, controller, username, userId),
     );
   }
 
   Widget _buildPasswordTile(PeadraColors colors) {
-    final isPhone = ResponsiveLayout.isPhone(context);
+    if (ResponsiveLayout.isPhone(context)) {
+      // The change-password form is already a modal: open it directly.
+      return _mobileSettingRow(
+        colors,
+        Translator.t('param_password'),
+        onTap: () => _showChangePasswordDialog(colors),
+      );
+    }
 
     final changeButton = ElevatedButton.icon(
       icon: const Icon(Icons.lock, color: Colors.white, size: 16),
@@ -1369,24 +1598,6 @@ class _ParametersViewState extends State<ParametersView> {
       ),
       onPressed: () => _showChangePasswordDialog(colors),
     );
-
-    if (isPhone) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(Translator.t('param_password'),
-                style: TextStyle(color: colors.text)),
-            const SizedBox(height: 4),
-            Text(Translator.t('param_password_desc'),
-                style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-            const SizedBox(height: 12),
-            changeButton,
-          ],
-        ),
-      );
-    }
 
     return ListTile(
       title: Text(Translator.t('param_password'),
@@ -1541,58 +1752,58 @@ class _ParametersViewState extends State<ParametersView> {
     );
   }
 
-  Widget _buildBiometricTile(SettingsProvider settings, PeadraColors colors) {
-    final isPhone = ResponsiveLayout.isPhone(context);
-
-    final toggle = Switch(
-      value: settings.biometricEnabled,
-      onChanged: (value) async {
-        if (value) {
-          final authenticated = await _biometricService.authenticate(
-            reason: Translator.t('param_biometric_desc'),
-          );
-          if (!authenticated) {
-            if (mounted) {
-              PeadraNotification.show(context,
-                  message: Translator.t('param_biometric_failed'),
-                  type: NotificationType.error);
-            }
-            return;
-          }
-          if (!mounted) return;
-          final auth = context.read<AuthProvider>();
-          await _biometricService.saveCredentials(auth.userId!, auth.username, encryptionKey: _db.encryptionKey);
-          await settings.setBiometricEnabled(true, _db);
-          if (mounted) {
-            PeadraNotification.show(context,
-                message: Translator.t('param_biometric_enabled'));
-          }
-        } else {
-          await _biometricService.clearCredentials();
-          await settings.setBiometricEnabled(false, _db);
-          if (mounted) {
-            PeadraNotification.show(context,
-                message: Translator.t('param_biometric_disabled'));
-          }
+  Future<void> _setBiometricEnabled(
+      bool value, SettingsProvider settings) async {
+    if (value) {
+      final authenticated = await _biometricService.authenticate(
+        reason: Translator.t('param_biometric_desc'),
+      );
+      if (!authenticated) {
+        if (mounted) {
+          PeadraNotification.show(context,
+              message: Translator.t('param_biometric_failed'),
+              type: NotificationType.error);
         }
-      },
-      activeThumbColor: colors.accent,
-    );
+        return;
+      }
+      if (!mounted) return;
+      final auth = context.read<AuthProvider>();
+      await _biometricService.saveCredentials(
+          auth.userId!, auth.username,
+          encryptionKey: _db.encryptionKey);
+      await settings.setBiometricEnabled(true, _db);
+      if (mounted) {
+        PeadraNotification.show(context,
+            message: Translator.t('param_biometric_enabled'));
+      }
+    } else {
+      await _biometricService.clearCredentials();
+      await settings.setBiometricEnabled(false, _db);
+      if (mounted) {
+        PeadraNotification.show(context,
+            message: Translator.t('param_biometric_disabled'));
+      }
+    }
+  }
 
-    if (isPhone) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(Translator.t('param_biometric'),
-                style: TextStyle(color: colors.text)),
-            const SizedBox(height: 4),
-            Text(Translator.t('param_biometric_desc'),
-                style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-            const SizedBox(height: 12),
-            toggle,
-          ],
+  Widget _buildBiometricTile(SettingsProvider settings, PeadraColors colors) {
+    if (ResponsiveLayout.isPhone(context)) {
+      return _mobileSettingRow(
+        colors,
+        Translator.t('param_biometric'),
+        onTap: () => _showMobileSetting(
+          title: Translator.t('param_biometric'),
+          subtitle: Translator.t('param_biometric_desc'),
+          controlBuilder: (sheetCtx, c) =>
+              Selector<SettingsProvider, bool>(
+            selector: (_, s) => s.biometricEnabled,
+            builder: (_, current, __) => Switch(
+              value: current,
+              onChanged: (value) => _setBiometricEnabled(
+                  value, context.read<SettingsProvider>()),
+              activeThumbColor: c.accent,
+            ),
+          ),
         ),
       );
     }
@@ -1602,71 +1813,105 @@ class _ParametersViewState extends State<ParametersView> {
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_biometric_desc'),
           style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-      trailing: toggle,
+      trailing: Switch(
+        value: settings.biometricEnabled,
+        onChanged: (value) => _setBiometricEnabled(value, settings),
+        activeThumbColor: colors.accent,
+      ),
     );
   }
 
   Widget _buildPairTile(PeadraColors colors) {
+    void open() {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const QrPairingScreen()),
+      );
+    }
+
+    if (ResponsiveLayout.isPhone(context)) {
+      return _mobileSettingRow(colors, Translator.t('sync_pair'), onTap: open);
+    }
     return ListTile(
       title: Text(Translator.t('sync_pair'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('sync_pair_desc'),
           style: TextStyle(color: colors.textSecondary, fontSize: 12)),
       trailing: Icon(Icons.chevron_right, color: colors.placeholderColor),
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const QrPairingScreen()),
-        );
-      },
+      onTap: open,
     );
   }
 
   Widget _buildScanTile(PeadraColors colors) {
+    void open() {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const ScannerScreen()),
+      );
+    }
+
+    if (ResponsiveLayout.isPhone(context)) {
+      return _mobileSettingRow(colors, Translator.t('sync_scan'), onTap: open);
+    }
     return ListTile(
       title: Text(Translator.t('sync_scan'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('sync_scan_desc'),
           style: TextStyle(color: colors.textSecondary, fontSize: 12)),
       trailing: Icon(Icons.chevron_right, color: colors.placeholderColor),
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const ScannerScreen()),
-        );
-      },
+      onTap: open,
     );
   }
 
   Widget _buildManagePeersTile(PeadraColors colors) {
+    void open() {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const PeersListScreen()),
+      );
+    }
+
+    if (ResponsiveLayout.isPhone(context)) {
+      return _mobileSettingRow(
+          colors, Translator.t('sync_manage'),
+          onTap: open);
+    }
     return ListTile(
       title: Text(Translator.t('sync_manage'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('sync_manage_desc'),
           style: TextStyle(color: colors.textSecondary, fontSize: 12)),
       trailing: Icon(Icons.chevron_right, color: colors.placeholderColor),
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const PeersListScreen()),
-        );
-      },
+      onTap: open,
     );
   }
 
   Widget _buildImportTile(PeadraColors colors) {
+    void open() {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const ImportDataView()),
+      );
+    }
+
+    if (ResponsiveLayout.isPhone(context)) {
+      return _mobileSettingRow(colors, Translator.t('btn_import'), onTap: open);
+    }
     return ListTile(
       title: Text(Translator.t('btn_import'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('import_select_csv_desc'),
           style: TextStyle(color: colors.textSecondary, fontSize: 12)),
       trailing: Icon(Icons.chevron_right, color: colors.placeholderColor),
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const ImportDataView()),
-        );
-      },
+      onTap: open,
     );
   }
 
   Widget _buildExportCsvTile(PeadraColors colors) {
+    if (ResponsiveLayout.isPhone(context)) {
+      // The account picker is already a modal: open it directly.
+      return _mobileSettingRow(
+        colors,
+        '${Translator.t('btn_export')} CSV',
+        onTap: () => _showExportAccountDialog(colors),
+      );
+    }
     return ListTile(
       title: Text('${Translator.t('btn_export')} CSV',
           style: TextStyle(color: colors.text)),
@@ -1760,42 +2005,91 @@ class _ParametersViewState extends State<ParametersView> {
     }
   }
 
+  Future<void> _exportLogs() async {
+    try {
+      final isMobile = Platform.isAndroid || Platform.isIOS;
+      final content = LogService().buildContent();
+
+      if (isMobile) {
+        final path = await LogService().export();
+        LogService().log('Session logs exported to: $path');
+        if (mounted) {
+          PeadraNotification.show(context,
+              message: Translator.t('msg_export_success_mobile')
+                  .replaceAll('CSV', 'logs'));
+        }
+      } else {
+        final exportService = ExportService();
+        final path = await exportService.saveToFile(
+            content: content, format: 'txt', fileName: 'peadra_log.txt');
+        if (mounted && path != null) {
+          LogService().log('Session logs exported to: $path');
+          PeadraNotification.show(context,
+              message: Translator.t('msg_export_success')
+                  .replaceAll('{file_path}', path));
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        PeadraNotification.show(context,
+            message: Translator.t('msg_export_error'),
+            type: NotificationType.error);
+      }
+    }
+  }
+
+  Widget _exportLogsButton(PeadraColors c) {
+    return ElevatedButton.icon(
+      icon: const Icon(Icons.download_outlined,
+          color: Colors.white, size: 16),
+      label: Text(Translator.t('param_export_logs'),
+          style: const TextStyle(color: Colors.white, fontSize: 12)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: c.accent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+      onPressed: () async {
+        if (ResponsiveLayout.isPhone(context)) {
+          Navigator.of(context).pop();
+        }
+        await _exportLogs();
+      },
+    );
+  }
+
   Widget _buildExportLogsTile(PeadraColors colors) {
+    if (ResponsiveLayout.isPhone(context)) {
+      return _mobileSettingRow(
+        colors,
+        Translator.t('param_export_logs'),
+        onTap: () => _showMobileSetting(
+          title: Translator.t('param_export_logs'),
+          subtitle: Translator.t('param_export_logs_desc'),
+          controlBuilder: (sheetCtx, c) => _exportLogsButton(c),
+        ),
+      );
+    }
     return ListTile(
       title: Text(Translator.t('param_export_logs'),
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_export_logs_desc'),
           style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-      onTap: () async {
-        try {
-          final isMobile = Platform.isAndroid || Platform.isIOS;
-          final content = LogService().buildContent();
-
-          if (isMobile) {
-            final path = await LogService().export();
-            LogService().log('Session logs exported to: $path');
-            if (mounted) {
-              PeadraNotification.show(context, message: Translator.t('msg_export_success_mobile').replaceAll('CSV', 'logs'));
-            }
-          } else {
-            final exportService = ExportService();
-            final path = await exportService.saveToFile(content: content, format: 'txt', fileName: 'peadra_log.txt');
-            if (mounted && path != null) {
-              LogService().log('Session logs exported to: $path');
-              PeadraNotification.show(context, message: Translator.t('msg_export_success').replaceAll('{file_path}', path));
-            }
-          }
-        } catch (e) {
-          if (mounted) {
-            PeadraNotification.show(context, message: Translator.t('msg_export_error'), type: NotificationType.error);
-          }
-        }
-      },
+      onTap: _exportLogs,
     );
   }
 
   Widget _buildDeleteAccountTile(PeadraColors colors) {
-    final isPhone = ResponsiveLayout.isPhone(context);
+    if (ResponsiveLayout.isPhone(context)) {
+      // The delete confirmation is already a modal: open it directly.
+      return _mobileSettingRow(
+        colors,
+        Translator.t('param_delete_account'),
+        titleColor: colors.error,
+        onTap: () => _showDeleteAccountDialog(colors),
+      );
+    }
 
     final deleteButton = ElevatedButton.icon(
       icon: const Icon(Icons.delete, color: Colors.white, size: 16),
@@ -1810,24 +2104,6 @@ class _ParametersViewState extends State<ParametersView> {
       onPressed: () => _showDeleteAccountDialog(colors),
     );
 
-    if (isPhone) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(Translator.t('param_delete_account'),
-                style: TextStyle(color: colors.error)),
-            const SizedBox(height: 4),
-            Text(Translator.t('param_delete_account_desc'),
-                style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-            const SizedBox(height: 12),
-            deleteButton,
-          ],
-        ),
-      );
-    }
-
     return ListTile(
       title: Text(Translator.t('param_delete_account'),
           style: TextStyle(color: colors.error)),
@@ -1838,6 +2114,20 @@ class _ParametersViewState extends State<ParametersView> {
   }
 
   Widget _buildVersionTile(PeadraColors colors) {
+    if (ResponsiveLayout.isPhone(context)) {
+      return _mobileSettingRow(
+        colors,
+        Translator.t('param_version'),
+        trailing: Text(
+          _currentVersion.isNotEmpty ? 'v$_currentVersion' : '...',
+          style: TextStyle(
+            color: colors.textSecondary,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      );
+    }
     return ListTile(
       title: Text(Translator.t('param_version'),
           style: TextStyle(color: colors.text)),
@@ -1852,7 +2142,64 @@ class _ParametersViewState extends State<ParametersView> {
     );
   }
 
+  Widget _checkUpdateControl(PeadraColors c, bool isChecking) {
+    if (isChecking) {
+      return SizedBox(
+        width: 20,
+        height: 20,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          color: c.accent,
+        ),
+      );
+    }
+    return ElevatedButton.icon(
+      icon: const Icon(Icons.refresh, color: Colors.white, size: 16),
+      label: Text(Translator.t('param_check_updates'),
+          style: const TextStyle(color: Colors.white, fontSize: 12)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: c.accent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+      onPressed: () async {
+        Navigator.of(context).pop();
+        await _checkForUpdate();
+      },
+    );
+  }
+
   Widget _buildCheckUpdateTile(PeadraColors colors) {
+    if (ResponsiveLayout.isPhone(context)) {
+      final isChecking = _updateStatus == _UpdateStatus.checking;
+      if (isChecking) {
+        return _mobileSettingRow(
+          colors,
+          Translator.t('param_check_updates'),
+          trailing: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: colors.accent,
+            ),
+          ),
+        );
+      }
+      return _mobileSettingRow(
+        colors,
+        Translator.t('param_check_updates'),
+        onTap: () => _showMobileSetting(
+          title: Translator.t('param_check_updates'),
+          subtitle: _updateStatusText(colors).isEmpty
+              ? Translator.t('param_update_status_idle')
+              : _updateStatusText(colors),
+          controlBuilder: (sheetCtx, c) =>
+              _checkUpdateControl(c, false),
+        ),
+      );
+    }
     final isChecking = _updateStatus == _UpdateStatus.checking;
     return ListTile(
       title: Text(Translator.t('param_check_updates'),
@@ -1876,28 +2223,24 @@ class _ParametersViewState extends State<ParametersView> {
   }
 
   Widget _buildHideUpdateNotificationsTile(SettingsProvider settings, PeadraColors colors) {
-    final isPhone = ResponsiveLayout.isPhone(context);
-
-    final toggle = Switch(
-      value: settings.hideUpdateNotifications,
-      onChanged: (value) => settings.setHideUpdateNotifications(value, _db),
-      activeThumbColor: colors.accent,
-    );
-
-    if (isPhone) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(Translator.t('param_hide_update_notifications'),
-                style: TextStyle(color: colors.text)),
-            const SizedBox(height: 4),
-            Text(Translator.t('param_hide_update_notifications_desc'),
-                style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-            const SizedBox(height: 12),
-            toggle,
-          ],
+    if (ResponsiveLayout.isPhone(context)) {
+      return _mobileSettingRow(
+        colors,
+        Translator.t('param_hide_update_notifications'),
+        onTap: () => _showMobileSetting(
+          title: Translator.t('param_hide_update_notifications'),
+          subtitle: Translator.t('param_hide_update_notifications_desc'),
+          controlBuilder: (sheetCtx, c) =>
+              Selector<SettingsProvider, bool>(
+            selector: (_, s) => s.hideUpdateNotifications,
+            builder: (_, current, __) => Switch(
+              value: current,
+              onChanged: (value) => context
+                  .read<SettingsProvider>()
+                  .setHideUpdateNotifications(value, _db),
+              activeThumbColor: c.accent,
+            ),
+          ),
         ),
       );
     }
@@ -1907,11 +2250,84 @@ class _ParametersViewState extends State<ParametersView> {
           style: TextStyle(color: colors.text)),
       subtitle: Text(Translator.t('param_hide_update_notifications_desc'),
           style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-      trailing: toggle,
+      trailing: Switch(
+        value: settings.hideUpdateNotifications,
+        onChanged: (value) => settings.setHideUpdateNotifications(value, _db),
+        activeThumbColor: colors.accent,
+      ),
+    );
+  }
+
+  Widget _updateAvailableControl(PeadraColors c, UpdateInfo update) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextButton(
+                onPressed: () => _showChangelogDialog(c, update),
+                child: Text(
+                  Translator.t('param_see_whats_new'),
+                  style: TextStyle(color: c.success, fontSize: 12),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                icon:
+                    const Icon(Icons.open_in_new, color: Colors.white, size: 16),
+                label: Text(Translator.t('param_install_update'),
+                    style:
+                        const TextStyle(color: Colors.white, fontSize: 12)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: c.success,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                onPressed: () => Platform.isAndroid
+                    ? _updateService.openPlayStore()
+                    : _updateService.openDownloadUrl(update.downloadUrl),
+              ),
+            ],
+          ),
+        ),
+        if (Platform.isAndroid) ...[
+          const SizedBox(height: 4),
+          Center(
+            child: TextButton.icon(
+              icon: Icon(Icons.download_outlined,
+                  color: c.success, size: 16),
+              label: Text(Translator.t('param_install_apk_github'),
+                  style:
+                      TextStyle(color: c.success, fontSize: 12)),
+              onPressed: () =>
+                  _updateService.openDownloadUrl(update.downloadUrl),
+            ),
+          ),
+        ],
+      ],
     );
   }
 
   Widget _buildUpdateAvailableTile(PeadraColors colors, UpdateInfo update) {
+    if (ResponsiveLayout.isPhone(context)) {
+      return _mobileSettingRow(
+        colors,
+        Translator.t('param_update_status_available',
+            params: {'version': update.version}),
+        titleColor: colors.success,
+        onTap: () => _showMobileSetting(
+          title: Translator.t('param_update_status_available',
+              params: {'version': update.version}),
+          subtitle: Translator.t('param_see_whats_new'),
+          controlBuilder: (sheetCtx, c) =>
+              _updateAvailableControl(c, update),
+        ),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Column(
@@ -1930,49 +2346,7 @@ class _ParametersViewState extends State<ParametersView> {
             ],
           ),
           const SizedBox(height: 12),
-          Center(
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextButton(
-                  onPressed: () => _showChangelogDialog(colors, update),
-                  child: Text(
-                    Translator.t('param_see_whats_new'),
-                    style: TextStyle(color: colors.success, fontSize: 12),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.open_in_new, color: Colors.white, size: 16),
-                  label: Text(Translator.t('param_install_update'),
-                      style: const TextStyle(color: Colors.white, fontSize: 12)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: colors.success,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  onPressed: () => Platform.isAndroid
-                      ? _updateService.openPlayStore()
-                      : _updateService.openDownloadUrl(update.downloadUrl),
-                ),
-              ],
-            ),
-          ),
-          if (Platform.isAndroid) ...[
-            const SizedBox(height: 4),
-            Center(
-              child: TextButton.icon(
-                icon: Icon(Icons.download_outlined,
-                    color: colors.success, size: 16),
-                label: Text(Translator.t('param_install_apk_github'),
-                    style: TextStyle(
-                        color: colors.success, fontSize: 12)),
-                onPressed: () =>
-                    _updateService.openDownloadUrl(update.downloadUrl),
-              ),
-            ),
-          ],
+          _updateAvailableControl(colors, update),
         ],
       ),
     );

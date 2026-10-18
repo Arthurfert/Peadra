@@ -360,92 +360,79 @@ class _TransactionModalState extends State<TransactionModal> {
             ? Translator.t('modal_edit_transaction')
             : typeLabels[_transactionType] ?? Translator.t('modal_new_transaction');
 
-    final content = SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (isPhone)
-            Text(title,
-                style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: colors.text))
-          else
-            const SizedBox.shrink(),
-          const SizedBox(height: 16),
-
-          // Type selector
-          _buildTypeSelector(colors, enabled: widget.editPairedTransaction == null && (widget.editTransaction == null || widget.editTransaction!.transactionType != 'transfer')),
-          const SizedBox(height: 16),
-
-          // Date
-          _buildDateField(colors),
-          const SizedBox(height: 12),
-
-          // Description (not for transfers). Scoped rebuild: typing only
-          // rebuilds this subtree, not the whole modal.
-          if (_transactionType != 'transfer') ...[
-            ValueListenableBuilder<TextEditingValue>(
-              valueListenable: _descController,
-              builder: (_, _, _) => Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildDescriptionField(colors),
-                  if (_showSuggestions) _buildSuggestions(colors),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-          ],
-
-          // Amount
-          _buildAmountField(colors),
-          const SizedBox(height: 12),
-
-          // Account selection
-          if (_transactionType == 'transfer') ...[
-            _buildTransferAccounts(colors),
-          ] else ...[
-            _buildAccountDropdown(colors),
-          ],
-          const SizedBox(height: 12),
-
-          // Tag selection (not for transfers)
-          if (_transactionType != 'transfer') ...[
-            _buildTagSelector(colors),
-            const SizedBox(height: 12),
-          ],
-
-          // Recurring section
-          if (_showRecurringSection) ...[
-            _buildRecurringSection(colors),
-            const SizedBox(height: 12),
-          ],
-
-          // Notes
-          _buildNotesField(colors),
-        ],
+    final saveAction = ElevatedButton(
+      onPressed: canSave ? _save : null,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: colors.accent,
+        disabledBackgroundColor:
+            colors.placeholderColor.withValues(alpha: 0.3),
       ),
+      child: Text(Translator.t('btn_save'),
+          style: const TextStyle(color: Colors.white)),
+    );
+
+    final form = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Type selector
+        _buildTypeSelector(colors, enabled: widget.editPairedTransaction == null && (widget.editTransaction == null || widget.editTransaction!.transactionType != 'transfer')),
+        const SizedBox(height: 16),
+
+        // Date
+        _buildDateField(colors),
+        const SizedBox(height: 12),
+
+        // Description (not for transfers). Scoped rebuild: typing only
+        // rebuilds this subtree, not the whole modal.
+        if (_transactionType != 'transfer') ...[
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _descController,
+            builder: (_, _, _) => Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildDescriptionField(colors),
+                if (_showSuggestions) _buildSuggestions(colors),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+
+        // Amount
+        _buildAmountField(colors),
+        const SizedBox(height: 12),
+
+        // Account selection
+        if (_transactionType == 'transfer') ...[
+          _buildTransferAccounts(colors),
+        ] else ...[
+          _buildAccountDropdown(colors),
+        ],
+        const SizedBox(height: 12),
+
+        // Tag selection (not for transfers)
+        if (_transactionType != 'transfer') ...[
+          _buildTagSelector(colors),
+          const SizedBox(height: 12),
+        ],
+
+        // Recurring section
+        if (_showRecurringSection) ...[
+          _buildRecurringSection(colors),
+          const SizedBox(height: 12),
+        ],
+
+        // Notes
+        _buildNotesField(colors),
+      ],
     );
 
     if (isPhone) {
-      return Scaffold(
-        backgroundColor: colors.bg,
-        appBar: AppBar(
-          title: Text(title, style: TextStyle(color: colors.text)),
-          backgroundColor: colors.surface,
-          iconTheme: IconThemeData(color: colors.text),
-          actions: [
-            TextButton(
-              onPressed: canSave ? _save : null,
-              child: Text(Translator.t('btn_save'),
-                  style: TextStyle(
-                      color: canSave ? colors.accent : colors.placeholderColor)),
-            ),
-          ],
-        ),
-        body: content,
+      // App-standard bottom sheet (matches every other modal). The type
+      // selector doubles as the header, so the repeating title is dropped.
+      return PeadraModal(
+        content: form,
+        actions: [saveAction],
       );
     }
 
@@ -456,22 +443,14 @@ class _TransactionModalState extends State<TransactionModal> {
               fontWeight: FontWeight.bold, color: colors.text)),
       content: SizedBox(
         width: 480,
-        child: content,
+        child: SingleChildScrollView(child: form),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: Text(Translator.t('btn_cancel')),
         ),
-        ElevatedButton(
-          onPressed: canSave ? _save : null,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: colors.accent,
-            disabledBackgroundColor: colors.placeholderColor.withValues(alpha: 0.3),
-          ),
-          child: Text(Translator.t('btn_save'),
-              style: const TextStyle(color: Colors.white)),
-        ),
+        saveAction,
       ],
     );
   }
@@ -810,8 +789,10 @@ class _TransactionModalState extends State<TransactionModal> {
     return Row(
       children: [
         Expanded(
+          flex: 2,
           child: DropdownButtonFormField<String>(
             initialValue: _frequency,
+            isExpanded: true,
             decoration: InputDecoration(
               labelText: Translator.t('rec_frequency'),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
@@ -942,11 +923,12 @@ class _TransactionModalState extends State<TransactionModal> {
   Widget _buildNotesField(PeadraColors colors) {
     return TextField(
       controller: _notesController,
-      maxLines: 3,
+      maxLines: 1,
       maxLength: 1000,
       decoration: InputDecoration(
         labelText: Translator.t('trans_notes'),
         hintText: Translator.t('hint_notes'),
+        counterText: '',
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
         filled: true,
         fillColor: colors.bg,

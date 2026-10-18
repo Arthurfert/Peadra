@@ -386,7 +386,6 @@ class _TransactionsViewState extends State<TransactionsView> {
     final accounts = await _db.getAllAccounts();
     if (!mounted) return;
 
-    final isPhone = ResponsiveLayout.isPhone(context);
     final modal = TransactionModal(
       accounts: accounts,
       onSave: (data) => _handleSave(data,
@@ -401,19 +400,10 @@ class _TransactionsViewState extends State<TransactionsView> {
       defaultRecurring: editRecurring != null,
     );
 
-    if (isPhone) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          fullscreenDialog: true,
-          builder: (_) => modal,
-        ),
-      );
-    } else {
-      showDialog(
-        context: context,
-        builder: (_) => modal,
-      );
-    }
+    showPeadraModal(
+      context: context,
+      builder: (_) => modal,
+    );
   }
 
   Future<void> _handleSave(Map<String, dynamic> data,

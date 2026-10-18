@@ -5,6 +5,7 @@
 ### New
 
 - Refreshed settings view on mobile
+- Modernize the create transaction modal on mobile
 
 ### Fixes
 

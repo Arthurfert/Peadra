@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
+import 'package:peadra/core/i18n/translator.dart';
 import 'package:peadra/core/providers/theme_provider.dart';
 import 'package:peadra/shared/widgets/peadra_modal.dart';
 
@@ -31,7 +32,29 @@ class _WrapperDialogState extends State<_WrapperDialog> {
   }
 }
 
-Widget _buildApp() {
+class _ConfirmDialog extends StatelessWidget {
+  const _ConfirmDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return PeadraModal(
+      title: const Text('Confirm title'),
+      content: const Text('Confirm content'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: Text(Translator.t('btn_cancel')),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text('Save'),
+        ),
+      ],
+    );
+  }
+}
+
+Widget _buildApp({Widget dialog = const _WrapperDialog()}) {
   return ChangeNotifierProvider(
     create: (_) => ThemeProvider(),
     child: MaterialApp(
@@ -40,7 +63,7 @@ Widget _buildApp() {
           builder: (context) => ElevatedButton(
             onPressed: () => showPeadraModal<bool>(
               context: context,
-              builder: (_) => const _WrapperDialog(),
+              builder: (_) => dialog,
             ),
             child: const Text('SHOW'),
           ),
@@ -93,6 +116,31 @@ void main() {
       await tester.tap(find.text('OK'));
       await tester.pumpAndSettle();
       expect(find.text('Wrapper content'), findsNothing);
+    });
+
+    testWidgets('phone: cancel action is dropped from sheets',
+        (tester) async {
+      await _setLogicalSize(tester, const Size(400, 800));
+      await tester.pumpWidget(_buildApp(dialog: const _ConfirmDialog()));
+
+      await tester.tap(find.text('SHOW'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Confirm content'), findsOneWidget);
+      expect(find.text('Save'), findsOneWidget);
+      expect(find.text(Translator.t('btn_cancel')), findsNothing);
+    });
+
+    testWidgets('desktop: cancel action is kept in dialogs',
+        (tester) async {
+      await _setLogicalSize(tester, const Size(1200, 800));
+      await tester.pumpWidget(_buildApp(dialog: const _ConfirmDialog()));
+
+      await tester.tap(find.text('SHOW'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Save'), findsOneWidget);
+      expect(find.text(Translator.t('btn_cancel')), findsOneWidget);
     });
   });
 }

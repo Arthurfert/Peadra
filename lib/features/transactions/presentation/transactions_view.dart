@@ -900,22 +900,6 @@ class _TransactionsViewState extends State<TransactionsView> {
                     children: [
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            visualDensity: VisualDensity.compact,
-                          ),
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(Translator.t('btn_cancel'),
-                                maxLines: 1, softWrap: false, style: const TextStyle(fontSize: 13)),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton(
                           onPressed: () async {
                             Navigator.pop(ctx);
                             await _deleteTransaction(txn);

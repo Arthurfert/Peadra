@@ -8,7 +8,7 @@
 
 ### Fixes
 
-
+- Dropped the "cancel" button on *mobile* modals
 
 ## Known issues
 

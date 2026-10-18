@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:decimal/decimal.dart';
 import 'package:provider/provider.dart';
 
@@ -570,6 +571,7 @@ class _TransactionModalState extends State<TransactionModal> {
     return TextField(
       controller: _amountController,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      inputFormatters: const [_CommaToDotFormatter()],
       maxLength: 20,
       decoration: InputDecoration(
         labelText:
@@ -932,6 +934,26 @@ class _TransactionModalState extends State<TransactionModal> {
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
         filled: true,
         fillColor: colors.bg,
+      ),
+    );
+  }
+}
+
+/// Rewrites typed or pasted commas as periods so an amount like "5,20"
+/// becomes "5.20" and parses with a plain decimal point, whatever the
+/// keyboard's locale decimal separator is.
+class _CommaToDotFormatter extends TextInputFormatter {
+  const _CommaToDotFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    if (!newValue.text.contains(',')) return newValue;
+    final text = newValue.text.replaceAll(',', '.');
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(
+        offset: newValue.selection.baseOffset.clamp(0, text.length),
       ),
     );
   }

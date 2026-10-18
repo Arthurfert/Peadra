@@ -6,6 +6,7 @@
 
 - Refreshed settings view on mobile
 - Modernize the create transaction modal on mobile
+- You can now type coma separated amounts (It automatically transforms it from 5,20 to 5.20)
 
 ### Fixes
 

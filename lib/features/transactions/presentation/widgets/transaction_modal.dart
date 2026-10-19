@@ -69,6 +69,11 @@ class _TransactionModalState extends State<TransactionModal> {
   Decimal? _convertedAmount;
   List<Tag> _tags = [];
   String? _selectedTagId;
+  /// Tag automatically applied from the typed description, if any.
+  String? _autoTaggedId;
+  /// True once the user picked a tag (or "None") themselves; disables
+  /// further automatic tag filing for this session.
+  bool _tagTouched = false;
   Timer? _suggestionDebounce;
 
   bool get _isTransfer => _transactionType == 'transfer';
@@ -234,6 +239,7 @@ class _TransactionModalState extends State<TransactionModal> {
         _suggestions = [];
         _showSuggestions = false;
       });
+      _clearAutoTagIfUntouched();
       return;
     }
     _suggestionDebounce = Timer(const Duration(milliseconds: 300), () async {
@@ -245,14 +251,48 @@ class _TransactionModalState extends State<TransactionModal> {
         _suggestions = results;
         _showSuggestions = results.isNotEmpty;
       });
+      await _applyAutoTag(query);
     });
   }
 
   void _selectSuggestion(String suggestion) {
+    _suggestionDebounce?.cancel();
     _descController.text = suggestion;
     setState(() {
       _showSuggestions = false;
       _suggestions = [];
+    });
+    _applyAutoTag(suggestion);
+  }
+
+  /// Pre-fills the tag historically associated with [description] (most used,
+  /// ties broken deterministically) unless the user already picked one.
+  Future<void> _applyAutoTag(String description) async {
+    if (_isTransfer || _tagTouched) return;
+    final name = description.trim();
+    if (name.isEmpty) return;
+    final tag = await _db.getTagForDescription(name);
+    if (!mounted) return;
+    // Never override a tag that came from the edited transaction or from an
+    // explicit user choice; only fill an empty slot or replace a previous
+    // automatic pick.
+    if (_selectedTagId != null && _selectedTagId != _autoTaggedId) return;
+    final tagId = tag?.id;
+    final resolved =
+        tagId != null && _tags.any((t) => t.id == tagId) ? tagId : null;
+    if (resolved == _selectedTagId) return;
+    setState(() {
+      _selectedTagId = resolved;
+      _autoTaggedId = resolved;
+    });
+  }
+
+  void _clearAutoTagIfUntouched() {
+    if (_tagTouched || _autoTaggedId == null) return;
+    if (_selectedTagId != _autoTaggedId) return;
+    setState(() {
+      _selectedTagId = null;
+      _autoTaggedId = null;
     });
   }
 
@@ -730,7 +770,11 @@ class _TransactionModalState extends State<TransactionModal> {
             )),
       ],
       onChanged: (v) {
-        setState(() => _selectedTagId = v);
+        setState(() {
+          _selectedTagId = v;
+          _tagTouched = true;
+          _autoTaggedId = null;
+        });
       },
     );
   }
@@ -916,7 +960,13 @@ class _TransactionModalState extends State<TransactionModal> {
         colors: colors,
         onTagCreated: (id) async {
           await _loadTags();
-          if (mounted) setState(() => _selectedTagId = id);
+          if (mounted) {
+            setState(() {
+              _selectedTagId = id;
+              _tagTouched = true;
+              _autoTaggedId = null;
+            });
+          }
         },
       ),
     );

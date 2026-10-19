@@ -357,6 +357,89 @@ void main() {
     });
   });
 
+  group('getTagForDescription', () {
+    test('returns the most used tag for a description', () async {
+      final db = DatabaseManager.instance;
+      final accountId = await db.addAccount(
+          'Checking', '#4CAF50', 'checking', 'EUR');
+      final groceries = await db.createTag(name: 'Groceries');
+      final trip = await db.createTag(name: 'Trip');
+
+      Future<void> add(String? tag) => db.addTransaction(
+            date: today(),
+            description: 'Coffee',
+            amount: Decimal.fromInt(5),
+            transactionType: 'expense',
+            accountId: accountId,
+            tagId: tag,
+          );
+      await add(groceries);
+      await add(groceries);
+      await add(trip);
+
+      final tag = await db.getTagForDescription('Coffee');
+      expect(tag?.id, groceries);
+      expect(tag?.name, 'Groceries');
+    });
+
+    test('matches the description case-insensitively', () async {
+      final db = DatabaseManager.instance;
+      final accountId = await db.addAccount(
+          'Checking', '#4CAF50', 'checking', 'EUR');
+      final tagId = await db.createTag(name: 'Groceries');
+
+      await db.addTransaction(
+        date: today(),
+        description: 'Coffee',
+        amount: Decimal.fromInt(5),
+        transactionType: 'expense',
+        accountId: accountId,
+        tagId: tagId,
+      );
+
+      expect((await db.getTagForDescription('  coffee '))?.id, tagId);
+    });
+
+    test('breaks ties by earliest use', () async {
+      final db = DatabaseManager.instance;
+      final accountId = await db.addAccount(
+          'Checking', '#4CAF50', 'checking', 'EUR');
+      final first = await db.createTag(name: 'First');
+      final second = await db.createTag(name: 'Second');
+
+      Future<void> add(String? tag, String date) => db.addTransaction(
+            date: date,
+            description: 'Coffee',
+            amount: Decimal.fromInt(5),
+            transactionType: 'expense',
+            accountId: accountId,
+            tagId: tag,
+          );
+      await add(second, '2025-01-02');
+      await add(first, '2025-01-01');
+
+      expect((await db.getTagForDescription('Coffee'))?.id, first);
+    });
+
+    test('returns null when the description has no tagged history', () async {
+      final db = DatabaseManager.instance;
+      final accountId = await db.addAccount(
+          'Checking', '#4CAF50', 'checking', 'EUR');
+
+      await db.addTransaction(
+        date: today(),
+        description: 'Coffee',
+        amount: Decimal.fromInt(5),
+        transactionType: 'expense',
+        accountId: accountId,
+      );
+
+      expect(await db.getTagForDescription('Coffee'), isNull);
+      expect(await db.getTagForDescription('Unknown'), isNull);
+      expect(await db.getTagForDescription('  '), isNull);
+    });
+  });
+
   group('getTagMonthlyData SQL', () {
     test('returns monthly breakdown per tag', () async {
       final db = DatabaseManager.instance;

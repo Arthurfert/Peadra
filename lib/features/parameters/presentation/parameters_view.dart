@@ -489,7 +489,7 @@ class _ParametersViewState extends State<ParametersView> {
           controlBuilder: (sheetCtx, c) =>
               Selector<LanguageProvider, String>(
             selector: (_, l) => l.language,
-            builder: (_, current, __) => DropdownButton<String>(
+            builder: (_, current, _) => DropdownButton<String>(
               value: current,
               dropdownColor: c.surface,
               style: TextStyle(color: c.text),
@@ -544,7 +544,7 @@ class _ParametersViewState extends State<ParametersView> {
           controlBuilder: (sheetCtx, c) =>
               Selector<SettingsProvider, String>(
             selector: (_, s) => s.currency,
-            builder: (_, current, __) => DropdownButton<String>(
+            builder: (_, current, _) => DropdownButton<String>(
               value: current,
               dropdownColor: c.surface,
               style: TextStyle(color: c.text),
@@ -638,7 +638,7 @@ class _ParametersViewState extends State<ParametersView> {
           controlBuilder: (sheetCtx, c) =>
               Selector<ThemeProvider, String>(
             selector: (_, t) => t.themeName,
-            builder: (_, current, __) => _themeDropdown(c, current),
+            builder: (_, current, _) => _themeDropdown(c, current),
           ),
         ),
       );
@@ -663,7 +663,7 @@ class _ParametersViewState extends State<ParametersView> {
           controlBuilder: (sheetCtx, c) =>
               Selector<SettingsProvider, bool>(
             selector: (_, s) => s.showNavLabels,
-            builder: (_, current, __) => Switch(
+            builder: (_, current, _) => Switch(
               value: current,
               onChanged: (value) => context
                   .read<SettingsProvider>()
@@ -698,7 +698,7 @@ class _ParametersViewState extends State<ParametersView> {
           controlBuilder: (sheetCtx, c) =>
               Selector<SettingsProvider, bool>(
             selector: (_, s) => s.showStatSubtitles,
-            builder: (_, current, __) => Switch(
+            builder: (_, current, _) => Switch(
               value: current,
               onChanged: (value) => context
                   .read<SettingsProvider>()
@@ -882,7 +882,7 @@ class _ParametersViewState extends State<ParametersView> {
           controlBuilder: (sheetCtx, c) =>
               Selector<SettingsProvider, int>(
             selector: (_, s) => s.displayLimit,
-            builder: (_, current, __) => DropdownButton<int>(
+            builder: (_, current, _) => DropdownButton<int>(
               value: current,
               dropdownColor: c.surface,
               style: TextStyle(color: c.text),
@@ -961,7 +961,7 @@ class _ParametersViewState extends State<ParametersView> {
           controlBuilder: (sheetCtx, c) =>
               Selector<SettingsProvider, String>(
             selector: (_, s) => s.categoriesView,
-            builder: (_, current, __) =>
+            builder: (_, current, _) =>
                 _categoriesViewControl(c, current),
           ),
         ),
@@ -1018,7 +1018,7 @@ class _ParametersViewState extends State<ParametersView> {
           controlBuilder: (sheetCtx, c) =>
               Selector<SettingsProvider, String>(
             selector: (_, s) => s.dashboardPieView,
-            builder: (_, current, __) =>
+            builder: (_, current, _) =>
                 _dashboardPieViewControl(c, current),
           ),
         ),
@@ -1045,7 +1045,7 @@ class _ParametersViewState extends State<ParametersView> {
           controlBuilder: (sheetCtx, c) =>
               Selector<SettingsProvider, bool>(
             selector: (_, s) => s.lineChartDots,
-            builder: (_, current, __) => Switch(
+            builder: (_, current, _) => Switch(
               value: current,
               onChanged: (value) => context
                   .read<SettingsProvider>()
@@ -1112,7 +1112,7 @@ class _ParametersViewState extends State<ParametersView> {
           controlBuilder: (sheetCtx, c) =>
               Selector<SettingsProvider, String>(
             selector: (_, s) => s.assetsGranularity,
-            builder: (_, current, __) =>
+            builder: (_, current, _) =>
                 _assetsGranularityControl(c, current),
           ),
         ),
@@ -1170,7 +1170,7 @@ class _ParametersViewState extends State<ParametersView> {
           controlBuilder: (sheetCtx, c) =>
               Selector<SettingsProvider, String>(
             selector: (_, s) => s.monthMode,
-            builder: (_, current, __) => _monthModeControl(c, current),
+            builder: (_, current, _) => _monthModeControl(c, current),
           ),
         ),
       );
@@ -1232,7 +1232,7 @@ class _ParametersViewState extends State<ParametersView> {
           controlBuilder: (sheetCtx, c) =>
               Selector<SettingsProvider, int>(
             selector: (_, s) => s.maxPieCategories,
-            builder: (_, current, __) => DropdownButton<int>(
+            builder: (_, current, _) => DropdownButton<int>(
               value: current,
               dropdownColor: c.surface,
               style: TextStyle(color: c.text),
@@ -1797,7 +1797,7 @@ class _ParametersViewState extends State<ParametersView> {
           controlBuilder: (sheetCtx, c) =>
               Selector<SettingsProvider, bool>(
             selector: (_, s) => s.biometricEnabled,
-            builder: (_, current, __) => Switch(
+            builder: (_, current, _) => Switch(
               value: current,
               onChanged: (value) => _setBiometricEnabled(
                   value, context.read<SettingsProvider>()),
@@ -2233,7 +2233,7 @@ class _ParametersViewState extends State<ParametersView> {
           controlBuilder: (sheetCtx, c) =>
               Selector<SettingsProvider, bool>(
             selector: (_, s) => s.hideUpdateNotifications,
-            builder: (_, current, __) => Switch(
+            builder: (_, current, _) => Switch(
               value: current,
               onChanged: (value) => context
                   .read<SettingsProvider>()

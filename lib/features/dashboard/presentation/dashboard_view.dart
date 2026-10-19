@@ -1041,10 +1041,16 @@ class _DashboardViewState extends State<DashboardView> {
     final assetsPie = _buildAssetsDistributionPieChart(
         colors, currency, maxPieCategories);
 
-    final totalAsset = _buildTotalAssetCard(colors, currency);
     final averageSection = _buildAverageSection(colors, currency);
     return LayoutBuilder(
       builder: (context, constraints) {
+        // The total-assets card adapts to the layout that is actually
+        // rendered (content width), not the window width: on a resized
+        // desktop window the mobile layout is used, so the card must use
+        // the mobile treatment too.
+        final isNarrow = constraints.maxWidth <= 800;
+        final totalAsset =
+            _buildTotalAssetCard(colors, currency, isNarrow: isNarrow);
         if (constraints.maxWidth > 800) {
           return DashboardViewDesktop(
             header: header,
@@ -1080,11 +1086,35 @@ class _DashboardViewState extends State<DashboardView> {
     );
   }
 
-  Widget _buildTotalAssetCard(PeadraColors colors, String currency) {
+  /// Amount display for narrow layouts: horizontally scrollable when it
+  /// does not fit, so a long amount can be swiped to be fully read.
+  Widget _buildScrollableAssetAmount(PeadraColors colors, String amount) {
+    return SizedBox(
+      width: double.infinity,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Text(
+          amount,
+          maxLines: 1,
+          softWrap: false,
+          overflow: TextOverflow.visible,
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+            color: colors.accent,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTotalAssetCard(PeadraColors colors, String currency,
+      {required bool isNarrow}) {
     final previousTotal = _previousBalance + _previousSavings;
     final totalChange = previousTotal > Decimal.zero
         ? ((_totalAssets - previousTotal) * Decimal.fromInt(100) / previousTotal).toDouble()
         : 0.0;
+    final formattedAmount = CurrencyService.formatAmount(_totalAssets, currency);
     return Card(
       color: colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -1109,17 +1139,21 @@ class _DashboardViewState extends State<DashboardView> {
               ],
             ),
             const SizedBox(height: 8),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                CurrencyService.formatAmount(_totalAssets, currency),
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: colors.accent,
+            if (isNarrow) ...[
+              _buildScrollableAssetAmount(colors, formattedAmount),
+            ] else ...[
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  formattedAmount,
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: colors.accent,
+                  ),
                 ),
               ),
-            ),
+            ],
           ],
         ),
       ),

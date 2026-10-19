@@ -12,6 +12,7 @@
 ### Fixes
 
 - Dropped the "cancel" button on *mobile* modals
+- Total assets amount is swipeable if too large on mobile
 
 ## Known issues
 

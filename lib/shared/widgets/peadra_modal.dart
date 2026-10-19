@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/i18n/translator.dart';
 import '../../core/providers/theme_provider.dart';
 import '../../core/responsive/responsive_layout.dart';
 import '../../core/theme/peadra_colors.dart';
@@ -49,7 +50,11 @@ class PeadraModal extends StatelessWidget {
   }
 
   Widget _buildSheet(BuildContext context, PeadraColors colors) {
-    final actions = this.actions;
+    // Phones save space by dropping the secondary "Cancel" action: the sheet
+    // is dismissible by swipe/tap, and the remaining actions grow to fill the
+    // row. Desktop dialogs keep their explicit Cancel.
+    final actions =
+        this.actions?.where((a) => !_isCancelAction(a)).toList();
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
@@ -102,6 +107,16 @@ class PeadraModal extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A cancel action is a secondary [TextButton] labelled with the shared
+/// "Cancel" string. On phone sheets these are dropped entirely (see
+/// [PeadraModal._buildSheet]); any other secondary action is kept and only
+/// restyled.
+bool _isCancelAction(Widget action) {
+  if (action is! TextButton) return false;
+  final child = action.child;
+  return child is Text && child.data == Translator.t('btn_cancel');
 }
 
 /// Secondary ([TextButton]) actions render outlined in sheets, like the

@@ -1513,6 +1513,56 @@ void setUserId(String userId) {
     return createTag(name: normalized);
   }
 
+  /// Returns the tag most frequently attached to past transactions whose
+  /// description matches [name] (case-insensitive), or null when there is no
+  /// such history.
+  ///
+  /// Ties are broken by the longest-used tag (earliest transaction date),
+  /// then by tag id, so a given description always resolves to the same tag.
+  /// Tombstoned tags are ignored.
+  Future<Tag?> getTagForDescription(String name) async {
+    if (_userId == null) return null;
+    final normalized = name.trim().toLowerCase();
+    if (normalized.isEmpty) return null;
+    final db = await database;
+
+    // Several description rows can decrypt to the same name, so collect them
+    // all and group the tag usage across every one of them.
+    final descRows = await db.query(
+      'SELECT id, name FROM descriptions WHERE user_id = ? AND is_deleted = 0',
+      [_userId],
+    );
+    final descIds = <String>[];
+    for (final row in descRows) {
+      final decrypted = await _decryptValue(row['name']);
+      if (decrypted != null && decrypted.trim().toLowerCase() == normalized) {
+        descIds.add(row['id'] as String);
+      }
+    }
+    if (descIds.isEmpty) return null;
+
+    final placeholders = List.filled(descIds.length, '?').join(', ');
+    final rows = await db.query(
+      'SELECT t.tag_id, COUNT(*) AS uses, MIN(t.date) AS first_used '
+      'FROM transactions t '
+      'JOIN tags tg ON tg.id = t.tag_id AND tg.is_deleted = 0 '
+      'WHERE t.user_id = ? AND t.is_deleted = 0 '
+      'AND t.description_id IN ($placeholders) '
+      'GROUP BY t.tag_id '
+      'ORDER BY uses DESC, first_used ASC, t.tag_id ASC '
+      'LIMIT 1',
+      [_userId, ...descIds],
+    );
+    if (rows.isEmpty) return null;
+
+    final tagRows = await db.query(
+      'SELECT * FROM tags WHERE id = ? AND user_id = ? AND is_deleted = 0',
+      [rows.first['tag_id'] as String, _userId],
+    );
+    if (tagRows.isEmpty) return null;
+    return Tag.fromMap(tagRows.first);
+  }
+
   /// Deletes the tag when no (non-deleted) transaction or recurring
   /// transaction references it anymore. Used to roll back tags created by
   /// an import that was aborted part-way. Returns true when deleted.

@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: subosito/flutter-action@v2
         with:
@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: subosito/flutter-action@v2
         with:
@@ -59,7 +59,7 @@ jobs:
         run: find . -name "*.deb" -o -name "*.changes" -o -name "*.buildinfo" | head -20
 
       - name: Upload deb artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: peadra-linux-deb
           path: |
@@ -72,7 +72,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: subosito/flutter-action@v2
         with:
@@ -109,7 +109,7 @@ jobs:
         run: Get-ChildItem -Recurse -Filter "*.msix" | Select-Object FullName
 
       - name: Upload msix artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: peadra-windows-msix
           path: |
@@ -117,7 +117,7 @@ jobs:
             **/*.msix
 
       - name: Upload certificate
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: peadra-certificate
           path: peadra.cer
@@ -134,7 +134,7 @@ jobs:
       ANDROID_VERSION_CODE_OFFSET: "1000"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: subosito/flutter-action@v2
         with:
@@ -184,13 +184,13 @@ jobs:
           cp build/app/outputs/bundle/release/app-release.aab "build/app/outputs/bundle/release/peadra-${version}-android.aab"
 
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: peadra-android-apk
           path: build/app/outputs/flutter-apk/peadra-*-android.apk
 
       - name: Upload AAB artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: peadra-android-aab
           path: build/app/outputs/bundle/release/peadra-*-android.aab
@@ -203,39 +203,39 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Extract version from pubspec.yaml
         id: version
         run: echo "tag=v$(grep 'version:' pubspec.yaml | head -1 | awk '{print $2}')" >> "$GITHUB_OUTPUT"
 
       - name: Download Linux artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: peadra-linux-deb
           path: artifacts/linux
 
       - name: Download Windows artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: peadra-windows-msix
           path: artifacts/windows
 
       - name: Download certificate
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: peadra-certificate
           path: artifacts/windows
         continue-on-error: true
 
       - name: Download Android APK artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: peadra-android-apk
           path: artifacts/android
 
       - name: Download Android AAB artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: peadra-android-aab
           path: artifacts/android

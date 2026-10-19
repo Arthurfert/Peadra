@@ -386,7 +386,6 @@ class _TransactionsViewState extends State<TransactionsView> {
     final accounts = await _db.getAllAccounts();
     if (!mounted) return;
 
-    final isPhone = ResponsiveLayout.isPhone(context);
     final modal = TransactionModal(
       accounts: accounts,
       onSave: (data) => _handleSave(data,
@@ -401,19 +400,10 @@ class _TransactionsViewState extends State<TransactionsView> {
       defaultRecurring: editRecurring != null,
     );
 
-    if (isPhone) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          fullscreenDialog: true,
-          builder: (_) => modal,
-        ),
-      );
-    } else {
-      showDialog(
-        context: context,
-        builder: (_) => modal,
-      );
-    }
+    showPeadraModal(
+      context: context,
+      builder: (_) => modal,
+    );
   }
 
   Future<void> _handleSave(Map<String, dynamic> data,
@@ -898,22 +888,6 @@ class _TransactionsViewState extends State<TransactionsView> {
                   const SizedBox(height: 20),
                   Row(
                     children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            visualDensity: VisualDensity.compact,
-                          ),
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(Translator.t('btn_cancel'),
-                                maxLines: 1, softWrap: false, style: const TextStyle(fontSize: 13)),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
                       Expanded(
                         child: OutlinedButton(
                           onPressed: () async {

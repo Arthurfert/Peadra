@@ -736,9 +736,9 @@ class Translator {
           'Mois calendaire : Jan 1-31. Roulant : 30 derniers jours \u00e0 partir d\'aujourd\'hui.',
       'param_calendar_month': 'Mois calendaire',
       'param_rolling_30': '30 derniers jours',
-      'param_line_chart_dots': 'Points sur les graphiques en ligne',
+      'param_line_chart_dots': 'Points sur les courbes',
       'param_line_chart_dots_desc':
-          'Afficher les points de donn\u00e9es sur les graphiques en ligne.',
+          'Afficher les points de donn\u00e9es sur les courbes.',
       'param_assets_granularity': 'Pr\u00e9cision du graphique des actifs',
       'param_assets_granularity_desc':
           'Afficher un point par mois ou par jour sur le graphique en ligne des actifs.',
@@ -1231,8 +1231,8 @@ class Translator {
       'param_month_mode_desc': 'Mes natural: 1-31 ene. Móvil: últimos 30 días desde hoy.',
       'param_calendar_month': 'Mes natural',
       'param_rolling_30': 'Últimos 30 días',
-      'param_line_chart_dots': 'Puntos de datos en gráficos lineales',
-      'param_line_chart_dots_desc': 'Mostrar puntos de datos en los gráficos lineales.',
+      'param_line_chart_dots': 'Puntos de datos en curvas',
+      'param_line_chart_dots_desc': 'Mostrar puntos de datos en las curvas.',
       'param_assets_granularity': 'Granularidad del gráfico de patrimonio',
       'param_assets_granularity_desc': 'Mostrar un punto por mes o por día en el gráfico lineal del patrimonio.',
       'param_assets_monthly': 'Mensual',

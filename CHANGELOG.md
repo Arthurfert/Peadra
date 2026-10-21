@@ -8,7 +8,7 @@
 
 ### Fixes
 
-
+- Fix modals overlaping with mobile bottom bar on some phone.
 
 ## Known issues
 

@@ -79,6 +79,22 @@ Future<void> _setLogicalSize(WidgetTester tester, Size size) async {
   addTearDown(() => tester.view.resetPhysicalSize());
 }
 
+/// Simulates a phone with a status bar at the top and a system navigation
+/// bar at the bottom (3-button navigation), plus an optional keyboard.
+void _setSystemInsets(
+  WidgetTester tester, {
+  double top = 24,
+  double bottom = 48,
+  double keyboard = 0,
+}) {
+  tester.view.padding = FakeViewPadding(top: top, bottom: bottom);
+  tester.view.viewPadding = FakeViewPadding(top: top, bottom: bottom);
+  tester.view.viewInsets = FakeViewPadding(bottom: keyboard);
+  addTearDown(tester.view.resetPadding);
+  addTearDown(tester.view.resetViewPadding);
+  addTearDown(tester.view.resetViewInsets);
+}
+
 void main() {
   group('showPeadraModal', () {
     testWidgets('phone: stateful wrapper renders as bottom sheet',
@@ -141,6 +157,71 @@ void main() {
 
       expect(find.text('Save'), findsOneWidget);
       expect(find.text(Translator.t('btn_cancel')), findsOneWidget);
+    });
+
+    testWidgets('phone: sheet content stays above the system bar',
+        (tester) async {
+      await _setLogicalSize(tester, const Size(400, 800));
+      _setSystemInsets(tester);
+      await tester.pumpWidget(_buildApp(dialog: const _ConfirmDialog()));
+
+      await tester.tap(find.text('SHOW'));
+      await tester.pumpAndSettle();
+
+      // The bottom system bar starts 48px above the bottom of the screen.
+      const systemBarTop = 800 - 48;
+      expect(
+        tester.getRect(find.text('Confirm content')).bottom,
+        lessThanOrEqualTo(systemBarTop),
+      );
+      expect(
+        tester.getRect(find.widgetWithText(ElevatedButton, 'Save')).bottom,
+        lessThanOrEqualTo(systemBarTop),
+      );
+    });
+
+    testWidgets('phone: sheet content stays above the keyboard',
+        (tester) async {
+      await _setLogicalSize(tester, const Size(400, 800));
+      _setSystemInsets(tester, keyboard: 300);
+      await tester.pumpWidget(_buildApp(dialog: const _ConfirmDialog()));
+
+      await tester.tap(find.text('SHOW'));
+      await tester.pumpAndSettle();
+
+      const keyboardTop = 800 - 300;
+      expect(
+        tester.getRect(find.text('Confirm content')).bottom,
+        lessThanOrEqualTo(keyboardTop),
+      );
+      expect(
+        tester.getRect(find.widgetWithText(ElevatedButton, 'Save')).bottom,
+        lessThanOrEqualTo(keyboardTop),
+      );
+    });
+
+    testWidgets('phone: tall sheet stops below the status bar',
+        (tester) async {
+      await _setLogicalSize(tester, const Size(400, 800));
+      _setSystemInsets(tester);
+      await tester.pumpWidget(_buildApp(
+        dialog: PeadraModal(
+          title: const Text('Tall title'),
+          content: const SizedBox(height: 1200, child: Text('Tall content')),
+          actions: const [],
+        ),
+      ));
+
+      await tester.tap(find.text('SHOW'));
+      await tester.pumpAndSettle();
+
+      // The sheet must not slide under the 24px status bar.
+      expect(tester.getRect(find.byType(PeadraModal)).top,
+          greaterThanOrEqualTo(24));
+      expect(
+        tester.getRect(find.text('Tall title')).top,
+        greaterThanOrEqualTo(24),
+      );
     });
   });
 }

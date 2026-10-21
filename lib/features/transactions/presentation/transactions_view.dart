@@ -22,6 +22,7 @@ import '../../../shared/widgets/tag_chip.dart';
 import '../../../core/services/currency_service.dart';
 import '../../../core/responsive/responsive_layout.dart';
 import '../../../core/utils/transfer_texts.dart';
+import '../../../core/utils/safe_insets.dart';
 
 class _DisplayItem {
   final TransactionWithDetails? transaction;
@@ -856,86 +857,96 @@ class _TransactionsViewState extends State<TransactionsView> {
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
-        builder: (ctx) => Container(
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          padding: EdgeInsets.fromLTRB(
-            24,
-            12,
-            24,
-            24 + MediaQuery.of(ctx).viewInsets.bottom,
-          ),
-          child: SafeArea(
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: colors.placeholderColor.withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(2),
+        builder: (ctx) => ConstrainedBox(
+          // A tall sheet would otherwise slide under the status bar: cap it
+          // so its header stays visible and the content scrolls instead.
+          constraints: BoxConstraints(maxHeight: maxSheetHeight(ctx)),
+          child: Container(
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            padding: EdgeInsets.fromLTRB(
+              24,
+              12,
+              24,
+              // Keep the content and the actions clear of the bottom system
+              // bar (3-button navigation) or the keyboard, whichever is
+              // taller.
+              24 + bottomSafeInset(ctx),
+            ),
+            child: SafeArea(
+              // The bottom is handled by bottomSafeInset above.
+              bottom: false,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: colors.placeholderColor.withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  ...previewRows,
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () async {
-                            Navigator.pop(ctx);
-                            await _deleteTransaction(txn);
-                            if (pairedTxn != null) {
-                              await _db.deleteTransaction(pairedTxn.id!);
-                            }
-                            _loadTransactions();
-                            widget.onDataChanged?.call();
-                          },
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: colors.error,
-                            side: BorderSide(color: colors.error),
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            visualDensity: VisualDensity.compact,
-                          ),
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(Translator.t('btn_delete'),
-                                maxLines: 1, softWrap: false, style: const TextStyle(fontSize: 13)),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: FilledButton(
-                          onPressed: () {
-                            Navigator.pop(ctx);
-                            _editTransaction(txn, pairedTxn: pairedTxn);
-                          },
-                          style: FilledButton.styleFrom(
-                            backgroundColor: colors.accent,
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            visualDensity: VisualDensity.compact,
-                          ),
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(Translator.t('btn_edit'),
-                                maxLines: 1, softWrap: false, style: TextStyle(fontSize: 13, color: colors.text)),
+                    const SizedBox(height: 16),
+                    ...previewRows,
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () async {
+                              Navigator.pop(ctx);
+                              await _deleteTransaction(txn);
+                              if (pairedTxn != null) {
+                                await _db.deleteTransaction(pairedTxn.id!);
+                              }
+                              _loadTransactions();
+                              widget.onDataChanged?.call();
+                            },
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: colors.error,
+                              side: BorderSide(color: colors.error),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(Translator.t('btn_delete'),
+                                  maxLines: 1, softWrap: false, style: const TextStyle(fontSize: 13)),
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                              _editTransaction(txn, pairedTxn: pairedTxn);
+                            },
+                            style: FilledButton.styleFrom(
+                              backgroundColor: colors.accent,
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(Translator.t('btn_edit'),
+                                  maxLines: 1, softWrap: false, style: TextStyle(fontSize: 13, color: colors.text)),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

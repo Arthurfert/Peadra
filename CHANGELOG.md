@@ -4,7 +4,7 @@
 
 ### New
 
-
+- A better onboarding for new user !
 
 ### Fixes
 

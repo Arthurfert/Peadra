@@ -1356,6 +1356,21 @@ class _TransactionsViewState extends State<TransactionsView> {
         : Padding(padding: const EdgeInsets.only(bottom: 8), child: toggle);
   }
 
+  /// True when the work-hours caption should appear under this transaction's
+  /// amount (expense/income only, option enabled, hourly rate set).
+  bool _workHoursApplies(TransactionWithDetails txn) {
+    final s = context.read<SettingsProvider>();
+    return s.showWorkHours &&
+        s.hourlyRate > 0 &&
+        txn.transactionType != 'transfer';
+  }
+
+  String _workHoursText(double amount) {
+    final hours = amount.abs() / context.read<SettingsProvider>().hourlyRate;
+    final s = hours.toStringAsFixed(1);
+    return '≈ ${s.endsWith('.0') ? s.substring(0, s.length - 2) : s} h';
+  }
+
   Widget _buildTransactionTile(_DisplayItem item, PeadraColors colors,
       String defaultCurrency,
       {bool upcoming = false}) {
@@ -1497,18 +1512,8 @@ class _TransactionsViewState extends State<TransactionsView> {
               ),
               const SizedBox(width: 8),
             ],
-            Text(
-              '$sign${CurrencyService.formatAmount(txn.amount, displayCurrency)}',
-              style: TextStyle(
-                color: isIncome
-                    ? colors.success
-                    : isTransfer
-                        ? colors.transferColor
-                        : colors.error,
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-              ),
-            ),
+            _amountColumn(txn, colors, displayCurrency, isIncome, isTransfer,
+                sign),
           ],
         ),
         onTap: () => _showTransactionPreview(txn),
@@ -1518,6 +1523,41 @@ class _TransactionsViewState extends State<TransactionsView> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: card,
+    );
+  }
+
+  /// The trailing amount of a tile, with the work-hours equivalent stacked
+  /// below it when enabled (regular income/expense only — transfers don't
+  /// move money in or out of the budget).
+  Widget _amountColumn(TransactionWithDetails txn, PeadraColors colors,
+      String displayCurrency, bool isIncome, bool isTransfer, String sign) {
+    final texts = [
+      Text(
+        '$sign${CurrencyService.formatAmount(txn.amount, displayCurrency)}',
+        style: TextStyle(
+          color: isIncome
+              ? colors.success
+              : isTransfer
+                  ? colors.transferColor
+                  : colors.error,
+          fontWeight: FontWeight.w600,
+          fontSize: 14,
+        ),
+      ),
+    ];
+    if (!isTransfer && _workHoursApplies(txn)) {
+      texts.add(Text(
+        _workHoursText(txn.amount.toDouble()),
+        style: TextStyle(
+          color: colors.textSecondary,
+          fontSize: 11,
+        ),
+      ));
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      children: texts,
     );
   }
 

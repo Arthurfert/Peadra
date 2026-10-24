@@ -12,6 +12,8 @@ const bool defaultLineChartDots = true;
 const String defaultAssetsGranularity = 'monthly';
 const bool defaultShowNavLabels = false;
 const bool defaultShowStatSubtitles = true;
+const bool defaultShowWorkHours = false;
+const double defaultHourlyRate = 0.0;
 const bool defaultHideUpdateNotifications = false;
 
 const int globalSettingsUserId = 0;

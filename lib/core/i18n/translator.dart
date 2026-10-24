@@ -264,6 +264,11 @@ class Translator {
       'param_nav_labels_desc': 'Show text below the navigation bar icons.',
       'param_stat_subtitles': 'Stat card subtitles',
       'param_stat_subtitles_desc': 'Show the small caption under stat card values.',
+      'param_work_hours': 'Work-hours equivalent',
+      'param_work_hours_desc':
+          'Show below each amount how many hours of work it represents.',
+      'param_work_hours_rate': 'Value of one hour',
+      'param_work_hours_rate_desc': 'Amount earned per hour worked, in your currency.',
       'param_nav_order': 'Navigation order',
       'param_nav_order_desc': 'Reorder the views in the navigation bar.',
       'param_nav_order_hint': 'The first 4 views appear in the bar; the rest appear in the menu.',
@@ -762,6 +767,12 @@ class Translator {
       'param_stat_subtitles': 'Sous-titres des cartes',
       'param_stat_subtitles_desc':
           'Afficher la petite l\u00e9gende sous les valeurs des cartes.',
+      'param_work_hours': '\u00c9quivalent en heures de travail',
+      'param_work_hours_desc':
+          'Afficher sous chaque montant le nombre d\u2019heures de travail qu\u2019il repr\u00e9sente.',
+      'param_work_hours_rate': 'Valeur d\u2019une heure',
+      'param_work_hours_rate_desc':
+          'Montant gagn\u00e9 par heure travaill\u00e9e, dans votre devise.',
       'param_nav_order': 'Ordre de navigation',
       'param_nav_order_desc': 'R\u00e9organisez les vues de la barre de navigation.',
       'param_nav_order_hint':
@@ -1259,6 +1270,10 @@ class Translator {
       'param_nav_labels_desc': 'Mostrar texto bajo los iconos de la barra de navegación.',
       'param_stat_subtitles': 'Subtítulos de tarjetas',
       'param_stat_subtitles_desc': 'Mostrar la pequeña leyenda bajo los valores de las tarjetas.',
+      'param_work_hours': 'Equivalente en horas de trabajo',
+      'param_work_hours_desc': 'Mostrar bajo cada importe cuántas horas de trabajo representa.',
+      'param_work_hours_rate': 'Valor de una hora',
+      'param_work_hours_rate_desc': 'Cantidad ganada por hora trabajada, en tu moneda.',
       'param_nav_order': 'Orden de navegación',
       'param_nav_order_desc': 'Reordena las vistas de la barra de navegación.',
       'param_nav_order_hint':

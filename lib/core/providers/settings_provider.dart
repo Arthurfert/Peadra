@@ -16,6 +16,8 @@ class SettingsProvider extends ChangeNotifier {
   String _assetsGranularity = defaultAssetsGranularity;
   bool _showNavLabels = defaultShowNavLabels;
   bool _showStatSubtitles = defaultShowStatSubtitles;
+  bool _showWorkHours = defaultShowWorkHours;
+  double _hourlyRate = defaultHourlyRate;
   bool _hideUpdateNotifications = defaultHideUpdateNotifications;
   List<String> _navOrder = List.of(defaultNavOrder);
 
@@ -30,6 +32,8 @@ class SettingsProvider extends ChangeNotifier {
   String get assetsGranularity => _assetsGranularity;
   bool get showNavLabels => _showNavLabels;
   bool get showStatSubtitles => _showStatSubtitles;
+  bool get showWorkHours => _showWorkHours;
+  double get hourlyRate => _hourlyRate;
   bool get hideUpdateNotifications => _hideUpdateNotifications;
 
   /// Mobile navigation order: the first [mobileNavBarSlots] destinations
@@ -49,6 +53,8 @@ class SettingsProvider extends ChangeNotifier {
       db.getSetting('assets_granularity', defaultValue: defaultAssetsGranularity),
       db.getSetting('show_nav_labels', defaultValue: defaultShowNavLabels.toString()),
       db.getSetting('show_stat_subtitles', defaultValue: defaultShowStatSubtitles.toString()),
+      db.getSetting('show_work_hours', defaultValue: defaultShowWorkHours.toString()),
+      db.getSetting('hourly_rate', defaultValue: defaultHourlyRate.toString()),
       db.getSetting('hide_update_notifications', defaultValue: defaultHideUpdateNotifications.toString()),
       db.getSetting('nav_order', defaultValue: encodeNavOrder(defaultNavOrder)),
     ]);
@@ -63,8 +69,10 @@ class SettingsProvider extends ChangeNotifier {
     _assetsGranularity = values[8] ?? defaultAssetsGranularity;
     _showNavLabels = values[9] == 'true';
     _showStatSubtitles = values[10] == 'true';
-    _hideUpdateNotifications = values[11] == 'true';
-    _navOrder = parseNavOrder(values[12]);
+    _showWorkHours = values[11] == 'true';
+    _hourlyRate = double.tryParse(values[12] ?? '') ?? defaultHourlyRate;
+    _hideUpdateNotifications = values[13] == 'true';
+    _navOrder = parseNavOrder(values[14]);
     notifyListeners();
   }
 
@@ -153,6 +161,22 @@ class SettingsProvider extends ChangeNotifier {
     _showStatSubtitles = show;
     await db.setSetting('show_stat_subtitles', show.toString());
     LogService().log('Show stat subtitles set to $show');
+    notifyListeners();
+  }
+
+  Future<void> setShowWorkHours(bool show, DatabaseManager db) async {
+    if (_showWorkHours == show) return;
+    _showWorkHours = show;
+    await db.setSetting('show_work_hours', show.toString());
+    LogService().log('Show work hours set to $show');
+    notifyListeners();
+  }
+
+  Future<void> setHourlyRate(double rate, DatabaseManager db) async {
+    if (_hourlyRate == rate) return;
+    _hourlyRate = rate;
+    await db.setSetting('hourly_rate', rate.toString());
+    LogService().log('Hourly rate set to $rate');
     notifyListeners();
   }
 

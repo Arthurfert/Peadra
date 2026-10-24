@@ -5,6 +5,7 @@ import '../../core/i18n/translator.dart';
 import '../../core/providers/theme_provider.dart';
 import '../../core/responsive/responsive_layout.dart';
 import '../../core/theme/peadra_colors.dart';
+import '../../core/utils/safe_insets.dart';
 
 /// A modal with a title, a body and action buttons that adapts to the
 /// screen size: docked to the bottom of the screen on phones (like the
@@ -55,53 +56,66 @@ class PeadraModal extends StatelessWidget {
     // row. Desktop dialogs keep their explicit Cancel.
     final actions =
         this.actions?.where((a) => !_isCancelAction(a)).toList();
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius:
-            const BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      padding: EdgeInsets.fromLTRB(
-        24,
-        12,
-        24,
-        24 + MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color:
-                        colors.placeholderColor.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(2),
+    // Reserve the bottom system bar (3-button navigation) or the keyboard,
+    // whichever is taller, so the content and the actions never end up
+    // under the system bar. SafeArea cannot do this on its own here: the
+    // sheet route strips the top padding and the padding collapses to 0 as
+    // soon as the keyboard opens.
+    final bottomInset = bottomSafeInset(context);
+    return ConstrainedBox(
+      // A tall sheet would otherwise slide under the status bar: cap it so
+      // its header stays visible and the content scrolls instead.
+      constraints: BoxConstraints(maxHeight: maxSheetHeight(context)),
+      child: Container(
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius:
+              const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: EdgeInsets.fromLTRB(
+          24,
+          12,
+          24,
+          24 + bottomInset,
+        ),
+        child: SafeArea(
+          // The bottom is handled by bottomInset above.
+          bottom: false,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color:
+                          colors.placeholderColor.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-              ),
-              if (title != null) ...[
-                const SizedBox(height: 16),
-                title!,
-              ],
-              const SizedBox(height: 12),
-              content,
-              if (actions != null && actions.isNotEmpty) ...[
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    for (int i = 0; i < actions.length; i++) ...[
-                      if (i > 0) const SizedBox(width: 8),
-                      Expanded(child: _sheetAction(actions[i])),
+                if (title != null) ...[
+                  const SizedBox(height: 16),
+                  title!,
+                ],
+                const SizedBox(height: 12),
+                content,
+                if (actions != null && actions.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      for (int i = 0; i < actions.length; i++) ...[
+                        if (i > 0) const SizedBox(width: 8),
+                        Expanded(child: _sheetAction(actions[i])),
+                      ],
                     ],
-                  ],
-                ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

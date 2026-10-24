@@ -55,6 +55,10 @@ class _ParametersViewState extends State<ParametersView> {
   TextEditingController? _usernameCtrl;
   String? _usernameSynced;
 
+  // Hoisted hourly-rate field controller, shared by the desktop row and the
+  // mobile modal, disposed with the state.
+  TextEditingController? _hourlyRateCtrl;
+
   @override
   void initState() {
     super.initState();
@@ -77,6 +81,7 @@ class _ParametersViewState extends State<ParametersView> {
   @override
   void dispose() {
     _usernameCtrl?.dispose();
+    _hourlyRateCtrl?.dispose();
     super.dispose();
   }
 
@@ -168,6 +173,7 @@ class _ParametersViewState extends State<ParametersView> {
           const SizedBox(height: 8),
           _buildSection(Translator.t('param_transactions'), colors, [
             _buildDisplayLimitTile(settings, colors),
+            _buildWorkHoursTile(settings, colors),
           ], icon: Icons.receipt_long),
           const SizedBox(height: 8),
           _buildSection(Translator.t('param_charts'), colors, [
@@ -719,6 +725,103 @@ class _ParametersViewState extends State<ParametersView> {
         value: settings.showStatSubtitles,
         onChanged: (value) => settings.setShowStatSubtitles(value, _db),
         activeThumbColor: colors.accent,
+      ),
+    );
+  }
+
+  /// Work-hours equivalent: toggle + hourly-rate input. On mobile both
+  /// controls live in the same modal; on desktop the toggle sits inline and
+  /// the rate input appears directly on the row once toggled on.
+  Widget _buildWorkHoursTile(SettingsProvider settings, PeadraColors colors) {
+    if (ResponsiveLayout.isPhone(context)) {
+      return _mobileSettingRow(
+        colors,
+        Translator.t('param_work_hours'),
+        onTap: () => _showWorkHoursModal(colors),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ListTile(
+          title: Text(Translator.t('param_work_hours'),
+              style: TextStyle(color: colors.text)),
+          subtitle: Text(Translator.t('param_work_hours_desc'),
+              style: TextStyle(color: colors.textSecondary, fontSize: 12)),
+          trailing: Switch(
+            value: settings.showWorkHours,
+            onChanged: (value) => settings.setShowWorkHours(value, _db),
+            activeThumbColor: colors.accent,
+          ),
+        ),
+        if (settings.showWorkHours)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(Translator.t('param_work_hours_rate'),
+                    style: TextStyle(
+                        color: colors.textSecondary, fontSize: 13)),
+                const SizedBox(height: 8),
+                SizedBox(width: 260, child: _hourlyRateField(colors)),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// The hourly-rate input, shared by the desktop row and the mobile modal.
+  /// The controller is created once and reused so typing (which saves on
+  /// every keystroke and rebuilds the view) doesn't reset the field.
+  Widget _hourlyRateField(PeadraColors c) {
+    final ctrl = _hourlyRateCtrl ??= TextEditingController(
+        text: context.read<SettingsProvider>().hourlyRate.toString());
+    return TextField(
+      controller: ctrl,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      decoration: InputDecoration(
+        hintText: Translator.t('param_work_hours_rate'),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        filled: true,
+        fillColor: c.bg,
+      ),
+      onChanged: (v) {
+        final rate = double.tryParse(v.trim().replaceFirst(',', '.'));
+        if (rate != null && rate >= 0) {
+          context.read<SettingsProvider>().setHourlyRate(rate, _db);
+        }
+      },
+    );
+  }
+
+  void _showWorkHoursModal(PeadraColors colors) {
+    _showMobileSetting(
+      title: Translator.t('param_work_hours'),
+      subtitle: Translator.t('param_work_hours_desc'),
+      controlBuilder: (sheetCtx, c) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Selector<SettingsProvider, bool>(
+            selector: (_, s) => s.showWorkHours,
+            builder: (_, current, _) => SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: current,
+              onChanged: (value) =>
+                  context.read<SettingsProvider>().setShowWorkHours(value, _db),
+              activeThumbColor: c.accent,
+              title: Text(Translator.t('param_work_hours'),
+                  style: TextStyle(color: c.text, fontSize: 14)),
+            ),
+          ),
+          Text(Translator.t('param_work_hours_rate_desc'),
+              style: TextStyle(color: c.textSecondary, fontSize: 13)),
+          const SizedBox(height: 8),
+          _hourlyRateField(c),
+        ],
       ),
     );
   }

@@ -4,15 +4,12 @@
 
 ### New
 
-- Refreshed settings view on mobile
-- Modernize the create transaction modal on mobile
-- You can now type coma separated amounts (it automatically transforms it from 5,20 to 5.20)
-- Tags are automatically pre-filled based on your description (*if you have the same description with a tag in a previous transaction*)
+- A better onboarding for new users
+- A new work-hours equivalent option
 
 ### Fixes
 
-- Dropped the "cancel" button on *mobile* modals
-- Total assets amount is swipeable if too large on mobile
+- Fix modals overlaping with your phone's bottom bar (on some phones).
 
 ## Known issues
 

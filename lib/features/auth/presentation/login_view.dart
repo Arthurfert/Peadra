@@ -45,6 +45,8 @@ class _LoginViewState extends State<LoginView> {
   bool _biometricEnabled = false;
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
+  int? _onboardingStep;
+  String _onboardingLanguage = LanguageProvider.defaultLanguage;
 
   @override
   void initState() {
@@ -89,7 +91,10 @@ class _LoginViewState extends State<LoginView> {
         _biometricAvailable = biometricAvailable;
         _biometricEnabled = biometricEnabled;
         if (users.isEmpty) {
+          // Fresh install: run the 3-step onboarding (language, name, password).
           _isLoginMode = false;
+          _onboardingStep = 0;
+          _onboardingLanguage = context.read<LanguageProvider>().language;
         }
         _isInitializing = false;
       });
@@ -113,6 +118,31 @@ class _LoginViewState extends State<LoginView> {
     setState(() {
       _isLoginMode = !_isLoginMode;
       _error = null;
+    });
+  }
+
+  void _onboardingNext() {
+    final step = _onboardingStep ?? 0;
+    if (step < 2) {
+      if (step == 1 && _usernameController.text.trim().length < 3) {
+        setState(() => _error = Translator.t('msg_username_min_length'));
+        return;
+      }
+      setState(() {
+        _error = null;
+        _onboardingStep = step + 1;
+      });
+      return;
+    }
+    _submit(); // final step: validates password rules and registers
+  }
+
+  void _onboardingBack() {
+    setState(() {
+      _error = null;
+      if (_onboardingStep != null && _onboardingStep! > 0) {
+        _onboardingStep = _onboardingStep! - 1;
+      }
     });
   }
 
@@ -215,6 +245,11 @@ class _LoginViewState extends State<LoginView> {
     await _db.generateDueRecurring();
 
     await themeProvider.loadFromSettings(_db);
+    // Persist the active language as the user setting before loading it, so
+    // a choice made during onboarding isn't reset to the default by the load.
+    if (await _db.getSetting('language') == null) {
+      await _db.setSetting('language', langProvider.language);
+    }
     await langProvider.loadFromSettings(_db);
     await settingsProvider.loadFromSettings(_db);
 
@@ -321,10 +356,248 @@ class _LoginViewState extends State<LoginView> {
     }
   }
 
+  Widget _buildOnboarding(BuildContext context, PeadraColors colors) {
+    final step = _onboardingStep ?? 0;
+    final isLast = step == 2;
+
+    return Scaffold(
+      backgroundColor: colors.bg,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: ResponsiveLayout.pagePaddingAll(context),
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 400),
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: colors.borderColor),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    Translator.t('login_title'),
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: colors.text,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(3, (i) {
+                      return Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 5),
+                        width: step == i ? 12 : 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: step == i ? colors.accent : colors.borderColor,
+                        ),
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 24),
+                  ..._onboardingStepContent(step, colors),
+                  if (_error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      _error!,
+                      style: TextStyle(color: colors.error, fontSize: 13),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      if (step > 0) ...[
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: _onboardingBack,
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: colors.borderColor),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            child: Text(
+                              Translator.t('btn_back'),
+                              style: TextStyle(color: colors.textSecondary),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                      ],
+                      Expanded(
+                        flex: step > 0 ? 2 : 1,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _onboardingNext,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: colors.accent,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Text(
+                                  isLast
+                                      ? Translator.t('login_signup')
+                                      : Translator.t('onboarding_next'),
+                                  style: const TextStyle(fontSize: 16),
+                                ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _onboardingStepContent(int step, PeadraColors colors) {
+    switch (step) {
+      case 0:
+        return [
+          Text(
+            Translator.t('onboarding_language_title'),
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: colors.text),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            Translator.t('onboarding_language_desc'),
+            style: TextStyle(fontSize: 13, color: colors.textSecondary),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            alignment: WrapAlignment.center,
+            children: [
+              for (final entry in Translator.availableLanguages.entries)
+                ChoiceChip(
+                  label: Text(entry.value),
+                  selected: _onboardingLanguage == entry.key,
+                  selectedColor: colors.navSelectedBg,
+                  checkmarkColor: colors.navSelectedFg,
+                  labelStyle: TextStyle(
+                    color: _onboardingLanguage == entry.key
+                        ? colors.navSelectedFg
+                        : colors.text,
+                  ),
+                  onSelected: (_) {
+                    context.read<LanguageProvider>().setLanguage(entry.key);
+                    setState(() => _onboardingLanguage = entry.key);
+                  },
+                ),
+            ],
+          ),
+        ];
+      case 1:
+        return [
+          Text(
+            Translator.t('onboarding_name_title'),
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: colors.text),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _usernameController,
+            maxLength: 50,
+            autofillHints: const [AutofillHints.username],
+            autofocus: true,
+            onSubmitted: (_) => _onboardingNext(),
+            decoration: InputDecoration(
+              labelText: Translator.t('login_username'),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              filled: true,
+              fillColor: colors.bg,
+            ),
+          ),
+        ];
+      default:
+        return [
+          Text(
+            Translator.t('onboarding_password_title'),
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: colors.text),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            Translator.t('onboarding_password_desc'),
+            style: TextStyle(fontSize: 13, color: colors.textSecondary),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: _passwordController,
+            obscureText: _obscurePassword,
+            autofillHints: const [AutofillHints.newPassword],
+            onSubmitted: (_) => _onboardingNext(),
+            decoration: InputDecoration(
+              labelText: Translator.t('login_password'),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              filled: true,
+              fillColor: colors.bg,
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                  color: colors.placeholderColor,
+                ),
+                onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _confirmController,
+            obscureText: _obscureConfirm,
+            maxLength: 128,
+            autofillHints: const [AutofillHints.newPassword],
+            onSubmitted: (_) => _submit(),
+            decoration: InputDecoration(
+              labelText: Translator.t('login_confirm_password'),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              filled: true,
+              fillColor: colors.bg,
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _obscureConfirm ? Icons.visibility_off : Icons.visibility,
+                  color: colors.placeholderColor,
+                ),
+                onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+              ),
+            ),
+          ),
+        ];
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeName = context.watch<ThemeProvider>().themeName;
     final colors = PeadraTheme.getColors(themeName);
+    // Watch so language changes (onboarding step 1) re-render immediately.
+    context.watch<LanguageProvider>();
 
     if (_isInitializing) {
       return Scaffold(
@@ -333,6 +606,10 @@ class _LoginViewState extends State<LoginView> {
           child: CircularProgressIndicator(color: colors.accent),
         ),
       );
+    }
+
+    if (_onboardingStep != null) {
+      return _buildOnboarding(context, colors);
     }
 
     return Scaffold(

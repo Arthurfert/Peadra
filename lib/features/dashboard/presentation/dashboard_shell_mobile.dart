@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/i18n/translator.dart';
 import '../../../core/theme/peadra_colors.dart';
 import '../../../core/utils/nav_views.dart';
+import '../../../core/utils/safe_insets.dart';
 
 class DashboardShellMobile extends StatelessWidget {
   final int selectedIndex;
@@ -65,25 +66,32 @@ class DashboardShellMobile extends StatelessWidget {
       builder: (ctx) {
         final menuViews = _menuViews;
         return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: menuViews.isEmpty
-                ? [
-                    ListTile(
-                      title: Text(Translator.t('nav_menu')),
-                      enabled: false,
-                    ),
-                  ]
-                : menuViews
-                    .map((view) => ListTile(
-                          leading: Icon(view.iconOff, color: colors.text),
-                          title: Text(view.label),
-                          onTap: () {
-                            Navigator.pop(ctx);
-                            onNavTap(view.viewIndex);
-                          },
-                        ))
-                    .toList(),
+          // The bottom is handled by bottomSafeInset below.
+          bottom: false,
+          child: Padding(
+            // Keep the last entry clear of the bottom system bar
+            // (3-button navigation).
+            padding: EdgeInsets.only(bottom: bottomSafeInset(ctx)),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: menuViews.isEmpty
+                  ? [
+                      ListTile(
+                        title: Text(Translator.t('nav_menu')),
+                        enabled: false,
+                      ),
+                    ]
+                  : menuViews
+                      .map((view) => ListTile(
+                            leading: Icon(view.iconOff, color: colors.text),
+                            title: Text(view.label),
+                            onTap: () {
+                              Navigator.pop(ctx);
+                              onNavTap(view.viewIndex);
+                            },
+                          ))
+                      .toList(),
+            ),
           ),
         );
       },

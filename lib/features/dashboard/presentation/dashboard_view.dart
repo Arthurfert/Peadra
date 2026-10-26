@@ -621,21 +621,22 @@ class _DashboardViewState extends State<DashboardView> {
     );
   }
 
-  Widget _buildChangeIndicator(double change, PeadraColors colors, {bool invert = false}) {
+  Widget _buildChangeIndicator(double change, PeadraColors colors,
+      {bool invert = false, Color? color}) {
     final isPositive = change >= 0;
     final isGood = invert ? change <= 0 : change >= 0;
-    final color = isGood ? colors.success : colors.error;
+    final effectiveColor = color ?? (isGood ? colors.success : colors.error);
     final icon = isPositive ? Icons.arrow_upward : Icons.arrow_downward;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: color, size: 14),
+        Icon(icon, color: effectiveColor, size: 14),
         Text(
           '${change >= 0 ? '+' : ''}${change.toStringAsFixed(1)}%',
           style: TextStyle(
             fontSize: 12,
-            color: color,
+            color: effectiveColor,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -977,27 +978,17 @@ class _DashboardViewState extends State<DashboardView> {
       );
     }
 
-    final header = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          Translator.t('dash_title', params: {'user': username}),
-          style: TextStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-            color: colors.text,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          Translator.t('dash_welcome'),
-          style: TextStyle(
-            fontSize: 14,
-            color: colors.textSecondary,
-          ),
-        ),
-      ],
+    final header = Text(
+      Translator.t('dash_title', params: {'user': username}),
+      style: TextStyle(
+        fontSize: 28,
+        fontWeight: FontWeight.bold,
+        color: colors.text,
+      ),
     );
+    // Mobile/narrow layouts show the greeting on an accent band that
+    // merges with the total-assets banner below it.
+    final accentHeader = _buildAccentHeader(colors, username);
 
     final statCards = _buildStatCards(colors, currency);
 
@@ -1068,7 +1059,7 @@ class _DashboardViewState extends State<DashboardView> {
           );
         } else {
           return DashboardViewMobile(
-            header: header,
+            header: accentHeader,
             totalAsset: totalAsset,
             statCards: statCards,
             cashFlowSection: cashFlowSection,
@@ -1086,24 +1077,68 @@ class _DashboardViewState extends State<DashboardView> {
     );
   }
 
-  /// Amount display for narrow layouts: horizontally scrollable when it
-  /// does not fit, so a long amount can be swiped to be fully read.
-  Widget _buildScrollableAssetAmount(PeadraColors colors, String amount) {
-    return SizedBox(
+  /// Color with the best contrast on the theme accent.
+  Color _onAccent(PeadraColors colors) =>
+      colors.accent.computeLuminance() > 0.5 ? Colors.black : Colors.white;
+
+  /// Mobile greeting: on an accent band, full-bleed, no bottom rounding so
+  /// it merges with the total-assets banner below.
+  Widget _buildAccentHeader(PeadraColors colors, String username) {
+    return Container(
       width: double.infinity,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Text(
-          amount,
-          maxLines: 1,
-          softWrap: false,
-          overflow: TextOverflow.visible,
-          style: TextStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-            color: colors.accent,
-          ),
+      color: colors.accent,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Text(
+        Translator.t('dash_title', params: {'user': username}),
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: 28,
+          fontWeight: FontWeight.bold,
+          color: _onAccent(colors),
         ),
+      ),
+    );
+  }
+
+  /// Mobile hero banner for total assets: accent-filled, full-width with
+  /// rounded bottom corners; text picked for contrast against the accent.
+  Widget _buildTotalAssetBanner(
+      PeadraColors colors, double change, String amount) {
+    final onAccent = _onAccent(colors);
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: colors.accent,
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              amount,
+              style: TextStyle(
+                fontSize: 30,
+                fontWeight: FontWeight.bold,
+                color: onAccent,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildChangeIndicator(change, colors, color: onAccent),
+              const SizedBox(width: 4),
+              Text(
+                Translator.t('dash_last_month'),
+                style: TextStyle(fontSize: 12, color: onAccent),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -1115,6 +1150,9 @@ class _DashboardViewState extends State<DashboardView> {
         ? ((_totalAssets - previousTotal) * Decimal.fromInt(100) / previousTotal).toDouble()
         : 0.0;
     final formattedAmount = CurrencyService.formatAmount(_totalAssets, currency);
+    if (isNarrow) {
+      return _buildTotalAssetBanner(colors, totalChange, formattedAmount);
+    }
     return Card(
       color: colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -1139,21 +1177,17 @@ class _DashboardViewState extends State<DashboardView> {
               ],
             ),
             const SizedBox(height: 8),
-            if (isNarrow) ...[
-              _buildScrollableAssetAmount(colors, formattedAmount),
-            ] else ...[
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  formattedAmount,
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: colors.accent,
-                  ),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                formattedAmount,
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: colors.accent,
                 ),
               ),
-            ],
+            ),
           ],
         ),
       ),

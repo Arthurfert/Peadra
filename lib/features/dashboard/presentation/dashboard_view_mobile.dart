@@ -266,30 +266,36 @@ class _DashboardViewMobileState extends State<DashboardViewMobile> {
   @override
   Widget build(BuildContext context) {
     final colors = widget.colors;
+    // The total-asset banner is deliberately full-bleed (edge to edge,
+    // square top, rounded bottom); every other section keeps page padding.
+    final side = ResponsiveLayout.pagePaddingAll(context).left;
+    Widget pad(Widget child) => Padding(
+        padding: EdgeInsets.symmetric(horizontal: side), child: child);
     return SingleChildScrollView(
-      padding: ResponsiveLayout.pagePaddingAll(context),
+      // Top padding is 0: the accent header band starts flush under the
+      // safe area; its inset is the band's own padding.
+      padding: EdgeInsets.only(bottom: side),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           widget.header,
-          const SizedBox(height: 24),
           widget.totalAsset,
           const SizedBox(height: 16),
-          widget.statCards,
+          pad(widget.statCards),
           const SizedBox(height: 24),
-          widget.cashFlowSection,
+          pad(widget.cashFlowSection),
           const SizedBox(height: 24),
-          _buildInflowsOutflowsChart(colors),
+          pad(_buildInflowsOutflowsChart(colors)),
           const SizedBox(height: 16),
-          _buildTotalAssetsChart(colors),
+          pad(_buildTotalAssetsChart(colors)),
           const SizedBox(height: 24),
-          widget.expensePie,
+          pad(widget.expensePie),
           const SizedBox(height: 16),
-          widget.incomePie,
+          pad(widget.incomePie),
           const SizedBox(height: 16),
-          widget.assetsPie,
+          pad(widget.assetsPie),
           const SizedBox(height: 24),
-          widget.averageSection,
+          pad(widget.averageSection),
           const SizedBox(height: 80),
         ],
       ),

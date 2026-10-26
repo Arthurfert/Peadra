@@ -4,7 +4,7 @@
 
 ### New
 
-
+- Enhanced total asset amount on mobile
 
 ### Fixes
 

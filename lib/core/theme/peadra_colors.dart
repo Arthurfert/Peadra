@@ -7,6 +7,7 @@ class PeadraColors {
   final Color text;
   final Color textSecondary;
   final Color accent;
+  final Color? swatch;
   final Color success;
   final Color warning;
   final Color error;
@@ -53,7 +54,13 @@ class PeadraColors {
     required this.chartAsset,
     required this.savingsBg,
     required this.savingsIcon,
+    this.swatch,
   });
+
+  /// Color that best represents the theme's identity (its bg or a signature
+  /// hue) when its accent isn't telling enough, e.g. themed swatches. Falls
+  /// back to [accent] for standard themes.
+  Color get representative => swatch ?? accent;
 }
 
 class PeadraTheme {
@@ -86,6 +93,7 @@ class PeadraTheme {
     'light': const PeadraColors(
       name: 'light',
       bg: Color(0xFFF8FAFC),
+      swatch: Color(0xFFFFFFFF),
       surface: Color(0xFFFFFFFF),
       text: Color(0xFF0F172A),
       textSecondary: Color(0xFF394659),
@@ -112,6 +120,7 @@ class PeadraTheme {
     ),
     'dark': const PeadraColors(
       name: 'dark',
+      swatch: Color(0xFF0F172A),
       bg: Color(0xFF0F172A),
       surface: Color(0xFF1E293B),
       text: Color(0xFFF8FAFC),
@@ -247,6 +256,7 @@ class PeadraTheme {
     ),
     'high_contrast_light': const PeadraColors(
       name: 'high_contrast_light',
+      swatch: Color(0xFFFFFFFF),
       bg: Color(0xFFFFFFFF),
       surface: Color(0xFFF5F5F5),
       text: Color(0xFF000000),
@@ -275,6 +285,7 @@ class PeadraTheme {
     'high_contrast_dark': const PeadraColors(
       name: 'high_contrast_dark',
       bg: Color(0xFF000000),
+      swatch: Color(0xFF000000),
       surface: Color(0xFF1A1A1A),
       text: Color(0xFFFFFFFF),
       textSecondary: Color(0xFFD9D9D9),

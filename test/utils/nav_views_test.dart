@@ -12,7 +12,7 @@ void main() {
 
     test('view indexes match the dashboard views list', () {
       expect(navViewsFor(defaultNavOrder).map((v) => v.viewIndex).toList(),
-          [0, 1, 2, 4, 3, 5]);
+          [0, 1, 2, 4, 3, 6, 5]);
     });
 
     test('labels resolve to translations', () {
@@ -22,18 +22,28 @@ void main() {
       }
     });
 
-    test('the default order puts accounts and settings behind the menu', () {
+    test('the default order puts accounts, tools and settings behind the menu', () {
       expect(defaultNavOrder.take(mobileNavBarSlots),
           ['dashboard', 'transactions', 'budgets', 'categories']);
       expect(defaultNavOrder.skip(mobileNavBarSlots).toList(),
-          ['accounts', 'settings']);
+          ['accounts', 'tools', 'settings']);
     });
   });
 
   group('parseNavOrder', () {
     test('keeps a valid order untouched', () {
-      expect(parseNavOrder('settings,dashboard,transactions,budgets,accounts,categories'),
-          ['settings', 'dashboard', 'transactions', 'budgets', 'accounts', 'categories']);
+      expect(
+          parseNavOrder(
+              'settings,dashboard,transactions,budgets,accounts,categories,tools'),
+          [
+            'settings',
+            'dashboard',
+            'transactions',
+            'budgets',
+            'accounts',
+            'categories',
+            'tools'
+          ]);
     });
 
     test('falls back to the default for null or blank input', () {
@@ -43,22 +53,43 @@ void main() {
     });
 
     test('drops unknown keys', () {
-      expect(parseNavOrder('dashboard,nope,transactions,budgets,categories,accounts,settings'),
-          defaultNavOrder);
+      expect(
+          parseNavOrder(
+              'dashboard,nope,transactions,budgets,categories,accounts,tools,settings'),
+          [
+            'dashboard',
+            'transactions',
+            'budgets',
+            'categories',
+            'accounts',
+            'tools',
+            'settings'
+          ]);
     });
 
     test('drops duplicates, keeping the first occurrence', () {
-      expect(parseNavOrder('dashboard,dashboard,transactions,budgets,categories,accounts,settings'),
+      expect(
+          parseNavOrder(
+              'dashboard,dashboard,transactions,budgets,categories,accounts,tools,settings'),
           defaultNavOrder);
     });
 
     test('completes a partial order with the missing views', () {
-      expect(parseNavOrder('settings,dashboard'),
-          ['settings', 'dashboard', 'transactions', 'budgets', 'accounts', 'categories']);
+      expect(parseNavOrder('settings,dashboard'), [
+        'settings',
+        'dashboard',
+        'transactions',
+        'budgets',
+        'accounts',
+        'categories',
+        'tools'
+      ]);
     });
 
     test('tolerates whitespace around keys', () {
-      expect(parseNavOrder(' dashboard , transactions , budgets , categories , accounts , settings '),
+      expect(
+          parseNavOrder(
+              ' dashboard , transactions , budgets , categories , accounts , tools , settings '),
           defaultNavOrder);
     });
 
@@ -69,12 +100,14 @@ void main() {
 
   group('encodeNavOrder', () {
     test('round-trips through parseNavOrder', () {
-      const order = 'settings,accounts,categories,budgets,transactions,dashboard';
+      const order =
+          'settings,accounts,categories,budgets,transactions,tools,dashboard';
       expect(encodeNavOrder(order.split(',')), order);
     });
 
     test('completes unknown keys instead of storing a broken order', () {
-      expect(encodeNavOrder(['settings', 'nope']), 'settings,dashboard,transactions,budgets,accounts,categories');
+      expect(encodeNavOrder(['settings', 'nope']),
+          'settings,dashboard,transactions,budgets,accounts,categories,tools');
     });
   });
 
@@ -92,8 +125,17 @@ void main() {
 
   group('navViewsFor', () {
     test('resolves keys in the given order', () {
-      expect(navViewsFor(['settings', 'dashboard']).map((v) => v.key).toList(),
-          ['settings', 'dashboard', 'transactions', 'budgets', 'accounts', 'categories']);
+      expect(
+          navViewsFor(['settings', 'dashboard']).map((v) => v.key).toList(),
+          [
+            'settings',
+            'dashboard',
+            'transactions',
+            'budgets',
+            'accounts',
+            'categories',
+            'tools'
+          ]);
     });
 
     test('returns the default order for an empty order', () {

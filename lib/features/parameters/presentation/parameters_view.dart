@@ -526,22 +526,7 @@ class _ParametersViewState extends State<ParametersView> {
           controlBuilder: (sheetCtx, c) =>
               Selector<LanguageProvider, String>(
             selector: (_, l) => l.language,
-            builder: (_, current, _) => DropdownButton<String>(
-              value: current,
-              dropdownColor: c.surface,
-              style: TextStyle(color: c.text),
-              items: const [
-                DropdownMenuItem(value: 'en', child: Text('English')),
-                DropdownMenuItem(value: 'fr', child: Text('Français')),
-                DropdownMenuItem(value: 'es', child: Text('Español')),
-              ],
-              onChanged: (v) async {
-                if (v != null) {
-                  context.read<LanguageProvider>().setLanguage(v);
-                  await _db.setSetting('language', v);
-                }
-              },
-            ),
+            builder: (_, current, _) => _languageFlagPicker(c, current),
           ),
         ),
       );
@@ -624,6 +609,104 @@ class _ParametersViewState extends State<ParametersView> {
     );
   }
 
+  /// Mobile-only language picker: flag squares, selected outlined in accent.
+  Widget _languageFlagPicker(PeadraColors c, String current) {
+    const options = [('en', '🇬🇧'), ('fr', '🇫🇷'), ('es', '🇪🇸')];
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final (code, flag) in options)
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: GestureDetector(
+              onTap: () async {
+                context.read<LanguageProvider>().setLanguage(code);
+                await _db.setSetting('language', code);
+              },
+              child: Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: c.surface,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: code == current ? c.accent : c.borderColor,
+                    width: 2,
+                  ),
+                ),
+                alignment: Alignment.center,
+                child: Text(flag, style: const TextStyle(fontSize: 24)),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// Mobile-only theme picker: wide rects, accent swatch left, selected
+  /// outlined in accent.
+  Widget _themeSwatchPicker(PeadraColors c, String current) {
+    const themes = [
+      ('system', 'param_system_theme'),
+      ('light', 'param_light_theme'),
+      ('dark', 'param_dark_theme'),
+      ('autumn', 'param_autumn_theme'),
+      ('summer', 'param_summer_theme'),
+      ('sakura', 'param_sakura_theme'),
+      ('spring', 'param_spring_theme'),
+      ('high_contrast_light', 'param_high_contrast_light_theme'),
+      ('high_contrast_dark', 'param_high_contrast_dark_theme'),
+    ];
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (int i = 0; i < themes.length; i++)
+          Padding(
+            padding: EdgeInsets.only(bottom: i == themes.length - 1 ? 0 : 8),
+            child: GestureDetector(
+              onTap: () async {
+                context.read<ThemeProvider>().setTheme(themes[i].$1);
+                await _db.setSetting('theme_mode', themes[i].$1);
+              },
+              child: Container(
+                width: double.infinity,
+                height: 48,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: c.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: themes[i].$1 == current ? c.accent : c.borderColor,
+                    width: 2,
+                  ),
+                ),
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        color: PeadraTheme.getColors(themes[i].$1)
+                          .representative,
+                        borderRadius: const BorderRadius.all(
+                            Radius.circular(6)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(Translator.t(themes[i].$2),
+                          style: TextStyle(color: c.text, fontSize: 14)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _themeDropdown(PeadraColors c, String current) {
     return DropdownButton<String>(
       value: current,
@@ -675,7 +758,7 @@ class _ParametersViewState extends State<ParametersView> {
           controlBuilder: (sheetCtx, c) =>
               Selector<ThemeProvider, String>(
             selector: (_, t) => t.themeName,
-            builder: (_, current, _) => _themeDropdown(c, current),
+            builder: (_, current, _) => _themeSwatchPicker(c, current),
           ),
         ),
       );

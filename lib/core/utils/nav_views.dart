@@ -16,7 +16,7 @@ class NavView {
   final String key;
 
   /// Index in the dashboard views list (0 dashboard, 1 transactions,
-  /// 2 budgets, 3 accounts, 4 categories, 5 settings).
+  /// 2 budgets, 3 accounts, 4 categories, 5 settings, 6 tools).
   final int viewIndex;
 
   final IconData iconOff;

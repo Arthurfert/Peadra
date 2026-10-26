@@ -4,12 +4,11 @@
 
 ### New
 
-- A better onboarding for new users
-- A new work-hours equivalent option
+
 
 ### Fixes
 
-- Fix modals overlaping with your phone's bottom bar (on some phones).
+- Improved toggle settings on mobile
 
 ## Known issues
 

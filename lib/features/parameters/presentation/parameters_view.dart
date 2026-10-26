@@ -453,6 +453,37 @@ class _ParametersViewState extends State<ParametersView> {
   /// description, [controlBuilder] builds the live control (dropdown,
   /// switch, button…) with a modal descendant context so provider updates
   /// rebuild inside the sheet.
+  /// State button for mobile-only boolean settings: filled accent when
+  /// enabled, outline-only when disabled. Tapping toggles the value.
+  Widget _boolStateButton(PeadraColors c, bool value, ValueChanged<bool> onChanged) {
+    final label = Text(
+      Translator.t(value ? 'common_enabled' : 'common_disabled'),
+      style: const TextStyle(fontSize: 13),
+    );
+    return value
+        ? FilledButton(
+            onPressed: () => onChanged(false),
+            style: FilledButton.styleFrom(
+              backgroundColor: c.accent,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              minimumSize: const Size(0, 36),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: label,
+          )
+        : OutlinedButton(
+            onPressed: () => onChanged(true),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: c.accent,
+              side: BorderSide(color: c.accent),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              minimumSize: const Size(0, 36),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: label,
+          );
+  }
+
   void _showMobileSetting({
     required String title,
     required String subtitle,
@@ -663,20 +694,10 @@ class _ParametersViewState extends State<ParametersView> {
       return _mobileSettingRow(
         colors,
         Translator.t('param_nav_labels'),
-        onTap: () => _showMobileSetting(
-          title: Translator.t('param_nav_labels'),
-          subtitle: Translator.t('param_nav_labels_desc'),
-          controlBuilder: (sheetCtx, c) =>
-              Selector<SettingsProvider, bool>(
-            selector: (_, s) => s.showNavLabels,
-            builder: (_, current, _) => Switch(
-              value: current,
-              onChanged: (value) => context
-                  .read<SettingsProvider>()
-                  .setShowNavLabels(value, _db),
-              activeThumbColor: c.accent,
-            ),
-          ),
+        trailing: _boolStateButton(
+          colors,
+          settings.showNavLabels,
+          (value) => settings.setShowNavLabels(value, _db),
         ),
       );
     }
@@ -698,20 +719,10 @@ class _ParametersViewState extends State<ParametersView> {
       return _mobileSettingRow(
         colors,
         Translator.t('param_stat_subtitles'),
-        onTap: () => _showMobileSetting(
-          title: Translator.t('param_stat_subtitles'),
-          subtitle: Translator.t('param_stat_subtitles_desc'),
-          controlBuilder: (sheetCtx, c) =>
-              Selector<SettingsProvider, bool>(
-            selector: (_, s) => s.showStatSubtitles,
-            builder: (_, current, _) => Switch(
-              value: current,
-              onChanged: (value) => context
-                  .read<SettingsProvider>()
-                  .setShowStatSubtitles(value, _db),
-              activeThumbColor: c.accent,
-            ),
-          ),
+        trailing: _boolStateButton(
+          colors,
+          settings.showStatSubtitles,
+          (value) => settings.setShowStatSubtitles(value, _db),
         ),
       );
     }
@@ -1142,20 +1153,10 @@ class _ParametersViewState extends State<ParametersView> {
       return _mobileSettingRow(
         colors,
         Translator.t('param_line_chart_dots'),
-        onTap: () => _showMobileSetting(
-          title: Translator.t('param_line_chart_dots'),
-          subtitle: Translator.t('param_line_chart_dots_desc'),
-          controlBuilder: (sheetCtx, c) =>
-              Selector<SettingsProvider, bool>(
-            selector: (_, s) => s.lineChartDots,
-            builder: (_, current, _) => Switch(
-              value: current,
-              onChanged: (value) => context
-                  .read<SettingsProvider>()
-                  .setLineChartDots(value, _db),
-              activeThumbColor: c.accent,
-            ),
-          ),
+        trailing: _boolStateButton(
+          colors,
+          settings.lineChartDots,
+          (value) => settings.setLineChartDots(value, _db),
         ),
       );
     }
@@ -1894,19 +1895,11 @@ class _ParametersViewState extends State<ParametersView> {
       return _mobileSettingRow(
         colors,
         Translator.t('param_biometric'),
-        onTap: () => _showMobileSetting(
-          title: Translator.t('param_biometric'),
-          subtitle: Translator.t('param_biometric_desc'),
-          controlBuilder: (sheetCtx, c) =>
-              Selector<SettingsProvider, bool>(
-            selector: (_, s) => s.biometricEnabled,
-            builder: (_, current, _) => Switch(
-              value: current,
-              onChanged: (value) => _setBiometricEnabled(
-                  value, context.read<SettingsProvider>()),
-              activeThumbColor: c.accent,
-            ),
-          ),
+        trailing: _boolStateButton(
+          colors,
+          settings.biometricEnabled,
+          (value) => _setBiometricEnabled(
+              value, context.read<SettingsProvider>()),
         ),
       );
     }
@@ -2330,20 +2323,10 @@ class _ParametersViewState extends State<ParametersView> {
       return _mobileSettingRow(
         colors,
         Translator.t('param_hide_update_notifications'),
-        onTap: () => _showMobileSetting(
-          title: Translator.t('param_hide_update_notifications'),
-          subtitle: Translator.t('param_hide_update_notifications_desc'),
-          controlBuilder: (sheetCtx, c) =>
-              Selector<SettingsProvider, bool>(
-            selector: (_, s) => s.hideUpdateNotifications,
-            builder: (_, current, _) => Switch(
-              value: current,
-              onChanged: (value) => context
-                  .read<SettingsProvider>()
-                  .setHideUpdateNotifications(value, _db),
-              activeThumbColor: c.accent,
-            ),
-          ),
+        trailing: _boolStateButton(
+          colors,
+          settings.hideUpdateNotifications,
+          (value) => settings.setHideUpdateNotifications(value, _db),
         ),
       );
     }

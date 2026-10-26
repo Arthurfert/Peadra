@@ -70,6 +70,13 @@ const List<NavView> allNavViews = [
     labelKey: 'nav_categories',
   ),
   NavView(
+    key: 'tools',
+    viewIndex: 6,
+    iconOff: Icons.build_outlined,
+    iconOn: Icons.build,
+    labelKey: 'nav_tools',
+  ),
+  NavView(
     key: 'settings',
     viewIndex: 5,
     iconOff: Icons.settings_outlined,
@@ -86,6 +93,7 @@ const List<String> defaultNavOrder = [
   'budgets',
   'categories',
   'accounts',
+  'tools',
   'settings',
 ];
 

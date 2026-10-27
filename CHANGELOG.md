@@ -10,7 +10,7 @@
 
 ### Fixes
 
-
+- Small line between some views and the navigation bar on mobile
 
 ## Known issues
 

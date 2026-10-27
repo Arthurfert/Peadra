@@ -31,12 +31,16 @@ class _DisplayItem {
   final String? destName;
 
   const _DisplayItem.single(this.transaction)
-      : pairedTransaction = null,
-        sourceName = null,
-        destName = null;
+    : pairedTransaction = null,
+      sourceName = null,
+      destName = null;
 
   const _DisplayItem.transfer(
-      this.transaction, this.pairedTransaction, this.sourceName, this.destName);
+    this.transaction,
+    this.pairedTransaction,
+    this.sourceName,
+    this.destName,
+  );
 
   bool get isMergedTransfer => pairedTransaction != null;
 }
@@ -80,8 +84,7 @@ class _TransactionsViewState extends State<TransactionsView> {
   void initState() {
     super.initState();
     _loadData();
-    _remoteDataSub =
-        DatabaseManager.instance.onRemoteDataApplied.listen((_) {
+    _remoteDataSub = DatabaseManager.instance.onRemoteDataApplied.listen((_) {
       _loadData();
     });
   }
@@ -107,8 +110,10 @@ class _TransactionsViewState extends State<TransactionsView> {
   }
 
   static final _toPattern = RegExp(r'^Transfer to (.+)$', caseSensitive: false);
-  static final _fromPattern =
-      RegExp(r'^Transfer from (.+)$', caseSensitive: false);
+  static final _fromPattern = RegExp(
+    r'^Transfer from (.+)$',
+    caseSensitive: false,
+  );
 
   List<_DisplayItem> _mergeTransfers(List<TransactionWithDetails> txns) {
     final consumed = <String>{};
@@ -143,11 +148,11 @@ class _TransactionsViewState extends State<TransactionsView> {
             sourceAccountName: txn.accountName,
             destAccountName: paired.accountName,
             sourceLegText: desc,
-            destLegText:
-                (paired.notes ?? paired.descriptionName ?? '').trim(),
+            destLegText: (paired.notes ?? paired.descriptionName ?? '').trim(),
           );
-          result.add(_DisplayItem.transfer(
-              txn, paired, ends.source, ends.dest));
+          result.add(
+            _DisplayItem.transfer(txn, paired, ends.source, ends.dest),
+          );
         } else {
           result.add(_DisplayItem.single(txn));
         }
@@ -165,12 +170,13 @@ class _TransactionsViewState extends State<TransactionsView> {
           final ends = transferEndsForPair(
             sourceAccountName: paired.accountName,
             destAccountName: txn.accountName,
-            sourceLegText:
-                (paired.notes ?? paired.descriptionName ?? '').trim(),
+            sourceLegText: (paired.notes ?? paired.descriptionName ?? '')
+                .trim(),
             destLegText: desc,
           );
-          result.add(_DisplayItem.transfer(
-              paired, txn, ends.source, ends.dest));
+          result.add(
+            _DisplayItem.transfer(paired, txn, ends.source, ends.dest),
+          );
         } else {
           result.add(_DisplayItem.single(txn));
         }
@@ -187,7 +193,9 @@ class _TransactionsViewState extends State<TransactionsView> {
   /// stability. Parses timestamps so legacy `CURRENT_TIMESTAMP` rows
   /// ("YYYY-MM-DD HH:MM:SS") compare correctly against ISO rows.
   static int _compareByDayThenEdit(
-      TransactionWithDetails a, TransactionWithDetails b) {
+    TransactionWithDetails a,
+    TransactionWithDetails b,
+  ) {
     final dateCmp = b.date.compareTo(a.date);
     if (dateCmp != 0) return dateCmp;
     final editCmp = _lastEditOf(b).compareTo(_lastEditOf(a));
@@ -220,10 +228,7 @@ class _TransactionsViewState extends State<TransactionsView> {
 
   Future<void> _loadData() async {
     await _db.generateDueRecurring();
-    final results = await Future.wait([
-      _db.getAllAccounts(),
-      _db.getAllTags(),
-    ]);
+    final results = await Future.wait([_db.getAllAccounts(), _db.getAllTags()]);
 
     if (mounted) {
       setState(() {
@@ -235,7 +240,10 @@ class _TransactionsViewState extends State<TransactionsView> {
     await _loadTransactions();
   }
 
-  static Color _parseHexColor(String? hex, [Color fallback = const Color(0xFF1976D2)]) {
+  static Color _parseHexColor(
+    String? hex, [
+    Color fallback = const Color(0xFF1976D2),
+  ]) {
     if (hex == null || hex.isEmpty) return fallback;
     try {
       return Color(int.parse(hex.replaceFirst('#', '0xFF')));
@@ -251,7 +259,9 @@ class _TransactionsViewState extends State<TransactionsView> {
     }
     _accountColors.clear();
     for (final acct in _accounts) {
-      if (acct.id != null) _accountColors[acct.id!] = _parseHexColor(acct.color);
+      if (acct.id != null) {
+        _accountColors[acct.id!] = _parseHexColor(acct.color);
+      }
     }
   }
 
@@ -268,8 +278,7 @@ class _TransactionsViewState extends State<TransactionsView> {
       if (txn != null && txn.date.isNotEmpty) {
         final date = DateTime.tryParse(txn.date);
         if (date != null) {
-          isUpcoming =
-              DateTime(date.year, date.month, date.day).isAfter(today);
+          isUpcoming = DateTime(date.year, date.month, date.day).isAfter(today);
         }
       }
       if (isUpcoming) {
@@ -282,16 +291,17 @@ class _TransactionsViewState extends State<TransactionsView> {
     _current = current;
   }
 
-  Future<void> _loadTransactions(
-      {bool loadMore = false, bool loadAll = false}) async {
+  Future<void> _loadTransactions({
+    bool loadMore = false,
+    bool loadAll = false,
+  }) async {
     final limit = (loadMore || loadAll) ? null : _displayLimit;
     final offset = loadMore ? _lastRawFetchCount : 0;
     var txns = await _db.getTransactions(
       limit: limit,
       offset: offset,
       searchQuery: _searchQuery,
-      accountIds:
-          _selectedAccountIds.isEmpty ? null : _selectedAccountIds,
+      accountIds: _selectedAccountIds.isEmpty ? null : _selectedAccountIds,
       tagIds: _selectedTagIds.isEmpty ? null : _selectedTagIds,
     );
 
@@ -324,20 +334,21 @@ class _TransactionsViewState extends State<TransactionsView> {
         }
         if (pairedId == null) continue;
         final key = '$pairedId|${txn.date}|$neededType';
-        needed.putIfAbsent(key, () => {
-              'accountId': pairedId!,
-              'date': txn.date,
-              'type': neededType,
-            });
+        needed.putIfAbsent(
+          key,
+          () => {'accountId': pairedId!, 'date': txn.date, 'type': neededType},
+        );
       }
 
       if (needed.isNotEmpty) {
         final paired = await _db.getTransactionsByKeys(
-          needed.values.map((v) => (
-                accountId: v['accountId']!,
-                date: v['date']!,
-                type: v['type']!,
-              )),
+          needed.values.map(
+            (v) => (
+              accountId: v['accountId']!,
+              date: v['date']!,
+              type: v['type']!,
+            ),
+          ),
         );
         // getTransactionsByKeys matches on (account, date, type) only, so it
         // also returns plain non-transfer transactions sharing the same date
@@ -351,7 +362,8 @@ class _TransactionsViewState extends State<TransactionsView> {
           ...txns,
           ...paired.where((p) {
             final d = (p.notes ?? p.descriptionName ?? '').trim();
-            final ref = _toPattern.firstMatch(d)?.group(1) ??
+            final ref =
+                _toPattern.firstMatch(d)?.group(1) ??
                 _fromPattern.firstMatch(d)?.group(1);
             return ref != null && selectedNames.contains(ref);
           }),
@@ -380,37 +392,41 @@ class _TransactionsViewState extends State<TransactionsView> {
     }
   }
 
-  void _showTransactionModal(
-      {TransactionWithDetails? editTxn,
-      TransactionWithDetails? editPairedTxn,
-      RecurringTransactionWithDetails? editRecurring}) async {
+  void _showTransactionModal({
+    TransactionWithDetails? editTxn,
+    TransactionWithDetails? editPairedTxn,
+    RecurringTransactionWithDetails? editRecurring,
+  }) async {
     final accounts = await _db.getAllAccounts();
     if (!mounted) return;
 
     final modal = TransactionModal(
       accounts: accounts,
-      onSave: (data) => _handleSave(data,
-          editTxn: editTxn, editPairedTxn: editPairedTxn,
-          editRecurring: editRecurring),
+      onSave: (data) => _handleSave(
+        data,
+        editTxn: editTxn,
+        editPairedTxn: editPairedTxn,
+        editRecurring: editRecurring,
+      ),
       editTransaction: editTxn,
       editPairedTransaction: editPairedTxn,
       editRecurring: editRecurring,
-      transactionType: editTxn?.transactionType ??
+      transactionType:
+          editTxn?.transactionType ??
           editRecurring?.transactionType ??
           'expense',
       defaultRecurring: editRecurring != null,
     );
 
-    showPeadraModal(
-      context: context,
-      builder: (_) => modal,
-    );
+    showPeadraModal(context: context, builder: (_) => modal);
   }
 
-  Future<void> _handleSave(Map<String, dynamic> data,
-      {TransactionWithDetails? editTxn,
-      TransactionWithDetails? editPairedTxn,
-      RecurringTransactionWithDetails? editRecurring}) async {
+  Future<void> _handleSave(
+    Map<String, dynamic> data, {
+    TransactionWithDetails? editTxn,
+    TransactionWithDetails? editPairedTxn,
+    RecurringTransactionWithDetails? editRecurring,
+  }) async {
     final isTransfer = data['transaction_type'] == 'transfer';
     final tagId = data['tag_id'] as String?;
     final isRecurring = data['is_recurring'] == true;
@@ -437,7 +453,9 @@ class _TransactionsViewState extends State<TransactionsView> {
       );
       if (mounted) {
         PeadraNotification.show(
-            context, message: Translator.t('msg_recurring_modified'));
+          context,
+          message: Translator.t('msg_recurring_modified'),
+        );
       }
     } else if (editTxn != null) {
       // Update existing
@@ -460,7 +478,9 @@ class _TransactionsViewState extends State<TransactionsView> {
         final destCurrency = await _db.getAccountCurrency(destId);
 
         Decimal destAmount = amount;
-        if (srcCurrency != null && destCurrency != null && srcCurrency != destCurrency) {
+        if (srcCurrency != null &&
+            destCurrency != null &&
+            srcCurrency != destCurrency) {
           final rate = await _db.getExchangeRate(srcCurrency, destCurrency);
           if (rate != null) {
             destAmount = amount * Decimal.parse(rate.toString());
@@ -500,7 +520,10 @@ class _TransactionsViewState extends State<TransactionsView> {
         );
       }
       if (mounted) {
-        PeadraNotification.show(context, message: Translator.t('msg_transaction_modified'));
+        PeadraNotification.show(
+          context,
+          message: Translator.t('msg_transaction_modified'),
+        );
       }
     } else if (isRecurring) {
       // Create a recurring template (occurrences materialize via generation)
@@ -521,8 +544,10 @@ class _TransactionsViewState extends State<TransactionsView> {
       );
       await _db.generateDueRecurring();
       if (mounted) {
-        PeadraNotification.show(context,
-            message: Translator.t('msg_recurring_added'));
+        PeadraNotification.show(
+          context,
+          message: Translator.t('msg_recurring_added'),
+        );
       }
     } else if (isTransfer) {
       // Create transfer
@@ -538,7 +563,9 @@ class _TransactionsViewState extends State<TransactionsView> {
       final destCurrency = await _db.getAccountCurrency(destId);
 
       Decimal destAmount = amount;
-      if (srcCurrency != null && destCurrency != null && srcCurrency != destCurrency) {
+      if (srcCurrency != null &&
+          destCurrency != null &&
+          srcCurrency != destCurrency) {
         final rate = await _db.getExchangeRate(srcCurrency, destCurrency);
         if (rate != null) {
           destAmount = amount * Decimal.parse(rate.toString());
@@ -568,7 +595,10 @@ class _TransactionsViewState extends State<TransactionsView> {
       );
 
       if (mounted) {
-        PeadraNotification.show(context, message: Translator.t('msg_transfer_completed'));
+        PeadraNotification.show(
+          context,
+          message: Translator.t('msg_transfer_completed'),
+        );
       }
     } else {
       // Create regular transaction
@@ -584,7 +614,10 @@ class _TransactionsViewState extends State<TransactionsView> {
       );
 
       if (mounted) {
-        PeadraNotification.show(context, message: Translator.t('msg_transaction_added'));
+        PeadraNotification.show(
+          context,
+          message: Translator.t('msg_transaction_added'),
+        );
       }
     }
 
@@ -600,10 +633,14 @@ class _TransactionsViewState extends State<TransactionsView> {
       final scope = await showPeadraModal<String>(
         context: context,
         builder: (ctx) => PeadraModal(
-          title: Text(Translator.t('rec_scope_title'),
-              style: TextStyle(color: colors.text)),
-          content: Text(Translator.t('rec_scope_message'),
-              style: TextStyle(color: colors.textSecondary)),
+          title: Text(
+            Translator.t('rec_scope_title'),
+            style: TextStyle(color: colors.text),
+          ),
+          content: Text(
+            Translator.t('rec_scope_message'),
+            style: TextStyle(color: colors.textSecondary),
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, null),
@@ -615,8 +652,10 @@ class _TransactionsViewState extends State<TransactionsView> {
             ),
             TextButton(
               onPressed: () => Navigator.pop(ctx, 'all'),
-              child: Text(Translator.t('rec_delete_all'),
-                  style: TextStyle(color: colors.error)),
+              child: Text(
+                Translator.t('rec_delete_all'),
+                style: TextStyle(color: colors.error),
+              ),
             ),
           ],
         ),
@@ -624,17 +663,21 @@ class _TransactionsViewState extends State<TransactionsView> {
       if (scope == null || !mounted) return;
 
       if (scope == 'all') {
-        await _db.deleteRecurringTransaction(txn.recurringId!,
-            deleteOccurrences: true);
+        await _db.deleteRecurringTransaction(
+          txn.recurringId!,
+          deleteOccurrences: true,
+        );
       } else {
         await _db.deleteTransaction(txn.id!);
         await _db.markRecurringOccurrenceDeleted(txn.recurringId!, txn.date);
       }
       if (mounted) {
-        PeadraNotification.show(context,
-            message: scope == 'all'
-                ? Translator.t('msg_recurring_deleted')
-                : Translator.t('msg_recurring_occurrence_deleted'));
+        PeadraNotification.show(
+          context,
+          message: scope == 'all'
+              ? Translator.t('msg_recurring_deleted')
+              : Translator.t('msg_recurring_occurrence_deleted'),
+        );
       }
       _loadTransactions();
       widget.onDataChanged?.call();
@@ -644,10 +687,14 @@ class _TransactionsViewState extends State<TransactionsView> {
     final confirmed = await showPeadraModal<bool>(
       context: context,
       builder: (ctx) => PeadraModal(
-        title: Text(Translator.t('btn_delete'),
-            style: TextStyle(color: colors.text)),
-        content: Text(Translator.t('msg_confirm_delete'),
-            style: TextStyle(color: colors.textSecondary)),
+        title: Text(
+          Translator.t('btn_delete'),
+          style: TextStyle(color: colors.text),
+        ),
+        content: Text(
+          Translator.t('msg_confirm_delete'),
+          style: TextStyle(color: colors.textSecondary),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -655,8 +702,10 @@ class _TransactionsViewState extends State<TransactionsView> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(Translator.t('btn_delete'),
-                style: TextStyle(color: colors.error)),
+            child: Text(
+              Translator.t('btn_delete'),
+              style: TextStyle(color: colors.error),
+            ),
           ),
         ],
       ),
@@ -665,30 +714,40 @@ class _TransactionsViewState extends State<TransactionsView> {
     if (confirmed == true) {
       await _db.deleteTransaction(txn.id!);
       if (mounted) {
-        PeadraNotification.show(context, message: Translator.t('msg_transaction_deleted'));
+        PeadraNotification.show(
+          context,
+          message: Translator.t('msg_transaction_deleted'),
+        );
       }
       _loadTransactions();
       widget.onDataChanged?.call();
     }
   }
 
-  Future<void> _editTransaction(TransactionWithDetails txn,
-      {TransactionWithDetails? pairedTxn}) async {
+  Future<void> _editTransaction(
+    TransactionWithDetails txn, {
+    TransactionWithDetails? pairedTxn,
+  }) async {
     final recurringId = txn.recurringId;
     if (recurringId == null) {
       _showTransactionModal(editTxn: txn, editPairedTxn: pairedTxn);
       return;
     }
 
-    final colors =
-        PeadraTheme.getColors(context.read<ThemeProvider>().themeName);
+    final colors = PeadraTheme.getColors(
+      context.read<ThemeProvider>().themeName,
+    );
     final scope = await showPeadraModal<String>(
       context: context,
       builder: (ctx) => PeadraModal(
-        title: Text(Translator.t('rec_scope_title'),
-            style: TextStyle(color: colors.text)),
-        content: Text(Translator.t('rec_scope_message'),
-            style: TextStyle(color: colors.textSecondary)),
+        title: Text(
+          Translator.t('rec_scope_title'),
+          style: TextStyle(color: colors.text),
+        ),
+        content: Text(
+          Translator.t('rec_scope_message'),
+          style: TextStyle(color: colors.textSecondary),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, null),
@@ -732,33 +791,40 @@ class _TransactionsViewState extends State<TransactionsView> {
     }
   }
 
-  void _showTransactionPreview(TransactionWithDetails txn, {TransactionWithDetails? pairedTxn}) async {
+  void _showTransactionPreview(
+    TransactionWithDetails txn, {
+    TransactionWithDetails? pairedTxn,
+  }) async {
     final themeName = context.read<ThemeProvider>().themeName;
     final colors = PeadraTheme.getColors(themeName);
     final currency = context.read<SettingsProvider>().currency;
     final displayCurrency =
         (txn.accountCurrency != null && txn.accountCurrency!.isNotEmpty)
-            ? txn.accountCurrency!
-            : (txn.currency.isNotEmpty ? txn.currency : currency);
+        ? txn.accountCurrency!
+        : (txn.currency.isNotEmpty ? txn.currency : currency);
 
     final isIncome = txn.transactionType == 'income';
     final isTransfer = txn.transactionType == 'transfer';
     final bgColor = isIncome
         ? colors.incomeBg
         : isTransfer
-            ? colors.transferBg
-            : colors.expenseBg;
+        ? colors.transferBg
+        : colors.expenseBg;
     final iconColor = isIncome
         ? colors.incomeIcon
         : isTransfer
-            ? colors.transferIcon
-            : colors.expenseIcon;
+        ? colors.transferIcon
+        : colors.expenseIcon;
     final icon = isIncome
         ? Icons.arrow_outward
         : isTransfer
-            ? Icons.swap_horiz
-            : Icons.south_east;
-    final sign = isIncome ? '+' : isTransfer ? '' : '-';
+        ? Icons.swap_horiz
+        : Icons.south_east;
+    final sign = isIncome
+        ? '+'
+        : isTransfer
+        ? ''
+        : '-';
 
     // With a pair, txn is the source leg and pairedTxn the dest leg; without
     // one, resolve what we can from the leg's own text. Either account may
@@ -809,17 +875,28 @@ class _TransactionsViewState extends State<TransactionsView> {
         ],
       ),
       const SizedBox(height: 20),
-      _previewRow(Translator.t('trans_account'), txn.accountName ?? '-', colors),
+      _previewRow(
+        Translator.t('trans_account'),
+        txn.accountName ?? '-',
+        colors,
+      ),
       _previewRow(
         Translator.t('trans_type'),
         isIncome
             ? Translator.t('trans_income')
             : isTransfer
-                ? Translator.t('trans_transfer')
-                : Translator.t('trans_expense'),
+            ? Translator.t('trans_transfer')
+            : Translator.t('trans_expense'),
         colors,
       ),
-      _previewRow(Translator.t('trans_date'), Translator.formatDate(txn.date, compact: ResponsiveLayout.isPhone(context)), colors),
+      _previewRow(
+        Translator.t('trans_date'),
+        Translator.formatDate(
+          txn.date,
+          compact: ResponsiveLayout.isPhone(context),
+        ),
+        colors,
+      ),
       _previewRow(
         Translator.t('trans_amount'),
         '$sign${CurrencyService.formatAmount(txn.amount, displayCurrency)}',
@@ -827,8 +904,8 @@ class _TransactionsViewState extends State<TransactionsView> {
         valueColor: isIncome
             ? colors.success
             : isTransfer
-                ? colors.transferColor
-                : colors.error,
+            ? colors.transferColor
+            : colors.error,
       ),
       if (pairedTxn != null) ...[
         _previewRow(
@@ -843,8 +920,9 @@ class _TransactionsViewState extends State<TransactionsView> {
           Translator.t('trans_tag'),
           txn.tagName!,
           colors,
-          valueColor: Color(int.parse(
-              (txn.tagColor ?? '#1976D2').replaceFirst('#', '0xFF'))),
+          valueColor: Color(
+            int.parse((txn.tagColor ?? '#1976D2').replaceFirst('#', '0xFF')),
+          ),
         ),
       if (txn.notes != null && txn.notes!.isNotEmpty)
         _previewRow(Translator.t('trans_notes'), txn.notes!, colors),
@@ -857,32 +935,38 @@ class _TransactionsViewState extends State<TransactionsView> {
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
-        builder: (ctx) => ConstrainedBox(
-          // A tall sheet would otherwise slide under the status bar: cap it
-          // so its header stays visible and the content scrolls instead.
-          constraints: BoxConstraints(maxHeight: maxSheetHeight(ctx)),
-          child: Container(
-            decoration: BoxDecoration(
-              color: colors.surface,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            padding: EdgeInsets.fromLTRB(
-              24,
-              12,
-              24,
-              // Keep the content and the actions clear of the bottom system
-              // bar (3-button navigation) or the keyboard, whichever is
-              // taller.
-              24 + bottomSafeInset(ctx),
-            ),
-            child: SafeArea(
-              // The bottom is handled by bottomSafeInset above.
-              bottom: false,
-              child: SingleChildScrollView(
+        builder: (ctx) => Padding(
+          // The keyboard shrinks the sheet from the outside instead of
+          // leaving dead space inside it (see PeadraModal).
+          padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(ctx).bottom),
+          child: ConstrainedBox(
+            // A tall sheet would otherwise slide under the status bar: cap it
+            // so its header stays visible and the content scrolls instead.
+            constraints: BoxConstraints(maxHeight: maxSheetHeight(ctx)),
+            child: Container(
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(20),
+                ),
+              ),
+              padding: EdgeInsets.fromLTRB(
+                24,
+                12,
+                24,
+                // Keep the content clear of the system bar not covered by
+                // the keyboard (see residualBottomInset).
+                4 + residualBottomInset(ctx),
+              ),
+              child: SafeArea(
+                // The bottom is handled by the paddings above.
+                bottom: false,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Grabber outside the scroll so dragging it dismisses
+                    // the sheet even while the content is scrolled.
                     Center(
                       child: Container(
                         width: 40,
@@ -894,56 +978,90 @@ class _TransactionsViewState extends State<TransactionsView> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    ...previewRows,
-                    const SizedBox(height: 20),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () async {
-                              Navigator.pop(ctx);
-                              await _deleteTransaction(txn);
-                              if (pairedTxn != null) {
-                                await _db.deleteTransaction(pairedTxn.id!);
-                              }
-                              _loadTransactions();
-                              widget.onDataChanged?.call();
-                            },
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: colors.error,
-                              side: BorderSide(color: colors.error),
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              visualDensity: VisualDensity.compact,
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ...previewRows,
+                            const SizedBox(height: 20),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: () async {
+                                      Navigator.pop(ctx);
+                                      await _deleteTransaction(txn);
+                                      if (pairedTxn != null) {
+                                        await _db.deleteTransaction(
+                                          pairedTxn.id!,
+                                        );
+                                      }
+                                      _loadTransactions();
+                                      widget.onDataChanged?.call();
+                                    },
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: colors.error,
+                                      side: BorderSide(color: colors.error),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 12,
+                                      ),
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                    child: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(
+                                        Translator.t('btn_delete'),
+                                        maxLines: 1,
+                                        softWrap: false,
+                                        style: const TextStyle(fontSize: 13),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: FilledButton(
+                                    onPressed: () {
+                                      Navigator.pop(ctx);
+                                      _editTransaction(
+                                        txn,
+                                        pairedTxn: pairedTxn,
+                                      );
+                                    },
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: colors.accent,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 12,
+                                      ),
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                    child: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(
+                                        Translator.t('btn_edit'),
+                                        maxLines: 1,
+                                        softWrap: false,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: colors.text,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Text(Translator.t('btn_delete'),
-                                  maxLines: 1, softWrap: false, style: const TextStyle(fontSize: 13)),
-                            ),
-                          ),
+                          ],
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: FilledButton(
-                            onPressed: () {
-                              Navigator.pop(ctx);
-                              _editTransaction(txn, pairedTxn: pairedTxn);
-                            },
-                            style: FilledButton.styleFrom(
-                              backgroundColor: colors.accent,
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              visualDensity: VisualDensity.compact,
-                            ),
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Text(Translator.t('btn_edit'),
-                                  maxLines: 1, softWrap: false, style: TextStyle(fontSize: 13, color: colors.text)),
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
@@ -984,17 +1102,17 @@ class _TransactionsViewState extends State<TransactionsView> {
               _loadTransactions();
               widget.onDataChanged?.call();
             },
-            child: Text(Translator.t('btn_delete'),
-                style: TextStyle(color: colors.error)),
+            child: Text(
+              Translator.t('btn_delete'),
+              style: TextStyle(color: colors.error),
+            ),
           ),
           FilledButton(
             onPressed: () {
               Navigator.pop(ctx);
               _editTransaction(txn, pairedTxn: pairedTxn);
             },
-            style: FilledButton.styleFrom(
-              backgroundColor: colors.accent,
-            ),
+            style: FilledButton.styleFrom(backgroundColor: colors.accent),
             child: Text(Translator.t('btn_edit')),
           ),
         ],
@@ -1002,7 +1120,12 @@ class _TransactionsViewState extends State<TransactionsView> {
     );
   }
 
-  Widget _previewRow(String label, String value, PeadraColors colors, {Color? valueColor}) {
+  Widget _previewRow(
+    String label,
+    String value,
+    PeadraColors colors, {
+    Color? valueColor,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -1012,10 +1135,7 @@ class _TransactionsViewState extends State<TransactionsView> {
             width: 100,
             child: Text(
               label,
-              style: TextStyle(
-                color: colors.textSecondary,
-                fontSize: 13,
-              ),
+              style: TextStyle(color: colors.textSecondary, fontSize: 13),
             ),
           ),
           Expanded(
@@ -1036,9 +1156,9 @@ class _TransactionsViewState extends State<TransactionsView> {
   /// Subtle, clearly-visible tint for upcoming rows on both light and dark
   /// themes: a faint blue on light surfaces, a slightly lighter blue on dark.
   Color _upcomingBackground(PeadraColors colors) => Color.alphaBlend(
-        const Color(0xFF60A5FA).withValues(alpha: 0.16),
-        colors.surface,
-      );
+    const Color(0xFF60A5FA).withValues(alpha: 0.16),
+    colors.surface,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -1104,10 +1224,7 @@ class _TransactionsViewState extends State<TransactionsView> {
               fillColor: colors.surface,
             ),
           ),
-          if (_tags.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            _buildTagBar(),
-          ],
+          if (_tags.isNotEmpty) ...[const SizedBox(height: 8), _buildTagBar()],
           if (_accounts.isNotEmpty) ...[
             const SizedBox(height: 8),
             _buildAccountBar(),
@@ -1115,19 +1232,21 @@ class _TransactionsViewState extends State<TransactionsView> {
           const SizedBox(height: 16),
           Expanded(
             child: _loading
-                ? Center(
-                    child: CircularProgressIndicator(color: colors.accent))
+                ? Center(child: CircularProgressIndicator(color: colors.accent))
                 : _displayItems.isEmpty
-                    ? Center(
-                        child: Text(
-                          Translator.t('trans_no_recent'),
-                          style: TextStyle(color: colors.textSecondary, fontSize: 16),
-                        ),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: () => _loadTransactions(),
-                        child: _buildTransactionList(colors, currency),
+                ? Center(
+                    child: Text(
+                      Translator.t('trans_no_recent'),
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 16,
                       ),
+                    ),
+                  )
+                : RefreshIndicator(
+                    onRefresh: () => _loadTransactions(),
+                    child: _buildTransactionList(colors, currency),
+                  ),
           ),
         ],
       ),
@@ -1141,8 +1260,7 @@ class _TransactionsViewState extends State<TransactionsView> {
       height: 40,
       child: Listener(
         onPointerSignal: (event) {
-          if (event is PointerScrollEvent &&
-              _tagScrollController.hasClients) {
+          if (event is PointerScrollEvent && _tagScrollController.hasClients) {
             _tagScrollController.jumpTo(
               (_tagScrollController.offset + event.scrollDelta.dy).clamp(
                 0.0,
@@ -1159,8 +1277,7 @@ class _TransactionsViewState extends State<TransactionsView> {
           itemBuilder: (context, index) {
             final tag = _tags[index];
             final isSelected = _selectedTagIds.contains(tag.id);
-            final tagColor =
-                _tagColors[tag.id] ?? const Color(0xFF1976D2);
+            final tagColor = _tagColors[tag.id] ?? const Color(0xFF1976D2);
             return FilterChip(
               label: Text(tag.name),
               labelStyle: TextStyle(
@@ -1236,8 +1353,9 @@ class _TransactionsViewState extends State<TransactionsView> {
               backgroundColor: acctColor.withValues(alpha: 0.1),
               checkmarkColor: Colors.white,
               side: BorderSide(
-                color:
-                    isSelected ? acctColor : acctColor.withValues(alpha: 0.3),
+                color: isSelected
+                    ? acctColor
+                    : acctColor.withValues(alpha: 0.3),
               ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
@@ -1267,12 +1385,14 @@ class _TransactionsViewState extends State<TransactionsView> {
     final currentItems = _current;
     final hasUpcoming = upcomingItems.isNotEmpty;
     final toggleCount = hasUpcoming ? 1 : 0;
-    final visibleUpcoming =
-        hasUpcoming && _showUpcoming ? upcomingItems.length : 0;
+    final visibleUpcoming = hasUpcoming && _showUpcoming
+        ? upcomingItems.length
+        : 0;
     final isPhone = ResponsiveLayout.isPhone(context);
 
     return ListView.builder(
-      itemCount: toggleCount +
+      itemCount:
+          toggleCount +
           visibleUpcoming +
           currentItems.length +
           (_hasMore ? 1 : 0),
@@ -1283,13 +1403,19 @@ class _TransactionsViewState extends State<TransactionsView> {
         var itemIndex = index - toggleCount;
         if (itemIndex < visibleUpcoming) {
           return _buildTransactionTile(
-              upcomingItems[itemIndex], colors, defaultCurrency,
-              upcoming: true);
+            upcomingItems[itemIndex],
+            colors,
+            defaultCurrency,
+            upcoming: true,
+          );
         }
         itemIndex -= visibleUpcoming;
         if (itemIndex < currentItems.length) {
           return _buildTransactionTile(
-              currentItems[itemIndex], colors, defaultCurrency);
+            currentItems[itemIndex],
+            colors,
+            defaultCurrency,
+          );
         }
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
@@ -1312,8 +1438,7 @@ class _TransactionsViewState extends State<TransactionsView> {
     );
   }
 
-  Widget _buildUpcomingToggle(
-      PeadraColors colors, int count, bool isPhone) {
+  Widget _buildUpcomingToggle(PeadraColors colors, int count, bool isPhone) {
     final toggle = Card(
       color: colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -1333,14 +1458,10 @@ class _TransactionsViewState extends State<TransactionsView> {
           ),
           title: Text(
             Translator.t('trans_upcoming'),
-            style: TextStyle(
-              color: colors.text,
-              fontWeight: FontWeight.w600,
-            ),
+            style: TextStyle(color: colors.text, fontWeight: FontWeight.w600),
           ),
           subtitle: Text(
-            Translator.t('trans_upcoming_count',
-                params: {'count': '$count'}),
+            Translator.t('trans_upcoming_count', params: {'count': '$count'}),
             style: TextStyle(color: colors.textSecondary, fontSize: 12),
           ),
           trailing: Icon(
@@ -1371,12 +1492,19 @@ class _TransactionsViewState extends State<TransactionsView> {
     return '≈ ${s.endsWith('.0') ? s.substring(0, s.length - 2) : s} h';
   }
 
-  Widget _buildTransactionTile(_DisplayItem item, PeadraColors colors,
-      String defaultCurrency,
-      {bool upcoming = false}) {
+  Widget _buildTransactionTile(
+    _DisplayItem item,
+    PeadraColors colors,
+    String defaultCurrency, {
+    bool upcoming = false,
+  }) {
     if (item.isMergedTransfer) {
-      return _buildMergedTransferTile(item, colors, defaultCurrency,
-          upcoming: upcoming);
+      return _buildMergedTransferTile(
+        item,
+        colors,
+        defaultCurrency,
+        upcoming: upcoming,
+      );
     }
 
     final txn = item.transaction!;
@@ -1385,24 +1513,28 @@ class _TransactionsViewState extends State<TransactionsView> {
     final bgColor = isIncome
         ? colors.incomeBg
         : isTransfer
-            ? colors.transferBg
-            : colors.expenseBg;
+        ? colors.transferBg
+        : colors.expenseBg;
     final iconColor = isIncome
         ? colors.incomeIcon
         : isTransfer
-            ? colors.transferIcon
-            : colors.expenseIcon;
+        ? colors.transferIcon
+        : colors.expenseIcon;
     final icon = isIncome
         ? Icons.arrow_outward
         : isTransfer
-            ? Icons.swap_horiz
-            : Icons.south_east;
-    final sign = isIncome ? '+' : isTransfer ? '' : '-';
+        ? Icons.swap_horiz
+        : Icons.south_east;
+    final sign = isIncome
+        ? '+'
+        : isTransfer
+        ? ''
+        : '-';
 
     final displayCurrency =
         (txn.accountCurrency != null && txn.accountCurrency!.isNotEmpty)
-            ? txn.accountCurrency!
-            : (txn.currency.isNotEmpty ? txn.currency : defaultCurrency);
+        ? txn.accountCurrency!
+        : (txn.currency.isNotEmpty ? txn.currency : defaultCurrency);
     final isPhone = ResponsiveLayout.isPhone(context);
     // Orphaned transfer halves (counterpart account deleted, or counterpart
     // transaction deleted) still show a meaningful "Transfer from A to B"
@@ -1460,8 +1592,7 @@ class _TransactionsViewState extends State<TransactionsView> {
             Expanded(
               child: Text(
                 '${Translator.formatDate(txn.date, compact: isPhone)}${txn.accountName != null ? " · ${txn.accountName}" : ""}',
-                style: TextStyle(color: colors.textSecondary, fontSize: 12,
-                ),
+                style: TextStyle(color: colors.textSecondary, fontSize: 12),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -1483,8 +1614,10 @@ class _TransactionsViewState extends State<TransactionsView> {
           children: [
             if (!isPhone && txn.recurringId != null) ...[
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 3,
+                ),
                 decoration: BoxDecoration(
                   color: colors.accent.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(6),
@@ -1507,30 +1640,42 @@ class _TransactionsViewState extends State<TransactionsView> {
                 surface: colors.surface,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 3,
+                ),
                 borderRadius: BorderRadius.circular(6),
               ),
               const SizedBox(width: 8),
             ],
-            _amountColumn(txn, colors, displayCurrency, isIncome, isTransfer,
-                sign),
+            _amountColumn(
+              txn,
+              colors,
+              displayCurrency,
+              isIncome,
+              isTransfer,
+              sign,
+            ),
           ],
         ),
         onTap: () => _showTransactionPreview(txn),
       ),
     );
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: card,
-    );
+    return Padding(padding: const EdgeInsets.only(bottom: 8), child: card);
   }
 
   /// The trailing amount of a tile, with the work-hours equivalent stacked
   /// below it when enabled (regular income/expense only — transfers don't
   /// move money in or out of the budget).
-  Widget _amountColumn(TransactionWithDetails txn, PeadraColors colors,
-      String displayCurrency, bool isIncome, bool isTransfer, String sign) {
+  Widget _amountColumn(
+    TransactionWithDetails txn,
+    PeadraColors colors,
+    String displayCurrency,
+    bool isIncome,
+    bool isTransfer,
+    String sign,
+  ) {
     final texts = [
       Text(
         '$sign${CurrencyService.formatAmount(txn.amount, displayCurrency)}',
@@ -1538,21 +1683,20 @@ class _TransactionsViewState extends State<TransactionsView> {
           color: isIncome
               ? colors.success
               : isTransfer
-                  ? colors.transferColor
-                  : colors.error,
+              ? colors.transferColor
+              : colors.error,
           fontWeight: FontWeight.w600,
           fontSize: 14,
         ),
       ),
     ];
     if (!isTransfer && _workHoursApplies(txn)) {
-      texts.add(Text(
-        _workHoursText(txn.amount.toDouble()),
-        style: TextStyle(
-          color: colors.textSecondary,
-          fontSize: 11,
+      texts.add(
+        Text(
+          _workHoursText(txn.amount.toDouble()),
+          style: TextStyle(color: colors.textSecondary, fontSize: 11),
         ),
-      ));
+      );
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
@@ -1561,22 +1705,26 @@ class _TransactionsViewState extends State<TransactionsView> {
     );
   }
 
-  Widget _buildMergedTransferTile(_DisplayItem item, PeadraColors colors,
-      String defaultCurrency,
-      {bool upcoming = false}) {
+  Widget _buildMergedTransferTile(
+    _DisplayItem item,
+    PeadraColors colors,
+    String defaultCurrency, {
+    bool upcoming = false,
+  }) {
     final txn = item.transaction!;
     final pairedTxn = item.pairedTransaction;
     final srcCurrency =
         (txn.accountCurrency != null && txn.accountCurrency!.isNotEmpty)
-            ? txn.accountCurrency!
-            : (txn.currency.isNotEmpty ? txn.currency : defaultCurrency);
-    final destCurrency = (pairedTxn != null &&
+        ? txn.accountCurrency!
+        : (txn.currency.isNotEmpty ? txn.currency : defaultCurrency);
+    final destCurrency =
+        (pairedTxn != null &&
             pairedTxn.accountCurrency != null &&
             pairedTxn.accountCurrency!.isNotEmpty)
         ? pairedTxn.accountCurrency!
         : (pairedTxn != null && pairedTxn.currency.isNotEmpty
-            ? pairedTxn.currency
-            : defaultCurrency);
+              ? pairedTxn.currency
+              : defaultCurrency);
     // sourceName/destName already fall back to names parsed from the legs'
     // description texts (see _mergeTransfers), so deleted accounts still
     // show their historical names instead of '?'. The raw description is the
@@ -1609,17 +1757,16 @@ class _TransactionsViewState extends State<TransactionsView> {
         ),
         title: Text(
           transferTitleText,
-          style: TextStyle(
-            color: colors.text,
-            fontWeight: FontWeight.w500,
-          ),
+          style: TextStyle(color: colors.text, fontWeight: FontWeight.w500),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
         subtitle: Text(
-          Translator.formatDate(txn.date, compact: ResponsiveLayout.isPhone(context)),
-          style: TextStyle(color: colors.textSecondary, fontSize: 12,
+          Translator.formatDate(
+            txn.date,
+            compact: ResponsiveLayout.isPhone(context),
           ),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12),
         ),
         trailing: Text(
           amountText,
@@ -1633,9 +1780,6 @@ class _TransactionsViewState extends State<TransactionsView> {
       ),
     );
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: card,
-    );
+    return Padding(padding: const EdgeInsets.only(bottom: 8), child: card);
   }
 }

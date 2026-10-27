@@ -29,6 +29,8 @@ class _CategoriesViewState extends State<CategoriesView> {
   Map<String, Map<String, Map<String, double>>> _monthlyData = {};
   bool _loading = true;
   int _selectedMonths = 6;
+  int _visibleExpenses = 5;
+  int _visibleIncomes = 5;
   StreamSubscription<void>? _remoteDataSub;
   Map<String, Map<String, Map<String, double>>>? _spotsRef;
   final Map<String, ({List<FlSpot> spots, List<String> labels, AxisScale axis})>
@@ -65,26 +67,26 @@ class _CategoriesViewState extends State<CategoriesView> {
           ? _db.getTopTags(
               transactionType: 'expense',
               numMonths: _selectedMonths,
-              limit: 5,
+              limit: 0,
               minCount: 2,
             )
           : _db.getTopDescriptions(
               transactionType: 'expense',
               numMonths: _selectedMonths,
-              limit: 5,
+              limit: 0,
               minCount: 2,
             ),
       isTagMode
           ? _db.getTopTags(
               transactionType: 'income',
               numMonths: _selectedMonths,
-              limit: 5,
+              limit: 0,
               minCount: 2,
             )
           : _db.getTopDescriptions(
               transactionType: 'income',
               numMonths: _selectedMonths,
-              limit: 5,
+              limit: 0,
               minCount: 2,
             ),
       isTagMode
@@ -98,6 +100,8 @@ class _CategoriesViewState extends State<CategoriesView> {
         _topIncomes = results[1] as List<Map<String, dynamic>>;
         _monthlyData =
             results[2] as Map<String, Map<String, Map<String, double>>>;
+        _visibleExpenses = 5;
+        _visibleIncomes = 5;
         _loading = false;
       });
     }
@@ -126,19 +130,27 @@ class _CategoriesViewState extends State<CategoriesView> {
                       children: [
                         _buildSection(
                           Translator.t('cat_top_expenses'),
-                          _topExpenses,
+                          _topExpenses.take(_visibleExpenses).toList(),
                           colors.error,
                           colors,
                           showDots: lineChartDots,
                         ),
+                        if (_visibleExpenses < _topExpenses.length)
+                          _buildLoadMoreButton(
+                              () => setState(() => _visibleExpenses += 5),
+                              colors),
                         const SizedBox(height: 24),
                         _buildSection(
                           Translator.t('cat_top_incomes'),
-                          _topIncomes,
+                          _topIncomes.take(_visibleIncomes).toList(),
                           colors.success,
                           colors,
                           showDots: lineChartDots,
                         ),
+                        if (_visibleIncomes < _topIncomes.length)
+                          _buildLoadMoreButton(
+                              () => setState(() => _visibleIncomes += 5),
+                              colors),
                         const SizedBox(height: 12),
                       ],
                     ),
@@ -252,6 +264,19 @@ class _CategoriesViewState extends State<CategoriesView> {
             ),
           );
         }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildLoadMoreButton(VoidCallback onPressed, PeadraColors colors) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: TextButton.icon(
+          onPressed: onPressed,
+          icon: const Icon(Icons.expand_more, size: 18),
+          label: Text(Translator.t('btn_load_more')),
+        ),
       ),
     );
   }

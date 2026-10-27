@@ -64,7 +64,6 @@ class _LineCache {
 }
 
 class DashboardViewMobile extends StatefulWidget {
-  final Widget header;
   final Widget totalAsset;
   final Widget statCards;
   final Widget cashFlowSection;
@@ -79,7 +78,6 @@ class DashboardViewMobile extends StatefulWidget {
 
   const DashboardViewMobile({
     super.key,
-    required this.header,
     required this.totalAsset,
     required this.statCards,
     required this.cashFlowSection,
@@ -278,7 +276,6 @@ class _DashboardViewMobileState extends State<DashboardViewMobile> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          widget.header,
           widget.totalAsset,
           const SizedBox(height: 16),
           pad(widget.statCards),

@@ -7,6 +7,7 @@
 - Tools view : Convert currencies, split bills and view how much you will pay for your loan !
 - Enhanced total asset amount on mobile
 - Improved settings UI on mobile
+- Enhanced onboarding language selection
 
 ### Fixes
 

@@ -467,6 +467,7 @@ class _LoginViewState extends State<LoginView> {
   }
 
   List<Widget> _onboardingStepContent(int step, PeadraColors colors) {
+    const flagOptions = [('en', '🇬🇧'), ('fr', '🇫🇷'), ('es', '🇪🇸')];
     switch (step) {
       case 0:
         return [
@@ -482,26 +483,34 @@ class _LoginViewState extends State<LoginView> {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            alignment: WrapAlignment.center,
+          Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              for (final entry in Translator.availableLanguages.entries)
-                ChoiceChip(
-                  label: Text(entry.value),
-                  selected: _onboardingLanguage == entry.key,
-                  selectedColor: colors.navSelectedBg,
-                  checkmarkColor: colors.navSelectedFg,
-                  labelStyle: TextStyle(
-                    color: _onboardingLanguage == entry.key
-                        ? colors.navSelectedFg
-                        : colors.text,
+              for (final (code, flag) in flagOptions)
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: GestureDetector(
+                    onTap: () {
+                      context.read<LanguageProvider>().setLanguage(code);
+                      setState(() => _onboardingLanguage = code);
+                    },
+                    child: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: colors.surface,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: code == _onboardingLanguage
+                              ? colors.accent
+                              : colors.borderColor,
+                          width: 2,
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(flag, style: const TextStyle(fontSize: 24)),
+                    ),
                   ),
-                  onSelected: (_) {
-                    context.read<LanguageProvider>().setLanguage(entry.key);
-                    setState(() => _onboardingLanguage = entry.key);
-                  },
                 ),
             ],
           ),

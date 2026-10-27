@@ -15,8 +15,10 @@ import '../../core/utils/safe_insets.dart';
 /// ([showModalBottomSheet] on phones, [showDialog] otherwise).
 ///
 /// The [content] must be intrinsically sized (no [Expanded]/[Flexible], no
-/// unbounded-height scrolling widgets): on phones the whole sheet — title,
-/// content and actions — scrolls as one when it exceeds the screen.
+/// unbounded-height scrolling widgets): on phones the grabber and the title
+/// stay fixed while the content — and the actions under it — scroll when it
+/// exceeds the screen. Content outside the sheet reserves the keyboard, so
+/// the sheet shrinks and slides above it.
 ///
 /// [PeadraModal] can be nested inside any state holder ([StatefulBuilder]
 /// around it or a dedicated [StatefulWidget] returning it); the layout is
@@ -54,66 +56,73 @@ class PeadraModal extends StatelessWidget {
     // Phones save space by dropping the secondary "Cancel" action: the sheet
     // is dismissible by swipe/tap, and the remaining actions grow to fill the
     // row. Desktop dialogs keep their explicit Cancel.
-    final actions =
-        this.actions?.where((a) => !_isCancelAction(a)).toList();
-    // Reserve the bottom system bar (3-button navigation) or the keyboard,
-    // whichever is taller, so the content and the actions never end up
-    // under the system bar. SafeArea cannot do this on its own here: the
-    // sheet route strips the top padding and the padding collapses to 0 as
-    // soon as the keyboard opens.
-    final bottomInset = bottomSafeInset(context);
-    return ConstrainedBox(
-      // A tall sheet would otherwise slide under the status bar: cap it so
-      // its header stays visible and the content scrolls instead.
-      constraints: BoxConstraints(maxHeight: maxSheetHeight(context)),
-      child: Container(
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius:
-              const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        padding: EdgeInsets.fromLTRB(
-          24,
-          12,
-          24,
-          24 + bottomInset,
-        ),
-        child: SafeArea(
-          // The bottom is handled by bottomInset above.
-          bottom: false,
-          child: SingleChildScrollView(
+    final actions = this.actions?.where((a) => !_isCancelAction(a)).toList();
+    // The keyboard must shrink the sheet (padding around it, so it slides
+    // above the keyboard) instead of being reserved inside it — padding the
+    // keyboard inside would leave dead space that squeezes the scrollable
+    // area. The leftover system-bar strip (3-button navigation not covered
+    // by the keyboard) is still reserved inside the sheet.
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: ConstrainedBox(
+        // A tall sheet would otherwise slide under the status bar: cap it so
+        // its header stays visible and the content scrolls instead.
+        constraints: BoxConstraints(maxHeight: maxSheetHeight(context)),
+        child: Container(
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: EdgeInsets.fromLTRB(
+            24,
+            12,
+            24,
+            4 + residualBottomInset(context),
+          ),
+          child: SafeArea(
+            // The bottom is handled by the paddings above.
+            bottom: false,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // The grabber and the title stay outside the scroll: they are
+                // always reachable, and dragging them dismisses the sheet even
+                // while long content below is scrolled.
                 Center(
                   child: Container(
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color:
-                          colors.placeholderColor.withValues(alpha: 0.3),
+                      color: colors.placeholderColor.withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
                 ),
-                if (title != null) ...[
-                  const SizedBox(height: 16),
-                  title!,
-                ],
+                if (title != null) ...[const SizedBox(height: 16), title!],
                 const SizedBox(height: 12),
-                content,
-                if (actions != null && actions.isNotEmpty) ...[
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      for (int i = 0; i < actions.length; i++) ...[
-                        if (i > 0) const SizedBox(width: 8),
-                        Expanded(child: _sheetAction(actions[i])),
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        content,
+                        if (actions != null && actions.isNotEmpty) ...[
+                          const SizedBox(height: 20),
+                          Row(
+                            children: [
+                              for (int i = 0; i < actions.length; i++) ...[
+                                if (i > 0) const SizedBox(width: 8),
+                                Expanded(child: _sheetAction(actions[i])),
+                              ],
+                            ],
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
-                ],
+                ),
               ],
             ),
           ),
@@ -166,8 +175,5 @@ Future<T?> showPeadraModal<T>({
       builder: builder,
     );
   }
-  return showDialog<T>(
-    context: context,
-    builder: builder,
-  );
+  return showDialog<T>(context: context, builder: builder);
 }

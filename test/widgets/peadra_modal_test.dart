@@ -168,15 +168,17 @@ void main() {
       await tester.tap(find.text('SHOW'));
       await tester.pumpAndSettle();
 
-      // The bottom system bar starts 48px above the bottom of the screen.
-      const systemBarTop = 800 - 48;
+      // The bottom system bar starts 48px above the bottom of the screen;
+      // content may dip up to 8px into the bar's dead top edge, so it must
+      // stay at or above 800 - 48 + 8.
+      const contentFloor = 800 - 48 + 8;
       expect(
         tester.getRect(find.text('Confirm content')).bottom,
-        lessThanOrEqualTo(systemBarTop),
+        lessThanOrEqualTo(contentFloor),
       );
       expect(
         tester.getRect(find.widgetWithText(ElevatedButton, 'Save')).bottom,
-        lessThanOrEqualTo(systemBarTop),
+        lessThanOrEqualTo(contentFloor),
       );
     });
 

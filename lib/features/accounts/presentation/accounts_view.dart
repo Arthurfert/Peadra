@@ -33,8 +33,7 @@ class _AccountsViewState extends State<AccountsView> {
   @override
   void initState() {
     super.initState();
-    _remoteDataSub =
-        DatabaseManager.instance.onRemoteDataApplied.listen((_) {
+    _remoteDataSub = DatabaseManager.instance.onRemoteDataApplied.listen((_) {
       _loadAccounts();
     });
   }
@@ -56,7 +55,9 @@ class _AccountsViewState extends State<AccountsView> {
   }
 
   Future<void> _loadAccounts() async {
-    final currency = _lastCurrency.isNotEmpty ? _lastCurrency : context.read<SettingsProvider>().currency;
+    final currency = _lastCurrency.isNotEmpty
+        ? _lastCurrency
+        : context.read<SettingsProvider>().currency;
     final results = await Future.wait([
       _db.getAccountsWithBalances(),
       _db.getBalance(targetCurrency: currency),
@@ -81,7 +82,7 @@ class _AccountsViewState extends State<AccountsView> {
     final currency = context.read<SettingsProvider>().currency;
 
     return Padding(
-      padding: ResponsiveLayout.pagePaddingAll(context),
+      padding: ResponsiveLayout.pagePaddingAll(context).copyWith(bottom: 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -100,39 +101,48 @@ class _AccountsViewState extends State<AccountsView> {
             ],
           ),
           const SizedBox(height: 16),
-          if (!_loading && _accounts.isNotEmpty) _buildConvertedTotals(colors, currency),
+          if (!_loading && _accounts.isNotEmpty)
+            _buildConvertedTotals(colors, currency),
           Expanded(
             child: _loading
                 ? Center(child: CircularProgressIndicator(color: colors.accent))
                 : _accounts.isEmpty
-                    ? Center(
-                        child: Text(
-                          Translator.t('dash_no_assets'),
-                          style: TextStyle(color: colors.textSecondary, fontSize: 16),
-                        ),
-                      )
-                    : GridView.builder(
-                        gridDelegate: ResponsiveLayout.isPhone(context)
-                            ? const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 1,
-                                childAspectRatio: 2.4,
-                                mainAxisSpacing: 12,
-                                crossAxisSpacing: 12,
-                              )
-                            : const SliverGridDelegateWithMaxCrossAxisExtent(
-                                maxCrossAxisExtent: 300,
-                                childAspectRatio: 1.6,
-                                mainAxisSpacing: 12,
-                                crossAxisSpacing: 12,
-                              ),
-                        itemCount: _accounts.length + 1,
-                        itemBuilder: (context, index) {
-                          if (index < _accounts.length) {
-                            return _buildAccountCard(_accounts[index], colors, currency);
-                          }
-                          return _buildCreateAccountCard(colors);
-                        },
+                ? Center(
+                    child: Text(
+                      Translator.t('dash_no_assets'),
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 16,
                       ),
+                    ),
+                  )
+                : GridView.builder(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    gridDelegate: ResponsiveLayout.isPhone(context)
+                        ? const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 1,
+                            childAspectRatio: 2.4,
+                            mainAxisSpacing: 12,
+                            crossAxisSpacing: 12,
+                          )
+                        : const SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 300,
+                            childAspectRatio: 1.6,
+                            mainAxisSpacing: 12,
+                            crossAxisSpacing: 12,
+                          ),
+                    itemCount: _accounts.length + 1,
+                    itemBuilder: (context, index) {
+                      if (index < _accounts.length) {
+                        return _buildAccountCard(
+                          _accounts[index],
+                          colors,
+                          currency,
+                        );
+                      }
+                      return _buildCreateAccountCard(colors);
+                    },
+                  ),
           ),
         ],
       ),
@@ -140,10 +150,14 @@ class _AccountsViewState extends State<AccountsView> {
   }
 
   Widget _buildAccountCard(
-      AccountWithBalance acct, PeadraColors colors, String defaultCurrency) {
+    AccountWithBalance acct,
+    PeadraColors colors,
+    String defaultCurrency,
+  ) {
     final accountColor = PeadraTheme.hexToColor(acct.color);
-    final displayCurrency =
-        acct.currency.isNotEmpty ? acct.currency : defaultCurrency;
+    final displayCurrency = acct.currency.isNotEmpty
+        ? acct.currency
+        : defaultCurrency;
 
     return Card(
       color: colors.surface,
@@ -178,16 +192,22 @@ class _AccountsViewState extends State<AccountsView> {
                 ),
                 PopupMenuButton<String>(
                   tooltip: Translator.t('btn_menu'),
-                  icon: Icon(Icons.more_vert,
-                      color: colors.placeholderColor, size: 20),
+                  icon: Icon(
+                    Icons.more_vert,
+                    color: colors.placeholderColor,
+                    size: 20,
+                  ),
                   onSelected: (v) => _handleMenuAction(v, acct, colors),
                   itemBuilder: (_) => [
                     PopupMenuItem(
                       value: 'edit',
                       child: Row(
                         children: [
-                          Icon(Icons.edit_outlined,
-                              size: 18, color: colors.text),
+                          Icon(
+                            Icons.edit_outlined,
+                            size: 18,
+                            color: colors.text,
+                          ),
                           const SizedBox(width: 8),
                           Text(Translator.t('btn_edit')),
                         ],
@@ -197,11 +217,16 @@ class _AccountsViewState extends State<AccountsView> {
                       value: 'delete',
                       child: Row(
                         children: [
-                          Icon(Icons.delete_outline,
-                              size: 18, color: colors.deleteColor),
+                          Icon(
+                            Icons.delete_outline,
+                            size: 18,
+                            color: colors.deleteColor,
+                          ),
                           const SizedBox(width: 8),
-                          Text(Translator.t('btn_delete'),
-                              style: TextStyle(color: colors.deleteColor)),
+                          Text(
+                            Translator.t('btn_delete'),
+                            style: TextStyle(color: colors.deleteColor),
+                          ),
                         ],
                       ),
                     ),
@@ -211,11 +236,10 @@ class _AccountsViewState extends State<AccountsView> {
             ),
             const Spacer(),
             Text(
-              acct.isChecking ? Translator.t('acc_checking') : Translator.t('acc_savings'),
-              style: TextStyle(
-                fontSize: 12,
-                color: colors.textSecondary,
-              ),
+              acct.isChecking
+                  ? Translator.t('acc_checking')
+                  : Translator.t('acc_savings'),
+              style: TextStyle(fontSize: 12, color: colors.textSecondary),
             ),
             const SizedBox(height: 4),
             FittedBox(
@@ -225,7 +249,9 @@ class _AccountsViewState extends State<AccountsView> {
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: acct.balance >= Decimal.zero ? colors.success : colors.error,
+                  color: acct.balance >= Decimal.zero
+                      ? colors.success
+                      : colors.error,
                 ),
               ),
             ),
@@ -266,10 +292,21 @@ class _AccountsViewState extends State<AccountsView> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(Translator.t('acc_checking_total'),
-                      style: TextStyle(fontSize: 12, color: colors.textSecondary)),
-                  Text(CurrencyService.formatAmount(_checkingConverted, targetCurrency),
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: colors.text)),
+                  Text(
+                    Translator.t('acc_checking_total'),
+                    style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                  ),
+                  Text(
+                    CurrencyService.formatAmount(
+                      _checkingConverted,
+                      targetCurrency,
+                    ),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: colors.text,
+                    ),
+                  ),
                 ],
               ),
             if (showChecking && showSavings) const SizedBox(height: 8),
@@ -277,10 +314,21 @@ class _AccountsViewState extends State<AccountsView> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(Translator.t('acc_savings_total'),
-                      style: TextStyle(fontSize: 12, color: colors.textSecondary)),
-                  Text(CurrencyService.formatAmount(_savingsConverted, targetCurrency),
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: colors.text)),
+                  Text(
+                    Translator.t('acc_savings_total'),
+                    style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                  ),
+                  Text(
+                    CurrencyService.formatAmount(
+                      _savingsConverted,
+                      targetCurrency,
+                    ),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: colors.text,
+                    ),
+                  ),
                 ],
               ),
           ],
@@ -308,11 +356,7 @@ class _AccountsViewState extends State<AccountsView> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                Icons.add,
-                size: 32,
-                color: colors.placeholderColor,
-              ),
+              Icon(Icons.add, size: 32, color: colors.placeholderColor),
               const SizedBox(height: 8),
               Text(
                 Translator.t('acc_create_account'),
@@ -329,7 +373,11 @@ class _AccountsViewState extends State<AccountsView> {
     );
   }
 
-  void _handleMenuAction(String action, AccountWithBalance acct, PeadraColors colors) {
+  void _handleMenuAction(
+    String action,
+    AccountWithBalance acct,
+    PeadraColors colors,
+  ) {
     if (action == 'edit') {
       _showEditAccountDialog(acct, colors);
     } else if (action == 'delete') {
@@ -347,8 +395,10 @@ class _AccountsViewState extends State<AccountsView> {
     showPeadraModal(
       context: context,
       builder: (ctx) => PeadraModal(
-        title: Text(Translator.t('acc_add_account'),
-            style: TextStyle(color: colors.text)),
+        title: Text(
+          Translator.t('acc_add_account'),
+          style: TextStyle(color: colors.text),
+        ),
         content: StatefulBuilder(
           builder: (ctx, setDialogState) => SingleChildScrollView(
             child: Column(
@@ -359,7 +409,9 @@ class _AccountsViewState extends State<AccountsView> {
                   maxLength: 100,
                   decoration: InputDecoration(
                     labelText: Translator.t('acc_name'),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -367,11 +419,19 @@ class _AccountsViewState extends State<AccountsView> {
                   initialValue: type,
                   decoration: InputDecoration(
                     labelText: Translator.t('acc_type'),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                   items: [
-                    DropdownMenuItem(value: 'checking', child: Text(Translator.t('acc_checking'))),
-                    DropdownMenuItem(value: 'savings', child: Text(Translator.t('acc_savings'))),
+                    DropdownMenuItem(
+                      value: 'checking',
+                      child: Text(Translator.t('acc_checking')),
+                    ),
+                    DropdownMenuItem(
+                      value: 'savings',
+                      child: Text(Translator.t('acc_savings')),
+                    ),
                   ],
                   onChanged: (v) => setDialogState(() => type = v ?? 'savings'),
                 ),
@@ -380,33 +440,47 @@ class _AccountsViewState extends State<AccountsView> {
                   initialValue: currency,
                   decoration: InputDecoration(
                     labelText: Translator.t('acc_currency'),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                   items: CurrencyService.allCodes
-                      .map((c) => DropdownMenuItem(
-                            value: c,
-                            child: Text('$c ${CurrencyService.getSymbol(c)}'),
-                          ))
+                      .map(
+                        (c) => DropdownMenuItem(
+                          value: c,
+                          child: Text('$c ${CurrencyService.getSymbol(c)}'),
+                        ),
+                      )
                       .toList(),
                   onChanged: (v) => setDialogState(() => currency = v ?? 'EUR'),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: startingAmountCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                    signed: true,
+                  ),
                   decoration: InputDecoration(
                     labelText: Translator.t('acc_starting_amount'),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text(Translator.t('acc_color'),
-                      style: TextStyle(color: colors.text, fontSize: 12)),
+                  child: Text(
+                    Translator.t('acc_color'),
+                    style: TextStyle(color: colors.text, fontSize: 12),
+                  ),
                 ),
                 const SizedBox(height: 8),
-                _buildColorPicker(color, (c) => setDialogState(() => color = c)),
+                _buildColorPicker(
+                  color,
+                  (c) => setDialogState(() => color = c),
+                ),
               ],
             ),
           ),
@@ -419,15 +493,24 @@ class _AccountsViewState extends State<AccountsView> {
           ElevatedButton(
             onPressed: () async {
               if (nameCtrl.text.trim().isEmpty) return;
-              final startingAmount = Decimal.tryParse(startingAmountCtrl.text) ?? Decimal.zero;
-              await _db.addAccount(nameCtrl.text.trim(), color, type, currency, startingAmount: startingAmount);
+              final startingAmount =
+                  Decimal.tryParse(startingAmountCtrl.text) ?? Decimal.zero;
+              await _db.addAccount(
+                nameCtrl.text.trim(),
+                color,
+                type,
+                currency,
+                startingAmount: startingAmount,
+              );
               if (!ctx.mounted) return;
               Navigator.pop(ctx);
               _loadAccounts();
             },
             style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
-            child: Text(Translator.t('btn_save'),
-                style: const TextStyle(color: Colors.white)),
+            child: Text(
+              Translator.t('btn_save'),
+              style: const TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -436,16 +519,22 @@ class _AccountsViewState extends State<AccountsView> {
 
   void _showEditAccountDialog(AccountWithBalance acct, PeadraColors colors) {
     final nameCtrl = TextEditingController(text: acct.name);
-    final startingAmountCtrl = TextEditingController(text: acct.startingAmount.toString());
+    final startingAmountCtrl = TextEditingController(
+      text: acct.startingAmount.toString(),
+    );
     String type = acct.type;
     String color = acct.color;
-    String currency = acct.currency.isNotEmpty ? acct.currency : context.read<SettingsProvider>().currency;
+    String currency = acct.currency.isNotEmpty
+        ? acct.currency
+        : context.read<SettingsProvider>().currency;
 
     showPeadraModal(
       context: context,
       builder: (ctx) => PeadraModal(
-        title: Text(Translator.t('acc_edit_account'),
-            style: TextStyle(color: colors.text)),
+        title: Text(
+          Translator.t('acc_edit_account'),
+          style: TextStyle(color: colors.text),
+        ),
         content: StatefulBuilder(
           builder: (ctx, setDialogState) => SingleChildScrollView(
             child: Column(
@@ -456,7 +545,9 @@ class _AccountsViewState extends State<AccountsView> {
                   maxLength: 100,
                   decoration: InputDecoration(
                     labelText: Translator.t('acc_name'),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -464,11 +555,19 @@ class _AccountsViewState extends State<AccountsView> {
                   initialValue: type,
                   decoration: InputDecoration(
                     labelText: Translator.t('acc_type'),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                   items: [
-                    DropdownMenuItem(value: 'checking', child: Text(Translator.t('acc_checking'))),
-                    DropdownMenuItem(value: 'savings', child: Text(Translator.t('acc_savings'))),
+                    DropdownMenuItem(
+                      value: 'checking',
+                      child: Text(Translator.t('acc_checking')),
+                    ),
+                    DropdownMenuItem(
+                      value: 'savings',
+                      child: Text(Translator.t('acc_savings')),
+                    ),
                   ],
                   onChanged: (v) => setDialogState(() => type = v ?? acct.type),
                 ),
@@ -477,33 +576,47 @@ class _AccountsViewState extends State<AccountsView> {
                   initialValue: currency,
                   decoration: InputDecoration(
                     labelText: Translator.t('acc_currency'),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                   items: CurrencyService.allCodes
-                      .map((c) => DropdownMenuItem(
-                            value: c,
-                            child: Text('$c ${CurrencyService.getSymbol(c)}'),
-                          ))
+                      .map(
+                        (c) => DropdownMenuItem(
+                          value: c,
+                          child: Text('$c ${CurrencyService.getSymbol(c)}'),
+                        ),
+                      )
                       .toList(),
                   onChanged: (v) => setDialogState(() => currency = v ?? 'EUR'),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: startingAmountCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                    signed: true,
+                  ),
                   decoration: InputDecoration(
                     labelText: Translator.t('acc_starting_amount'),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text(Translator.t('acc_color'),
-                      style: TextStyle(color: colors.text, fontSize: 12)),
+                  child: Text(
+                    Translator.t('acc_color'),
+                    style: TextStyle(color: colors.text, fontSize: 12),
+                  ),
                 ),
                 const SizedBox(height: 8),
-                _buildColorPicker(color, (c) => setDialogState(() => color = c)),
+                _buildColorPicker(
+                  color,
+                  (c) => setDialogState(() => color = c),
+                ),
               ],
             ),
           ),
@@ -516,7 +629,8 @@ class _AccountsViewState extends State<AccountsView> {
           ElevatedButton(
             onPressed: () async {
               if (nameCtrl.text.trim().isEmpty) return;
-              final startingAmount = Decimal.tryParse(startingAmountCtrl.text) ?? Decimal.zero;
+              final startingAmount =
+                  Decimal.tryParse(startingAmountCtrl.text) ?? Decimal.zero;
               await _db.updateAccount(
                 acct.id!,
                 nameCtrl.text.trim(),
@@ -531,8 +645,10 @@ class _AccountsViewState extends State<AccountsView> {
               _loadAccounts();
             },
             style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
-            child: Text(Translator.t('btn_save'),
-                style: const TextStyle(color: Colors.white)),
+            child: Text(
+              Translator.t('btn_save'),
+              style: const TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -545,26 +661,33 @@ class _AccountsViewState extends State<AccountsView> {
     showPeadraModal(
       context: context,
       builder: (ctx) => PeadraModal(
-        title: Text(Translator.t('acc_delete_account'),
-            style: TextStyle(color: colors.text)),
+        title: Text(
+          Translator.t('acc_delete_account'),
+          style: TextStyle(color: colors.text),
+        ),
         content: StatefulBuilder(
           builder: (ctx, setDialogState) => Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(Translator.t('acc_delete_confirm'),
-                  style: TextStyle(color: colors.textSecondary)),
+              Text(
+                Translator.t('acc_delete_confirm'),
+                style: TextStyle(color: colors.textSecondary),
+              ),
               const SizedBox(height: 16),
               Row(
                 children: [
                   Checkbox(
                     value: deleteTransactions,
-                    onChanged: (v) => setDialogState(() => deleteTransactions = v ?? false),
+                    onChanged: (v) =>
+                        setDialogState(() => deleteTransactions = v ?? false),
                     activeColor: colors.deleteColor,
                   ),
                   Expanded(
-                    child: Text(Translator.t('acc_delete_transactions'),
-                        style: TextStyle(color: colors.text, fontSize: 13)),
+                    child: Text(
+                      Translator.t('acc_delete_transactions'),
+                      style: TextStyle(color: colors.text, fontSize: 13),
+                    ),
                   ),
                 ],
               ),
@@ -578,22 +701,31 @@ class _AccountsViewState extends State<AccountsView> {
           ),
           ElevatedButton(
             onPressed: () async {
-              await _db.deleteAccount(acct.id!, deleteTransactions: deleteTransactions);
+              await _db.deleteAccount(
+                acct.id!,
+                deleteTransactions: deleteTransactions,
+              );
               if (!ctx.mounted) return;
               Navigator.pop(ctx);
               _loadAccounts();
             },
-            style:
-                ElevatedButton.styleFrom(backgroundColor: colors.deleteColor),
-            child: Text(Translator.t('btn_delete'),
-                style: const TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: colors.deleteColor,
+            ),
+            child: Text(
+              Translator.t('btn_delete'),
+              style: const TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildColorPicker(String currentColor, Function(String) onColorSelected) {
+  Widget _buildColorPicker(
+    String currentColor,
+    Function(String) onColorSelected,
+  ) {
     final presetColors = PeadraTheme.presetColors;
 
     return Wrap(
@@ -616,10 +748,12 @@ class _AccountsViewState extends State<AccountsView> {
               boxShadow: isSelected
                   ? [
                       BoxShadow(
-                        color: PeadraTheme.hexToColor(hex).withValues(alpha: 0.6),
+                        color: PeadraTheme.hexToColor(
+                          hex,
+                        ).withValues(alpha: 0.6),
                         blurRadius: 8,
                         spreadRadius: 1,
-                      )
+                      ),
                     ]
                   : null,
             ),

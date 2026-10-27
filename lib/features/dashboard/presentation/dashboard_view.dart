@@ -621,21 +621,22 @@ class _DashboardViewState extends State<DashboardView> {
     );
   }
 
-  Widget _buildChangeIndicator(double change, PeadraColors colors, {bool invert = false}) {
+  Widget _buildChangeIndicator(double change, PeadraColors colors,
+      {bool invert = false, Color? color}) {
     final isPositive = change >= 0;
     final isGood = invert ? change <= 0 : change >= 0;
-    final color = isGood ? colors.success : colors.error;
+    final effectiveColor = color ?? (isGood ? colors.success : colors.error);
     final icon = isPositive ? Icons.arrow_upward : Icons.arrow_downward;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: color, size: 14),
+        Icon(icon, color: effectiveColor, size: 14),
         Text(
           '${change >= 0 ? '+' : ''}${change.toStringAsFixed(1)}%',
           style: TextStyle(
             fontSize: 12,
-            color: color,
+            color: effectiveColor,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -977,26 +978,13 @@ class _DashboardViewState extends State<DashboardView> {
       );
     }
 
-    final header = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          Translator.t('dash_title', params: {'user': username}),
-          style: TextStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-            color: colors.text,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          Translator.t('dash_welcome'),
-          style: TextStyle(
-            fontSize: 14,
-            color: colors.textSecondary,
-          ),
-        ),
-      ],
+    final header = Text(
+      Translator.t('dash_title', params: {'user': username}),
+      style: TextStyle(
+        fontSize: 28,
+        fontWeight: FontWeight.bold,
+        color: colors.text,
+      ),
     );
 
     final statCards = _buildStatCards(colors, currency);
@@ -1050,7 +1038,7 @@ class _DashboardViewState extends State<DashboardView> {
         // the mobile treatment too.
         final isNarrow = constraints.maxWidth <= 800;
         final totalAsset =
-            _buildTotalAssetCard(colors, currency, isNarrow: isNarrow);
+            _buildTotalAssetCard(colors, currency, isNarrow: isNarrow, username: username);
         if (constraints.maxWidth > 800) {
           return DashboardViewDesktop(
             header: header,
@@ -1068,7 +1056,6 @@ class _DashboardViewState extends State<DashboardView> {
           );
         } else {
           return DashboardViewMobile(
-            header: header,
             totalAsset: totalAsset,
             statCards: statCards,
             cashFlowSection: cashFlowSection,
@@ -1086,22 +1073,59 @@ class _DashboardViewState extends State<DashboardView> {
     );
   }
 
-  /// Amount display for narrow layouts: horizontally scrollable when it
-  /// does not fit, so a long amount can be swiped to be fully read.
-  Widget _buildScrollableAssetAmount(PeadraColors colors, String amount) {
-    return SizedBox(
-      width: double.infinity,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Text(
-          amount,
-          maxLines: 1,
-          softWrap: false,
-          overflow: TextOverflow.visible,
-          style: TextStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-            color: colors.accent,
+  /// Mobile greeting: on an surface band, full-bleed, no bottom rounding so
+  /// it merges with the total-assets banner below.
+  /// Mobile/narrow hero: surface card containing the greeting at the top
+  /// and the centered total-asset amount, with the stat-card shadow.
+  Widget _buildTotalAssetBanner(
+      PeadraColors colors, double change, String amount, String username) {
+    return Card(
+      margin: EdgeInsets.zero,
+      color: colors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(16)),
+      ),
+      child: SizedBox(
+        width: double.infinity,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                Translator.t('dash_title', params: {'user': username}),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: colors.text,
+                ),
+              ),
+              const SizedBox(height: 16),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  amount,
+                  style: TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.bold,
+                    color: colors.accent,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildChangeIndicator(change, colors, color: colors.text),
+                  const SizedBox(width: 4),
+                  Text(
+                    Translator.t('dash_last_month'),
+                    style: TextStyle(fontSize: 12, color: colors.text),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
@@ -1109,12 +1133,16 @@ class _DashboardViewState extends State<DashboardView> {
   }
 
   Widget _buildTotalAssetCard(PeadraColors colors, String currency,
-      {required bool isNarrow}) {
+      {required bool isNarrow, required String username}) {
     final previousTotal = _previousBalance + _previousSavings;
     final totalChange = previousTotal > Decimal.zero
         ? ((_totalAssets - previousTotal) * Decimal.fromInt(100) / previousTotal).toDouble()
         : 0.0;
     final formattedAmount = CurrencyService.formatAmount(_totalAssets, currency);
+    if (isNarrow) {
+      return _buildTotalAssetBanner(
+          colors, totalChange, formattedAmount, username);
+    }
     return Card(
       color: colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -1139,21 +1167,17 @@ class _DashboardViewState extends State<DashboardView> {
               ],
             ),
             const SizedBox(height: 8),
-            if (isNarrow) ...[
-              _buildScrollableAssetAmount(colors, formattedAmount),
-            ] else ...[
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  formattedAmount,
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: colors.accent,
-                  ),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                formattedAmount,
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: colors.accent,
                 ),
               ),
-            ],
+            ),
           ],
         ),
       ),

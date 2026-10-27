@@ -453,6 +453,37 @@ class _ParametersViewState extends State<ParametersView> {
   /// description, [controlBuilder] builds the live control (dropdown,
   /// switch, button…) with a modal descendant context so provider updates
   /// rebuild inside the sheet.
+  /// State button for mobile-only boolean settings: filled accent when
+  /// enabled, outline-only when disabled. Tapping toggles the value.
+  Widget _boolStateButton(PeadraColors c, bool value, ValueChanged<bool> onChanged) {
+    final label = Text(
+      Translator.t(value ? 'common_enabled' : 'common_disabled'),
+      style: const TextStyle(fontSize: 13),
+    );
+    return value
+        ? FilledButton(
+            onPressed: () => onChanged(false),
+            style: FilledButton.styleFrom(
+              backgroundColor: c.accent,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              minimumSize: const Size(0, 36),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: label,
+          )
+        : OutlinedButton(
+            onPressed: () => onChanged(true),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: c.accent,
+              side: BorderSide(color: c.accent),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              minimumSize: const Size(0, 36),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: label,
+          );
+  }
+
   void _showMobileSetting({
     required String title,
     required String subtitle,
@@ -495,22 +526,7 @@ class _ParametersViewState extends State<ParametersView> {
           controlBuilder: (sheetCtx, c) =>
               Selector<LanguageProvider, String>(
             selector: (_, l) => l.language,
-            builder: (_, current, _) => DropdownButton<String>(
-              value: current,
-              dropdownColor: c.surface,
-              style: TextStyle(color: c.text),
-              items: const [
-                DropdownMenuItem(value: 'en', child: Text('English')),
-                DropdownMenuItem(value: 'fr', child: Text('Français')),
-                DropdownMenuItem(value: 'es', child: Text('Español')),
-              ],
-              onChanged: (v) async {
-                if (v != null) {
-                  context.read<LanguageProvider>().setLanguage(v);
-                  await _db.setSetting('language', v);
-                }
-              },
-            ),
+            builder: (_, current, _) => _languageFlagPicker(c, current),
           ),
         ),
       );
@@ -593,6 +609,104 @@ class _ParametersViewState extends State<ParametersView> {
     );
   }
 
+  /// Mobile-only language picker: flag squares, selected outlined in accent.
+  Widget _languageFlagPicker(PeadraColors c, String current) {
+    const options = [('en', '🇬🇧'), ('fr', '🇫🇷'), ('es', '🇪🇸')];
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final (code, flag) in options)
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: GestureDetector(
+              onTap: () async {
+                context.read<LanguageProvider>().setLanguage(code);
+                await _db.setSetting('language', code);
+              },
+              child: Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: c.surface,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: code == current ? c.accent : c.borderColor,
+                    width: 2,
+                  ),
+                ),
+                alignment: Alignment.center,
+                child: Text(flag, style: const TextStyle(fontSize: 24)),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// Mobile-only theme picker: wide rects, accent swatch left, selected
+  /// outlined in accent.
+  Widget _themeSwatchPicker(PeadraColors c, String current) {
+    const themes = [
+      ('system', 'param_system_theme'),
+      ('light', 'param_light_theme'),
+      ('dark', 'param_dark_theme'),
+      ('autumn', 'param_autumn_theme'),
+      ('summer', 'param_summer_theme'),
+      ('sakura', 'param_sakura_theme'),
+      ('spring', 'param_spring_theme'),
+      ('high_contrast_light', 'param_high_contrast_light_theme'),
+      ('high_contrast_dark', 'param_high_contrast_dark_theme'),
+    ];
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (int i = 0; i < themes.length; i++)
+          Padding(
+            padding: EdgeInsets.only(bottom: i == themes.length - 1 ? 0 : 8),
+            child: GestureDetector(
+              onTap: () async {
+                context.read<ThemeProvider>().setTheme(themes[i].$1);
+                await _db.setSetting('theme_mode', themes[i].$1);
+              },
+              child: Container(
+                width: double.infinity,
+                height: 48,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: c.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: themes[i].$1 == current ? c.accent : c.borderColor,
+                    width: 2,
+                  ),
+                ),
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        color: PeadraTheme.getColors(themes[i].$1)
+                          .representative,
+                        borderRadius: const BorderRadius.all(
+                            Radius.circular(6)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(Translator.t(themes[i].$2),
+                          style: TextStyle(color: c.text, fontSize: 14)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _themeDropdown(PeadraColors c, String current) {
     return DropdownButton<String>(
       value: current,
@@ -644,7 +758,7 @@ class _ParametersViewState extends State<ParametersView> {
           controlBuilder: (sheetCtx, c) =>
               Selector<ThemeProvider, String>(
             selector: (_, t) => t.themeName,
-            builder: (_, current, _) => _themeDropdown(c, current),
+            builder: (_, current, _) => _themeSwatchPicker(c, current),
           ),
         ),
       );
@@ -663,20 +777,10 @@ class _ParametersViewState extends State<ParametersView> {
       return _mobileSettingRow(
         colors,
         Translator.t('param_nav_labels'),
-        onTap: () => _showMobileSetting(
-          title: Translator.t('param_nav_labels'),
-          subtitle: Translator.t('param_nav_labels_desc'),
-          controlBuilder: (sheetCtx, c) =>
-              Selector<SettingsProvider, bool>(
-            selector: (_, s) => s.showNavLabels,
-            builder: (_, current, _) => Switch(
-              value: current,
-              onChanged: (value) => context
-                  .read<SettingsProvider>()
-                  .setShowNavLabels(value, _db),
-              activeThumbColor: c.accent,
-            ),
-          ),
+        trailing: _boolStateButton(
+          colors,
+          settings.showNavLabels,
+          (value) => settings.setShowNavLabels(value, _db),
         ),
       );
     }
@@ -698,20 +802,10 @@ class _ParametersViewState extends State<ParametersView> {
       return _mobileSettingRow(
         colors,
         Translator.t('param_stat_subtitles'),
-        onTap: () => _showMobileSetting(
-          title: Translator.t('param_stat_subtitles'),
-          subtitle: Translator.t('param_stat_subtitles_desc'),
-          controlBuilder: (sheetCtx, c) =>
-              Selector<SettingsProvider, bool>(
-            selector: (_, s) => s.showStatSubtitles,
-            builder: (_, current, _) => Switch(
-              value: current,
-              onChanged: (value) => context
-                  .read<SettingsProvider>()
-                  .setShowStatSubtitles(value, _db),
-              activeThumbColor: c.accent,
-            ),
-          ),
+        trailing: _boolStateButton(
+          colors,
+          settings.showStatSubtitles,
+          (value) => settings.setShowStatSubtitles(value, _db),
         ),
       );
     }
@@ -1142,20 +1236,10 @@ class _ParametersViewState extends State<ParametersView> {
       return _mobileSettingRow(
         colors,
         Translator.t('param_line_chart_dots'),
-        onTap: () => _showMobileSetting(
-          title: Translator.t('param_line_chart_dots'),
-          subtitle: Translator.t('param_line_chart_dots_desc'),
-          controlBuilder: (sheetCtx, c) =>
-              Selector<SettingsProvider, bool>(
-            selector: (_, s) => s.lineChartDots,
-            builder: (_, current, _) => Switch(
-              value: current,
-              onChanged: (value) => context
-                  .read<SettingsProvider>()
-                  .setLineChartDots(value, _db),
-              activeThumbColor: c.accent,
-            ),
-          ),
+        trailing: _boolStateButton(
+          colors,
+          settings.lineChartDots,
+          (value) => settings.setLineChartDots(value, _db),
         ),
       );
     }
@@ -1894,19 +1978,11 @@ class _ParametersViewState extends State<ParametersView> {
       return _mobileSettingRow(
         colors,
         Translator.t('param_biometric'),
-        onTap: () => _showMobileSetting(
-          title: Translator.t('param_biometric'),
-          subtitle: Translator.t('param_biometric_desc'),
-          controlBuilder: (sheetCtx, c) =>
-              Selector<SettingsProvider, bool>(
-            selector: (_, s) => s.biometricEnabled,
-            builder: (_, current, _) => Switch(
-              value: current,
-              onChanged: (value) => _setBiometricEnabled(
-                  value, context.read<SettingsProvider>()),
-              activeThumbColor: c.accent,
-            ),
-          ),
+        trailing: _boolStateButton(
+          colors,
+          settings.biometricEnabled,
+          (value) => _setBiometricEnabled(
+              value, context.read<SettingsProvider>()),
         ),
       );
     }
@@ -2330,20 +2406,10 @@ class _ParametersViewState extends State<ParametersView> {
       return _mobileSettingRow(
         colors,
         Translator.t('param_hide_update_notifications'),
-        onTap: () => _showMobileSetting(
-          title: Translator.t('param_hide_update_notifications'),
-          subtitle: Translator.t('param_hide_update_notifications_desc'),
-          controlBuilder: (sheetCtx, c) =>
-              Selector<SettingsProvider, bool>(
-            selector: (_, s) => s.hideUpdateNotifications,
-            builder: (_, current, _) => Switch(
-              value: current,
-              onChanged: (value) => context
-                  .read<SettingsProvider>()
-                  .setHideUpdateNotifications(value, _db),
-              activeThumbColor: c.accent,
-            ),
-          ),
+        trailing: _boolStateButton(
+          colors,
+          settings.hideUpdateNotifications,
+          (value) => settings.setHideUpdateNotifications(value, _db),
         ),
       );
     }

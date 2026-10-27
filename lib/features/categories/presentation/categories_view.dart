@@ -29,17 +29,18 @@ class _CategoriesViewState extends State<CategoriesView> {
   Map<String, Map<String, Map<String, double>>> _monthlyData = {};
   bool _loading = true;
   int _selectedMonths = 6;
+  int _visibleExpenses = 5;
+  int _visibleIncomes = 5;
   StreamSubscription<void>? _remoteDataSub;
   Map<String, Map<String, Map<String, double>>>? _spotsRef;
   final Map<String, ({List<FlSpot> spots, List<String> labels, AxisScale axis})>
-      _spotsCache = {};
+  _spotsCache = {};
 
   @override
   void initState() {
     super.initState();
     _loadData();
-    _remoteDataSub =
-        DatabaseManager.instance.onRemoteDataApplied.listen((_) {
+    _remoteDataSub = DatabaseManager.instance.onRemoteDataApplied.listen((_) {
       _loadData();
     });
   }
@@ -52,8 +53,10 @@ class _CategoriesViewState extends State<CategoriesView> {
 
   Future<void> _loadData() async {
     final now = DateTime.now();
-    final startDate =
-        now.subtract(Duration(days: _selectedMonths * 30)).toIso8601String().substring(0, 10);
+    final startDate = now
+        .subtract(Duration(days: _selectedMonths * 30))
+        .toIso8601String()
+        .substring(0, 10);
     final endDate = now.toIso8601String().substring(0, 10);
 
     final categoriesView = context.read<SettingsProvider>().categoriesView;
@@ -64,24 +67,28 @@ class _CategoriesViewState extends State<CategoriesView> {
           ? _db.getTopTags(
               transactionType: 'expense',
               numMonths: _selectedMonths,
-              limit: 5,
-              minCount: 2)
+              limit: 0,
+              minCount: 2,
+            )
           : _db.getTopDescriptions(
               transactionType: 'expense',
               numMonths: _selectedMonths,
-              limit: 5,
-              minCount: 2),
+              limit: 0,
+              minCount: 2,
+            ),
       isTagMode
           ? _db.getTopTags(
               transactionType: 'income',
               numMonths: _selectedMonths,
-              limit: 5,
-              minCount: 2)
+              limit: 0,
+              minCount: 2,
+            )
           : _db.getTopDescriptions(
               transactionType: 'income',
               numMonths: _selectedMonths,
-              limit: 5,
-              minCount: 2),
+              limit: 0,
+              minCount: 2,
+            ),
       isTagMode
           ? _db.getTagMonthlyData(startDate, endDate)
           : _db.getDescriptionMonthlyData(startDate, endDate),
@@ -93,6 +100,8 @@ class _CategoriesViewState extends State<CategoriesView> {
         _topIncomes = results[1] as List<Map<String, dynamic>>;
         _monthlyData =
             results[2] as Map<String, Map<String, Map<String, double>>>;
+        _visibleExpenses = 5;
+        _visibleIncomes = 5;
         _loading = false;
       });
     }
@@ -106,7 +115,7 @@ class _CategoriesViewState extends State<CategoriesView> {
     final lineChartDots = context.watch<SettingsProvider>().lineChartDots;
 
     return Padding(
-      padding: ResponsiveLayout.pagePaddingAll(context),
+      padding: ResponsiveLayout.pagePaddingAll(context).copyWith(bottom: 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -120,18 +129,29 @@ class _CategoriesViewState extends State<CategoriesView> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _buildSection(
-                            Translator.t('cat_top_expenses'),
-                            _topExpenses,
-                            colors.error,
-                            colors,
-                            showDots: lineChartDots),
+                          Translator.t('cat_top_expenses'),
+                          _topExpenses.take(_visibleExpenses).toList(),
+                          colors.error,
+                          colors,
+                          showDots: lineChartDots,
+                        ),
+                        if (_visibleExpenses < _topExpenses.length)
+                          _buildLoadMoreButton(
+                              () => setState(() => _visibleExpenses += 5),
+                              colors),
                         const SizedBox(height: 24),
                         _buildSection(
-                            Translator.t('cat_top_incomes'),
-                            _topIncomes,
-                            colors.success,
-                            colors,
-                            showDots: lineChartDots),
+                          Translator.t('cat_top_incomes'),
+                          _topIncomes.take(_visibleIncomes).toList(),
+                          colors.success,
+                          colors,
+                          showDots: lineChartDots,
+                        ),
+                        if (_visibleIncomes < _topIncomes.length)
+                          _buildLoadMoreButton(
+                              () => setState(() => _visibleIncomes += 5),
+                              colors),
+                        const SizedBox(height: 12),
                       ],
                     ),
                   ),
@@ -174,13 +194,7 @@ class _CategoriesViewState extends State<CategoriesView> {
         children: [
           title,
           const SizedBox(height: 12),
-          Row(
-            children: [
-              mergeBtn,
-              const SizedBox(width: 8),
-              renameBtn,
-            ],
-          ),
+          Row(children: [mergeBtn, const SizedBox(width: 8), renameBtn]),
           const SizedBox(height: 8),
           manageTags,
           const SizedBox(height: 12),
@@ -254,6 +268,19 @@ class _CategoriesViewState extends State<CategoriesView> {
     );
   }
 
+  Widget _buildLoadMoreButton(VoidCallback onPressed, PeadraColors colors) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: TextButton.icon(
+          onPressed: onPressed,
+          icon: const Icon(Icons.expand_more, size: 18),
+          label: Text(Translator.t('btn_load_more')),
+        ),
+      ),
+    );
+  }
+
   Widget _buildToolButton({
     required IconData icon,
     required String label,
@@ -288,26 +315,39 @@ class _CategoriesViewState extends State<CategoriesView> {
     );
   }
 
-  Widget _buildSection(String title, List<Map<String, dynamic>> items,
-      Color accentColor, PeadraColors colors, {required bool showDots}) {
-    final itemsWithGraph = items.map((item) {
-      final name = (item['description'] ?? item['tag']) as String;
-      final data = _spotsForDescription(name);
-      return (item: item, name: name, data: data);
-    }).where((e) => e.data.spots.length > 1).toList();
+  Widget _buildSection(
+    String title,
+    List<Map<String, dynamic>> items,
+    Color accentColor,
+    PeadraColors colors, {
+    required bool showDots,
+  }) {
+    final itemsWithGraph = items
+        .map((item) {
+          final name = (item['description'] ?? item['tag']) as String;
+          final data = _spotsForDescription(name);
+          return (item: item, name: name, data: data);
+        })
+        .where((e) => e.data.spots.length > 1)
+        .toList();
 
     if (itemsWithGraph.isEmpty) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title,
-              style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: colors.text)),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: colors.text,
+            ),
+          ),
           const SizedBox(height: 12),
-          Text(Translator.t('cat_no_data_period'),
-              style: TextStyle(color: colors.textSecondary)),
+          Text(
+            Translator.t('cat_no_data_period'),
+            style: TextStyle(color: colors.textSecondary),
+          ),
         ],
       );
     }
@@ -315,19 +355,22 @@ class _CategoriesViewState extends State<CategoriesView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title,
-            style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: colors.text)),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: colors.text,
+          ),
+        ),
         const SizedBox(height: 12),
         LayoutBuilder(
           builder: (context, constraints) {
             final crossAxisCount = constraints.maxWidth > 900
                 ? 3
                 : constraints.maxWidth > 550
-                    ? 2
-                    : 1;
+                ? 2
+                : 1;
 
             return GridView.builder(
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -352,7 +395,8 @@ class _CategoriesViewState extends State<CategoriesView> {
                 return Card(
                   color: colors.surface,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   child: Padding(
                     padding: const EdgeInsets.all(12),
                     child: Column(
@@ -386,12 +430,21 @@ class _CategoriesViewState extends State<CategoriesView> {
                         const SizedBox(height: 2),
                         Text(
                           '${Translator.t('cat_transactions_count').replaceAll('{count}', count.toString())} - ${Translator.t('cat_avg_per_month')}: ${avg.toStringAsFixed(2)}',
-                          style: TextStyle(color: colors.textSecondary, fontSize: 11),
+                          style: TextStyle(
+                            color: colors.textSecondary,
+                            fontSize: 11,
+                          ),
                         ),
                         const SizedBox(height: 8),
                         Expanded(
-                          child: _buildLineChart(spots, labels, axis,
-                              accentColor, colors, showDots: showDots),
+                          child: _buildLineChart(
+                            spots,
+                            labels,
+                            axis,
+                            accentColor,
+                            colors,
+                            showDots: showDots,
+                          ),
                         ),
                       ],
                     ),
@@ -406,12 +459,22 @@ class _CategoriesViewState extends State<CategoriesView> {
   }
 
   static const _monthKeys = [
-    'month_jan_abbr', 'month_feb_abbr', 'month_mar_abbr', 'month_apr_abbr', 'month_may_abbr', 'month_jun_abbr',
-    'month_jul_abbr', 'month_aug_abbr', 'month_sep_abbr', 'month_oct_abbr', 'month_nov_abbr', 'month_dec_abbr',
+    'month_jan_abbr',
+    'month_feb_abbr',
+    'month_mar_abbr',
+    'month_apr_abbr',
+    'month_may_abbr',
+    'month_jun_abbr',
+    'month_jul_abbr',
+    'month_aug_abbr',
+    'month_sep_abbr',
+    'month_oct_abbr',
+    'month_nov_abbr',
+    'month_dec_abbr',
   ];
 
   ({List<FlSpot> spots, List<String> labels, AxisScale axis})
-      _spotsForDescription(String description) {
+  _spotsForDescription(String description) {
     if (!identical(_monthlyData, _spotsRef)) {
       _spotsRef = _monthlyData;
       _spotsCache.clear();
@@ -424,8 +487,7 @@ class _CategoriesViewState extends State<CategoriesView> {
       // Cache empty results too so repeated misses stay cheap; the cache
       // is invalidated whenever _monthlyData identity changes above.
       const emptyAxis = AxisScale(min: 0, max: 100, interval: 25);
-      final empty =
-          (spots: <FlSpot>[], labels: <String>[], axis: emptyAxis);
+      final empty = (spots: <FlSpot>[], labels: <String>[], axis: emptyAxis);
       _spotsCache[description] = empty;
       return empty;
     }
@@ -437,8 +499,7 @@ class _CategoriesViewState extends State<CategoriesView> {
       final monthData = descData[sortedMonths[i]];
       final amount = (monthData?['total'] ?? 0).abs();
       spots.add(FlSpot(i.toDouble(), amount));
-      final monthNum =
-          int.tryParse(sortedMonths[i].split('-').last) ?? 1;
+      final monthNum = int.tryParse(sortedMonths[i].split('-').last) ?? 1;
       labels.add(Translator.t(_monthKeys[(monthNum - 1).clamp(0, 11)]));
     }
     double minY = spots.first.y;
@@ -447,15 +508,23 @@ class _CategoriesViewState extends State<CategoriesView> {
       if (s.y < minY) minY = s.y;
       if (s.y > maxY) maxY = s.y;
     }
-    final result = (spots: spots, labels: labels, axis: niceAxisScale(minY, maxY));
+    final result = (
+      spots: spots,
+      labels: labels,
+      axis: niceAxisScale(minY, maxY),
+    );
     _spotsCache[description] = result;
     return result;
   }
 
-  Widget _buildLineChart(List<FlSpot> spots, List<String> labels,
-      AxisScale axis, Color accentColor, PeadraColors colors,
-      {required bool showDots}) {
-
+  Widget _buildLineChart(
+    List<FlSpot> spots,
+    List<String> labels,
+    AxisScale axis,
+    Color accentColor,
+    PeadraColors colors, {
+    required bool showDots,
+  }) {
     return LineChart(
       LineChartData(
         minY: axis.min,
@@ -487,8 +556,10 @@ class _CategoriesViewState extends State<CategoriesView> {
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
                       labels[idx],
-                      style:
-                          TextStyle(color: colors.textSecondary, fontSize: 9),
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 9,
+                      ),
                     ),
                   );
                 }
@@ -507,16 +578,17 @@ class _CategoriesViewState extends State<CategoriesView> {
                   value >= 1000
                       ? '${(value / 1000).toStringAsFixed(1)}k'
                       : value.toStringAsFixed(0),
-                  style:
-                      TextStyle(color: colors.textSecondary, fontSize: 9),
+                  style: TextStyle(color: colors.textSecondary, fontSize: 9),
                 );
               },
             ),
           ),
-          topTitles:
-              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles:
-              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
         ),
         gridData: FlGridData(
           show: true,
@@ -556,39 +628,51 @@ class _CategoriesViewState extends State<CategoriesView> {
 
   static bool _isTransfer(String name) {
     final lower = name.trim().toLowerCase();
-    return lower.startsWith('transfer to ') || lower.startsWith('transfer from ');
+    return lower.startsWith('transfer to ') ||
+        lower.startsWith('transfer from ');
   }
 
   Future<void> _showMergeDialog(PeadraColors colors) async {
     final descriptions = await _db.getAllDescriptions();
-    final names = descriptions.map((d) => d.name).where((n) => !_isTransfer(n)).toList();
+    final names = descriptions
+        .map((d) => d.name)
+        .where((n) => !_isTransfer(n))
+        .toList();
 
     if (names.length < 2) {
       if (mounted) {
-        PeadraNotification.show(context, message: Translator.t('cat_need_at_least_two_descriptions'), type: NotificationType.warning);
+        PeadraNotification.show(
+          context,
+          message: Translator.t('cat_need_at_least_two_descriptions'),
+          type: NotificationType.warning,
+        );
       }
       return;
     }
 
     if (!mounted) return;
 
-    final result =
-        await showPeadraModal<({String source, String target})>(
+    final result = await showPeadraModal<({String source, String target})>(
       context: context,
-      builder: (ctx) =>
-          _MergeDescriptionsDialog(names: names, colors: colors),
+      builder: (ctx) => _MergeDescriptionsDialog(names: names, colors: colors),
     );
 
     if (result != null) {
-      final success =
-          await _db.mergeDescriptions(result.source, result.target);
+      final success = await _db.mergeDescriptions(result.source, result.target);
       if (mounted) {
         if (success) {
-          PeadraNotification.show(context, message: Translator.t('cat_merge_success')
-              .replaceAll('{source}', result.source)
-              .replaceAll('{target}', result.target));
+          PeadraNotification.show(
+            context,
+            message: Translator.t('cat_merge_success')
+                .replaceAll('{source}', result.source)
+                .replaceAll('{target}', result.target),
+          );
         } else {
-          PeadraNotification.show(context, message: Translator.t('cat_merge_failed'), type: NotificationType.error);
+          PeadraNotification.show(
+            context,
+            message: Translator.t('cat_merge_failed'),
+            type: NotificationType.error,
+          );
         }
         if (success) _loadData();
       }
@@ -597,36 +681,46 @@ class _CategoriesViewState extends State<CategoriesView> {
 
   Future<void> _showRenameDialog(PeadraColors colors) async {
     final descriptions = await _db.getAllDescriptions();
-    final names = descriptions.map((d) => d.name).where((n) => !_isTransfer(n)).toList();
+    final names = descriptions
+        .map((d) => d.name)
+        .where((n) => !_isTransfer(n))
+        .toList();
 
     if (names.isEmpty) {
       if (mounted) {
-        PeadraNotification.show(context, message: Translator.t('cat_no_descriptions'), type: NotificationType.warning);
+        PeadraNotification.show(
+          context,
+          message: Translator.t('cat_no_descriptions'),
+          type: NotificationType.warning,
+        );
       }
       return;
     }
 
     if (!mounted) return;
 
-    final result =
-        await showPeadraModal<({String selected, String newName})>(
+    final result = await showPeadraModal<({String selected, String newName})>(
       context: context,
-      builder: (ctx) =>
-          _RenameDescriptionDialog(names: names, colors: colors),
+      builder: (ctx) => _RenameDescriptionDialog(names: names, colors: colors),
     );
 
     if (result != null) {
-      final desc =
-          descriptions.firstWhere((d) => d.name == result.selected);
-      final success =
-          await _db.renameDescription(desc.id!, result.newName);
+      final desc = descriptions.firstWhere((d) => d.name == result.selected);
+      final success = await _db.renameDescription(desc.id!, result.newName);
       if (mounted) {
         if (success) {
-          PeadraNotification.show(context, message: Translator.t('cat_rename_success')
-              .replaceAll('{old}', result.selected)
-              .replaceAll('{new}', result.newName));
+          PeadraNotification.show(
+            context,
+            message: Translator.t('cat_rename_success')
+                .replaceAll('{old}', result.selected)
+                .replaceAll('{new}', result.newName),
+          );
         } else {
-          PeadraNotification.show(context, message: Translator.t('cat_rename_failed'), type: NotificationType.error);
+          PeadraNotification.show(
+            context,
+            message: Translator.t('cat_rename_failed'),
+            type: NotificationType.error,
+          );
         }
         if (success) _loadData();
       }
@@ -649,16 +743,14 @@ class _MergeDescriptionsDialog extends StatefulWidget {
   final List<String> names;
   final PeadraColors colors;
 
-  const _MergeDescriptionsDialog(
-      {required this.names, required this.colors});
+  const _MergeDescriptionsDialog({required this.names, required this.colors});
 
   @override
   State<_MergeDescriptionsDialog> createState() =>
       _MergeDescriptionsDialogState();
 }
 
-class _MergeDescriptionsDialogState
-    extends State<_MergeDescriptionsDialog> {
+class _MergeDescriptionsDialogState extends State<_MergeDescriptionsDialog> {
   String? _sourceName;
   String? _targetName;
 
@@ -668,26 +760,31 @@ class _MergeDescriptionsDialogState
     final names = widget.names;
 
     return PeadraModal(
-      title: Text(Translator.t('cat_merge_descriptions'),
-          style: TextStyle(color: colors.text)),
+      title: Text(
+        Translator.t('cat_merge_descriptions'),
+        style: TextStyle(color: colors.text),
+      ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(Translator.t('cat_merge_hint'),
-              style: TextStyle(
-                  color: colors.textSecondary, fontSize: 12)),
+          Text(
+            Translator.t('cat_merge_hint'),
+            style: TextStyle(color: colors.textSecondary, fontSize: 12),
+          ),
           const SizedBox(height: 16),
-          Text(Translator.t('cat_merge_from'),
-              style: TextStyle(
-                  color: colors.text, fontWeight: FontWeight.w500)),
+          Text(
+            Translator.t('cat_merge_from'),
+            style: TextStyle(color: colors.text, fontWeight: FontWeight.w500),
+          ),
           const SizedBox(height: 4),
           DropdownButtonFormField<String>(
             initialValue: _sourceName,
             decoration: InputDecoration(
               hintText: Translator.t('cat_merge_source'),
               border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8)),
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
             items: names
                 .where((n) => n != _targetName)
@@ -696,16 +793,18 @@ class _MergeDescriptionsDialogState
             onChanged: (v) => setState(() => _sourceName = v),
           ),
           const SizedBox(height: 16),
-          Text(Translator.t('cat_merge_to'),
-              style: TextStyle(
-                  color: colors.text, fontWeight: FontWeight.w500)),
+          Text(
+            Translator.t('cat_merge_to'),
+            style: TextStyle(color: colors.text, fontWeight: FontWeight.w500),
+          ),
           const SizedBox(height: 4),
           DropdownButtonFormField<String>(
             initialValue: _targetName,
             decoration: InputDecoration(
               hintText: Translator.t('cat_merge_target'),
               border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8)),
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
             items: names
                 .where((n) => n != _sourceName)
@@ -722,12 +821,16 @@ class _MergeDescriptionsDialogState
         ),
         ElevatedButton(
           onPressed: (_sourceName != null && _targetName != null)
-              ? () => Navigator.pop(context,
-                  (source: _sourceName!, target: _targetName!))
+              ? () => Navigator.pop(context, (
+                  source: _sourceName!,
+                  target: _targetName!,
+                ))
               : null,
           style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
-          child: Text(Translator.t('cat_merge_btn'),
-              style: const TextStyle(color: Colors.white)),
+          child: Text(
+            Translator.t('cat_merge_btn'),
+            style: const TextStyle(color: Colors.white),
+          ),
         ),
       ],
     );
@@ -738,16 +841,14 @@ class _RenameDescriptionDialog extends StatefulWidget {
   final List<String> names;
   final PeadraColors colors;
 
-  const _RenameDescriptionDialog(
-      {required this.names, required this.colors});
+  const _RenameDescriptionDialog({required this.names, required this.colors});
 
   @override
   State<_RenameDescriptionDialog> createState() =>
       _RenameDescriptionDialogState();
 }
 
-class _RenameDescriptionDialogState
-    extends State<_RenameDescriptionDialog> {
+class _RenameDescriptionDialogState extends State<_RenameDescriptionDialog> {
   String? _selectedName;
   final _newNameCtrl = TextEditingController();
 
@@ -769,26 +870,31 @@ class _RenameDescriptionDialogState
     final names = widget.names;
 
     return PeadraModal(
-      title: Text(Translator.t('cat_rename_description'),
-          style: TextStyle(color: colors.text)),
+      title: Text(
+        Translator.t('cat_rename_description'),
+        style: TextStyle(color: colors.text),
+      ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(Translator.t('cat_rename_hint'),
-              style: TextStyle(
-                  color: colors.textSecondary, fontSize: 12)),
+          Text(
+            Translator.t('cat_rename_hint'),
+            style: TextStyle(color: colors.textSecondary, fontSize: 12),
+          ),
           const SizedBox(height: 16),
-          Text(Translator.t('cat_select_description_to_rename'),
-              style: TextStyle(
-                  color: colors.text, fontWeight: FontWeight.w500)),
+          Text(
+            Translator.t('cat_select_description_to_rename'),
+            style: TextStyle(color: colors.text, fontWeight: FontWeight.w500),
+          ),
           const SizedBox(height: 4),
           DropdownButtonFormField<String>(
             initialValue: _selectedName,
             decoration: InputDecoration(
               hintText: Translator.t('cat_select_description'),
               border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8)),
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
             items: names
                 .map((n) => DropdownMenuItem(value: n, child: Text(n)))
@@ -801,9 +907,10 @@ class _RenameDescriptionDialogState
             },
           ),
           const SizedBox(height: 16),
-          Text(Translator.t('cat_new_name_label'),
-              style: TextStyle(
-                  color: colors.text, fontWeight: FontWeight.w500)),
+          Text(
+            Translator.t('cat_new_name_label'),
+            style: TextStyle(color: colors.text, fontWeight: FontWeight.w500),
+          ),
           const SizedBox(height: 4),
           TextField(
             controller: _newNameCtrl,
@@ -811,7 +918,8 @@ class _RenameDescriptionDialogState
             decoration: InputDecoration(
               hintText: Translator.t('cat_new_name'),
               border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8)),
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
           ),
         ],
@@ -824,14 +932,16 @@ class _RenameDescriptionDialogState
         ElevatedButton(
           onPressed:
               (_selectedName != null && _newNameCtrl.text.trim().isNotEmpty)
-                  ? () => Navigator.pop(context, (
-                        selected: _selectedName!,
-                        newName: _newNameCtrl.text.trim()
-                      ))
-                  : null,
+              ? () => Navigator.pop(context, (
+                  selected: _selectedName!,
+                  newName: _newNameCtrl.text.trim(),
+                ))
+              : null,
           style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
-          child: Text(Translator.t('cat_rename_btn'),
-              style: const TextStyle(color: Colors.white)),
+          child: Text(
+            Translator.t('cat_rename_btn'),
+            style: const TextStyle(color: Colors.white),
+          ),
         ),
       ],
     );
@@ -867,17 +977,21 @@ class _ManageTagsDialogState extends State<_ManageTagsDialog> {
     final colors = widget.colors;
 
     return PeadraModal(
-      title: Text(Translator.t('tag_manage'),
-          style: TextStyle(
-            color: colors.text,
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-          )),
+      title: Text(
+        Translator.t('tag_manage'),
+        style: TextStyle(
+          color: colors.text,
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
       content: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 450),
         child: _tags.isEmpty
-            ? Text(Translator.t('tag_no_tags'),
-                style: TextStyle(color: colors.textSecondary))
+            ? Text(
+                Translator.t('tag_no_tags'),
+                style: TextStyle(color: colors.textSecondary),
+              )
             : ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 400),
                 child: SingleChildScrollView(
@@ -886,8 +1000,7 @@ class _ManageTagsDialogState extends State<_ManageTagsDialog> {
                     children: [
                       for (final tag in _tags) ...[
                         _buildTagTile(tag, colors),
-                        if (tag != _tags.last)
-                          const Divider(height: 1),
+                        if (tag != _tags.last) const Divider(height: 1),
                       ],
                     ],
                   ),
@@ -907,10 +1020,7 @@ class _ManageTagsDialogState extends State<_ManageTagsDialog> {
     final tagColor = Color(int.parse(tag.color.replaceFirst('#', '0xFF')));
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: CircleAvatar(
-        backgroundColor: tagColor,
-        radius: 14,
-      ),
+      leading: CircleAvatar(backgroundColor: tagColor, radius: 14),
       title: Text(tag.name, style: TextStyle(color: colors.text)),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -930,11 +1040,14 @@ class _ManageTagsDialogState extends State<_ManageTagsDialog> {
               final confirmed = await showPeadraModal<bool>(
                 context: context,
                 builder: (ctx) => PeadraModal(
-                  title: Text(Translator.t('tag_delete'),
-                      style: TextStyle(color: colors.text)),
+                  title: Text(
+                    Translator.t('tag_delete'),
+                    style: TextStyle(color: colors.text),
+                  ),
                   content: Text(
-                    Translator.t('tag_delete_confirm')
-                        .replaceAll('{name}', tag.name),
+                    Translator.t(
+                      'tag_delete_confirm',
+                    ).replaceAll('{name}', tag.name),
                     style: TextStyle(color: colors.textSecondary),
                   ),
                   actions: [
@@ -944,8 +1057,10 @@ class _ManageTagsDialogState extends State<_ManageTagsDialog> {
                     ),
                     TextButton(
                       onPressed: () => Navigator.pop(ctx, true),
-                      child: Text(Translator.t('btn_delete'),
-                          style: TextStyle(color: colors.error)),
+                      child: Text(
+                        Translator.t('btn_delete'),
+                        style: TextStyle(color: colors.error),
+                      ),
                     ),
                   ],
                 ),
@@ -954,7 +1069,9 @@ class _ManageTagsDialogState extends State<_ManageTagsDialog> {
                 await widget.db.deleteTag(tag.id!);
                 if (mounted) {
                   PeadraNotification.show(
-                      context, message: Translator.t('tag_delete_success'));
+                    context,
+                    message: Translator.t('tag_delete_success'),
+                  );
                 }
                 _loadTags();
               }
@@ -968,11 +1085,7 @@ class _ManageTagsDialogState extends State<_ManageTagsDialog> {
   Future<void> _showEditTagDialog(Tag tag, PeadraColors colors) async {
     await showPeadraModal(
       context: context,
-      builder: (ctx) => _EditTagDialog(
-        db: widget.db,
-        tag: tag,
-        colors: colors,
-      ),
+      builder: (ctx) => _EditTagDialog(db: widget.db, tag: tag, colors: colors),
     );
   }
 }
@@ -982,8 +1095,11 @@ class _EditTagDialog extends StatefulWidget {
   final Tag tag;
   final PeadraColors colors;
 
-  const _EditTagDialog(
-      {required this.db, required this.tag, required this.colors});
+  const _EditTagDialog({
+    required this.db,
+    required this.tag,
+    required this.colors,
+  });
 
   @override
   State<_EditTagDialog> createState() => _EditTagDialogState();
@@ -1013,8 +1129,10 @@ class _EditTagDialogState extends State<_EditTagDialog> {
     final tagColors = PeadraTheme.presetColors;
 
     return PeadraModal(
-      title: Text(Translator.t('btn_edit'),
-          style: TextStyle(color: colors.text)),
+      title: Text(
+        Translator.t('btn_edit'),
+        style: TextStyle(color: colors.text),
+      ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1026,13 +1144,15 @@ class _EditTagDialogState extends State<_EditTagDialog> {
             decoration: InputDecoration(
               labelText: Translator.t('tag_name'),
               border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8)),
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
           ),
           const SizedBox(height: 12),
-          Text(Translator.t('tag_color'),
-              style: TextStyle(
-                  color: colors.text, fontWeight: FontWeight.w500)),
+          Text(
+            Translator.t('tag_color'),
+            style: TextStyle(color: colors.text, fontWeight: FontWeight.w500),
+          ),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
@@ -1048,14 +1168,12 @@ class _EditTagDialogState extends State<_EditTagDialog> {
                     color: Color(int.parse(c.replaceFirst('#', '0xFF'))),
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color:
-                          isSelected ? colors.text : Colors.transparent,
+                      color: isSelected ? colors.text : Colors.transparent,
                       width: 2,
                     ),
                   ),
                   child: isSelected
-                      ? const Icon(Icons.check,
-                          color: Colors.white, size: 16)
+                      ? const Icon(Icons.check, color: Colors.white, size: 16)
                       : null,
                 ),
               );
@@ -1073,13 +1191,18 @@ class _EditTagDialogState extends State<_EditTagDialog> {
               ? null
               : () async {
                   final name = _nameController.text.trim();
-                  await widget.db.updateTag(widget.tag.id!,
-                      name: name, color: _selectedColor);
+                  await widget.db.updateTag(
+                    widget.tag.id!,
+                    name: name,
+                    color: _selectedColor,
+                  );
                   if (context.mounted) Navigator.pop(context);
                 },
           style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
-          child: Text(Translator.t('btn_save'),
-              style: const TextStyle(color: Colors.white)),
+          child: Text(
+            Translator.t('btn_save'),
+            style: const TextStyle(color: Colors.white),
+          ),
         ),
       ],
     );

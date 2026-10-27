@@ -36,20 +36,24 @@ class _GoalEntry {
   final String overStr;
 
   _GoalEntry(this.goal, this.current, [Decimal? upcoming])
-      : upcoming = upcoming ?? Decimal.zero,
-        currentStr = CurrencyService.formatAmount(current, goal.currency),
-        targetStr =
-            CurrencyService.formatAmount(goal.targetAmount, goal.currency),
-        remainingStr = CurrencyService.formatAmount(
-            goal.targetAmount - current > Decimal.zero
-                ? goal.targetAmount - current
-                : Decimal.zero,
-            goal.currency),
-        overStr = CurrencyService.formatAmount(
-            current - goal.targetAmount > Decimal.zero
-                ? current - goal.targetAmount
-                : Decimal.zero,
-            goal.currency);
+    : upcoming = upcoming ?? Decimal.zero,
+      currentStr = CurrencyService.formatAmount(current, goal.currency),
+      targetStr = CurrencyService.formatAmount(
+        goal.targetAmount,
+        goal.currency,
+      ),
+      remainingStr = CurrencyService.formatAmount(
+        goal.targetAmount - current > Decimal.zero
+            ? goal.targetAmount - current
+            : Decimal.zero,
+        goal.currency,
+      ),
+      overStr = CurrencyService.formatAmount(
+        current - goal.targetAmount > Decimal.zero
+            ? current - goal.targetAmount
+            : Decimal.zero,
+        goal.currency,
+      );
 }
 
 class _BudgetsViewState extends State<BudgetsView> {
@@ -66,8 +70,7 @@ class _BudgetsViewState extends State<BudgetsView> {
     super.initState();
     _today = DateTime.now().toIso8601String().substring(0, 10);
     _loadData();
-    _remoteDataSub =
-        DatabaseManager.instance.onRemoteDataApplied.listen((_) {
+    _remoteDataSub = DatabaseManager.instance.onRemoteDataApplied.listen((_) {
       _loadData();
     });
   }
@@ -123,13 +126,22 @@ class _BudgetsViewState extends State<BudgetsView> {
 
     if (mounted) {
       setState(() {
-        _accountsById = {for (final a in accounts) if (a.id != null) a.id!: a};
-        _tagsById = {for (final t in tags) if (t.id != null) t.id!: t};
+        _accountsById = {
+          for (final a in accounts)
+            if (a.id != null) a.id!: a,
+        };
+        _tagsById = {
+          for (final t in tags)
+            if (t.id != null) t.id!: t,
+        };
         _entries = [
           for (final g in goals)
             if (g.id != null)
-              _GoalEntry(g, currents[g.id!] ?? Decimal.zero,
-                  upcomings[g.id!] ?? Decimal.zero),
+              _GoalEntry(
+                g,
+                currents[g.id!] ?? Decimal.zero,
+                upcomings[g.id!] ?? Decimal.zero,
+              ),
         ];
         _today = DateTime.now().toIso8601String().substring(0, 10);
         _loading = false;
@@ -140,7 +152,9 @@ class _BudgetsViewState extends State<BudgetsView> {
   Color _goalColor(BudgetGoal goal, PeadraColors colors) {
     if (goal.isTotalAssets) return colors.accent;
     if (goal.isAccount) {
-      final acct = goal.accountId == null ? null : _accountsById[goal.accountId];
+      final acct = goal.accountId == null
+          ? null
+          : _accountsById[goal.accountId];
       if (acct == null) return colors.placeholderColor;
       return PeadraTheme.hexToColor(acct.color);
     }
@@ -152,7 +166,9 @@ class _BudgetsViewState extends State<BudgetsView> {
   String _goalTitle(BudgetGoal goal) {
     if (goal.isTotalAssets) return Translator.t('budget_type_total');
     if (goal.isAccount) {
-      final acct = goal.accountId == null ? null : _accountsById[goal.accountId];
+      final acct = goal.accountId == null
+          ? null
+          : _accountsById[goal.accountId];
       return acct?.name ?? Translator.t('budget_deleted_item');
     }
     final tag = goal.tagId == null ? null : _tagsById[goal.tagId];
@@ -169,15 +185,20 @@ class _BudgetsViewState extends State<BudgetsView> {
   }
 
   Future<void> _confirmDelete(_GoalEntry entry) async {
-    final colors =
-        PeadraTheme.getColors(context.read<ThemeProvider>().themeName);
+    final colors = PeadraTheme.getColors(
+      context.read<ThemeProvider>().themeName,
+    );
     final confirmed = await showPeadraModal<bool>(
       context: context,
       builder: (ctx) => PeadraModal(
-        title: Text(Translator.t('budget_delete_goal'),
-            style: TextStyle(color: colors.text)),
-        content: Text(Translator.t('budget_delete_confirm'),
-            style: TextStyle(color: colors.textSecondary)),
+        title: Text(
+          Translator.t('budget_delete_goal'),
+          style: TextStyle(color: colors.text),
+        ),
+        content: Text(
+          Translator.t('budget_delete_confirm'),
+          style: TextStyle(color: colors.textSecondary),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -185,10 +206,13 @@ class _BudgetsViewState extends State<BudgetsView> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style:
-                ElevatedButton.styleFrom(backgroundColor: colors.deleteColor),
-            child: Text(Translator.t('btn_delete'),
-                style: const TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: colors.deleteColor,
+            ),
+            child: Text(
+              Translator.t('btn_delete'),
+              style: const TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -206,7 +230,7 @@ class _BudgetsViewState extends State<BudgetsView> {
     final isPhone = ResponsiveLayout.isPhone(context);
 
     return Padding(
-      padding: ResponsiveLayout.pagePaddingAll(context),
+      padding: ResponsiveLayout.pagePaddingAll(context).copyWith(bottom: 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -240,24 +264,25 @@ class _BudgetsViewState extends State<BudgetsView> {
           const SizedBox(height: 16),
           Expanded(
             child: _loading
-                ? Center(
-                    child: CircularProgressIndicator(color: colors.accent))
+                ? Center(child: CircularProgressIndicator(color: colors.accent))
                 : _entries.isEmpty
-                    ? Center(
-                        child: Text(
-                          Translator.t('budget_no_goals'),
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                              color: colors.textSecondary, fontSize: 16),
-                        ),
-                      )
-                    : ListView.separated(
-                        itemCount: _entries.length,
-                        separatorBuilder: (_, _) =>
-                            const SizedBox(height: 12),
-                        itemBuilder: (context, index) =>
-                            _buildGoalCard(_entries[index], colors),
+                ? Center(
+                    child: Text(
+                      Translator.t('budget_no_goals'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 16,
                       ),
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    itemCount: _entries.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) =>
+                        _buildGoalCard(_entries[index], colors),
+                  ),
           ),
         ],
       ),
@@ -268,8 +293,10 @@ class _BudgetsViewState extends State<BudgetsView> {
     return ElevatedButton.icon(
       onPressed: () => _openGoalDialog(),
       icon: const Icon(Icons.add, size: 18, color: Colors.white),
-      label: Text(Translator.t('budget_set_goal'),
-          style: const TextStyle(color: Colors.white)),
+      label: Text(
+        Translator.t('budget_set_goal'),
+        style: const TextStyle(color: Colors.white),
+      ),
       style: ElevatedButton.styleFrom(
         backgroundColor: colors.accent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -315,26 +342,36 @@ class _BudgetsViewState extends State<BudgetsView> {
     String deadlineLabel;
     Color deadlineColor = colors.textSecondary;
     if (goal.isMonthly) {
-      deadlineLabel = Translator.t('budget_monthly_ends',
-          params: {'date': Translator.formatDate(deadlineStr)});
+      deadlineLabel = Translator.t(
+        'budget_monthly_ends',
+        params: {'date': Translator.formatDate(deadlineStr)},
+      );
     } else if (isOverdue) {
-      deadlineLabel = Translator.t('budget_overdue',
-          params: {'date': Translator.formatDate(deadlineStr)});
+      deadlineLabel = Translator.t(
+        'budget_overdue',
+        params: {'date': Translator.formatDate(deadlineStr)},
+      );
       deadlineColor = colors.error;
     } else {
-      deadlineLabel = Translator.t('budget_due_on',
-          params: {'date': Translator.formatDate(deadlineStr)});
+      deadlineLabel = Translator.t(
+        'budget_due_on',
+        params: {'date': Translator.formatDate(deadlineStr)},
+      );
     }
 
     String statusLabel;
     Color statusColor = colors.textSecondary;
     if (goal.isExpenseGoal) {
       if (current <= target) {
-        statusLabel = Translator.t('budget_remaining',
-            params: {'amount': entry.remainingStr});
+        statusLabel = Translator.t(
+          'budget_remaining',
+          params: {'amount': entry.remainingStr},
+        );
       } else {
-        statusLabel = Translator.t('budget_exceeded_by',
-            params: {'amount': entry.overStr});
+        statusLabel = Translator.t(
+          'budget_exceeded_by',
+          params: {'amount': entry.overStr},
+        );
         statusColor = colors.error;
       }
     } else {
@@ -342,8 +379,10 @@ class _BudgetsViewState extends State<BudgetsView> {
         statusLabel = Translator.t('budget_reached');
         statusColor = colors.success;
       } else {
-        statusLabel = Translator.t('budget_remaining',
-            params: {'amount': entry.remainingStr});
+        statusLabel = Translator.t(
+          'budget_remaining',
+          params: {'amount': entry.remainingStr},
+        );
       }
     }
 
@@ -388,8 +427,11 @@ class _BudgetsViewState extends State<BudgetsView> {
                 ),
                 PopupMenuButton<String>(
                   tooltip: Translator.t('btn_menu'),
-                  icon: Icon(Icons.more_vert,
-                      color: colors.placeholderColor, size: 20),
+                  icon: Icon(
+                    Icons.more_vert,
+                    color: colors.placeholderColor,
+                    size: 20,
+                  ),
                   onSelected: (v) {
                     if (v == 'edit') {
                       _openGoalDialog(existing: goal);
@@ -402,8 +444,11 @@ class _BudgetsViewState extends State<BudgetsView> {
                       value: 'edit',
                       child: Row(
                         children: [
-                          Icon(Icons.edit_outlined,
-                              size: 18, color: colors.text),
+                          Icon(
+                            Icons.edit_outlined,
+                            size: 18,
+                            color: colors.text,
+                          ),
                           const SizedBox(width: 8),
                           Text(Translator.t('btn_edit')),
                         ],
@@ -413,12 +458,16 @@ class _BudgetsViewState extends State<BudgetsView> {
                       value: 'delete',
                       child: Row(
                         children: [
-                          Icon(Icons.delete_outline,
-                              size: 18, color: colors.deleteColor),
+                          Icon(
+                            Icons.delete_outline,
+                            size: 18,
+                            color: colors.deleteColor,
+                          ),
                           const SizedBox(width: 8),
-                          Text(Translator.t('btn_delete'),
-                              style:
-                                  TextStyle(color: colors.deleteColor)),
+                          Text(
+                            Translator.t('btn_delete'),
+                            style: TextStyle(color: colors.deleteColor),
+                          ),
                         ],
                       ),
                     ),
@@ -448,20 +497,20 @@ class _BudgetsViewState extends State<BudgetsView> {
               children: [
                 Expanded(
                   child: Text(
-                    Translator.t('budget_of_target', params: {
-                      'current': currentStr,
-                      'target': targetStr,
-                    }),
-                    style: TextStyle(
-                        fontSize: 13, color: colors.textSecondary),
+                    Translator.t(
+                      'budget_of_target',
+                      params: {'current': currentStr, 'target': targetStr},
+                    ),
+                    style: TextStyle(fontSize: 13, color: colors.textSecondary),
                   ),
                 ),
                 Text(
                   statusLabel,
                   style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: statusColor),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: statusColor,
+                  ),
                 ),
               ],
             ),
@@ -492,10 +541,8 @@ class _GoalBarPainter extends CustomPainter {
     final h = size.height;
     if (w <= 0 || h <= 0) return;
     final radius = Radius.circular(h / 2);
-    final track =
-        RRect.fromRectAndRadius(Offset.zero & size, radius);
-    canvas.drawRRect(
-        track, Paint()..color = color.withValues(alpha: 0.2));
+    final track = RRect.fromRectAndRadius(Offset.zero & size, radius);
+    canvas.drawRRect(track, Paint()..color = color.withValues(alpha: 0.2));
 
     final solidRatio = current.clamp(0.0, 1.0);
     final solidW = w * solidRatio;
@@ -506,8 +553,7 @@ class _GoalBarPainter extends CustomPainter {
       );
     }
 
-    final projectionEnd =
-        w * min(1.0, solidRatio + max(0.0, upcoming));
+    final projectionEnd = w * min(1.0, solidRatio + max(0.0, upcoming));
     // The outline starts inside the solid fill so both read as a single
     // continuous bar; the overlap is repainted with the solid color below.
     // Without solid progress it starts from the beginning of the track.
@@ -545,7 +591,5 @@ class _GoalBarPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _GoalBarPainter old) =>
-      old.color != color ||
-      old.current != current ||
-      old.upcoming != upcoming;
+      old.color != color || old.current != current || old.upcoming != upcoming;
 }

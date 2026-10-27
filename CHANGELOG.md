@@ -4,12 +4,15 @@
 
 ### New
 
-- A better onboarding for new users
-- A new work-hours equivalent option
+- Tools view : Convert currencies, split bills and view how much you will pay for your loan !
+- Enhanced total asset amount on mobile
+- Improved settings UI on mobile
+- Enhanced onboarding language selection
 
 ### Fixes
 
-- Fix modals overlaping with your phone's bottom bar (on some phones).
+- Small line between some views and the navigation bar on mobile
+- Retrieve the Load more button in category view
 
 ## Known issues
 

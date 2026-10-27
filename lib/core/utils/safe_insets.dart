@@ -31,6 +31,22 @@ double bottomSafeInset(BuildContext context) {
   return math.max(physicalPadding(context).bottom, keyboard);
 }
 
+/// Bottom reserve inside a sheet for the system bar.
+///
+/// The keyboard is already handled OUTSIDE the sheet (padding an ancestor
+/// so the sheet shrinks and slides above it, which covers the system bar
+/// too) — nothing extra is needed here while the keyboard is open.
+///
+/// When the keyboard is closed, keep the content just clear of a 3-button
+/// navigation bar, minus a small allowance: the bar's top few pixels are
+/// dead space, and letting the sheet dip into them keeps the gap from
+/// feeling enormous. Floors at 4 so short modals keep a thin margin on
+/// gesture-nav phones too.
+double residualBottomInset(BuildContext context) {
+  final physical = physicalPadding(context).bottom;
+  return math.max(4, physical - 8);
+}
+
 /// Top inset of the phone (status bar / display cutout).
 double topSafeInset(BuildContext context) => physicalPadding(context).top;
 
@@ -40,8 +56,14 @@ double topSafeInset(BuildContext context) => physicalPadding(context).top;
 /// reaches the status bar. A tall one (a long form, a long list) would
 /// otherwise slide under the status bar, hiding its header. Capping the
 /// height keeps the sheet below the status bar and lets its content
-/// scroll instead.
+/// scroll instead. The keyboard is subtracted too: an open keyboard
+/// shortens the usable screen, and the sheet already sits above it.
 double maxSheetHeight(BuildContext context) {
   final screenHeight = MediaQuery.sizeOf(context).height;
-  return math.max(0, screenHeight - topSafeInset(context));
+  return math.max(
+    0,
+    screenHeight -
+        topSafeInset(context) -
+        MediaQuery.viewInsetsOf(context).bottom,
+  );
 }

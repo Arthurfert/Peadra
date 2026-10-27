@@ -16,7 +16,7 @@ class NavView {
   final String key;
 
   /// Index in the dashboard views list (0 dashboard, 1 transactions,
-  /// 2 budgets, 3 accounts, 4 categories, 5 settings).
+  /// 2 budgets, 3 accounts, 4 categories, 5 settings, 6 tools).
   final int viewIndex;
 
   final IconData iconOff;
@@ -70,6 +70,13 @@ const List<NavView> allNavViews = [
     labelKey: 'nav_categories',
   ),
   NavView(
+    key: 'tools',
+    viewIndex: 6,
+    iconOff: Icons.build_outlined,
+    iconOn: Icons.build,
+    labelKey: 'nav_tools',
+  ),
+  NavView(
     key: 'settings',
     viewIndex: 5,
     iconOff: Icons.settings_outlined,
@@ -86,6 +93,7 @@ const List<String> defaultNavOrder = [
   'budgets',
   'categories',
   'accounts',
+  'tools',
   'settings',
 ];
 

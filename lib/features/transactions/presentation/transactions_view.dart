@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' show max;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
@@ -76,7 +77,17 @@ class _TransactionsViewState extends State<TransactionsView> {
   final Set<String> _selectedAccountIds = {};
   int _displayLimit = 30;
   bool _hasMore = true;
-  int _lastRawFetchCount = 0;
+  // Rows already fetched for the current filter set (Load more / Load all
+  // results). Plain refreshes — sync pushes, edit/delete reloads, settings
+  // changes — keep at least this many rows so loaded pages survive; filter
+  // changes start over at the display limit.
+  // Rows already fetched for the current filter set (Load more / Load all
+  // results). Plain refreshes — sync pushes, edit/delete reloads, settings
+  // changes — keep at least this many rows so loaded pages survive; filter
+  // changes start over at the display limit. It is also the offset of the
+  // next "Load more" fetch, so rows are never fetched twice.
+  int _loadedRowCount = 0;
+  String? _lastFilterSignature;
   Timer? _searchDebounce;
   StreamSubscription<void>? _remoteDataSub;
 
@@ -295,11 +306,15 @@ class _TransactionsViewState extends State<TransactionsView> {
     bool loadMore = false,
     bool loadAll = false,
   }) async {
-    final limit = (loadMore || loadAll) ? null : _displayLimit;
-    final offset = loadMore ? _lastRawFetchCount : 0;
+    final signature = _filterSignature();
+    final sameFilters = signature == _lastFilterSignature;
+    final fetchOffset = loadMore ? _loadedRowCount : 0;
+    final limit = (loadMore || loadAll)
+        ? null
+        : max(_displayLimit, sameFilters ? _loadedRowCount : 0);
     var txns = await _db.getTransactions(
       limit: limit,
-      offset: offset,
+      offset: fetchOffset,
       searchQuery: _searchQuery,
       accountIds: _selectedAccountIds.isEmpty ? null : _selectedAccountIds,
       tagIds: _selectedTagIds.isEmpty ? null : _selectedTagIds,
@@ -385,12 +400,19 @@ class _TransactionsViewState extends State<TransactionsView> {
           _displayItems = newItems;
         }
         _refreshSplits(_displayItems);
-        _lastRawFetchCount = rawCount;
-        _hasMore = !loadAll && rawCount == _displayLimit;
+        _loadedRowCount = fetchOffset + rawCount;
+        _lastFilterSignature = signature;
+        _hasMore = !(loadMore || loadAll) &&
+            limit != null &&
+            rawCount == limit;
         _loading = false;
       });
     }
   }
+
+  String _filterSignature() =>
+      '$_searchQuery|${_selectedTagIds.toList()..sort()}'
+      '|${_selectedAccountIds.toList()..sort()}';
 
   void _showTransactionModal({
     TransactionWithDetails? editTxn,

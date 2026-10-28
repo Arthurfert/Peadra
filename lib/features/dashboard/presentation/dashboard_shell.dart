@@ -35,6 +35,42 @@ class DashboardShell extends StatefulWidget {
   State<DashboardShell> createState() => _DashboardShellState();
 }
 
+/// Renders the nav views in a lazy keep-alive stack: a view mounts on its
+/// first visit and then stays alive (Offstage) while another tab is shown,
+/// so its state — data already fetched and any "Load more" results — is not
+/// discarded on every switch. Only the active view is laid out and painted.
+class LazyKeepAliveStack extends StatefulWidget {
+  final List<Widget> views;
+  final int selectedIndex;
+
+  const LazyKeepAliveStack({
+    super.key,
+    required this.views,
+    required this.selectedIndex,
+  });
+
+  @override
+  State<LazyKeepAliveStack> createState() => _LazyKeepAliveStackState();
+}
+
+class _LazyKeepAliveStackState extends State<LazyKeepAliveStack> {
+  final Set<int> _visited = {};
+
+  @override
+  Widget build(BuildContext context) {
+    // Monotonic: a view never unmounts again within a session.
+    _visited.add(widget.selectedIndex);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        for (int i = 0; i < widget.views.length; i++)
+          if (_visited.contains(i))
+            Offstage(offstage: i != widget.selectedIndex, child: widget.views[i]),
+      ],
+    );
+  }
+}
+
 class _DashboardShellState extends State<DashboardShell> {
   int _selectedIndex = 0;
   Decimal _totalPatrimony = Decimal.zero;

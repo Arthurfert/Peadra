@@ -4,6 +4,7 @@ import '../../../core/i18n/translator.dart';
 import '../../../core/theme/peadra_colors.dart';
 import '../../../core/utils/nav_views.dart';
 import '../../../core/utils/safe_insets.dart';
+import 'dashboard_shell.dart';
 
 class DashboardShellMobile extends StatelessWidget {
   final int selectedIndex;
@@ -99,7 +100,7 @@ class DashboardShellMobile extends StatelessWidget {
   }
 
   Widget _buildContent() {
-    return views[selectedIndex.clamp(0, views.length - 1)];
+    return LazyKeepAliveStack(views: views, selectedIndex: selectedIndex);
   }
 
   Widget _buildBottomNav(BuildContext context) {

@@ -5,6 +5,7 @@
 ### New
 
 - You can now pin a transaction to find it easily
+- A little bit of animations
 
 ### Fixes
 

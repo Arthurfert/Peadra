@@ -14,6 +14,7 @@ class Transaction {
   final String? recurringId;
   final String? createdAt;
   final String? updatedAt;
+  final bool pinned;
 
   Transaction({
     this.id,
@@ -29,6 +30,7 @@ class Transaction {
     this.recurringId,
     this.createdAt,
     this.updatedAt,
+    this.pinned = false,
   });
 
   bool get isIncome => transactionType == 'income';
@@ -49,6 +51,7 @@ class Transaction {
     String? notes,
     String? recurringId,
     bool clearRecurring = false,
+    bool? pinned,
   }) =>
       Transaction(
         id: id ?? this.id,
@@ -65,6 +68,7 @@ class Transaction {
             clearRecurring ? null : (recurringId ?? this.recurringId),
         createdAt: createdAt,
         updatedAt: updatedAt,
+        pinned: pinned ?? this.pinned,
       );
 
   Map<String, dynamic> toMap() => {
@@ -79,6 +83,7 @@ class Transaction {
         'currency': currency,
         'notes': notes,
         'recurring_id': recurringId,
+        'pinned': pinned ? 1 : 0,
       };
 
   factory Transaction.fromMap(Map<String, dynamic> map) => Transaction(
@@ -95,6 +100,7 @@ class Transaction {
         recurringId: map['recurring_id'] as String?,
         createdAt: map['created_at'] as String?,
         updatedAt: map['updated_at'] as String?,
+        pinned: (map['pinned'] as int? ?? 0) != 0,
       );
 
   static Decimal _parseDecimal(dynamic value) {
@@ -128,6 +134,7 @@ class TransactionWithDetails extends Transaction {
     super.recurringId,
     super.createdAt,
     super.updatedAt,
+    super.pinned,
     this.accountName,
     this.accountColor,
     this.accountCurrency,
@@ -152,6 +159,7 @@ class TransactionWithDetails extends Transaction {
         recurringId: map['recurring_id'] as String?,
         createdAt: map['created_at'] as String?,
         updatedAt: map['updated_at'] as String?,
+        pinned: (map['pinned'] as int? ?? 0) != 0,
         accountName: map['account_name'] as String?,
         accountColor: map['account_color'] as String?,
         accountCurrency: map['account_currency'] as String?,

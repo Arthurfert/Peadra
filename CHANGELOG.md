@@ -4,7 +4,7 @@
 
 ### New
 
-
+- You can now pin a transaction to find it easily
 
 ### Fixes
 

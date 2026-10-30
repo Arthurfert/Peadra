@@ -244,9 +244,9 @@ class _AccountsViewState extends State<AccountsView> {
             const SizedBox(height: 4),
             FittedBox(
               fit: BoxFit.scaleDown,
-              child: Text(
+              child: _RollingDigitsText(
                 CurrencyService.formatAmount(acct.balance, displayCurrency),
-                style: TextStyle(
+                TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                   color: acct.balance >= Decimal.zero
@@ -296,12 +296,12 @@ class _AccountsViewState extends State<AccountsView> {
                     Translator.t('acc_checking_total'),
                     style: TextStyle(fontSize: 12, color: colors.textSecondary),
                   ),
-                  Text(
+                  _RollingDigitsText(
                     CurrencyService.formatAmount(
                       _checkingConverted,
                       targetCurrency,
                     ),
-                    style: TextStyle(
+                    TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: colors.text,
@@ -764,5 +764,44 @@ class _AccountsViewState extends State<AccountsView> {
         );
       }).toList(),
     );
+  }
+}
+
+/// Odometer-style reveal for the hero amount: every character starts
+/// clipped below the line and rolls up to rest, each delayed by its index
+/// so the digits arrive one after another, left to right. Plays once when
+/// the widget first appears; later rebuilds keep the digits at rest.
+class _RollingDigitsText extends StatelessWidget {
+  const _RollingDigitsText(this.text, this.style);
+
+  final String text;
+  final TextStyle style;
+
+  static const _duration = Duration(milliseconds: 600);
+
+  @override
+  Widget build(BuildContext context) {
+    final line = (style.height ?? style.fontSize ?? 16.0) * 1.25;
+    final charWidgets = <Widget>[];
+    for (var i = 0; i < text.length; i++) {
+      const maxStagger = 0.5; // last char starts at half the duration
+      final start = text.length <= 1 ? 0.0 : (i / text.length) * maxStagger;
+      charWidgets.add(ClipRect(
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 1.0, end: 0.0),
+          duration: _duration,
+          curve: Interval(start, 1.0, curve: Curves.easeOutCubic),
+          builder: (context, translateY, child) {
+            return Transform.translate(
+              offset: Offset(0, translateY * line),
+              child: Text(text[i], style: style),
+            );
+          },
+        ),
+      ));
+    }
+    // Per-character Text boxes skip kerning; for amounts the difference
+    // is invisible.
+    return Row(mainAxisSize: MainAxisSize.min, children: charWidgets);
   }
 }

@@ -20,10 +20,12 @@ import 'recurring_view.dart';
 import '../../../shared/widgets/peadra_notification.dart';
 import '../../../shared/widgets/peadra_modal.dart';
 import '../../../shared/widgets/tag_chip.dart';
+import '../../../shared/widgets/appear_animation.dart';
 import '../../../core/services/currency_service.dart';
 import '../../../core/responsive/responsive_layout.dart';
 import '../../../core/utils/transfer_texts.dart';
 import '../../../core/utils/safe_insets.dart';
+import '../../dashboard/presentation/dashboard_shell.dart';
 
 class _DisplayItem {
   final TransactionWithDetails? transaction;
@@ -88,6 +90,12 @@ class _TransactionsViewState extends State<TransactionsView> {
   // next "Load more" fetch, so rows are never fetched twice.
   int _loadedRowCount = 0;
   String? _lastFilterSignature;
+  // Bumped each time the view is re-entered after having been left; row
+  // entrance animations key on it to replay on refocus while the cached
+  // rows stay in memory (see LazyKeepAliveStack).
+  int _appearEpoch = 0;
+  ValueNotifier<int>? _activationSignal;
+  int? _lastReplayAt;
   Timer? _searchDebounce;
   StreamSubscription<void>? _remoteDataSub;
 
@@ -98,6 +106,23 @@ class _TransactionsViewState extends State<TransactionsView> {
     _remoteDataSub = DatabaseManager.instance.onRemoteDataApplied.listen((_) {
       _loadData();
     });
+    // The shell re-shows this cached view instead of remounting it (keep-
+    // alive stack); listen so rows replay their entrance on every refocus.
+    // This view always sits at slot 1 of the shell's views list.
+    final signal = LazyKeepAliveStack.activationSignals[1];
+    _activationSignal = signal;
+    signal.addListener(_onViewReactivated);
+  }
+
+  void _onViewReactivated() {
+    // A replay starting within ~100 ms of the previous one is invisible
+    // (it just restarts the same entrance); several activation triggers
+    // can land across consecutive frames, so suppress instead of
+    // coalescing per-frame.
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (_lastReplayAt != null && now - _lastReplayAt! < 100) return;
+    _lastReplayAt = now;
+    if (mounted) setState(() => _appearEpoch++);
   }
 
   @override
@@ -115,6 +140,7 @@ class _TransactionsViewState extends State<TransactionsView> {
   void dispose() {
     _searchDebounce?.cancel();
     _remoteDataSub?.cancel();
+    _activationSignal?.removeListener(_onViewReactivated);
     _tagScrollController.dispose();
     _accountScrollController.dispose();
     super.dispose();
@@ -1464,6 +1490,7 @@ class _TransactionsViewState extends State<TransactionsView> {
             colors,
             defaultCurrency,
             upcoming: true,
+            viewIndex: index,
           );
         }
         itemIndex -= visibleUpcoming;
@@ -1472,6 +1499,7 @@ class _TransactionsViewState extends State<TransactionsView> {
             currentItems[itemIndex],
             colors,
             defaultCurrency,
+            viewIndex: index,
           );
         }
         return Padding(
@@ -1554,6 +1582,7 @@ class _TransactionsViewState extends State<TransactionsView> {
     PeadraColors colors,
     String defaultCurrency, {
     bool upcoming = false,
+    int viewIndex = 0,
   }) {
     if (item.isMergedTransfer) {
       return _buildMergedTransferTile(
@@ -1561,6 +1590,7 @@ class _TransactionsViewState extends State<TransactionsView> {
         colors,
         defaultCurrency,
         upcoming: upcoming,
+        viewIndex: viewIndex,
       );
     }
 
@@ -1724,7 +1754,14 @@ class _TransactionsViewState extends State<TransactionsView> {
       ),
     );
 
-    return Padding(padding: const EdgeInsets.only(bottom: 8), child: card);
+    // Keyed by the appear epoch: bumping it (view re-entered) recreates the
+    // wrapper state so the staggered blur entrance replays, while plain
+    // refreshes — same epoch — keep the settled rows untouched.
+    return AppearAnimation(
+      key: ValueKey('appear:${txn.id}:$_appearEpoch'),
+      index: viewIndex,
+      child: Padding(padding: const EdgeInsets.only(bottom: 8), child: card),
+    );
   }
 
   /// The trailing amount of a tile, with the work-hours equivalent stacked
@@ -1772,6 +1809,7 @@ class _TransactionsViewState extends State<TransactionsView> {
     PeadraColors colors,
     String defaultCurrency, {
     bool upcoming = false,
+    int viewIndex = 0,
   }) {
     final txn = item.transaction!;
     final pairedTxn = item.pairedTransaction;
@@ -1847,6 +1885,10 @@ class _TransactionsViewState extends State<TransactionsView> {
       ),
     );
 
-    return Padding(padding: const EdgeInsets.only(bottom: 8), child: card);
+    return AppearAnimation(
+      key: ValueKey('appear:${txn.id}:$_appearEpoch'),
+      index: viewIndex,
+      child: Padding(padding: const EdgeInsets.only(bottom: 8), child: card),
+    );
   }
 }

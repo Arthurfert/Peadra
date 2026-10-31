@@ -43,6 +43,14 @@ class LazyKeepAliveStack extends StatefulWidget {
   final List<Widget> views;
   final int selectedIndex;
 
+  /// Bumped each time a view is re-selected after having been left. Views
+  /// listen to their slot to replay entrance animations on refocus without
+  /// remounting (mounted views play their animation once, on first build).
+  static final List<ValueNotifier<int>> activationSignals = List.generate(
+    7,
+    (_) => ValueNotifier<int>(0),
+  );
+
   const LazyKeepAliveStack({
     super.key,
     required this.views,
@@ -57,6 +65,14 @@ class _LazyKeepAliveStackState extends State<LazyKeepAliveStack> {
   final Set<int> _visited = {};
 
   @override
+  void didUpdateWidget(LazyKeepAliveStack oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.selectedIndex != oldWidget.selectedIndex) {
+      LazyKeepAliveStack.activationSignals[widget.selectedIndex].value++;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     // Monotonic: a view never unmounts again within a session.
     _visited.add(widget.selectedIndex);
@@ -65,7 +81,15 @@ class _LazyKeepAliveStackState extends State<LazyKeepAliveStack> {
       children: [
         for (int i = 0; i < widget.views.length; i++)
           if (_visited.contains(i))
-            Offstage(offstage: i != widget.selectedIndex, child: widget.views[i]),
+            // Keyed by slot: visiting a numerically smaller slot later
+            // inserts an entry before this one; without the key the shifted
+            // position would dispose and remount the hidden view (fresh
+            // state, replaying its entrance offstage).
+            Offstage(
+              key: ValueKey('vis:$i'),
+              offstage: i != widget.selectedIndex,
+              child: widget.views[i],
+            ),
       ],
     );
   }

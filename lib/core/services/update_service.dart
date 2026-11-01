@@ -53,7 +53,7 @@ class UpdateService {
   factory UpdateService() => _instance;
   UpdateService._();
 
-  static const String _repoOwner = 'anomalyco';
+  static const String _repoOwner = 'Arthurfert';
   static const String _repoName = 'Peadra';
 
   /// Check for new version on GitHub Releases.

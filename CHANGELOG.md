@@ -10,6 +10,8 @@
 ### Fixes
 
 - Transaction loading optimization
+- Updates not appearing
+- Interests compute in tools view
 
 ## Known issues
 

@@ -484,13 +484,15 @@ class _ToolsViewState extends State<ToolsView> {
   // Cumulative repartition of what you pay month by month: the loan
   // (principal) share and the interest share, both growing to their final
   // value — the two crossing sums always total the monthly payment.
+  // The rate is annual; only 1/12 of it is applied each month.
   (List<FlSpot>, List<FlSpot>, double, {double total})? _loanPoints() {
     final start = _parseOf(_startCtrl);
-    final rm = _parseOf(_rateCtrl) / 100;
+    final annual = _parseOf(_rateCtrl) / 100;
     final months = int.tryParse(_monthsCtrl.text.trim()) ?? 0;
-    if (start <= 0 || months < 1 || months > 1200 || rm < 0 || rm > 1) {
+    if (start <= 0 || months < 1 || months > 1200 || annual < 0 || annual > 1) {
       return null;
     }
+    final rm = annual / 12;
     // Annuity formula: fixed monthly payment so the balance reaches 0.
     final monthly =
         rm > 0 ? start * rm / (1 - 1 / _pow1p(rm, months)) : start / months;

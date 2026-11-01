@@ -133,8 +133,7 @@ class _DashboardShellState extends State<DashboardShell> {
   void initState() {
     super.initState();
     _checkForUpdate();
-    _remoteDataSub =
-        DatabaseManager.instance.onRemoteDataApplied.listen((_) {
+    _remoteDataSub = DatabaseManager.instance.onRemoteDataApplied.listen((_) {
       _loadTotalPatrimony();
     });
   }
@@ -152,8 +151,7 @@ class _DashboardShellState extends State<DashboardShell> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final currency =
-        context.watch<SettingsProvider>().currency;
+    final currency = context.watch<SettingsProvider>().currency;
     if (currency != _lastCurrency) {
       _lastCurrency = currency;
       _loadTotalPatrimony();
@@ -196,9 +194,9 @@ class _DashboardShellState extends State<DashboardShell> {
     final db = DatabaseManager.instance;
     unawaited(SyncService.instance.stop());
     auth.logout(db);
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const LoginView()),
-    );
+    Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginView()));
   }
 
   Widget _buildUpdateBanner(PeadraColors colors, UpdateInfo update) {
@@ -210,53 +208,59 @@ class _DashboardShellState extends State<DashboardShell> {
         child: InkWell(
           onTap: isPhone ? () => _onNavTap(5) : null,
           child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Row(
-            children: [
-              Icon(Icons.system_update, color: colors.success, size: 20),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  Translator.t('param_update_status_available',
-                      params: {'version': update.version}),
-                  style: TextStyle(
-                    color: colors.text,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-              if (!isPhone) ...[
-                TextButton(
-                  onPressed: () => _showChangelogDialog(colors, update),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              children: [
+                Icon(Icons.system_update, color: colors.success, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
                   child: Text(
-                    Translator.t('param_see_whats_new'),
+                    Translator.t(
+                      'param_update_status_available',
+                      params: {'version': update.version},
+                    ),
                     style: TextStyle(
-                      color: colors.success,
+                      color: colors.text,
+                      fontSize: 13,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
                 ),
-                TextButton(
-                  onPressed: () => UpdateService().openDownloadUrl(update.downloadUrl),
-                  child: Text(
-                    Translator.t('param_install_update'),
-                    style: TextStyle(
-                      color: colors.success,
-                      fontWeight: FontWeight.w600,
+                if (!isPhone) ...[
+                  TextButton(
+                    onPressed: () => _showChangelogDialog(colors, update),
+                    child: Text(
+                      Translator.t('param_see_whats_new'),
+                      style: TextStyle(
+                        color: colors.success,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
+                  TextButton(
+                    onPressed: () =>
+                        UpdateService().openDownloadUrl(update.downloadUrl),
+                    child: Text(
+                      Translator.t('param_install_update'),
+                      style: TextStyle(
+                        color: colors.success,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+                IconButton(
+                  icon: Icon(
+                    Icons.close,
+                    color: colors.placeholderColor,
+                    size: 18,
+                  ),
+                  onPressed: () =>
+                      setState(() => _updateBannerDismissed = true),
                 ),
               ],
-              IconButton(
-                icon:
-                    Icon(Icons.close, color: colors.placeholderColor, size: 18),
-                onPressed: () =>
-                    setState(() => _updateBannerDismissed = true),
-              ),
-            ],
+            ),
           ),
-        ),
         ),
       ),
     );
@@ -280,15 +284,13 @@ class _DashboardShellState extends State<DashboardShell> {
               ),
             ),
             IconButton(
-              icon: Icon(Icons.close,
-                  color: colors.placeholderColor, size: 20),
+              icon: Icon(Icons.close, color: colors.placeholderColor, size: 20),
               onPressed: () => Navigator.of(ctx).pop(),
             ),
           ],
         ),
         content: ConstrainedBox(
-          constraints:
-              const BoxConstraints(maxWidth: 500, maxHeight: 500),
+          constraints: const BoxConstraints(maxWidth: 500, maxHeight: 500),
           child: SingleChildScrollView(
             child: notes.isNotEmpty
                 ? Markdown(
@@ -297,43 +299,78 @@ class _DashboardShellState extends State<DashboardShell> {
                     padding: const EdgeInsets.fromLTRB(4, 8, 4, 4),
                     selectable: true,
                     styleSheet: MarkdownStyleSheet(
-                          p: TextStyle(color: colors.text, fontSize: 14, height: 1.5),
-                          h1: TextStyle(color: colors.text, fontSize: 22, fontWeight: FontWeight.bold),
-                          h2: TextStyle(color: colors.text, fontSize: 18, fontWeight: FontWeight.bold),
-                          h3: TextStyle(color: colors.text, fontSize: 16, fontWeight: FontWeight.w600),
-                          h4: TextStyle(color: colors.text, fontSize: 14, fontWeight: FontWeight.w600),
-                          h5: TextStyle(color: colors.text, fontSize: 13, fontWeight: FontWeight.w600),
-                          h6: TextStyle(color: colors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
-                          blockquote: TextStyle(color: colors.textSecondary, fontSize: 14, height: 1.5),
-                          blockquoteDecoration: BoxDecoration(
-                            border: Border(
-                              left: BorderSide(color: colors.accent, width: 3),
-                            ),
-                          ),
-                          code: TextStyle(
-                            color: colors.textSecondary,
-                            fontSize: 13,
-                            fontFamily: 'monospace',
-                            backgroundColor: colors.bg,
-                          ),
-                          codeblockDecoration: BoxDecoration(
-                            color: colors.bg,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          listBullet: TextStyle(color: colors.text, fontSize: 14),
-                          listIndent: 24,
-                          horizontalRuleDecoration: BoxDecoration(
-                            border: Border(
-                              top: BorderSide(color: colors.borderColor, width: 1),
-                            ),
-                          ),
-                          a: TextStyle(color: colors.accent, decoration: TextDecoration.underline),
-                        ),
-                      )
-                    : Text(
-                        Translator.t('param_changelog_empty'),
-                        style: TextStyle(color: colors.placeholderColor),
+                      p: TextStyle(
+                        color: colors.text,
+                        fontSize: 14,
+                        height: 1.5,
                       ),
+                      h1: TextStyle(
+                        color: colors.text,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      h2: TextStyle(
+                        color: colors.text,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      h3: TextStyle(
+                        color: colors.text,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      h4: TextStyle(
+                        color: colors.text,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      h5: TextStyle(
+                        color: colors.text,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      h6: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      blockquote: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 14,
+                        height: 1.5,
+                      ),
+                      blockquoteDecoration: BoxDecoration(
+                        border: Border(
+                          left: BorderSide(color: colors.accent, width: 3),
+                        ),
+                      ),
+                      code: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 13,
+                        fontFamily: 'monospace',
+                        backgroundColor: colors.bg,
+                      ),
+                      codeblockDecoration: BoxDecoration(
+                        color: colors.bg,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      listBullet: TextStyle(color: colors.text, fontSize: 14),
+                      listIndent: 24,
+                      horizontalRuleDecoration: BoxDecoration(
+                        border: Border(
+                          top: BorderSide(color: colors.borderColor, width: 1),
+                        ),
+                      ),
+                      a: TextStyle(
+                        color: colors.accent,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  )
+                : Text(
+                    Translator.t('param_changelog_empty'),
+                    style: TextStyle(color: colors.placeholderColor),
+                  ),
           ),
         ),
       ),
@@ -345,16 +382,21 @@ class _DashboardShellState extends State<DashboardShell> {
     final themeName = context.select<ThemeProvider, String>((t) => t.themeName);
     final colors = PeadraTheme.getColors(themeName);
     final isDark = context.select<ThemeProvider, bool>((t) => t.isDark);
-    final showNavLabels =
-        context.select<SettingsProvider, bool>((s) => s.showNavLabels);
-    final navOrder =
-        context.select<SettingsProvider, List<String>>((s) => s.navOrder);
-    final availableUpdate =
-        context.select<UpdateProvider, UpdateInfo?>((u) => u.availableUpdate);
-    final hideUpdateNotifications =
-        context.select<SettingsProvider, bool>((s) => s.hideUpdateNotifications);
+    final showNavLabels = context.select<SettingsProvider, bool>(
+      (s) => s.showNavLabels,
+    );
+    final navOrder = context.select<SettingsProvider, List<String>>(
+      (s) => s.navOrder,
+    );
+    final availableUpdate = context.select<UpdateProvider, UpdateInfo?>(
+      (u) => u.availableUpdate,
+    );
+    final hideUpdateNotifications = context.select<SettingsProvider, bool>(
+      (s) => s.hideUpdateNotifications,
+    );
 
-    final updateBanner = (availableUpdate != null &&
+    final updateBanner =
+        (availableUpdate != null &&
             !_updateBannerDismissed &&
             !hideUpdateNotifications)
         ? _buildUpdateBanner(colors, availableUpdate)

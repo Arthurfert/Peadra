@@ -68,7 +68,8 @@ class _AppearAnimationState extends State<AppearAnimation>
       animation: _curve,
       builder: (context, child) {
         final t = _curve.value;
-        if (t >= 1.0) return child!;
+        // No settle flip to the raw child: a type change in the child slot
+        // remounts the subtree and would restart any animation inside it.
         return Opacity(
           opacity: t,
           child: Transform.translate(

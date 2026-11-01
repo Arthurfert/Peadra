@@ -168,11 +168,7 @@ class _AccountsViewState extends State<AccountsView> {
                         return AppearAnimation(
                           key: ValueKey('appear:${account.id}:$_appearEpoch'),
                           index: index,
-                          child: _buildAccountCard(
-                            account,
-                            colors,
-                            currency,
-                          ),
+                          child: _buildAccountCard(account, colors, currency),
                         );
                       }
                       return _buildCreateAccountCard(colors);
@@ -821,19 +817,21 @@ class _RollingDigitsText extends StatelessWidget {
     for (var i = 0; i < text.length; i++) {
       const maxStagger = 0.5; // last char starts at half the duration
       final start = text.length <= 1 ? 0.0 : (i / text.length) * maxStagger;
-      charWidgets.add(ClipRect(
-        child: TweenAnimationBuilder<double>(
-          tween: Tween(begin: 1.0, end: 0.0),
-          duration: _duration,
-          curve: Interval(start, 1.0, curve: Curves.easeOutCubic),
-          builder: (context, translateY, child) {
-            return Transform.translate(
-              offset: Offset(0, translateY * line),
-              child: Text(text[i], style: style),
-            );
-          },
+      charWidgets.add(
+        ClipRect(
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 1.0, end: 0.0),
+            duration: _duration,
+            curve: Interval(start, 1.0, curve: Curves.easeOutCubic),
+            builder: (context, translateY, child) {
+              return Transform.translate(
+                offset: Offset(0, translateY * line),
+                child: Text(text[i], style: style),
+              );
+            },
+          ),
         ),
-      ));
+      );
     }
     // Per-character Text boxes skip kerning; for amounts the difference
     // is invisible.

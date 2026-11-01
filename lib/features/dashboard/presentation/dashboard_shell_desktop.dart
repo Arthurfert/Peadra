@@ -4,6 +4,7 @@ import 'package:decimal/decimal.dart';
 import '../../../core/i18n/translator.dart';
 import '../../../core/theme/peadra_colors.dart';
 import '../../../core/responsive/responsive_layout.dart';
+import 'dashboard_shell.dart';
 
 class DashboardShellDesktop extends StatelessWidget {
   final int selectedIndex;
@@ -148,7 +149,10 @@ class DashboardShellDesktop extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
       ),
       clipBehavior: Clip.antiAlias,
-      child: views[selectedIndex.clamp(0, views.length - 1)],
+      child: LazyKeepAliveStack(
+        views: views,
+        selectedIndex: selectedIndex.clamp(0, views.length - 1),
+      ),
     );
   }
 

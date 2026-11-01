@@ -497,6 +497,7 @@ class DatabaseManager {
         currency TEXT DEFAULT 'EUR',
         notes TEXT,
         recurring_id TEXT,
+        pinned INTEGER NOT NULL DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id),
@@ -652,6 +653,14 @@ class DatabaseManager {
     // backfills the new indexes on existing databases.
     if (oldVersion < 9) {
       await _createIndexes(db);
+    }
+    // v9 -> v10: pinned flag on transactions. Not a schema rebuild: the
+    // added column keeps every existing row (is_deleted etc.) and CRDT
+    // metadata intact, and syncs as a normal column change.
+    if (oldVersion < 10) {
+      await db.execute(
+        'ALTER TABLE transactions ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0',
+      );
     }
   }
 
@@ -1635,6 +1644,20 @@ void setUserId(String userId) {
 
   // ==================== TRANSACTIONS ====================
 
+  /// Pins (or unpins) a transaction so its row stands out in the list.
+  ///
+  /// updated_at is deliberately NOT bumped: the day-grouped, last-edited
+  /// sort would otherwise pull the transaction to the top of its day, and
+  /// pinning must not change a row's position.
+  Future<void> setTransactionPinned(String id, bool pinned) async {
+    if (_userId == null) return;
+    final db = await database;
+    await db.execute(
+      'UPDATE transactions SET pinned = ? WHERE id = ? AND user_id = ?',
+      [pinned ? 1 : 0, id, _userId],
+    );
+  }
+
   Future<String?> getAccountCurrency(String accountId) async {
     final cacheKey = '${_userId}_$accountId';
     if (_accountCurrencyCache.containsKey(cacheKey)) {
@@ -1778,6 +1801,7 @@ void setUserId(String userId) {
       recurringId: r['recurring_id'] as String?,
       createdAt: r['created_at'] as String?,
       updatedAt: r['updated_at'] as String?,
+      pinned: (r['pinned'] as int? ?? 0) != 0,
       accountName: decrypted[2] as String?,
       accountColor: r['account_color'] as String?,
       accountCurrency: r['account_currency'] as String?,

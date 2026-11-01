@@ -13,6 +13,8 @@ import '../../../core/theme/peadra_colors.dart';
 import '../../../core/services/currency_service.dart';
 import '../../../core/responsive/responsive_layout.dart';
 import '../../../shared/widgets/peadra_modal.dart';
+import '../../../shared/widgets/appear_animation.dart';
+import '../../dashboard/presentation/dashboard_shell.dart';
 
 class AccountsView extends StatefulWidget {
   const AccountsView({super.key});
@@ -29,6 +31,12 @@ class _AccountsViewState extends State<AccountsView> {
   bool _loading = true;
   String _lastCurrency = '';
   StreamSubscription<void>? _remoteDataSub;
+  // Bumped each time the view is re-entered after having been left; cards
+  // entrance animations key on it to replay on refocus while the loaded
+  // accounts stay in memory (see LazyKeepAliveStack).
+  int _appearEpoch = 0;
+  ValueNotifier<int>? _activationSignal;
+  int? _lastReplayAt;
 
   @override
   void initState() {
@@ -36,6 +44,23 @@ class _AccountsViewState extends State<AccountsView> {
     _remoteDataSub = DatabaseManager.instance.onRemoteDataApplied.listen((_) {
       _loadAccounts();
     });
+    // The shell re-shows this cached view instead of remounting it (keep-
+    // alive stack); listen so cards replay their entrance on every refocus.
+    // This view always sits at slot 3 of the shell's views list.
+    final signal = LazyKeepAliveStack.activationSignals[3];
+    _activationSignal = signal;
+    signal.addListener(_onViewReactivated);
+  }
+
+  void _onViewReactivated() {
+    // A replay starting within ~100 ms of the previous one is invisible
+    // (it just restarts the same entrance); several activation triggers
+    // can land across consecutive frames, so suppress instead of
+    // coalescing per-frame.
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (_lastReplayAt != null && now - _lastReplayAt! < 100) return;
+    _lastReplayAt = now;
+    if (mounted) setState(() => _appearEpoch++);
   }
 
   @override
@@ -51,6 +76,7 @@ class _AccountsViewState extends State<AccountsView> {
   @override
   void dispose() {
     _remoteDataSub?.cancel();
+    _activationSignal?.removeListener(_onViewReactivated);
     super.dispose();
   }
 
@@ -134,10 +160,15 @@ class _AccountsViewState extends State<AccountsView> {
                     itemCount: _accounts.length + 1,
                     itemBuilder: (context, index) {
                       if (index < _accounts.length) {
-                        return _buildAccountCard(
-                          _accounts[index],
-                          colors,
-                          currency,
+                        final account = _accounts[index];
+                        // Keyed by the appear epoch: bumping it (view
+                        // re-entered) recreates the wrapper state so the
+                        // staggered entrance replays, while plain refreshes
+                        // — same epoch — keep the settled cards untouched.
+                        return AppearAnimation(
+                          key: ValueKey('appear:${account.id}:$_appearEpoch'),
+                          index: index,
+                          child: _buildAccountCard(account, colors, currency),
                         );
                       }
                       return _buildCreateAccountCard(colors);
@@ -244,9 +275,9 @@ class _AccountsViewState extends State<AccountsView> {
             const SizedBox(height: 4),
             FittedBox(
               fit: BoxFit.scaleDown,
-              child: Text(
+              child: _RollingDigitsText(
                 CurrencyService.formatAmount(acct.balance, displayCurrency),
-                style: TextStyle(
+                TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                   color: acct.balance >= Decimal.zero
@@ -296,12 +327,12 @@ class _AccountsViewState extends State<AccountsView> {
                     Translator.t('acc_checking_total'),
                     style: TextStyle(fontSize: 12, color: colors.textSecondary),
                   ),
-                  Text(
+                  _RollingDigitsText(
                     CurrencyService.formatAmount(
                       _checkingConverted,
                       targetCurrency,
                     ),
-                    style: TextStyle(
+                    TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: colors.text,
@@ -764,5 +795,46 @@ class _AccountsViewState extends State<AccountsView> {
         );
       }).toList(),
     );
+  }
+}
+
+/// Odometer-style reveal for the hero amount: every character starts
+/// clipped below the line and rolls up to rest, each delayed by its index
+/// so the digits arrive one after another, left to right. Plays once when
+/// the widget first appears; later rebuilds keep the digits at rest.
+class _RollingDigitsText extends StatelessWidget {
+  const _RollingDigitsText(this.text, this.style);
+
+  final String text;
+  final TextStyle style;
+
+  static const _duration = Duration(milliseconds: 600);
+
+  @override
+  Widget build(BuildContext context) {
+    final line = (style.height ?? style.fontSize ?? 16.0) * 1.25;
+    final charWidgets = <Widget>[];
+    for (var i = 0; i < text.length; i++) {
+      const maxStagger = 0.5; // last char starts at half the duration
+      final start = text.length <= 1 ? 0.0 : (i / text.length) * maxStagger;
+      charWidgets.add(
+        ClipRect(
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 1.0, end: 0.0),
+            duration: _duration,
+            curve: Interval(start, 1.0, curve: Curves.easeOutCubic),
+            builder: (context, translateY, child) {
+              return Transform.translate(
+                offset: Offset(0, translateY * line),
+                child: Text(text[i], style: style),
+              );
+            },
+          ),
+        ),
+      );
+    }
+    // Per-character Text boxes skip kerning; for amounts the difference
+    // is invisible.
+    return Row(mainAxisSize: MainAxisSize.min, children: charWidgets);
   }
 }

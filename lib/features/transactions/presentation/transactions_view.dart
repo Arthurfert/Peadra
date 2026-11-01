@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' show max;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
@@ -19,10 +20,12 @@ import 'recurring_view.dart';
 import '../../../shared/widgets/peadra_notification.dart';
 import '../../../shared/widgets/peadra_modal.dart';
 import '../../../shared/widgets/tag_chip.dart';
+import '../../../shared/widgets/appear_animation.dart';
 import '../../../core/services/currency_service.dart';
 import '../../../core/responsive/responsive_layout.dart';
 import '../../../core/utils/transfer_texts.dart';
 import '../../../core/utils/safe_insets.dart';
+import '../../dashboard/presentation/dashboard_shell.dart';
 
 class _DisplayItem {
   final TransactionWithDetails? transaction;
@@ -76,7 +79,23 @@ class _TransactionsViewState extends State<TransactionsView> {
   final Set<String> _selectedAccountIds = {};
   int _displayLimit = 30;
   bool _hasMore = true;
-  int _lastRawFetchCount = 0;
+  // Rows already fetched for the current filter set (Load more / Load all
+  // results). Plain refreshes — sync pushes, edit/delete reloads, settings
+  // changes — keep at least this many rows so loaded pages survive; filter
+  // changes start over at the display limit.
+  // Rows already fetched for the current filter set (Load more / Load all
+  // results). Plain refreshes — sync pushes, edit/delete reloads, settings
+  // changes — keep at least this many rows so loaded pages survive; filter
+  // changes start over at the display limit. It is also the offset of the
+  // next "Load more" fetch, so rows are never fetched twice.
+  int _loadedRowCount = 0;
+  String? _lastFilterSignature;
+  // Bumped each time the view is re-entered after having been left; row
+  // entrance animations key on it to replay on refocus while the cached
+  // rows stay in memory (see LazyKeepAliveStack).
+  int _appearEpoch = 0;
+  ValueNotifier<int>? _activationSignal;
+  int? _lastReplayAt;
   Timer? _searchDebounce;
   StreamSubscription<void>? _remoteDataSub;
 
@@ -87,6 +106,23 @@ class _TransactionsViewState extends State<TransactionsView> {
     _remoteDataSub = DatabaseManager.instance.onRemoteDataApplied.listen((_) {
       _loadData();
     });
+    // The shell re-shows this cached view instead of remounting it (keep-
+    // alive stack); listen so rows replay their entrance on every refocus.
+    // This view always sits at slot 1 of the shell's views list.
+    final signal = LazyKeepAliveStack.activationSignals[1];
+    _activationSignal = signal;
+    signal.addListener(_onViewReactivated);
+  }
+
+  void _onViewReactivated() {
+    // A replay starting within ~100 ms of the previous one is invisible
+    // (it just restarts the same entrance); several activation triggers
+    // can land across consecutive frames, so suppress instead of
+    // coalescing per-frame.
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (_lastReplayAt != null && now - _lastReplayAt! < 100) return;
+    _lastReplayAt = now;
+    if (mounted) setState(() => _appearEpoch++);
   }
 
   @override
@@ -104,6 +140,7 @@ class _TransactionsViewState extends State<TransactionsView> {
   void dispose() {
     _searchDebounce?.cancel();
     _remoteDataSub?.cancel();
+    _activationSignal?.removeListener(_onViewReactivated);
     _tagScrollController.dispose();
     _accountScrollController.dispose();
     super.dispose();
@@ -295,11 +332,15 @@ class _TransactionsViewState extends State<TransactionsView> {
     bool loadMore = false,
     bool loadAll = false,
   }) async {
-    final limit = (loadMore || loadAll) ? null : _displayLimit;
-    final offset = loadMore ? _lastRawFetchCount : 0;
+    final signature = _filterSignature();
+    final sameFilters = signature == _lastFilterSignature;
+    final fetchOffset = loadMore ? _loadedRowCount : 0;
+    final limit = (loadMore || loadAll)
+        ? null
+        : max(_displayLimit, sameFilters ? _loadedRowCount : 0);
     var txns = await _db.getTransactions(
       limit: limit,
-      offset: offset,
+      offset: fetchOffset,
       searchQuery: _searchQuery,
       accountIds: _selectedAccountIds.isEmpty ? null : _selectedAccountIds,
       tagIds: _selectedTagIds.isEmpty ? null : _selectedTagIds,
@@ -385,12 +426,17 @@ class _TransactionsViewState extends State<TransactionsView> {
           _displayItems = newItems;
         }
         _refreshSplits(_displayItems);
-        _lastRawFetchCount = rawCount;
-        _hasMore = !loadAll && rawCount == _displayLimit;
+        _loadedRowCount = fetchOffset + rawCount;
+        _lastFilterSignature = signature;
+        _hasMore = !(loadMore || loadAll) && limit != null && rawCount == limit;
         _loading = false;
       });
     }
   }
+
+  String _filterSignature() =>
+      '$_searchQuery|${_selectedTagIds.toList()..sort()}'
+      '|${_selectedAccountIds.toList()..sort()}';
 
   void _showTransactionModal({
     TransactionWithDetails? editTxn,
@@ -487,7 +533,7 @@ class _TransactionsViewState extends State<TransactionsView> {
           }
         }
 
-        await _db.addTransaction(
+        final newSrcId = await _db.addTransaction(
           date: date,
           amount: amount,
           description: 'Transfer to $destName',
@@ -505,6 +551,12 @@ class _TransactionsViewState extends State<TransactionsView> {
           accountId: destId,
           notes: 'Transfer from $srcName',
         );
+        // The pair is recreated from scratch; carry the pin to the new
+        // source leg so it doesn't silently disappear on edit.
+        if (newSrcId != null &&
+            (editTxn.pinned || (editPairedTxn?.pinned ?? false))) {
+          await _db.setTransactionPinned(newSrcId, true);
+        }
       } else {
         await _db.updateTransaction(
           editTxn.id!,
@@ -847,7 +899,29 @@ class _TransactionsViewState extends State<TransactionsView> {
       fallback: txn.descriptionName ?? '-',
     );
 
-    final previewRows = <Widget>[
+    bool pinned = txn.pinned;
+
+    // Pin toggle: [setSheetState] may be null once the sheet is being torn
+    // down; the DB write still happens.
+    void togglePin(StateSetter? setSheetState) async {
+      final newValue = !pinned;
+      await _db.setTransactionPinned(txn.id!, newValue);
+      if (setSheetState != null) setSheetState(() => pinned = newValue);
+      _loadTransactions();
+    }
+
+    Widget pinIcon(StateSetter? setSheetState) => IconButton(
+      visualDensity: VisualDensity.compact,
+      icon: Icon(
+        pinned ? Icons.push_pin : Icons.push_pin_outlined,
+        color: pinned ? colors.accent : colors.placeholderColor,
+        size: 20,
+      ),
+      tooltip: Translator.t(pinned ? 'btn_unpin' : 'btn_pin'),
+      onPressed: () => togglePin(setSheetState),
+    );
+
+    List<Widget> buildPreviewRows(StateSetter setSheetState) => <Widget>[
       Row(
         children: [
           Container(
@@ -872,6 +946,7 @@ class _TransactionsViewState extends State<TransactionsView> {
               overflow: TextOverflow.ellipsis,
             ),
           ),
+          pinIcon(setSheetState),
         ],
       ),
       const SizedBox(height: 20),
@@ -961,109 +1036,115 @@ class _TransactionsViewState extends State<TransactionsView> {
               child: SafeArea(
                 // The bottom is handled by the paddings above.
                 bottom: false,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Grabber outside the scroll so dragging it dismisses
-                    // the sheet even while the content is scrolled.
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: colors.placeholderColor.withValues(alpha: 0.3),
-                          borderRadius: BorderRadius.circular(2),
+                child: StatefulBuilder(
+                  // Local sheet state: pinning rebuilds the icon without
+                  // closing the sheet.
+                  builder: (ctx, setSheetState) => Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Grabber outside the scroll so dragging it dismisses
+                      // the sheet even while the content is scrolled.
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: colors.placeholderColor.withValues(
+                              alpha: 0.3,
+                            ),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    Flexible(
-                      child: SingleChildScrollView(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            ...previewRows,
-                            const SizedBox(height: 20),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: OutlinedButton(
-                                    onPressed: () async {
-                                      Navigator.pop(ctx);
-                                      await _deleteTransaction(txn);
-                                      if (pairedTxn != null) {
-                                        await _db.deleteTransaction(
-                                          pairedTxn.id!,
-                                        );
-                                      }
-                                      _loadTransactions();
-                                      widget.onDataChanged?.call();
-                                    },
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: colors.error,
-                                      side: BorderSide(color: colors.error),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 12,
+                      const SizedBox(height: 16),
+                      Flexible(
+                        child: SingleChildScrollView(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              ...buildPreviewRows(setSheetState),
+                              const SizedBox(height: 20),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      onPressed: () async {
+                                        Navigator.pop(ctx);
+                                        await _deleteTransaction(txn);
+                                        if (pairedTxn != null) {
+                                          await _db.deleteTransaction(
+                                            pairedTxn.id!,
+                                          );
+                                        }
+                                        _loadTransactions();
+                                        widget.onDataChanged?.call();
+                                      },
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: colors.error,
+                                        side: BorderSide(color: colors.error),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 12,
+                                        ),
+                                        tapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
+                                        visualDensity: VisualDensity.compact,
                                       ),
-                                      tapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
-                                      visualDensity: VisualDensity.compact,
-                                    ),
-                                    child: FittedBox(
-                                      fit: BoxFit.scaleDown,
-                                      child: Text(
-                                        Translator.t('btn_delete'),
-                                        maxLines: 1,
-                                        softWrap: false,
-                                        style: const TextStyle(fontSize: 13),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: FilledButton(
-                                    onPressed: () {
-                                      Navigator.pop(ctx);
-                                      _editTransaction(
-                                        txn,
-                                        pairedTxn: pairedTxn,
-                                      );
-                                    },
-                                    style: FilledButton.styleFrom(
-                                      backgroundColor: colors.accent,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 12,
-                                      ),
-                                      tapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
-                                      visualDensity: VisualDensity.compact,
-                                    ),
-                                    child: FittedBox(
-                                      fit: BoxFit.scaleDown,
-                                      child: Text(
-                                        Translator.t('btn_edit'),
-                                        maxLines: 1,
-                                        softWrap: false,
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: colors.text,
+                                      child: FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        child: Text(
+                                          Translator.t('btn_delete'),
+                                          maxLines: 1,
+                                          softWrap: false,
+                                          style: const TextStyle(fontSize: 13),
                                         ),
                                       ),
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ],
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: FilledButton(
+                                      onPressed: () {
+                                        Navigator.pop(ctx);
+                                        _editTransaction(
+                                          txn,
+                                          pairedTxn: pairedTxn,
+                                        );
+                                      },
+                                      style: FilledButton.styleFrom(
+                                        backgroundColor: colors.accent,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 12,
+                                        ),
+                                        tapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                      child: FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        child: Text(
+                                          Translator.t('btn_edit'),
+                                          maxLines: 1,
+                                          softWrap: false,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: colors.text,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -1081,10 +1162,12 @@ class _TransactionsViewState extends State<TransactionsView> {
         actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         content: SizedBox(
           width: 400,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: previewRows,
+          child: StatefulBuilder(
+            builder: (ctx, setSheetState) => Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: buildPreviewRows(setSheetState),
+            ),
           ),
         ),
         actions: [
@@ -1407,6 +1490,7 @@ class _TransactionsViewState extends State<TransactionsView> {
             colors,
             defaultCurrency,
             upcoming: true,
+            viewIndex: index,
           );
         }
         itemIndex -= visibleUpcoming;
@@ -1415,6 +1499,7 @@ class _TransactionsViewState extends State<TransactionsView> {
             currentItems[itemIndex],
             colors,
             defaultCurrency,
+            viewIndex: index,
           );
         }
         return Padding(
@@ -1497,6 +1582,7 @@ class _TransactionsViewState extends State<TransactionsView> {
     PeadraColors colors,
     String defaultCurrency, {
     bool upcoming = false,
+    int viewIndex = 0,
   }) {
     if (item.isMergedTransfer) {
       return _buildMergedTransferTile(
@@ -1504,6 +1590,7 @@ class _TransactionsViewState extends State<TransactionsView> {
         colors,
         defaultCurrency,
         upcoming: upcoming,
+        viewIndex: viewIndex,
       );
     }
 
@@ -1556,7 +1643,12 @@ class _TransactionsViewState extends State<TransactionsView> {
 
     final card = Card(
       color: upcoming ? _upcomingBackground(colors) : colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: txn.pinned
+            ? BorderSide(color: colors.accent, width: 2.5)
+            : BorderSide.none,
+      ),
       margin: EdgeInsets.zero,
       child: ListTile(
         leading: Container(
@@ -1662,7 +1754,14 @@ class _TransactionsViewState extends State<TransactionsView> {
       ),
     );
 
-    return Padding(padding: const EdgeInsets.only(bottom: 8), child: card);
+    // Keyed by the appear epoch: bumping it (view re-entered) recreates the
+    // wrapper state so the staggered blur entrance replays, while plain
+    // refreshes — same epoch — keep the settled rows untouched.
+    return AppearAnimation(
+      key: ValueKey('appear:${txn.id}:$_appearEpoch'),
+      index: viewIndex,
+      child: Padding(padding: const EdgeInsets.only(bottom: 8), child: card),
+    );
   }
 
   /// The trailing amount of a tile, with the work-hours equivalent stacked
@@ -1710,6 +1809,7 @@ class _TransactionsViewState extends State<TransactionsView> {
     PeadraColors colors,
     String defaultCurrency, {
     bool upcoming = false,
+    int viewIndex = 0,
   }) {
     final txn = item.transaction!;
     final pairedTxn = item.pairedTransaction;
@@ -1743,7 +1843,12 @@ class _TransactionsViewState extends State<TransactionsView> {
 
     final card = Card(
       color: upcoming ? _upcomingBackground(colors) : colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: txn.pinned
+            ? BorderSide(color: colors.accent, width: 1.5)
+            : BorderSide.none,
+      ),
       margin: EdgeInsets.zero,
       child: ListTile(
         leading: Container(
@@ -1780,6 +1885,10 @@ class _TransactionsViewState extends State<TransactionsView> {
       ),
     );
 
-    return Padding(padding: const EdgeInsets.only(bottom: 8), child: card);
+    return AppearAnimation(
+      key: ValueKey('appear:${txn.id}:$_appearEpoch'),
+      index: viewIndex,
+      child: Padding(padding: const EdgeInsets.only(bottom: 8), child: card),
+    );
   }
 }

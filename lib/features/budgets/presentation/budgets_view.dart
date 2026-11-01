@@ -15,6 +15,8 @@ import '../../../core/responsive/responsive_layout.dart';
 import '../../../core/services/currency_service.dart';
 import '../../../core/theme/peadra_colors.dart';
 import '../../../shared/widgets/peadra_modal.dart';
+import '../../../shared/widgets/appear_animation.dart';
+import '../../dashboard/presentation/dashboard_shell.dart';
 import 'widgets/goal_dialog.dart';
 
 class BudgetsView extends StatefulWidget {
@@ -64,6 +66,12 @@ class _BudgetsViewState extends State<BudgetsView> {
   bool _loading = true;
   String _today = '';
   StreamSubscription<void>? _remoteDataSub;
+  // Bumped each time the view is re-entered after having been left; bars
+  // fill animations key on it to replay on refocus while the loaded goals
+  // stay in memory (see LazyKeepAliveStack).
+  int _appearEpoch = 0;
+  ValueNotifier<int>? _activationSignal;
+  int? _lastReplayAt;
 
   @override
   void initState() {
@@ -73,11 +81,29 @@ class _BudgetsViewState extends State<BudgetsView> {
     _remoteDataSub = DatabaseManager.instance.onRemoteDataApplied.listen((_) {
       _loadData();
     });
+    // The shell re-shows this cached view instead of remounting it (keep-
+    // alive stack); listen so bars replay their fill on every refocus.
+    // This view always sits at slot 2 of the shell's views list.
+    final signal = LazyKeepAliveStack.activationSignals[2];
+    _activationSignal = signal;
+    signal.addListener(_onViewReactivated);
+  }
+
+  void _onViewReactivated() {
+    // A replay starting within ~100 ms of the previous one is invisible
+    // (it just restarts the same entrance); several activation triggers
+    // can land across consecutive frames, so suppress instead of
+    // coalescing per-frame.
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (_lastReplayAt != null && now - _lastReplayAt! < 100) return;
+    _lastReplayAt = now;
+    if (mounted) setState(() => _appearEpoch++);
   }
 
   @override
   void dispose() {
     _remoteDataSub?.cancel();
+    _activationSignal?.removeListener(_onViewReactivated);
     super.dispose();
   }
 
@@ -281,7 +307,7 @@ class _BudgetsViewState extends State<BudgetsView> {
                     itemCount: _entries.length,
                     separatorBuilder: (_, _) => const SizedBox(height: 12),
                     itemBuilder: (context, index) =>
-                        _buildGoalCard(_entries[index], colors),
+                        _buildGoalCard(_entries[index], colors, index),
                   ),
           ),
         ],
@@ -304,7 +330,7 @@ class _BudgetsViewState extends State<BudgetsView> {
     );
   }
 
-  Widget _buildGoalCard(_GoalEntry entry, PeadraColors colors) {
+  Widget _buildGoalCard(_GoalEntry entry, PeadraColors colors, int index) {
     final goal = entry.goal;
     final current = entry.current;
     final target = goal.targetAmount;
@@ -484,11 +510,18 @@ class _BudgetsViewState extends State<BudgetsView> {
             SizedBox(
               height: 10,
               width: double.infinity,
-              child: CustomPaint(
-                painter: _GoalBarPainter(
-                  color: barColor,
-                  current: displayRatio,
-                  upcoming: upcomingRatio,
+              // Keyed by the appear epoch: bumping it (view re-entered)
+              // recreates the wrapper so the left-to-right fill replays,
+              // while plain refreshes — same epoch — keep the settled bars.
+              child: BarFillAnimation(
+                key: ValueKey('fill:${goal.id ?? index}:$_appearEpoch'),
+                index: index,
+                builder: (context, t) => CustomPaint(
+                  painter: _GoalBarPainter(
+                    color: barColor,
+                    current: displayRatio * t,
+                    upcoming: upcomingRatio * t,
+                  ),
                 ),
               ),
             ),

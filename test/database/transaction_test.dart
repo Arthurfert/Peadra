@@ -1285,4 +1285,47 @@ void main() {
       expect(rows.single.tagName, 'Vacation');
     });
   });
+
+  group('Pinning', () {
+    test('pin and unpin round-trip through a fresh fetch', () async {
+      final db = DatabaseManager.instance;
+      final id = await db.addTransaction(
+        date: '2025-03-10',
+        description: 'Rent',
+        amount: Decimal.fromInt(800),
+        transactionType: 'expense',
+        accountId: accountIds[0],
+      );
+
+      expect((await txnById(id!)).pinned, isFalse);
+
+      final updatedAtBefore = (await txnById(id)).updatedAt;
+      await db.setTransactionPinned(id, true);
+      var txn = await txnById(id);
+      expect(txn.pinned, isTrue);
+
+      // Pinning must not bump updated_at: it would pull the row to the top
+      // of its day group, and pinning may not change positions.
+      expect(txn.updatedAt, updatedAtBefore);
+
+      await db.setTransactionPinned(id, false);
+      txn = await txnById(id);
+      expect(txn.pinned, isFalse);
+    });
+
+    test('a plain edit keeps the pin', () async {
+      final db = DatabaseManager.instance;
+      final id = (await db.addTransaction(
+        date: '2025-03-10',
+        description: 'Rent',
+        amount: Decimal.fromInt(800),
+        transactionType: 'expense',
+        accountId: accountIds[0],
+      ))!;
+
+      await db.setTransactionPinned(id, true);
+      await db.updateTransaction(id, amount: Decimal.fromInt(900));
+      expect((await txnById(id)).pinned, isTrue);
+    });
+  });
 }

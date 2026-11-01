@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./assets/Peadra-logo.png" alt="Peadra's logo" style="height:200px;margin:0;">
+  <img src="./assets/Feature.png" alt="Peadra" style="height:200px;margin:0;border-radius:16px;">
 </div>
 
 <div align="center">
@@ -50,7 +50,7 @@ Track your assets, manage transactions across multiple accounts and currencies, 
 
 ## Install
 
-To install the app, please download your designated installer in the `Release` section :
+To install the app, please download your designated installer in the [release](https://github.com/Arthurfert/Peadra/releases) section :
 
 |  Device | Installer |
 | :----------------: | :-----------------: |

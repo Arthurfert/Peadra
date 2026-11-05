@@ -82,6 +82,50 @@ void main() {
     expect(after > before, isTrue);
   });
 
+  test('applyChangeset returns the received max HLC, not a newer local write',
+      () async {
+    final dbA = await createCrdtDatabase();
+    final dbB = await createCrdtDatabase();
+    addTearDown(() async {
+      await dbA.close();
+      await dbB.close();
+    });
+    final serviceA = CrdtDatabaseService(dbA);
+    final serviceB = CrdtDatabaseService(dbB);
+
+    await seedUser(dbA, 'user-a', 'alice');
+    await seedAccount(dbA, 'acct-a', 'user-a', 'A account');
+    final changeset = await serviceA.getChangeset();
+    final receivedMax = changeset.values
+        .expand((records) => records)
+        .map((record) => Hlc.parse(record['hlc'] as String))
+        .reduce((a, b) => a > b ? a : b);
+
+    // A local-only write after taking the peer's changeset gives B a higher
+    // local HLC than anything in that changeset. The returned watermark must
+    // still be the peer's max, or the next sync would skip peer rows below it.
+    await seedUser(dbB, 'user-b', 'bob');
+    await dbB.execute(
+      'INSERT INTO settings (user_id, "key", value) VALUES (?1, ?2, ?3)',
+      ['user-b', 'theme', 'dark'],
+    );
+    final localMax = await serviceB.lastModifiedHlc();
+    expect(localMax > receivedMax, isTrue);
+
+    final watermark = await serviceB.applyChangeset(changeset);
+    expect(watermark, receivedMax);
+    expect(watermark! < localMax, isTrue);
+  });
+
+  test('applyChangeset returns null for a changeset with no records', () async {
+    final db = await createCrdtDatabase();
+    addTearDown(db.close);
+    final service = CrdtDatabaseService(db);
+
+    final empty = await service.getChangeset();
+    expect(await service.applyChangeset(empty), isNull);
+  });
+
   test('isSyncSelfChange filters out events produced by remote merges', () async {
     final dbA = await createCrdtDatabase();
     final dbB = await createCrdtDatabase();

@@ -181,7 +181,8 @@ class SyncManager {
   /// Manual sync trigger from the peers list. Falls back to the freshest
   /// address seen via discovery when [host]/[port] are not supplied.
   /// Unlike background syncs, a manual trigger bypasses the reconnect
-  /// cooldown and always reports its [SyncOutcome] to the caller.
+  /// cooldown, always reports its [SyncOutcome] to the caller, and forces a
+  /// full exchange so rows skipped by an earlier watermark are recovered.
   Future<SyncOutcome> syncNow(String peerId, {String? host, int? port}) async {
     final resolved = _resolvePeerAddress(peerId, host: host, port: port);
     return _syncPeer(
@@ -189,6 +190,7 @@ class SyncManager {
       host: resolved.host,
       port: resolved.port,
       manual: true,
+      full: true,
     );
   }
 
@@ -397,7 +399,7 @@ class SyncManager {
   }
 
   Future<SyncOutcome> _syncPeer(String peerId,
-      {String? host, int? port, bool manual = false}) async {
+      {String? host, int? port, bool manual = false, bool full = false}) async {
     if (!_running) return SyncOutcome.failed;
     final now = _now();
     final last = _lastAttempt[peerId];
@@ -416,7 +418,8 @@ class SyncManager {
     _locks[peerId] = chained;
     await previous;
     try {
-      return await _doSync(peerId, host: resolved.host, port: resolved.port);
+      return await _doSync(peerId,
+          host: resolved.host, port: resolved.port, full: full);
     } finally {
       done.complete();
       // Our session is over: drop the chain entry so _locks can't grow
@@ -474,7 +477,7 @@ class SyncManager {
   }
 
   Future<SyncOutcome> _doSync(String peerId,
-      {String? host, int? port}) async {
+      {String? host, int? port, bool full = false}) async {
     SyncSession? session;
     try {
       // Storage reads stay inside the try: a failing peer store (locked or
@@ -508,7 +511,7 @@ class SyncManager {
         final watermark = await runSyncExchange(
           session: session,
           db: db,
-          since: peer.lastSyncHlc,
+          since: full ? null : peer.lastSyncHlc,
           isInitiator: true,
         );
         await peerStorage.upsert(

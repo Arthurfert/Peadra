@@ -119,10 +119,10 @@ class _DashboardShellState extends State<DashboardShell> {
     if (_viewsCache == null || _viewsSignal != _dashboardRefreshSignal) {
       _viewsSignal = _dashboardRefreshSignal;
       _viewsCache = [
-        DashboardView(
-          key: ValueKey<int>(_dashboardRefreshSignal),
-          refreshSignal: _dashboardRefreshSignal,
-        ),
+        // No ValueKey on the signal: changing it must reload the dashboard in
+        // place (refreshSignal/didUpdateWidget). Remounting it on every synced
+        // change replayed all entrance/rolling-number animations.
+        DashboardView(refreshSignal: _dashboardRefreshSignal),
         ..._staticViews,
       ];
     }

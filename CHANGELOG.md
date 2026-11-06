@@ -4,14 +4,12 @@
 
 ### New
 
-- You can now pin a transaction to find it easily
-- A little bit of animations
+
 
 ### Fixes
 
-- Transaction loading optimization
-- Updates not appearing
-- Interests compute in tools view
+- Fixed some synchronization issues (missing transactions...)
+- Deleting an account doesn't also delete it's starting amount by default anymore
 
 ## Known issues
 

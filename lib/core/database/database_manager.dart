@@ -1153,7 +1153,11 @@ void setUserId(String userId) {
     }
   }
 
-  Future<bool> deleteAccount(String accountId, {bool deleteTransactions = false}) async {
+  Future<bool> deleteAccount(
+    String accountId, {
+    bool deleteTransactions = false,
+    bool deleteStartingAmount = false,
+  }) async {
     final db = await database;
     final existing = await db.query(
       'SELECT * FROM accounts WHERE id = ? AND user_id = ? AND is_deleted = 0',
@@ -1184,10 +1188,19 @@ void setUserId(String userId) {
       );
     }
 
-    await db.execute(
-      'DELETE FROM accounts WHERE id = ? AND user_id = ?',
-      [accountId, _userId],
-    );
+    if (deleteStartingAmount) {
+      // sql_crdt rewrites DELETE to a soft-delete, so removing the starting
+      // amount means zeroing it; totals then no longer include it.
+      await db.execute(
+        'UPDATE accounts SET is_deleted = 1, starting_amount = 0 WHERE id = ? AND user_id = ?',
+        [accountId, _userId],
+      );
+    } else {
+      await db.execute(
+        'UPDATE accounts SET is_deleted = 1 WHERE id = ? AND user_id = ?',
+        [accountId, _userId],
+      );
+    }
     await db.execute(
       'DELETE FROM goals WHERE account_id = ? AND user_id = ?',
       [accountId, _userId],
@@ -2445,7 +2458,7 @@ void setUserId(String userId) {
   Future<Decimal> getTotalPatrimony({String targetCurrency = 'EUR'}) async {
     final db = await database;
     final acctRows = await db.query(
-      'SELECT starting_amount, currency FROM accounts WHERE user_id = ? AND is_deleted = 0',
+      'SELECT starting_amount, currency FROM accounts WHERE user_id = ?',
       [_userId],
     );
 
@@ -2708,7 +2721,7 @@ void setUserId(String userId) {
     }
 
     final acctRows = await db.query(
-      'SELECT starting_amount, currency FROM accounts WHERE user_id = ? AND is_deleted = 0',
+      'SELECT starting_amount, currency FROM accounts WHERE user_id = ?',
       [_userId],
     );
     Decimal startingTotal = Decimal.zero;
@@ -3138,7 +3151,7 @@ void setUserId(String userId) {
     }
 
     final acctRows = await db.query(
-      'SELECT starting_amount, currency FROM accounts WHERE user_id = ? AND is_deleted = 0',
+      'SELECT starting_amount, currency FROM accounts WHERE user_id = ?',
       [_userId],
     );
 
@@ -3275,7 +3288,7 @@ void setUserId(String userId) {
     if (startDate.compareTo(clampedEnd) > 0) return [];
 
     final acctRows = await db.query(
-      'SELECT starting_amount, currency FROM accounts WHERE user_id = ? AND is_deleted = 0',
+      'SELECT starting_amount, currency FROM accounts WHERE user_id = ?',
       [_userId],
     );
 

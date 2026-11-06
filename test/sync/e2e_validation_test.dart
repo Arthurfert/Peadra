@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:peadra/core/database/database_manager.dart';
 import 'package:peadra/core/services/encryption_service.dart';
+import 'package:peadra/sync/network/discovered_service.dart';
+import 'package:peadra/sync/network/sync_session.dart';
 import 'package:peadra/sync/security/auth_challenge.dart';
 
 import 'sync_test_helpers.dart';
@@ -467,6 +469,66 @@ void main() {
     // mounted views know to reload.
     await waitUntil(() async => remoteEvents.isNotEmpty);
     expect(remoteEvents, isNotEmpty);
+  });
+
+  test('a no-op sync does not notify onRemoteDataApplied', () async {
+    final a = SyncTestDevice(id: 'device-a', name: 'Device A', secret: secret);
+    final b = SyncTestDevice(id: 'device-b', name: 'Device B', secret: secret);
+    addTearDown(a.dispose);
+    addTearDown(b.dispose);
+    await a.setUp();
+    await b.setUp();
+
+    // Both sides own a row so pairing leaves each with a non-null watermark.
+    await a.seedUser('user-a', 'alice');
+    await a.crdt.execute(
+      'INSERT INTO accounts (id, user_id, name) VALUES (?1, ?2, ?3)',
+      ['acct-a', 'user-a', 'A account'],
+    );
+    await b.seedUser('user-b', 'alice');
+    await b.crdt.execute(
+      'INSERT INTO accounts (id, user_id, name) VALUES (?1, ?2, ?3)',
+      ['acct-b', 'user-b', 'B account'],
+    );
+
+    await pair(a, b);
+    await b.start();
+
+    Future<DateTime> lastSeen() async =>
+        (await b.peers.getById(a.id))!.lastSeen!;
+
+    Future<void> waitForSync(DateTime before) => waitUntil(
+          () async => (await lastSeen()).isAfter(before),
+        );
+
+    // Let the first post-pairing exchange echo back rows whose `modified`
+    // stamp (the changeset max) is behind the stored watermark.
+    final afterPairing = await lastSeen();
+    b.browser.emit(
+      DiscoveredService(
+        nodeId: a.id,
+        deviceName: a.name,
+        protocolVersion: SyncSession.currentProtocolVersion,
+        host: 'localhost',
+        port: a.manager.serverPort!,
+      ),
+    );
+    await waitForSync(afterPairing);
+
+    final remoteEvents = <void>[];
+    final sub = DatabaseManager.instance.onRemoteDataApplied.listen(remoteEvents.add);
+    addTearDown(sub.cancel);
+
+    // A local-only write (not in `syncTables`) schedules a background sync but
+    // leaves both changesets empty.
+    final before = await lastSeen();
+    await b.crdt.execute(
+      'INSERT OR REPLACE INTO settings (user_id, "key", value) VALUES (?1, ?2, ?3)',
+      ['user-a', 'theme', 'dark'],
+    );
+    await waitForSync(before);
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(remoteEvents, isEmpty);
   });
 }
 

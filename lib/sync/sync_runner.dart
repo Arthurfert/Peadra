@@ -45,9 +45,14 @@ Future<Hlc?> runSyncExchange({
     final request = firstRequest ??
         await _expect(session, SyncMessageTypes.syncRequest);
     await _sendOutbound(session, db, request);
+    // A null `since` from the initiator means a deliberate full exchange
+    // (pairing or a manual "sync now"). Mirror it here so the other half is
+    // full too — otherwise this side's watermark could hide rows it is
+    // missing from the initiator.
+    final responderSince = _parseSince(request['since_hlc']) == null ? null : since;
     await session.send({
       'type': SyncMessageTypes.syncRequest,
-      'since_hlc': since?.toString(),
+      'since_hlc': responderSince?.toString(),
     });
     final inbound = await _expect(session, SyncMessageTypes.syncResponse);
     return _applyInbound(db, inbound, since);
@@ -83,12 +88,17 @@ Future<Hlc?> _applyInbound(
   Hlc? previous,
 ) async {
   final changeset = response['changeset'] as Map<String, dynamic>;
-  if (changeset.isEmpty) {
+  // `changeset` always carries one (possibly empty) list per synced table, so
+  // it is never `isEmpty`; the applied-records test lives in applyChangeset.
+  final watermark = await db.applyChangeset(changeset);
+  if (watermark == null) {
+    // Nothing was applied. Do not notify mounted views: a no-op exchange must
+    // not trigger a UI reload (which writes to the DB via recurring
+    // generation, schedules another sync, and ping-pongs between devices).
     return previous;
   }
-  final watermark = await db.applyChangeset(changeset);
   DatabaseManager.instance.notifyRemoteDataApplied();
-  return watermark ?? db.lastModifiedHlc();
+  return watermark;
 }
 
 Hlc? _parseSince(dynamic value) =>

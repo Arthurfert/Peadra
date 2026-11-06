@@ -46,17 +46,31 @@ class CrdtDatabaseService {
 
   /// Applies a changeset received from a peer (wire format: `hlc` as a raw
   /// TEXT string). Parses the timestamps before merging.
-  /// Merges [changeset] and returns the resulting watermark. Returning it
-  /// directly avoids a second `getLastModified` round-trip by callers that
-  /// need the new watermark (e.g. the sync exchange).
+  ///
+  /// Returns the highest HLC contained in [changeset] — the value to send back
+  /// as the peer's next `since` watermark — or null when the changeset had no
+  /// records. It must NOT be the local [lastModifiedHlc]: local writes,
+  /// including local-only tables that are never synced (`settings`,
+  /// `encryption_meta`), would advance the watermark past rows the peer has
+  /// not sent yet, silently skipping them (and a transaction would only sync
+  /// again once it was re-saved with a newer HLC).
   Future<Hlc?> applyChangeset(Map<String, dynamic> changeset) async {
     final parsed = parseCrdtChangeset(changeset);
     if (parsed.recordCount == 0) {
-      return lastAppliedHlc;
+      return null;
+    }
+    // Read the HLCs before merge(): it rewrites each record's `hlc` to a
+    // string and stamps `modified` with the changeset max.
+    Hlc? highest;
+    for (final records in parsed.values) {
+      for (final record in records) {
+        final hlc = record['hlc'] as Hlc;
+        if (highest == null || hlc > highest) highest = hlc;
+      }
     }
     await _crdt.merge(parsed);
     lastAppliedHlc = await _crdt.getLastModified();
-    return lastAppliedHlc;
+    return highest;
   }
 
   Future<Hlc> lastModifiedHlc() => _crdt.getLastModified();

@@ -509,6 +509,110 @@ void main() {
       });
     });
 
+    group('deleteAccount keeps starting_amount in totals', () {
+      test('soft-deletes the account row instead of hard-deleting it', () async {
+        final db = DatabaseManager.instance;
+        final id = await db.addAccount(
+          'To Delete', '#4CAF50', 'checking', 'EUR',
+          startingAmount: Decimal.fromInt(1000),
+        );
+        await db.deleteAccount(id!);
+
+        final handle = await db.database;
+        final row = await handle.query(
+          'SELECT is_deleted FROM accounts WHERE id = ?',
+          [id],
+        );
+        expect(row, hasLength(1));
+        expect(row.first['is_deleted'], 1);
+      });
+
+      test('deleted account no longer appears in the account list', () async {
+        final db = DatabaseManager.instance;
+        final id = await db.addAccount(
+          'To Delete', '#4CAF50', 'checking', 'EUR',
+          startingAmount: Decimal.fromInt(1000),
+        );
+        await db.addAccount(
+          'Kept', '#2196F3', 'savings', 'EUR',
+          startingAmount: Decimal.fromInt(2000),
+        );
+
+        await db.deleteAccount(id!);
+
+        final accounts = await db.getAllAccounts();
+        expect(accounts, hasLength(1));
+        expect(accounts.any((a) => a.id == id), isFalse);
+        expect(accounts.single.name, 'Kept');
+      });
+
+      test('deleted account starting_amount still counts in total patrimony', () async {
+        final db = DatabaseManager.instance;
+        final id = await db.addAccount(
+          'To Delete', '#4CAF50', 'checking', 'EUR',
+          startingAmount: Decimal.fromInt(1000),
+        );
+        await db.addAccount(
+          'Kept', '#2196F3', 'savings', 'EUR',
+          startingAmount: Decimal.fromInt(2000),
+        );
+
+        await db.deleteAccount(id!);
+
+        // 1000 (deleted) + 2000 (kept) still count toward total assets.
+        expect(await db.getTotalPatrimony(), Decimal.fromInt(3000));
+      });
+
+      test('deleted account starting_amount does not affect current balance', () async {
+        final db = DatabaseManager.instance;
+        final id = await db.addAccount(
+          'To Delete', '#4CAF50', 'checking', 'EUR',
+          startingAmount: Decimal.fromInt(1000),
+        );
+
+        await db.deleteAccount(id!);
+
+        // Closed account must not inflate the current checking balance.
+        expect(await db.getBalance(), Decimal.zero);
+      });
+
+      test('deleteStartingAmount soft-deletes and zeroes the starting amount', () async {
+        final db = DatabaseManager.instance;
+        final id = await db.addAccount(
+          'To Delete', '#4CAF50', 'checking', 'EUR',
+          startingAmount: Decimal.fromInt(1000),
+        );
+
+        await db.deleteAccount(id!, deleteStartingAmount: true);
+
+        final handle = await db.database;
+        final row = await handle.query(
+          'SELECT is_deleted, starting_amount FROM accounts WHERE id = ?',
+          [id],
+        );
+        expect(row, hasLength(1));
+        expect(row.first['is_deleted'], 1);
+        expect(row.first['starting_amount'], 0);
+      });
+
+      test('deleteStartingAmount removes starting amount from total patrimony', () async {
+        final db = DatabaseManager.instance;
+        final id = await db.addAccount(
+          'To Delete', '#4CAF50', 'checking', 'EUR',
+          startingAmount: Decimal.fromInt(1000),
+        );
+        await db.addAccount(
+          'Kept', '#2196F3', 'savings', 'EUR',
+          startingAmount: Decimal.fromInt(2000),
+        );
+
+        await db.deleteAccount(id!, deleteStartingAmount: true);
+
+        // Only the kept account's starting amount counts.
+        expect(await db.getTotalPatrimony(), Decimal.fromInt(2000));
+      });
+    });
+
     group('mergeAccounts (via prod API)', () {
       test('moves all transactions from source to target', () async {
         final db = DatabaseManager.instance;

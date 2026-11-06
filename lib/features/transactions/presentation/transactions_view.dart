@@ -152,6 +152,13 @@ class _TransactionsViewState extends State<TransactionsView> {
     caseSensitive: false,
   );
 
+  /// The text a transfer leg is paired on. Prefer notes, but fall back to the
+  /// description when notes is missing or empty (older/synced rows).
+  static String _legText(TransactionWithDetails txn) {
+    final notes = (txn.notes ?? '').trim();
+    return notes.isNotEmpty ? notes : (txn.descriptionName ?? '').trim();
+  }
+
   List<_DisplayItem> _mergeTransfers(List<TransactionWithDetails> txns) {
     final consumed = <String>{};
     final result = <_DisplayItem>[];
@@ -165,7 +172,7 @@ class _TransactionsViewState extends State<TransactionsView> {
     for (var i = 0; i < txns.length; i++) {
       if (consumed.contains(txns[i].id)) continue;
       final txn = txns[i];
-      final desc = (txn.notes ?? txn.descriptionName ?? '').trim();
+      final desc = _legText(txn);
 
       final toMatch = _toPattern.firstMatch(desc);
       final fromMatch = _fromPattern.firstMatch(desc);
@@ -185,7 +192,7 @@ class _TransactionsViewState extends State<TransactionsView> {
             sourceAccountName: txn.accountName,
             destAccountName: paired.accountName,
             sourceLegText: desc,
-            destLegText: (paired.notes ?? paired.descriptionName ?? '').trim(),
+            destLegText: _legText(paired),
           );
           result.add(
             _DisplayItem.transfer(txn, paired, ends.source, ends.dest),
@@ -207,8 +214,7 @@ class _TransactionsViewState extends State<TransactionsView> {
           final ends = transferEndsForPair(
             sourceAccountName: paired.accountName,
             destAccountName: txn.accountName,
-            sourceLegText: (paired.notes ?? paired.descriptionName ?? '')
-                .trim(),
+            sourceLegText: _legText(paired),
             destLegText: desc,
           );
           result.add(
@@ -348,68 +354,67 @@ class _TransactionsViewState extends State<TransactionsView> {
 
     final rawCount = txns.length;
 
-    if (_selectedAccountIds.isNotEmpty) {
-      // Collect needed paired account IDs by date and opposite type.
-      final needed = <String, Map<String, String>>{};
-      for (final txn in txns) {
-        final desc = (txn.notes ?? txn.descriptionName ?? '').trim();
-        final toM = _toPattern.firstMatch(desc);
-        final fromM = _fromPattern.firstMatch(desc);
-        String? pairedName;
-        String neededType;
-        if (toM != null) {
-          pairedName = toM.group(1)!;
-          neededType = 'income';
-        } else if (fromM != null) {
-          pairedName = fromM.group(1)!;
-          neededType = 'expense';
-        } else {
-          continue;
-        }
-        String? pairedId;
-        for (final a in _accounts) {
-          if (a.name == pairedName && !_selectedAccountIds.contains(a.id)) {
-            pairedId = a.id!;
-            break;
-          }
-        }
-        if (pairedId == null) continue;
-        final key = '$pairedId|${txn.date}|$neededType';
-        needed.putIfAbsent(
-          key,
-          () => {'accountId': pairedId!, 'date': txn.date, 'type': neededType},
-        );
+    // The counterpart leg of a visible transfer may not be on the current
+    // page (or may be filtered out by the account selection), which would
+    // render one transfer as two plain rows. Fetch every missing counterpart
+    // by (account, date, opposite type) so the pair always merges.
+    final accountIdByName = <String, String>{};
+    for (final a in _accounts) {
+      if (a.id != null) accountIdByName.putIfAbsent(a.name, () => a.id!);
+    }
+    final needed =
+        <({String accountId, String date, String type}), Set<String>>{};
+    for (final txn in txns) {
+      final desc = _legText(txn);
+      final toM = _toPattern.firstMatch(desc);
+      final fromM = _fromPattern.firstMatch(desc);
+      String? pairedName;
+      String neededType;
+      if (toM != null) {
+        pairedName = toM.group(1)!;
+        neededType = 'income';
+      } else if (fromM != null) {
+        pairedName = fromM.group(1)!;
+        neededType = 'expense';
+      } else {
+        continue;
       }
+      final pairedId = accountIdByName[pairedName];
+      final ownName = txn.accountName;
+      if (pairedId == null || ownName == null || txn.date.isEmpty) continue;
+      needed
+          .putIfAbsent((
+            accountId: pairedId,
+            date: txn.date,
+            type: neededType,
+          ), () => <String>{})
+          .add(ownName);
+    }
 
-      if (needed.isNotEmpty) {
-        final paired = await _db.getTransactionsByKeys(
-          needed.values.map(
-            (v) => (
-              accountId: v['accountId']!,
-              date: v['date']!,
-              type: v['type']!,
-            ),
-          ),
-        );
-        // getTransactionsByKeys matches on (account, date, type) only, so it
-        // also returns plain non-transfer transactions sharing the same date
-        // and type. Keep only genuine transfer halves pointing back at a
-        // selected account.
-        final selectedNames = <String>{
-          for (final a in _accounts)
-            if (_selectedAccountIds.contains(a.id)) a.name,
-        };
-        txns = [
-          ...txns,
-          ...paired.where((p) {
-            final d = (p.notes ?? p.descriptionName ?? '').trim();
-            final ref =
-                _toPattern.firstMatch(d)?.group(1) ??
-                _fromPattern.firstMatch(d)?.group(1);
-            return ref != null && selectedNames.contains(ref);
-          }),
-        ];
-      }
+    if (needed.isNotEmpty) {
+      final paired = await _db.getTransactionsByKeys(needed.keys);
+      // getTransactionsByKeys matches on (account, date, type) only, so it
+      // also returns plain non-transfer transactions sharing the same date
+      // and type. Keep only genuine transfer halves whose text points back at
+      // a visible leg's account.
+      final existingIds = {for (final t in txns) t.id};
+      txns = [
+        ...txns,
+        ...paired.where((p) {
+          if (existingIds.contains(p.id)) return false;
+          final desc = _legText(p);
+          final ref =
+              _toPattern.firstMatch(desc)?.group(1) ??
+              _fromPattern.firstMatch(desc)?.group(1);
+          if (ref == null || p.accountId == null) return false;
+          final key = (
+            accountId: p.accountId!,
+            date: p.date,
+            type: p.transactionType,
+          );
+          return needed[key]?.contains(ref) ?? false;
+        }),
+      ];
     }
 
     // Day-grouped, last-edited-first ordering. SQL already orders this way,
@@ -884,13 +889,13 @@ class _TransactionsViewState extends State<TransactionsView> {
     final pairEnds = pairedTxn == null
         ? transferEndsForSingle(
             ownAccountName: txn.accountName,
-            text: txn.notes ?? txn.descriptionName,
+            text: _legText(txn),
           )
         : transferEndsForPair(
             sourceAccountName: txn.accountName,
             destAccountName: pairedTxn.accountName,
-            sourceLegText: txn.notes ?? txn.descriptionName,
-            destLegText: pairedTxn.notes ?? pairedTxn.descriptionName,
+            sourceLegText: _legText(txn),
+            destLegText: _legText(pairedTxn),
           );
     final title = transferTitle(
       source: pairEnds.source,
@@ -1629,7 +1634,7 @@ class _TransactionsViewState extends State<TransactionsView> {
     // fall through to their description via the fallback.
     final singleEnds = transferEndsForSingle(
       ownAccountName: txn.accountName,
-      text: txn.notes ?? txn.descriptionName,
+      text: _legText(txn),
     );
     final singleTitle = transferTitle(
       source: singleEnds.source,

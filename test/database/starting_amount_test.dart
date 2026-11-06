@@ -249,6 +249,23 @@ void main() {
       // 1500 starting + 200 income.
       expect(history.last['value'], 1700.0);
     });
+
+    test('deleted accounts do not contribute their starting_amount', () async {
+      final db = DatabaseManager.instance;
+      final ids = await seedThreeAccounts(db,
+          checking: Decimal.fromInt(1000),
+          savingsA: Decimal.fromInt(500),
+          savingsB: Decimal.fromInt(3000));
+
+      // Tombstone the biggest account: its 3000 must vanish from the total.
+      final deleted =
+          await db.deleteAccount(ids.$3, deleteStartingAmount: false);
+      expect(deleted, true);
+
+      final history = await db.getAssetsHistory();
+      // 1500 starting (live accounts only).
+      expect(history.last['value'], 1500.0);
+    });
   });
 
   group('getHistoryBalance and getHistorySavings include starting_amount', () {

@@ -8,8 +8,7 @@
 
 ### Fixes
 
-- Fixed some synchronization issues (missing transactions...)
-- Deleting an account doesn't also delete it's starting amount by default anymore
+- Fixed total amount taking completely deleted accounts into account
 
 ## Known issues
 

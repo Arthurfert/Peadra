@@ -3151,7 +3151,7 @@ void setUserId(String userId) {
     }
 
     final acctRows = await db.query(
-      'SELECT starting_amount, currency FROM accounts WHERE user_id = ?',
+      'SELECT starting_amount, currency FROM accounts WHERE user_id = ? AND is_deleted = 0',
       [_userId],
     );
 
@@ -3288,7 +3288,7 @@ void setUserId(String userId) {
     if (startDate.compareTo(clampedEnd) > 0) return [];
 
     final acctRows = await db.query(
-      'SELECT starting_amount, currency FROM accounts WHERE user_id = ?',
+      'SELECT starting_amount, currency FROM accounts WHERE user_id = ? AND is_deleted = 0',
       [_userId],
     );
 

@@ -688,6 +688,7 @@ class _AccountsViewState extends State<AccountsView> {
 
   void _showDeleteConfirmation(AccountWithBalance acct, PeadraColors colors) {
     bool deleteTransactions = false;
+    bool deleteStartingAmount = false;
 
     showPeadraModal(
       context: context,
@@ -722,6 +723,23 @@ class _AccountsViewState extends State<AccountsView> {
                   ),
                 ],
               ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Checkbox(
+                    value: deleteStartingAmount,
+                    onChanged: (v) =>
+                        setDialogState(() => deleteStartingAmount = v ?? false),
+                    activeColor: colors.deleteColor,
+                  ),
+                  Expanded(
+                    child: Text(
+                      Translator.t('acc_delete_starting_amount'),
+                      style: TextStyle(color: colors.text, fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -735,6 +753,7 @@ class _AccountsViewState extends State<AccountsView> {
               await _db.deleteAccount(
                 acct.id!,
                 deleteTransactions: deleteTransactions,
+                deleteStartingAmount: deleteStartingAmount,
               );
               if (!ctx.mounted) return;
               Navigator.pop(ctx);

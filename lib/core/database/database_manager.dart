@@ -468,6 +468,7 @@ class DatabaseManager {
         currency TEXT DEFAULT 'EUR',
         starting_amount REAL DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        deleted_at DATE,
         UNIQUE(user_id, name),
         FOREIGN KEY (user_id) REFERENCES users(id)
       )
@@ -660,6 +661,19 @@ class DatabaseManager {
     if (oldVersion < 10) {
       await db.execute(
         'ALTER TABLE transactions ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0',
+      );
+    }
+    // v10 -> v11: deletion date on accounts. Lets totals exclude a deleted
+    // account's starting amount from the deletion date onward while keeping
+    // historical statistics intact. Backfills existing tombstones with the
+    // date their row was last written (best known deletion time).
+    if (oldVersion < 11) {
+      await db.execute(
+        'ALTER TABLE accounts ADD COLUMN deleted_at DATE',
+      );
+      await db.execute(
+        "UPDATE accounts SET deleted_at = substr(modified, 1, 10) "
+        "WHERE is_deleted = 1 AND deleted_at IS NULL",
       );
     }
   }
@@ -1188,17 +1202,18 @@ void setUserId(String userId) {
       );
     }
 
+    final deletedAt = DateTime.now().toIso8601String().substring(0, 10);
     if (deleteStartingAmount) {
       // sql_crdt rewrites DELETE to a soft-delete, so removing the starting
       // amount means zeroing it; totals then no longer include it.
       await db.execute(
-        'UPDATE accounts SET is_deleted = 1, starting_amount = 0 WHERE id = ? AND user_id = ?',
-        [accountId, _userId],
+        'UPDATE accounts SET is_deleted = 1, starting_amount = 0, deleted_at = ? WHERE id = ? AND user_id = ?',
+        [deletedAt, accountId, _userId],
       );
     } else {
       await db.execute(
-        'UPDATE accounts SET is_deleted = 1 WHERE id = ? AND user_id = ?',
-        [accountId, _userId],
+        'UPDATE accounts SET is_deleted = 1, deleted_at = ? WHERE id = ? AND user_id = ?',
+        [deletedAt, accountId, _userId],
       );
     }
     await db.execute(
@@ -2455,10 +2470,61 @@ void setUserId(String userId) {
 
   // ==================== STATISTICS ====================
 
+  /// Starting amounts of all accounts, expressed relative to a window start.
+  ///
+  /// Returns the total of amounts active at [windowStartIso] — live accounts
+  /// plus accounts whose deletion lies inside the window — and, for each
+  /// in-window deletion, a negative contribution dated at the deletion date.
+  /// The assets graph thus keeps history intact for buckets before the
+  /// deletion and drops the starting amount ("lowers by {starting amount}")
+  /// from the deletion date onward.
+  Future<(Decimal, List<(String, Decimal)>)> _accountStartingParts(
+    String windowStartIso,
+    String targetCurrency,
+  ) async {
+    final db = await database;
+    final acctRows = await db.query(
+      'SELECT starting_amount, currency, is_deleted, deleted_at FROM accounts WHERE user_id = ?',
+      [_userId],
+    );
+
+    Decimal startingTotal = Decimal.zero;
+    final deletions = <(String, Decimal)>[];
+    for (final row in acctRows) {
+      final amount = await _decryptAmount(row['starting_amount']);
+      final acctCurrency = (row['currency'] as String?) ?? 'EUR';
+      Decimal converted;
+      if (acctCurrency == targetCurrency) {
+        converted = amount;
+      } else {
+        final rate = await getExchangeRate(acctCurrency, targetCurrency);
+        converted = amount * Decimal.parse((rate ?? 1.0).toString());
+      }
+      if (converted == Decimal.zero) continue;
+
+      final isDeleted = ((row['is_deleted'] ?? 0) as int) == 1;
+      final deletedAt = row['deleted_at'] as String?;
+      final diesInWindow =
+          isDeleted && deletedAt != null && deletedAt.compareTo(windowStartIso) > 0;
+
+      if (diesInWindow) {
+        // Counts in the base and drops out once its deletion date is passed.
+        startingTotal += converted;
+        deletions.add((deletedAt, -converted));
+      } else if (!isDeleted) {
+        startingTotal += converted;
+      }
+      // is_deleted without a usable date: treated as deleted before the
+      // window, excluded everywhere.
+    }
+    deletions.sort((a, b) => a.$1.compareTo(b.$1));
+    return (startingTotal, deletions);
+  }
+
   Future<Decimal> getTotalPatrimony({String targetCurrency = 'EUR'}) async {
     final db = await database;
     final acctRows = await db.query(
-      'SELECT starting_amount, currency FROM accounts WHERE user_id = ?',
+      'SELECT starting_amount, currency FROM accounts WHERE user_id = ? AND is_deleted = 0',
       [_userId],
     );
 
@@ -3150,23 +3216,11 @@ void setUserId(String userId) {
       }
     }
 
-    final acctRows = await db.query(
-      'SELECT starting_amount, currency FROM accounts WHERE user_id = ?',
-      [_userId],
-    );
-
-    Decimal startingTotal = Decimal.zero;
-    for (final row in acctRows) {
-      final amount = await _decryptAmount(row['starting_amount']);
-      final acctCurrency = (row['currency'] as String?) ?? 'EUR';
-      if (amount == Decimal.zero) continue;
-      if (acctCurrency == targetCurrency) {
-        startingTotal += amount;
-      } else {
-        final rate = await getExchangeRate(acctCurrency, targetCurrency);
-        startingTotal += amount * Decimal.parse((rate ?? 1.0).toString());
-      }
-    }
+    final windowStart = DateTime(now.year, now.month - effectiveMonths + 1, 1)
+        .toIso8601String()
+        .substring(0, 10);
+    final (startingTotal, accountDeletions) =
+        await _accountStartingParts(windowStart, targetCurrency);
 
     final today = now.toIso8601String().substring(0, 10);
     final currentMonthStart = DateTime(now.year, now.month, 1);
@@ -3228,6 +3282,8 @@ void setUserId(String userId) {
       contributions.add((row['date'] as String, converted));
     }
     contributions.sort((a, b) => a.$1.compareTo(b.$1));
+    contributions.addAll(accountDeletions);
+    contributions.sort((a, b) => a.$1.compareTo(b.$1));
 
     if (granularity == 'daily') {
       DateTime? extendThrough;
@@ -3287,23 +3343,8 @@ void setUserId(String userId) {
     final clampedEnd = endDate.compareTo(today) > 0 ? today : endDate;
     if (startDate.compareTo(clampedEnd) > 0) return [];
 
-    final acctRows = await db.query(
-      'SELECT starting_amount, currency FROM accounts WHERE user_id = ?',
-      [_userId],
-    );
-
-    Decimal startingTotal = Decimal.zero;
-    for (final row in acctRows) {
-      final amount = await _decryptAmount(row['starting_amount']);
-      final acctCurrency = (row['currency'] as String?) ?? 'EUR';
-      if (amount == Decimal.zero) continue;
-      if (acctCurrency == targetCurrency) {
-        startingTotal += amount;
-      } else {
-        final rate = await getExchangeRate(acctCurrency, targetCurrency);
-        startingTotal += amount * Decimal.parse((rate ?? 1.0).toString());
-      }
-    }
+    final (startingTotal, accountDeletions) =
+        await _accountStartingParts(startDate, targetCurrency);
 
     final txnRows = await db.query(
       'SELECT t.amount, t.transaction_type, t.date, '
@@ -3313,7 +3354,7 @@ void setUserId(String userId) {
       [clampedEnd, _userId],
     );
 
-    final contributions = <(String, Decimal)>[];
+    final contributions = List<(String, Decimal)>.from(accountDeletions);
     Decimal base = startingTotal;
     for (final row in txnRows) {
       final amount = await _decryptAmount(row['amount']);

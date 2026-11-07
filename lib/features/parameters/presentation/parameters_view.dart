@@ -2408,8 +2408,8 @@ class _ParametersViewState extends State<ParametersView> {
         Translator.t('param_hide_update_notifications'),
         trailing: _boolStateButton(
           colors,
-          settings.hideUpdateNotifications,
-          (value) => settings.setHideUpdateNotifications(value, _db),
+          !settings.hideUpdateNotifications,
+          (enabled) => settings.setHideUpdateNotifications(!enabled, _db),
         ),
       );
     }
@@ -2420,8 +2420,8 @@ class _ParametersViewState extends State<ParametersView> {
       subtitle: Text(Translator.t('param_hide_update_notifications_desc'),
           style: TextStyle(color: colors.textSecondary, fontSize: 12)),
       trailing: Switch(
-        value: settings.hideUpdateNotifications,
-        onChanged: (value) => settings.setHideUpdateNotifications(value, _db),
+        value: !settings.hideUpdateNotifications,
+        onChanged: (value) => settings.setHideUpdateNotifications(!value, _db),
         activeThumbColor: colors.accent,
       ),
     );

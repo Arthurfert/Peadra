@@ -546,7 +546,8 @@ void main() {
         expect(accounts.single.name, 'Kept');
       });
 
-      test('deleted account starting_amount still counts in total patrimony', () async {
+      test('deleted account starting_amount excluded from total patrimony',
+          () async {
         final db = DatabaseManager.instance;
         final id = await db.addAccount(
           'To Delete', '#4CAF50', 'checking', 'EUR',
@@ -559,8 +560,9 @@ void main() {
 
         await db.deleteAccount(id!);
 
-        // 1000 (deleted) + 2000 (kept) still count toward total assets.
-        expect(await db.getTotalPatrimony(), Decimal.fromInt(3000));
+        // Only the live account counts in the current total (the deleted
+        // account's 1000? still recorded, but stops being counted).
+        expect(await db.getTotalPatrimony(), Decimal.fromInt(2000));
       });
 
       test('deleted account starting_amount does not affect current balance', () async {

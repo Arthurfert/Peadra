@@ -250,24 +250,45 @@ void main() {
       expect(history.last['value'], 1700.0);
     });
 
-    test('deleted accounts do not contribute their starting_amount', () async {
+    test('deletion keeps past buckets and lowers the total from then on',
+        () async {
       final db = DatabaseManager.instance;
       final ids = await seedThreeAccounts(db,
           checking: Decimal.fromInt(1000),
           savingsA: Decimal.fromInt(500),
           savingsB: Decimal.fromInt(3000));
 
-      // Tombstone the biggest account: its 3000 must vanish from the total.
-      final deleted =
-          await db.deleteAccount(ids.$3, deleteStartingAmount: false);
-      expect(deleted, true);
+      // Deleted without wiping: the 3000 stays recorded but stops counting
+      // from the deletion date (today) onward.
+      expect(
+          await db.deleteAccount(ids.$3, deleteStartingAmount: false), true);
 
       final history = await db.getAssetsHistory();
-      // 1500 starting (live accounts only).
+      // Past buckets keep the full 4500: previous stats stay true.
+      expect(history.first['value'], 4500.0);
+      // The current month (end of month is after the deletion date) drops it.
       expect(history.last['value'], 1500.0);
+      expect(await db.getSavingsTotal(), Decimal.fromInt(500));
+
+      final row = await (await db.database)
+          .query('SELECT starting_amount, deleted_at FROM accounts WHERE id = ?',
+              [ids.$3]);
+      // The 3000 is preserved for the record — never erased.
+      expect(row.single['deleted_at'], isNotNull);
+      expect(row.single['starting_amount'] == 0, false);
+
+      // A long-ago deletion predating the window is counted nowhere.
+      final extra = await db.addAccount('Old Closed', '#795548', 'savings',
+          'EUR', startingAmount: Decimal.fromInt(9000));
+      await (await db.database).execute(
+        "UPDATE accounts SET is_deleted = 1, deleted_at = '2020-01-01' WHERE id = ?",
+        [extra],
+      );
+      final history2 = await db.getAssetsHistory();
+      expect(history2.first['value'], 4500.0);
+      expect(history2.last['value'], 1500.0);
     });
   });
-
   group('getHistoryBalance and getHistorySavings include starting_amount', () {
     test('history balance includes checking starting_amount', () async {
       final db = DatabaseManager.instance;

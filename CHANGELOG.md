@@ -4,7 +4,7 @@
 
 ### New
 
-
+- New *Valentin* theme
 
 ### Fixes
 

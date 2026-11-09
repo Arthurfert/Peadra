@@ -650,6 +650,7 @@ class _ParametersViewState extends State<ParametersView> {
       ('system', 'param_system_theme'),
       ('light', 'param_light_theme'),
       ('dark', 'param_dark_theme'),
+      ('valentine', 'param_valentine_theme'),
       ('autumn', 'param_autumn_theme'),
       ('summer', 'param_summer_theme'),
       ('sakura', 'param_sakura_theme'),
@@ -719,6 +720,9 @@ class _ParametersViewState extends State<ParametersView> {
             value: 'light', child: Text(Translator.t('param_light_theme'))),
         DropdownMenuItem(
             value: 'dark', child: Text(Translator.t('param_dark_theme'))),
+        DropdownMenuItem(
+            value: 'valentine',
+            child: Text(Translator.t('param_valentine_theme'))),
         DropdownMenuItem(
             value: 'autumn',
             child: Text(Translator.t('param_autumn_theme'))),

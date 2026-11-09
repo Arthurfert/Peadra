@@ -27,6 +27,7 @@ import '../../tools/presentation/tools_view.dart';
 import 'dashboard_view.dart';
 import 'dashboard_shell_desktop.dart';
 import 'dashboard_shell_mobile.dart';
+import 'widgets/rate_app_prompt.dart';
 
 class DashboardShell extends StatefulWidget {
   const DashboardShell({super.key});
@@ -133,6 +134,9 @@ class _DashboardShellState extends State<DashboardShell> {
   void initState() {
     super.initState();
     _checkForUpdate();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) maybeShowRateAppPrompt(context);
+    });
     _remoteDataSub = DatabaseManager.instance.onRemoteDataApplied.listen((_) {
       _loadTotalPatrimony();
     });

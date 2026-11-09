@@ -227,10 +227,11 @@ class _LoginViewState extends State<LoginView> {
     }
 
     final userId = await _authService.registerUser(username, password);
-    await _onLoginSuccess(userId, username, password);
+    await _onLoginSuccess(userId, username, password, isNewUser: true);
   }
 
-  Future<void> _onLoginSuccess(String userId, String username, String password) async {
+  Future<void> _onLoginSuccess(String userId, String username, String password,
+      {bool isNewUser = false}) async {
     final authProvider = context.read<AuthProvider>();
     final themeProvider = context.read<ThemeProvider>();
     final langProvider = context.read<LanguageProvider>();
@@ -241,6 +242,11 @@ class _LoginViewState extends State<LoginView> {
     userId = await _authService.resolveUserId(userId, username);
 
     authProvider.login(userId, username, _db);
+    if (isNewUser) {
+      // Give brand-new accounts a month before the rating prompt is due.
+      await _db.setSetting(
+          'rate_prompt_last_shown', DateTime.now().toIso8601String());
+    }
     await _setupEncryption(username, password);
     await _db.generateDueRecurring();
 

@@ -513,6 +513,11 @@ class Translator {
       'budget_delete_goal': 'Delete Goal',
       'budget_delete_confirm': 'Delete this goal?',
       'budget_of_target': '{current} of {target}',
+      'rate_title': 'Rate Peadra',
+      'rate_body':
+          'Enjoying Peadra? A rating on the Play Store helps us a lot.',
+      'rate_cta': 'Rate Peadra now',
+      'rate_later': 'Maybe later',
     },
     'fr': {
       'nav_dashboard': 'Accueil',
@@ -1051,6 +1056,11 @@ class Translator {
       'budget_delete_goal': 'Supprimer l\u2019objectif',
       'budget_delete_confirm': 'Supprimer cet objectif ?',
       'budget_of_target': '{current} sur {target}',
+      'rate_title': 'Noter Peadra',
+      'rate_body':
+          'Vous aimez Peadra ? Une note sur le Play Store nous aide beaucoup.',
+      'rate_cta': 'Noter Peadra maintenant',
+      'rate_later': 'Plus tard',
     },
     'es': {
       'nav_dashboard': 'Inicio',
@@ -1565,6 +1575,11 @@ class Translator {
       'budget_delete_goal': 'Eliminar objetivo',
       'budget_delete_confirm': '¿Eliminar este objetivo?',
       'budget_of_target': '{current} de {target}',
+      'rate_title': 'Valorar Peadra',
+      'rate_body':
+          '¿Te gusta Peadra? Una valoración en Play Store nos ayuda mucho.',
+      'rate_cta': 'Valorar Peadra ahora',
+      'rate_later': 'Quizás más tarde',
     },
   };
   static String _language = 'en';

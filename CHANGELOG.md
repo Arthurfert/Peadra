@@ -8,7 +8,7 @@
 
 ### Fixes
 
-
+- Transfer icon in a transfer transaction details instead of the expense one
 
 ## Known issues
 

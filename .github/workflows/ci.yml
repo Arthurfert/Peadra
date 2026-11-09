@@ -47,10 +47,25 @@ jobs:
         run: flutter pub get
 
       - name: Install Linux build dependencies
-        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev pkg-config libsecret-1-dev
+        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev pkg-config libsecret-1-dev dpkg-dev
 
-      - name: Install fastforge
-        run: dart pub global activate fastforge
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      # Default fastforge packager (CLI is built from source; not on crates.io)
+      - name: Checkout fastforge
+        uses: actions/checkout@v6
+        with:
+          repository: fastforgedev/fastforge
+          ref: a47e450c2bd009e84551ba25cd133a5582a19ac8
+          path: fastforge
+
+      - name: Build fastforge CLI
+        run: cargo build -p fastforge --release
+        working-directory: fastforge
+
+      - name: Add built CLI to PATH
+        run: echo "$GITHUB_WORKSPACE/fastforge/target/release" >> "$GITHUB_ENV"
 
       - name: Build deb package
         run: fastforge package --platform linux --targets deb

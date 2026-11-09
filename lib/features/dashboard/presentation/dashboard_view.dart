@@ -381,18 +381,10 @@ class _DashboardViewState extends State<DashboardView> {
     final currentExpenses = _monthlySummary['expenses'] ?? Decimal.zero;
     final showSubtitles = context.read<SettingsProvider>().showStatSubtitles;
 
-    final balanceChange = _previousBalance > Decimal.zero
-        ? (((_balance - _previousBalance) * Decimal.fromInt(100)) / _previousBalance).toDouble()
-        : 0.0;
-    final incomeChange = _previousIncome > Decimal.zero
-        ? (((currentIncome - _previousIncome) * Decimal.fromInt(100)) / _previousIncome).toDouble()
-        : 0.0;
-    final expensesChange = _previousExpenses > Decimal.zero
-        ? (((currentExpenses - _previousExpenses) * Decimal.fromInt(100)) / _previousExpenses).toDouble()
-        : 0.0;
-    final savingsChange = _previousSavings > Decimal.zero
-        ? (((_savings - _previousSavings) * Decimal.fromInt(100)) / _previousSavings).toDouble()
-        : 0.0;
+    final balanceChange = _changePct(_balance, _previousBalance);
+    final incomeChange = _changePct(currentIncome, _previousIncome);
+    final expensesChange = _changePct(currentExpenses, _previousExpenses);
+    final savingsChange = _changePct(_savings, _previousSavings);
 
     final cards = [
       _buildStatCard(
@@ -450,6 +442,28 @@ class _DashboardViewState extends State<DashboardView> {
     return Decimal.parse((total.toDouble() / months).toStringAsFixed(2));
   }
 
+  /// Percentage change from [previous] to [current]; 0 when there is no
+  /// previous baseline to compare against.
+  double _changePct(Decimal current, Decimal previous) =>
+      previous > Decimal.zero
+          ? (((current - previous) * Decimal.fromInt(100)) / previous)
+              .toDouble()
+          : 0.0;
+
+  /// Evolution (%) of a per-month mean: the mean including the current month
+  /// compared with the mean of the months before it. This moves when the
+  /// latest month differs from the historical average, unlike a raw
+  /// month-over-month change. 0 when there is no earlier month to compare.
+  double _meanChangePct(
+      Decimal lifetimeTotal, Decimal currentMonth, int months) {
+    if (months <= 1) return 0.0;
+    final previousTotal = lifetimeTotal - currentMonth;
+    if (previousTotal <= Decimal.zero) return 0.0;
+    final currentMean = lifetimeTotal.toDouble() / months;
+    final previousMean = previousTotal.toDouble() / (months - 1);
+    return (currentMean - previousMean) * 100 / previousMean;
+  }
+
   Widget _buildAverageSection(PeadraColors colors, String currency) {
     final income = _lifetimeStats['income'] as Decimal? ?? Decimal.zero;
     final expenses = _lifetimeStats['expenses'] as Decimal? ?? Decimal.zero;
@@ -460,6 +474,10 @@ class _DashboardViewState extends State<DashboardView> {
 
     final totalGrowth = _totalAssets - startingTotal;
     final hasStartingCapital = startingTotal > Decimal.zero;
+    final currentIncome = _monthlySummary['income'] ?? Decimal.zero;
+    final currentExpenses = _monthlySummary['expenses'] ?? Decimal.zero;
+    final incomeChange = _meanChangePct(income, currentIncome, months);
+    final expensesChange = _meanChangePct(expenses, currentExpenses, months);
     final growthPct = hasStartingCapital
         ? ((totalGrowth * Decimal.fromInt(100)) / startingTotal).toDouble()
         : 0.0;
@@ -469,12 +487,12 @@ class _DashboardViewState extends State<DashboardView> {
         title: Translator.t('dash_avg_cost'),
         value: CurrencyService.formatAmount(
             _avgPerMonth(expenses, months), currency),
-        change: 0,
+        change: expensesChange,
         icon: Icons.receipt_long,
         iconColor: colors.error,
         bgColor: colors.expenseBg,
         colors: colors,
-        hideChange: true,
+        invertChange: true,
         showSubtitle: showSubtitles,
         subtitle: Translator.t('dash_per_month'),
       ),
@@ -482,12 +500,11 @@ class _DashboardViewState extends State<DashboardView> {
         title: Translator.t('dash_avg_income'),
         value: CurrencyService.formatAmount(
             _avgPerMonth(income, months), currency),
-        change: 0,
+        change: incomeChange,
         icon: Icons.trending_up,
         iconColor: colors.success,
         bgColor: colors.incomeBg,
         colors: colors,
-        hideChange: true,
         showSubtitle: showSubtitles,
         subtitle: Translator.t('dash_per_month'),
       ),
@@ -507,12 +524,12 @@ class _DashboardViewState extends State<DashboardView> {
       _buildStatCard(
         title: Translator.t('dash_total_growth'),
         value: CurrencyService.formatAmount(totalGrowth, currency),
-        change: growthPct,
+        change: 0,
         icon: Icons.account_balance,
         iconColor: colors.info,
         bgColor: colors.info.withValues(alpha: 0.15),
         colors: colors,
-        hideChange: !hasStartingCapital,
+        hideChange: true,
         showSubtitle: showSubtitles,
         subtitle: Translator.t('dash_since_start'),
       ),

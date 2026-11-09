@@ -11,7 +11,7 @@ import '../../../../core/services/update_service.dart';
 import '../../../../core/theme/peadra_colors.dart';
 import '../../../../shared/widgets/peadra_modal.dart';
 
-/// Shows the "Rate Peadra" prompt on phones right after login: every 30 days
+/// Shows the "Rate Peadra" prompt on phones right after login: every 15 days
 /// until the user taps the stars, never again after that. The stars button
 /// opens the Play Store listing; tapping it counts as a rating.
 ///
@@ -111,10 +111,10 @@ Future<void> _rate(DatabaseManager db) async {
 }
 
 /// Whether the rating prompt is due: the user has not rated yet and the
-/// prompt has not been shown within the last 30 days.
+/// prompt has not been shown within the last 15 days.
 bool isRatePromptDue({required bool rated, DateTime? lastShown, DateTime? now}) {
   if (rated) return false;
   final reference = now ?? DateTime.now();
   return lastShown == null ||
-      reference.difference(lastShown).inDays >= 30;
+      reference.difference(lastShown).inDays >= 15;
 }

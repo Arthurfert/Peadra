@@ -4,7 +4,8 @@
 
 ### New
 
-- New *Valentin* theme
+- Added evolution percentages to the mean expense and mean income cards
+- New *Valentine* theme
 
 ### Fixes
 

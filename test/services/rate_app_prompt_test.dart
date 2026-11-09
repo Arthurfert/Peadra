@@ -13,22 +13,22 @@ void main() {
       expect(isRatePromptDue(rated: true, now: now), false);
     });
 
-    test('is not due within 30 days of the last appearance', () {
+    test('is not due within 15 days of the last appearance', () {
       expect(
         isRatePromptDue(
           rated: false,
-          lastShown: now.subtract(const Duration(days: 29)),
+          lastShown: now.subtract(const Duration(days: 14)),
           now: now,
         ),
         false,
       );
     });
 
-    test('is due again 30 days after the last appearance', () {
+    test('is due again 15 days after the last appearance', () {
       expect(
         isRatePromptDue(
           rated: false,
-          lastShown: now.subtract(const Duration(days: 30)),
+          lastShown: now.subtract(const Duration(days: 15)),
           now: now,
         ),
         true,

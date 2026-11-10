@@ -61,7 +61,7 @@ jobs:
           path: fastforge
 
       - name: Build fastforge CLI
-        run: cargo build -p fastforge --release
+        run: cargo build -p fastforge_cli --release
         working-directory: fastforge
 
       - name: Add built CLI to PATH

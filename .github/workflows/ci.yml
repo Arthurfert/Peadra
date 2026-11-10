@@ -65,7 +65,7 @@ jobs:
         working-directory: fastforge
 
       - name: Add built CLI to PATH
-        run: echo "$GITHUB_WORKSPACE/fastforge/target/release" >> "$GITHUB_ENV"
+        run: echo "$GITHUB_WORKSPACE/fastforge/target/release" >> "$GITHUB_PATH"
 
       - name: Build deb package
         run: fastforge package --platform linux --targets deb

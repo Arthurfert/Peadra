@@ -146,6 +146,15 @@ void main() {
 
       expect(await db.getTotalPatrimony(), Decimal.fromInt(1000));
     });
+
+    test('before excludes transactions on or after the date', () async {
+      await cTxn('2025-06-10', 'Salary', 100, 'income');
+      await cTxn('2025-06-20', 'Salary', 300, 'income');
+
+      expect(await db.getTotalPatrimony(before: '2025-06-15'),
+          Decimal.fromInt(100));
+      expect(await db.getTotalPatrimony(), Decimal.fromInt(400));
+    });
   });
 
   // =========================================================================
@@ -308,6 +317,26 @@ void main() {
       final summary = await db.getMonthlySummary(year: 2025, month: 6);
       expect(summary['income'], Decimal.fromInt(1000));
     });
+
+    test('untilDay caps a past month at the given day of month', () async {
+      await cTxn('2025-06-05', 'Early', 100, 'income');
+      await cTxn('2025-06-15', 'Later', 900, 'income');
+
+      final capped =
+          await db.getMonthlySummary(year: 2025, month: 6, untilDay: 10);
+      expect(capped['income'], Decimal.fromInt(100));
+
+      final full = await db.getMonthlySummary(year: 2025, month: 6);
+      expect(full['income'], Decimal.fromInt(1000));
+    });
+
+    test('untilDay clamps to the last day of a shorter month', () async {
+      await cTxn('2025-02-28', 'End', 50, 'expense');
+
+      final summary =
+          await db.getMonthlySummary(year: 2025, month: 2, untilDay: 31);
+      expect(summary['expenses'], Decimal.fromInt(50));
+    });
   });
 
   // =========================================================================
@@ -344,6 +373,32 @@ void main() {
 
       final summary = await db.getRollingSummary();
       expect(summary['income'], Decimal.zero);
+    });
+
+    test('endDate shifts the window back by the rolling length', () async {
+      final now = DateTime.now();
+      final inPrevious = now
+          .subtract(const Duration(days: 40))
+          .toIso8601String()
+          .substring(0, 10);
+      final inCurrent = now
+          .subtract(const Duration(days: 20))
+          .toIso8601String()
+          .substring(0, 10);
+      await cTxn(inPrevious, 'Old', 300, 'income');
+      await cTxn(inCurrent, 'Recent', 500, 'income');
+
+      // Previous window: the 30 days before the last 30 days.
+      final previousEnd = now
+          .subtract(const Duration(days: 31))
+          .toIso8601String()
+          .substring(0, 10);
+      final previous =
+          await db.getRollingSummary(endDate: previousEnd);
+      expect(previous['income'], Decimal.fromInt(300));
+
+      final current = await db.getRollingSummary();
+      expect(current['income'], Decimal.fromInt(500));
     });
   });
 
@@ -1327,6 +1382,31 @@ void main() {
 
       final stats = await db.getLifetimeStats();
       expect(stats['expenses'], Decimal.fromInt(150));
+    });
+
+    test('splits current-month totals from lifetime totals', () async {
+      final now = DateTime.now();
+      final previousMonth = DateTime(now.year, now.month - 1, 15)
+          .toIso8601String()
+          .substring(0, 10);
+      final currentMonth =
+          DateTime(now.year, now.month, 1).toIso8601String().substring(0, 10);
+      await cTxn(previousMonth, 'Old salary', 2000, 'income');
+      await cTxn(currentMonth, 'Salary', 500, 'income');
+
+      final stats = await db.getLifetimeStats();
+      expect(stats['income'], Decimal.fromInt(2500));
+      expect(stats['monthIncome'], Decimal.fromInt(500));
+    });
+
+    test('starting total excludes deleted accounts', () async {
+      final acct = await db.addAccount('Old Bank', '#123456', 'checking', 'EUR',
+          startingAmount: Decimal.fromInt(1000));
+      expect(
+          (await db.getLifetimeStats())['startingTotal'], Decimal.fromInt(1000));
+
+      await db.deleteAccount(acct!, deleteStartingAmount: false);
+      expect((await db.getLifetimeStats())['startingTotal'], Decimal.zero);
     });
   });
 }

@@ -10,6 +10,7 @@
 ### Fixes
 
 - Transfer icon in a transfer transaction details instead of the expense one
+- Fix evolution percentages calculations in dashboard
 
 ## Known issues
 

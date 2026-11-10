@@ -2521,7 +2521,8 @@ void setUserId(String userId) {
     return (startingTotal, deletions);
   }
 
-  Future<Decimal> getTotalPatrimony({String targetCurrency = 'EUR'}) async {
+  Future<Decimal> getTotalPatrimony(
+      {String targetCurrency = 'EUR', String? before}) async {
     final db = await database;
     final acctRows = await db.query(
       'SELECT starting_amount, currency FROM accounts WHERE user_id = ? AND is_deleted = 0',
@@ -2545,8 +2546,9 @@ void setUserId(String userId) {
     final txnRows = await db.query(
       'SELECT t.amount, t.transaction_type, COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
       'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
-      'WHERE t.user_id = ? AND t.is_deleted = 0 AND t.date <= ?',
-      [_userId, today],
+      'WHERE t.user_id = ? AND t.is_deleted = 0 AND t.date <= ?'
+      '${before != null ? ' AND t.date < ?' : ''}',
+      before != null ? [_userId, today, before] : [_userId, today],
     );
 
     for (final row in txnRows) {
@@ -2662,23 +2664,38 @@ void setUserId(String userId) {
     return total;
   }
 
-  Future<Map<String, Decimal>> getMonthlySummary({int? year, int? month, String targetCurrency = 'EUR'}) async {
+  Future<Map<String, Decimal>> getMonthlySummary(
+      {int? year,
+      int? month,
+      String targetCurrency = 'EUR',
+      int? untilDay}) async {
     final now = DateTime.now();
     final y = year ?? now.year;
     final m = month ?? now.month;
     final startDate = '$y-${m.toString().padLeft(2, '0')}-01';
     final bool isCurrentMonth = y == now.year && m == now.month;
+    // `untilDay` caps a past month at the day-of-month given, so a
+    // month-to-date figure can be compared against the same window last
+    // month instead of the whole month.
     final String endDate;
-    if (isCurrentMonth) {
+    final String op;
+    if (untilDay != null && !isCurrentMonth) {
+      final lastDay = DateTime(y, m + 1, 0).day;
+      final day = untilDay.clamp(1, lastDay);
+      endDate =
+          '$y-${m.toString().padLeft(2, '0')}-${day.toString().padLeft(2, '0')}';
+      op = '<=';
+    } else if (isCurrentMonth) {
       endDate = now.toIso8601String().substring(0, 10);
+      op = '<=';
     } else {
       final endMonth = m == 12 ? 1 : m + 1;
       final endYear = m == 12 ? y + 1 : y;
       endDate = '$endYear-${endMonth.toString().padLeft(2, '0')}-01';
+      op = '<';
     }
 
     final db = await database;
-    final op = isCurrentMonth ? '<=' : '<';
     final txnRows = await db.query(
       'SELECT t.amount, t.transaction_type, t.account_id, '
       'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency, a.type as account_type, '
@@ -2720,10 +2737,16 @@ void setUserId(String userId) {
     return {'income': income, 'expenses': expenses, 'balance': income - expenses};
   }
 
-  Future<Map<String, Decimal>> getRollingSummary({int days = 30, String targetCurrency = 'EUR'}) async {
+  Future<Map<String, Decimal>> getRollingSummary(
+      {int days = 30, String targetCurrency = 'EUR', String? endDate}) async {
     final now = DateTime.now();
-    final endDate = now.toIso8601String().substring(0, 10);
-    final startDate = now.subtract(Duration(days: days)).toIso8601String().substring(0, 10);
+    // `endDate` shifts the window back, so the latest 30 days can be
+    // compared against the 30 days before them.
+    final end = endDate ?? now.toIso8601String().substring(0, 10);
+    final startDate = DateTime.parse(end)
+        .subtract(Duration(days: days))
+        .toIso8601String()
+        .substring(0, 10);
 
     final db = await database;
     final txnRows = await db.query(
@@ -2733,7 +2756,7 @@ void setUserId(String userId) {
       'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
       'LEFT JOIN descriptions d ON t.description_id = d.id AND d.is_deleted = 0 '
       'WHERE t.date >= ? AND t.date <= ? AND t.user_id = ? AND t.is_deleted = 0',
-      [startDate, endDate, _userId],
+      [startDate, end, _userId],
     );
 
     Decimal income = Decimal.zero;
@@ -2772,11 +2795,15 @@ void setUserId(String userId) {
   /// Same conventions as [getMonthlySummary]: checking accounts only
   /// (plus orphan transactions), transfers excluded, past and present
   /// transactions only. [months] counts calendar months from the first
-  /// recorded transaction to today (minimum 1).
+  /// recorded transaction to today (minimum 1). [monthIncome]/[monthExpenses]
+  /// are the current calendar month's totals (useful to compare the mean
+  /// with and without the latest month, even in rolling mode).
   Future<Map<String, dynamic>> getLifetimeStats({String targetCurrency = 'EUR'}) async {
     final db = await database;
     final now = DateTime.now();
     final endDate = now.toIso8601String().substring(0, 10);
+    final monthStart =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-01';
 
     final firstDate = await getFirstTransactionDate();
     int months = 1;
@@ -2787,7 +2814,7 @@ void setUserId(String userId) {
     }
 
     final acctRows = await db.query(
-      'SELECT starting_amount, currency FROM accounts WHERE user_id = ?',
+      'SELECT starting_amount, currency FROM accounts WHERE user_id = ? AND is_deleted = 0',
       [_userId],
     );
     Decimal startingTotal = Decimal.zero;
@@ -2804,7 +2831,7 @@ void setUserId(String userId) {
     }
 
     final txnRows = await db.query(
-      'SELECT t.amount, t.transaction_type, t.account_id, '
+      'SELECT t.amount, t.transaction_type, t.account_id, t.date, '
       'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency, a.type as account_type, '
       'd.name as description_name '
       'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
@@ -2815,6 +2842,8 @@ void setUserId(String userId) {
 
     Decimal income = Decimal.zero;
     Decimal expenses = Decimal.zero;
+    Decimal monthIncome = Decimal.zero;
+    Decimal monthExpenses = Decimal.zero;
     for (final row in txnRows) {
       final accountType = row['account_type'] as String?;
       final hasAccount = row['account_id'] != null;
@@ -2835,15 +2864,21 @@ void setUserId(String userId) {
         convertedAmount = amount * Decimal.parse((rate ?? 1.0).toString());
       }
 
+      final inCurrentMonth =
+          (row['date'] as String).compareTo(monthStart) >= 0;
       if (type == 'income') {
         income += convertedAmount;
+        if (inCurrentMonth) monthIncome += convertedAmount;
       } else if (type == 'expense') {
         expenses += convertedAmount;
+        if (inCurrentMonth) monthExpenses += convertedAmount;
       }
     }
     return {
       'income': income,
       'expenses': expenses,
+      'monthIncome': monthIncome,
+      'monthExpenses': monthExpenses,
       'startingTotal': startingTotal,
       'firstDate': firstDate,
       'months': months,

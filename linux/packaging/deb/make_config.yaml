@@ -2,7 +2,7 @@ display_name: Peadra
 package_name: peadra
 maintainer:
   name: Peadra
-  email: peadra@example.com
+  email: peadra@arthurfert.com
 priority: optional
 section: x11
 installed_size: 6604
@@ -27,5 +27,5 @@ categories:
 
 startup_notify: true
 
-depends:
+dependencies:
   - libsecret-1-0

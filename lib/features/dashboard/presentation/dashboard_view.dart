@@ -34,6 +34,9 @@ class _DashboardViewState extends State<DashboardView> {
   Decimal _previousIncome = Decimal.zero;
   Decimal _previousExpenses = Decimal.zero;
   Decimal _previousSavings = Decimal.zero;
+  Decimal _previousTotalAssets = Decimal.zero;
+  Decimal _totalAssetsBeforeLastMonth = Decimal.zero;
+  Decimal _totalAssetsAtLastMonthSameDay = Decimal.zero;
   Map<String, Decimal> _monthlySummary = {};
   List<Map<String, dynamic>> _accountsDistribution = [];
   List<Map<String, dynamic>> _cashFlowData = [];
@@ -104,6 +107,17 @@ class _DashboardViewState extends State<DashboardView> {
 
       final now = DateTime.now();
       final thisMonthStart = DateTime(now.year, now.month, 1).toIso8601String().substring(0, 10);
+      // Calendar-month baselines for the growth evolution: patrimony at the
+      // start of last month, and at the same day of last month (clamped to
+      // the shorter month), so month-to-date growth is compared fairly.
+      final lastMonthStart = DateTime(now.year, now.month - 1, 1)
+          .toIso8601String()
+          .substring(0, 10);
+      final lastMonthLastDay = DateTime(now.year, now.month, 0).day;
+      final lastMonthSameDayEnd = DateTime(now.year, now.month - 1,
+              (now.day < lastMonthLastDay ? now.day : lastMonthLastDay) + 1)
+          .toIso8601String()
+          .substring(0, 10);
       final isCustom = _isCustomRange;
       final customStart = _customStart;
       final customEnd = _customEnd;
@@ -177,12 +191,23 @@ class _DashboardViewState extends State<DashboardView> {
                     : _db.getCurrentMonthDistribution(
                         transactionType: 'income', targetCurrency: currency))),
         _safeQuery(() {
+          // Compare like with like: the current figure is month-to-date (or
+          // the last 30 days in rolling mode), so the baseline uses the same
+          // window instead of a full previous month.
+          if (isRolling) {
+            final previousEnd = now
+                .subtract(const Duration(days: 31))
+                .toIso8601String()
+                .substring(0, 10);
+            return _db.getRollingSummary(endDate: previousEnd);
+          }
           final prevMonth = now.month == 1 ? 12 : now.month - 1;
           final prevYear = now.month == 1 ? now.year - 1 : now.year;
           return _db.getMonthlySummary(
               year: prevYear,
               month: prevMonth,
-              targetCurrency: currency);
+              targetCurrency: currency,
+              untilDay: now.day);
         }),
         _safeQuery(() => _db.getSavingsTotal(
             targetCurrency: currency, before: thisMonthStart)),
@@ -192,6 +217,12 @@ class _DashboardViewState extends State<DashboardView> {
         _safeQuery(() =>
             _db.getBalance(targetCurrency: currency, before: thisMonthStart)),
         _safeQuery(() => _db.getLifetimeStats(targetCurrency: currency)),
+        _safeQuery(() => _db.getTotalPatrimony(
+            targetCurrency: currency, before: thisMonthStart)),
+        _safeQuery(() => _db.getTotalPatrimony(
+            targetCurrency: currency, before: lastMonthStart)),
+        _safeQuery(() => _db.getTotalPatrimony(
+            targetCurrency: currency, before: lastMonthSameDayEnd)),
       ]);
 
       if (mounted) {
@@ -212,6 +243,10 @@ class _DashboardViewState extends State<DashboardView> {
           _previousSavings = (results[10] as Decimal?) ?? Decimal.zero;
           _tagColors = (results[11] as Map<String, String>?) ?? {};
           _lifetimeStats = (results[13] as Map<String, dynamic>?) ?? {};
+          _previousTotalAssets = (results[14] as Decimal?) ?? Decimal.zero;
+          _totalAssetsBeforeLastMonth = (results[15] as Decimal?) ?? Decimal.zero;
+          _totalAssetsAtLastMonthSameDay =
+              (results[16] as Decimal?) ?? Decimal.zero;
           _expenseDrillTag = null;
           _incomeDrillTag = null;
           _expenseShowAll = false;
@@ -381,18 +416,10 @@ class _DashboardViewState extends State<DashboardView> {
     final currentExpenses = _monthlySummary['expenses'] ?? Decimal.zero;
     final showSubtitles = context.read<SettingsProvider>().showStatSubtitles;
 
-    final balanceChange = _previousBalance > Decimal.zero
-        ? (((_balance - _previousBalance) * Decimal.fromInt(100)) / _previousBalance).toDouble()
-        : 0.0;
-    final incomeChange = _previousIncome > Decimal.zero
-        ? (((currentIncome - _previousIncome) * Decimal.fromInt(100)) / _previousIncome).toDouble()
-        : 0.0;
-    final expensesChange = _previousExpenses > Decimal.zero
-        ? (((currentExpenses - _previousExpenses) * Decimal.fromInt(100)) / _previousExpenses).toDouble()
-        : 0.0;
-    final savingsChange = _previousSavings > Decimal.zero
-        ? (((_savings - _previousSavings) * Decimal.fromInt(100)) / _previousSavings).toDouble()
-        : 0.0;
+    final balanceChange = _changePct(_balance, _previousBalance);
+    final incomeChange = _changePct(currentIncome, _previousIncome);
+    final expensesChange = _changePct(currentExpenses, _previousExpenses);
+    final savingsChange = _changePct(_savings, _previousSavings);
 
     final cards = [
       _buildStatCard(
@@ -450,6 +477,40 @@ class _DashboardViewState extends State<DashboardView> {
     return Decimal.parse((total.toDouble() / months).toStringAsFixed(2));
   }
 
+  /// Percentage change from [previous] to [current]; null when there is no
+  /// positive baseline to compare against (new account, empty savings...),
+  /// in which case the card hides its indicator instead of faking +0.0%.
+  double? _changePct(Decimal current, Decimal previous) =>
+      previous > Decimal.zero
+          ? (((current - previous) * Decimal.fromInt(100)) / previous)
+              .toDouble()
+          : null;
+
+  /// Evolution (%) of a per-month mean: the mean including the current month
+  /// compared with the mean of the months before it. This moves when the
+  /// latest month differs from the historical average, unlike a raw
+  /// month-over-month change. Null when there is no earlier month or no
+  /// usable baseline.
+  double? _meanChangePct(
+      Decimal lifetimeTotal, Decimal currentMonth, int months) {
+    if (months <= 1) return null;
+    final previousTotal = lifetimeTotal - currentMonth;
+    if (previousTotal <= Decimal.zero) return null;
+    final currentMean = lifetimeTotal.toDouble() / months;
+    final previousMean = previousTotal.toDouble() / (months - 1);
+    return (currentMean - previousMean) * 100 / previousMean;
+  }
+
+  /// Evolution (%) of monthly patrimony growth: [current] growth against
+  /// [previous] growth. Uses the absolute previous value so an improvement
+  /// from a negative growth still reads positive. Null when last month had
+  /// no growth to compare with.
+  double? _growthChangePct(Decimal current, Decimal previous) {
+    final previousValue = previous.toDouble();
+    if (previousValue == 0) return null;
+    return (current.toDouble() - previousValue) * 100 / previousValue.abs();
+  }
+
   Widget _buildAverageSection(PeadraColors colors, String currency) {
     final income = _lifetimeStats['income'] as Decimal? ?? Decimal.zero;
     final expenses = _lifetimeStats['expenses'] as Decimal? ?? Decimal.zero;
@@ -459,22 +520,29 @@ class _DashboardViewState extends State<DashboardView> {
     final showSubtitles = context.read<SettingsProvider>().showStatSubtitles;
 
     final totalGrowth = _totalAssets - startingTotal;
-    final hasStartingCapital = startingTotal > Decimal.zero;
-    final growthPct = hasStartingCapital
-        ? ((totalGrowth * Decimal.fromInt(100)) / startingTotal).toDouble()
-        : 0.0;
-    final avgGrowthPct = months > 0 ? growthPct / months : 0.0;
+    final currentIncome =
+        _lifetimeStats['monthIncome'] as Decimal? ?? Decimal.zero;
+    final currentExpenses =
+        _lifetimeStats['monthExpenses'] as Decimal? ?? Decimal.zero;
+    final incomeChange = _meanChangePct(income, currentIncome, months);
+    final expensesChange = _meanChangePct(expenses, currentExpenses, months);
+    // Growth evolution: this month's patrimony growth (month-to-date) against
+    // last month's growth over the same days, calendar months only.
+    final thisMonthGrowth = _totalAssets - _previousTotalAssets;
+    final lastMonthGrowth =
+        _totalAssetsAtLastMonthSameDay - _totalAssetsBeforeLastMonth;
+    final growthChange = _growthChangePct(thisMonthGrowth, lastMonthGrowth);
     final cards = [
       _buildStatCard(
         title: Translator.t('dash_avg_cost'),
         value: CurrencyService.formatAmount(
             _avgPerMonth(expenses, months), currency),
-        change: 0,
+        change: expensesChange,
         icon: Icons.receipt_long,
         iconColor: colors.error,
         bgColor: colors.expenseBg,
         colors: colors,
-        hideChange: true,
+        invertChange: true,
         showSubtitle: showSubtitles,
         subtitle: Translator.t('dash_per_month'),
       ),
@@ -482,12 +550,11 @@ class _DashboardViewState extends State<DashboardView> {
         title: Translator.t('dash_avg_income'),
         value: CurrencyService.formatAmount(
             _avgPerMonth(income, months), currency),
-        change: 0,
+        change: incomeChange,
         icon: Icons.trending_up,
         iconColor: colors.success,
         bgColor: colors.incomeBg,
         colors: colors,
-        hideChange: true,
         showSubtitle: showSubtitles,
         subtitle: Translator.t('dash_per_month'),
       ),
@@ -495,24 +562,22 @@ class _DashboardViewState extends State<DashboardView> {
         title: Translator.t('dash_avg_growth'),
         value: CurrencyService.formatAmount(
             _avgPerMonth(totalGrowth, months), currency),
-        change: avgGrowthPct,
+        change: growthChange,
         icon: Icons.show_chart,
         iconColor: colors.chartAsset,
         bgColor: colors.chartAsset.withValues(alpha: 0.12),
         colors: colors,
-        hideChange: !hasStartingCapital,
         showSubtitle: showSubtitles,
         subtitle: Translator.t('dash_per_month'),
       ),
       _buildStatCard(
         title: Translator.t('dash_total_growth'),
         value: CurrencyService.formatAmount(totalGrowth, currency),
-        change: growthPct,
+        change: null,
         icon: Icons.account_balance,
         iconColor: colors.info,
         bgColor: colors.info.withValues(alpha: 0.15),
         colors: colors,
-        hideChange: !hasStartingCapital,
         showSubtitle: showSubtitles,
         subtitle: Translator.t('dash_since_start'),
       ),
@@ -542,13 +607,12 @@ class _DashboardViewState extends State<DashboardView> {
   Widget _buildStatCard({
     required String title,
     required String value,
-    required double change,
+    required double? change,
     required IconData icon,
     required Color iconColor,
     required Color bgColor,
     required PeadraColors colors,
     bool invertChange = false,
-    bool hideChange = false,
     String? subtitle,
     bool showSubtitle = true,
   }) {
@@ -572,7 +636,7 @@ class _DashboardViewState extends State<DashboardView> {
                   ),
                   child: Icon(icon, color: iconColor, size: 20),
                 ),
-                if (hideChange)
+                if (change == null)
                   const SizedBox.shrink()
                 else
                   _buildChangeIndicator(change, colors, invert: invertChange),
@@ -1073,12 +1137,10 @@ class _DashboardViewState extends State<DashboardView> {
     );
   }
 
-  /// Mobile greeting: on an surface band, full-bleed, no bottom rounding so
-  /// it merges with the total-assets banner below.
   /// Mobile/narrow hero: surface card containing the greeting at the top
   /// and the centered total-asset amount, with the stat-card shadow.
-  Widget _buildTotalAssetBanner(
-      PeadraColors colors, double change, String amount, String username) {
+  Widget _buildTotalAssetBanner(PeadraColors colors, double? change,
+      String amount, String username) {
     return Card(
       margin: EdgeInsets.zero,
       color: colors.surface,
@@ -1102,29 +1164,31 @@ class _DashboardViewState extends State<DashboardView> {
                 ),
               ),
               const SizedBox(height: 16),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: _RollingDigitsText(
-                amount,
-                TextStyle(
-                  fontSize: 30,
-                  fontWeight: FontWeight.bold,
-                  color: colors.accent,
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: _RollingDigitsText(
+                  amount,
+                  TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.bold,
+                    color: colors.accent,
+                  ),
                 ),
               ),
-            ),
-              const SizedBox(height: 4),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildChangeIndicator(change, colors, color: colors.text),
-                  const SizedBox(width: 4),
-                  Text(
-                    Translator.t('dash_last_month'),
-                    style: TextStyle(fontSize: 12, color: colors.text),
-                  ),
-                ],
-              ),
+              if (change != null) ...[
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildChangeIndicator(change, colors, color: colors.text),
+                    const SizedBox(width: 4),
+                    Text(
+                      Translator.t('dash_last_month'),
+                      style: TextStyle(fontSize: 12, color: colors.text),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
@@ -1134,10 +1198,7 @@ class _DashboardViewState extends State<DashboardView> {
 
   Widget _buildTotalAssetCard(PeadraColors colors, String currency,
       {required bool isNarrow, required String username}) {
-    final previousTotal = _previousBalance + _previousSavings;
-    final totalChange = previousTotal > Decimal.zero
-        ? ((_totalAssets - previousTotal) * Decimal.fromInt(100) / previousTotal).toDouble()
-        : 0.0;
+    final totalChange = _changePct(_totalAssets, _previousTotalAssets);
     final formattedAmount = CurrencyService.formatAmount(_totalAssets, currency);
     if (isNarrow) {
       return _buildTotalAssetBanner(
@@ -1163,7 +1224,8 @@ class _DashboardViewState extends State<DashboardView> {
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                _buildChangeIndicator(totalChange, colors),
+                if (totalChange != null)
+                  _buildChangeIndicator(totalChange, colors),
               ],
             ),
             const SizedBox(height: 8),

@@ -243,6 +243,7 @@ class Translator {
       'param_system_theme': 'System Theme',
       'param_light_theme': 'Light Theme',
       'param_dark_theme': 'Dark Theme',
+      'param_valentine_theme': 'Valentine Theme',
       'param_autumn_theme': 'Autumn Theme',
       'param_summer_theme': 'Summer Theme',
       'param_sakura_theme': 'Sakura Theme',
@@ -513,6 +514,11 @@ class Translator {
       'budget_delete_goal': 'Delete Goal',
       'budget_delete_confirm': 'Delete this goal?',
       'budget_of_target': '{current} of {target}',
+      'rate_title': 'Rate Peadra',
+      'rate_body':
+          'Enjoying Peadra? A rating on the Play Store helps us a lot.',
+      'rate_cta': 'Rate Peadra now',
+      'rate_later': 'Maybe later',
     },
     'fr': {
       'nav_dashboard': 'Accueil',
@@ -758,8 +764,9 @@ class Translator {
       'param_theme_label': 'Th\u00e8me',
       'param_theme_desc': 'Choisissez votre th\u00e8me pr\u00e9f\u00e9r\u00e9.',
       'param_system_theme': 'Th\u00e8me Syst\u00e8me',
-      'param_light_theme': 'Th\u00e8me clair',
-      'param_dark_theme': 'Th\u00e8me sombre',
+      'param_light_theme': 'Th\u00e8me Clair',
+      'param_dark_theme': 'Th\u00e8me Sombre',
+      'param_valentine_theme': 'Th\u00e8me Valentin',
       'param_autumn_theme': 'Th\u00e8me Automne',
       'param_summer_theme': 'Th\u00e8me \u00c9t\u00e9',
       'param_sakura_theme': 'Th\u00e8me Sakura',
@@ -1051,6 +1058,11 @@ class Translator {
       'budget_delete_goal': 'Supprimer l\u2019objectif',
       'budget_delete_confirm': 'Supprimer cet objectif ?',
       'budget_of_target': '{current} sur {target}',
+      'rate_title': 'Noter Peadra',
+      'rate_body':
+          'Vous aimez Peadra ? Une note sur le Play Store nous aide beaucoup.',
+      'rate_cta': 'Noter Peadra maintenant',
+      'rate_later': 'Plus tard',
     },
     'es': {
       'nav_dashboard': 'Inicio',
@@ -1293,8 +1305,9 @@ class Translator {
       'param_theme_label': 'Tema',
       'param_theme_desc': 'Elige tu tema preferido.',
       'param_system_theme': 'Tema del sistema',
-      'param_light_theme': 'Tema claro',
-      'param_dark_theme': 'Tema oscuro',
+      'param_light_theme': 'Tema Claro',
+      'param_dark_theme': 'Tema Oscuro',
+      'param_valentine_theme': 'Tema Valentino',
       'param_autumn_theme': 'Tema Otoño',
       'param_summer_theme': 'Tema Verano',
       'param_sakura_theme': 'Tema Sakura',
@@ -1565,6 +1578,11 @@ class Translator {
       'budget_delete_goal': 'Eliminar objetivo',
       'budget_delete_confirm': '¿Eliminar este objetivo?',
       'budget_of_target': '{current} de {target}',
+      'rate_title': 'Valorar Peadra',
+      'rate_body':
+          '¿Te gusta Peadra? Una valoración en Play Store nos ayuda mucho.',
+      'rate_cta': 'Valorar Peadra ahora',
+      'rate_later': 'Quizás más tarde',
     },
   };
   static String _language = 'en';

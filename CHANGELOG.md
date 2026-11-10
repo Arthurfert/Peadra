@@ -4,12 +4,13 @@
 
 ### New
 
-
+- Added evolution percentages to the mean expense and mean income cards
+- New *Valentine* theme
 
 ### Fixes
 
-- Fixed total amount taking completely deleted accounts into account
-- Keep total assets graph correct after account deletion
+- Transfer icon in a transfer transaction details instead of the expense one
+- Fix evolution percentages calculations in dashboard
 
 ## Known issues
 

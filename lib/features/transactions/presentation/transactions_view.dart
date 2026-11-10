@@ -860,8 +860,14 @@ class _TransactionsViewState extends State<TransactionsView> {
         ? txn.accountCurrency!
         : (txn.currency.isNotEmpty ? txn.currency : currency);
 
-    final isIncome = txn.transactionType == 'income';
-    final isTransfer = txn.transactionType == 'transfer';
+    // A transfer is stored as two plain legs (expense/income) linked only by
+    // their description text, so the raw type alone would show a leg as an
+    // expense/income here.
+    final isTransfer =
+        txn.transactionType == 'transfer' ||
+        pairedTxn != null ||
+        isTransferText(_legText(txn));
+    final isIncome = !isTransfer && txn.transactionType == 'income';
     final bgColor = isIncome
         ? colors.incomeBg
         : isTransfer

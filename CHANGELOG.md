@@ -4,13 +4,11 @@
 
 ### New
 
-- Added evolution percentages to the mean expense and mean income cards
-- New *Valentine* theme
+- Added the date of the lastest currency rates fecth to the tools view
 
 ### Fixes
 
-- Transfer icon in a transfer transaction details instead of the expense one
-- Fix evolution percentages calculations in dashboard
+
 
 ## Known issues
 

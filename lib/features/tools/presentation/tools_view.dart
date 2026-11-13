@@ -1,6 +1,7 @@
 import 'package:decimal/decimal.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../core/database/database_manager.dart';
 import '../../../core/i18n/translator.dart';
@@ -34,7 +35,7 @@ class _ToolsViewState extends State<ToolsView> {
   String _toCurrency = 'USD';
   double? _converted;
   bool _ratesLoaded = false;
-
+  DateTime? _lastRateUpdate;
   @override
   void initState() {
     super.initState();
@@ -63,6 +64,8 @@ class _ToolsViewState extends State<ToolsView> {
           'SELECT DISTINCT from_currency AS code FROM exchange_rates WHERE is_deleted = 0');
       final to = await db.query(
           'SELECT DISTINCT to_currency AS code FROM exchange_rates WHERE is_deleted = 0');
+      final lastUpdate = await db.query(
+          'SELECT MAX(updated_at) AS last FROM exchange_rates WHERE is_deleted = 0');
       final codes = {
         for (final row in [...from, ...to])
           if (CurrencyService.isValid(row['code'] as String))
@@ -74,6 +77,11 @@ class _ToolsViewState extends State<ToolsView> {
         _fromCurrency =
             _codes.contains(currency) ? currency : _codes.first;
         _toCurrency = _codes.contains('USD') ? 'USD' : _codes.last;
+        // Kept as DateTime so the label formats in the current locale.
+        final raw = lastUpdate.isEmpty
+            ? null
+            : lastUpdate.first['last'] as String?;
+        _lastRateUpdate = raw == null ? null : DateTime.tryParse(raw);
         _ratesLoaded = true;
       });
       _convert();
@@ -475,6 +483,15 @@ class _ToolsViewState extends State<ToolsView> {
                   ],
                 ),
         ),
+        if (_lastRateUpdate != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            Translator.t('tool_rates_updated',
+                params: {'date': DateFormat('EEEE d MMMM').format(_lastRateUpdate!)}),
+            textAlign: TextAlign.center,
+            style: TextStyle(color: colors.textSecondary, fontSize: 11),
+          ),
+        ],
       ],
     );
   }

@@ -147,6 +147,18 @@ void main() {
       expect(await db.getTotalPatrimony(), Decimal.fromInt(1000));
     });
 
+    test('before keeps kept starting amounts of accounts deleted later',
+        () async {
+      final acct = await db.addAccount('Old Checking', '#333333', 'checking',
+          'EUR',
+          startingAmount: Decimal.fromInt(200));
+      await db.deleteAccount(acct!, deleteStartingAmount: false);
+
+      expect(await db.getTotalPatrimony(before: '2025-06-15'),
+          Decimal.fromInt(200));
+      expect(await db.getTotalPatrimony(), Decimal.zero);
+    });
+
     test('before excludes transactions on or after the date', () async {
       await cTxn('2025-06-10', 'Salary', 100, 'income');
       await cTxn('2025-06-20', 'Salary', 300, 'income');
@@ -197,6 +209,22 @@ void main() {
       expect(
           await db.getBalance(before: '2025-06-01'), Decimal.fromInt(1000));
     });
+
+    test('before keeps kept starting amounts of accounts deleted later',
+        () async {
+      final acct = await db.addAccount('Old Checking', '#111111', 'checking',
+          'EUR',
+          startingAmount: Decimal.fromInt(500));
+      await cTxn('2025-06-01', 'Salary', 100, 'income');
+      await db.deleteAccount(acct!, deleteStartingAmount: false);
+
+      // The account existed at the baseline date, so its kept starting
+      // amount still counts there...
+      expect(
+          await db.getBalance(before: '2025-06-15'), Decimal.fromInt(600));
+      // ...but not in the current balance.
+      expect(await db.getBalance(), Decimal.fromInt(100));
+    });
   });
 
   // =========================================================================
@@ -205,6 +233,19 @@ void main() {
   group('getSavingsTotal', () {
     test('returns 0 when no transactions exist', () async {
       expect(await db.getSavingsTotal(), Decimal.zero);
+    });
+
+    test('before keeps kept starting amounts of accounts deleted later',
+        () async {
+      final acct = await db.addAccount('Old Savings', '#222222', 'savings',
+          'EUR',
+          startingAmount: Decimal.fromInt(300));
+      await sATxn('2025-06-01', 'Deposit', 50, 'income');
+      await db.deleteAccount(acct!, deleteStartingAmount: false);
+
+      expect(
+          await db.getSavingsTotal(before: '2025-06-15'), Decimal.fromInt(350));
+      expect(await db.getSavingsTotal(), Decimal.fromInt(50));
     });
 
     test('only counts savings account transactions', () async {
@@ -399,6 +440,67 @@ void main() {
 
       final current = await db.getRollingSummary();
       expect(current['income'], Decimal.fromInt(500));
+    });
+  });
+
+  // =========================================================================
+  // getStatComparisonSeries (stat-card comparison modal)
+  // =========================================================================
+  group('getStatComparisonSeries', () {
+    test('flow series are cumulative and exclude transfers', () async {
+      final now = DateTime.now();
+      final prevDay1 =
+          DateTime(now.year, now.month - 1, 1).toIso8601String().substring(0, 10);
+      await cTxn(prevDay1, 'Salary', 400, 'income');
+      await cTxn(prevDay1, 'Transfer from Savings', 999, 'income');
+      await cTxn(today(), 'Salary', 250, 'income');
+
+      final series = await db.getStatComparisonSeries(kind: 'income');
+      final previous = (series['previous'] as List).cast<double>();
+      final current = (series['current'] as List).cast<double>();
+
+      expect(previous.length, DateTime(now.year, now.month, 0).day);
+      expect(current.length, now.day);
+      expect(previous.last, 400.0);
+      expect(current.last, 250.0);
+    });
+
+    test('balance series includes starting amounts and carries over',
+        () async {
+      final now = DateTime.now();
+      final prevDay1 =
+          DateTime(now.year, now.month - 1, 1).toIso8601String().substring(0, 10);
+      await db.addAccount('Old Checking', '#111111', 'checking', 'EUR',
+          startingAmount: Decimal.fromInt(1000));
+      await cTxn(prevDay1, 'Salary', 100, 'income');
+      await cTxn(today(), 'Food', 50, 'expense');
+      await sATxn(prevDay1, 'Deposit', 200, 'income');
+
+      final checking = await db.getStatComparisonSeries(kind: 'checking');
+      final prevChecking = (checking['previous'] as List).cast<double>();
+      final currChecking = (checking['current'] as List).cast<double>();
+      expect(prevChecking.last, 1100.0);
+      expect(currChecking.last, 1050.0);
+
+      final savings = await db.getStatComparisonSeries(kind: 'savings');
+      expect((savings['previous'] as List).cast<double>().last, 200.0);
+    });
+
+    test('balance series keeps deleted accounts until their deletion date',
+        () async {
+      final acct = await db.addAccount('Old Savings', '#444444', 'savings',
+          'EUR',
+          startingAmount: Decimal.fromInt(300));
+      // Deleted today, keeping the starting amount.
+      await db.deleteAccount(acct!, deleteStartingAmount: false);
+
+      final series = await db.getStatComparisonSeries(kind: 'savings');
+      final previous = (series['previous'] as List).cast<double>();
+      final current = (series['current'] as List).cast<double>();
+
+      // The account existed through last month, then disappears today.
+      expect(previous.last, 300.0);
+      expect(current.last, 0.0);
     });
   });
 

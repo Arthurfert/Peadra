@@ -49,3 +49,13 @@ double _niceNumber(double value) {
 
   return nice * pow(10, exponent).toDouble();
 }
+
+/// Compact y-axis label: 950 → "950", 1250 → "1.2k", 2400000 → "2.4M".
+/// Kept short so the axis band stays narrow.
+String compactAxisLabel(double value) {
+  final abs = value.abs();
+  final sign = value < 0 ? '-' : '';
+  if (abs >= 1000000) return '$sign${(abs / 1000000).toStringAsFixed(1)}M';
+  if (abs >= 1000) return '$sign${(abs / 1000).toStringAsFixed(1)}k';
+  return '$sign${abs.toStringAsFixed(0)}';
+}

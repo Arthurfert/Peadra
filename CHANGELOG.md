@@ -4,15 +4,11 @@
 
 ### New
 
-- Added evolution percentages to the mean expense and mean income cards
-- New *Valentine* theme
+- Dashboard: You can now click on the stats cards to go deeper into their evolution
+- Tools view: view last currencies rates fetch date
 
 ### Fixes
 
-- Transfer icon in a transfer transaction details instead of the expense one
-- Fix evolution percentages calculations in dashboard
-
-## Known issues
-
-- On Linux only, graphs *can sometimes* have aliasing. It is a known issue
-  of Flutter dependencies with some graphical drivers.
+- Budget view: Delete and edit buttons when a goal is past due date
+- Settings: better update section on mobile
+- Dashboard: made the coordinates axis legends thinner so there is more space for the graphs

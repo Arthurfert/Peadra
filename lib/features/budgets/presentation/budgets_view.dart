@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:decimal/decimal.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/database/database_manager.dart';
@@ -412,143 +412,201 @@ class _BudgetsViewState extends State<BudgetsView> {
       }
     }
 
+    // Outdated custom goals expose their actions directly below the card.
+    final showOverdueActions = goal.isCustom && isOverdue;
+
     return Card(
       color: colors.surface,
+      clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 12,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    color: barColor,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: colors.text,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Text(
-                  '$percent%',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: percentColor,
-                  ),
-                ),
-                PopupMenuButton<String>(
-                  tooltip: Translator.t('btn_menu'),
-                  icon: Icon(
-                    Icons.more_vert,
-                    color: colors.placeholderColor,
-                    size: 20,
-                  ),
-                  onSelected: (v) {
-                    if (v == 'edit') {
-                      _openGoalDialog(existing: goal);
-                    } else if (v == 'delete') {
-                      _confirmDelete(entry);
-                    }
-                  },
-                  itemBuilder: (_) => [
-                    PopupMenuItem(
-                      value: 'edit',
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.edit_outlined,
-                            size: 18,
-                            color: colors.text,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(Translator.t('btn_edit')),
-                        ],
+                Row(
+                  children: [
+                    Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: barColor,
+                        shape: BoxShape.circle,
                       ),
                     ),
-                    PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.delete_outline,
-                            size: 18,
-                            color: colors.deleteColor,
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: colors.text,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text(
+                      '$percent%',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: percentColor,
+                      ),
+                    ),
+                    PopupMenuButton<String>(
+                      tooltip: Translator.t('btn_menu'),
+                      icon: Icon(
+                        Icons.more_vert,
+                        color: colors.placeholderColor,
+                        size: 20,
+                      ),
+                      onSelected: (v) {
+                        if (v == 'edit') {
+                          _openGoalDialog(existing: goal);
+                        } else if (v == 'delete') {
+                          _confirmDelete(entry);
+                        }
+                      },
+                      itemBuilder: (_) => [
+                        PopupMenuItem(
+                          value: 'edit',
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.edit_outlined,
+                                size: 18,
+                                color: colors.text,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(Translator.t('btn_edit')),
+                            ],
                           ),
-                          const SizedBox(width: 8),
-                          Text(
-                            Translator.t('btn_delete'),
-                            style: TextStyle(color: colors.deleteColor),
+                        ),
+                        PopupMenuItem(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.delete_outline,
+                                size: 18,
+                                color: colors.deleteColor,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                Translator.t('btn_delete'),
+                                style: TextStyle(color: colors.deleteColor),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  deadlineLabel,
+                  style: TextStyle(fontSize: 12, color: deadlineColor),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 10,
+                  width: double.infinity,
+                  // Keyed by the appear epoch: bumping it (view re-entered)
+                  // recreates the wrapper so the left-to-right fill replays,
+                  // while plain refreshes — same epoch — keep the settled bars.
+                  child: BarFillAnimation(
+                    key: ValueKey('fill:${goal.id ?? index}:$_appearEpoch'),
+                    index: index,
+                    builder: (context, t) => CustomPaint(
+                      painter: _GoalBarPainter(
+                        color: barColor,
+                        current: displayRatio * t,
+                        upcoming: upcomingRatio * t,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        Translator.t(
+                          'budget_of_target',
+                          params: {'current': currentStr, 'target': targetStr},
+                        ),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      statusLabel,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: statusColor,
                       ),
                     ),
                   ],
                 ),
               ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              deadlineLabel,
-              style: TextStyle(fontSize: 12, color: deadlineColor),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 10,
-              width: double.infinity,
-              // Keyed by the appear epoch: bumping it (view re-entered)
-              // recreates the wrapper so the left-to-right fill replays,
-              // while plain refreshes — same epoch — keep the settled bars.
-              child: BarFillAnimation(
-                key: ValueKey('fill:${goal.id ?? index}:$_appearEpoch'),
-                index: index,
-                builder: (context, t) => CustomPaint(
-                  painter: _GoalBarPainter(
-                    color: barColor,
-                    current: displayRatio * t,
-                    upcoming: upcomingRatio * t,
-                  ),
-                ),
+          ),
+          if (showOverdueActions) _buildOverdueActions(entry, colors, goal),
+        ],
+      ),
+    );
+  }
+
+  /// Surface-colored footer attached to an outdated custom goal card, so the
+  /// actions clearly belong to that goal.
+  Widget _buildOverdueActions(
+    _GoalEntry entry,
+    PeadraColors colors,
+    BudgetGoal goal,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(top: BorderSide(color: colors.borderColor)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextButton.icon(
+              onPressed: () => _confirmDelete(entry),
+              icon: Icon(
+                Icons.delete_outline,
+                size: 18,
+                color: colors.deleteColor,
+              ),
+              label: Text(
+                Translator.t('btn_delete'),
+                style: TextStyle(color: colors.deleteColor),
               ),
             ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    Translator.t(
-                      'budget_of_target',
-                      params: {'current': currentStr, 'target': targetStr},
-                    ),
-                    style: TextStyle(fontSize: 13, color: colors.textSecondary),
-                  ),
-                ),
-                Text(
-                  statusLabel,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: statusColor,
-                  ),
-                ),
-              ],
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextButton.icon(
+              onPressed: () => _openGoalDialog(existing: goal),
+              icon: Icon(Icons.edit_outlined, size: 18, color: colors.text),
+              label: Text(
+                Translator.t('btn_edit'),
+                style: TextStyle(color: colors.text),
+              ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

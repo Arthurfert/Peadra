@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.peadra.peadra</id>
+  <metadata_license>MIT</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <name>Peadra</name>
+  <summary>Financial Asset Tracker</summary>
+  <description>
+    <p>Manage your assets, accounts, and transactions with ease.</p>
+  </description>
+  <launchable type="desktop-id">com.peadra.peadra.desktop</launchable>
+  <url type="homepage">https://github.com/Arthurfert/Peadra</url>
+  <categories>
+    <category>Finance</category>
+    <category>Office</category>
+  </categories>
+</component>

@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:intl/intl.dart';
 import '../i18n/translator.dart';
 import '../database/database_manager.dart';
 import '../services/log_service.dart';
@@ -12,12 +13,15 @@ class LanguageProvider extends ChangeNotifier {
 
   LanguageProvider() {
     _language = Translator.language;
+    Intl.defaultLocale = _language;
   }
 
   void setLanguage(String lang) {
     if (_language == lang) return;
     LogService().log('Language changed to $lang');
     _language = lang;
+    // Localizes DateFormat output (intl) app-wide.
+    Intl.defaultLocale = lang;
     Translator.setLanguage(lang);
     notifyListeners();
   }

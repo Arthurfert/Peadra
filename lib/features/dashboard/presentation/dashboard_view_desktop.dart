@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 import '../../../core/i18n/translator.dart';
@@ -492,13 +492,11 @@ class _DashboardViewDesktopState extends State<DashboardViewDesktop> {
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 50,
+              reservedSize: 32,
               getTitlesWidget: (value, meta) {
                 if (value == 0) return const Text('');
                 return Text(
-                  value >= 1000
-                      ? '${(value / 1000).toStringAsFixed(1)}k'
-                      : value.toStringAsFixed(0),
+                  compactAxisLabel(value),
                   style: TextStyle(
                       color: colors.textSecondary, fontSize: 10),
                 );
@@ -613,14 +611,12 @@ class _DashboardViewDesktopState extends State<DashboardViewDesktop> {
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 50,
+              reservedSize: 32,
               interval: axis.interval,
               getTitlesWidget: (value, meta) {
                 if (value == 0) return const Text('');
                 return Text(
-                  value >= 1000
-                      ? '${(value / 1000).toStringAsFixed(1)}k'
-                      : value.toStringAsFixed(0),
+                  compactAxisLabel(value),
                   style: TextStyle(
                       color: colors.textSecondary, fontSize: 10),
                 );

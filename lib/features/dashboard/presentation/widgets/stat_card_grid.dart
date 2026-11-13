@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Lays out exactly four stat cards: one row of four on wide screens,
 /// two rows of two on narrow screens.

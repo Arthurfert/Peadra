@@ -2525,8 +2525,9 @@ void setUserId(String userId) {
       {String targetCurrency = 'EUR', String? before}) async {
     final db = await database;
     final acctRows = await db.query(
-      'SELECT starting_amount, currency FROM accounts WHERE user_id = ? AND is_deleted = 0',
-      [_userId],
+      'SELECT starting_amount, currency FROM accounts WHERE user_id = ? '
+      '${before != null ? 'AND (is_deleted = 0 OR deleted_at >= ?)' : 'AND is_deleted = 0'}',
+      before != null ? [_userId, before] : [_userId],
     );
 
     Decimal total = Decimal.zero;
@@ -2571,8 +2572,9 @@ void setUserId(String userId) {
     final db = await database;
 
     final acctRows = await db.query(
-      'SELECT starting_amount, currency FROM accounts WHERE type = ? AND user_id = ? AND is_deleted = 0',
-      ['checking', _userId],
+      'SELECT starting_amount, currency FROM accounts WHERE type = ? AND user_id = ? '
+      '${before != null ? 'AND (is_deleted = 0 OR deleted_at >= ?)' : 'AND is_deleted = 0'}',
+      before != null ? ['checking', _userId, before] : ['checking', _userId],
     );
 
     Decimal total = Decimal.zero;
@@ -2621,8 +2623,9 @@ void setUserId(String userId) {
     final db = await database;
 
     final acctRows = await db.query(
-      'SELECT starting_amount, currency FROM accounts WHERE type = ? AND user_id = ? AND is_deleted = 0',
-      ['savings', _userId],
+      'SELECT starting_amount, currency FROM accounts WHERE type = ? AND user_id = ? '
+      '${before != null ? 'AND (is_deleted = 0 OR deleted_at >= ?)' : 'AND is_deleted = 0'}',
+      before != null ? ['savings', _userId, before] : ['savings', _userId],
     );
 
     Decimal total = Decimal.zero;
@@ -2884,6 +2887,173 @@ void setUserId(String userId) {
       'months': months,
     };
   }
+
+  /// Daily series for the stat-card comparison modal.
+  ///
+  /// [kind] is `checking` or `savings` (daily account balance, starting
+  /// amounts included, every transaction counted like [getBalance]) or
+  /// `income`/`expense` (daily cumulative flows, same conventions as
+  /// [getMonthlySummary]: checking accounts plus orphans, transfers
+  /// excluded).
+  ///
+  /// Returns `previous`: one cumulative value per day of last month, and
+  /// `current`: one per elapsed day of this month (up to today).
+  Future<Map<String, dynamic>> getStatComparisonSeries({
+    required String kind,
+    String targetCurrency = 'EUR',
+  }) async {
+    final db = await database;
+    final now = DateTime.now();
+    final today = now.toIso8601String().substring(0, 10);
+    final thisMonth = DateTime(now.year, now.month, 1);
+    final prevMonth = DateTime(now.year, now.month - 1, 1);
+    final prevMonthDays = DateTime(now.year, now.month, 0).day;
+    final currentDays = now.day;
+    final prevStart = prevMonth.toIso8601String().substring(0, 10);
+
+    final isBalance = kind == 'checking' || kind == 'savings';
+
+    Future<Decimal> convert(Decimal amount, String? currency) async {
+      final from = currency ?? 'EUR';
+      if (from == targetCurrency) return amount;
+      final rate = await getExchangeRate(from, targetCurrency);
+      return amount * Decimal.parse((rate ?? 1.0).toString());
+    }
+
+    // For balances, start from the account(s) state before the previous
+    // month: starting amounts plus every earlier transaction. Accounts
+    // deleted inside the shown window still counted before their deletion
+    // date (the starting amount is kept on the soft-deleted row), so they
+    // contribute to the baseline and drop out as a daily delta on that date.
+    Decimal balance = Decimal.zero;
+    final deletionDeltas = <String, Decimal>{};
+    if (isBalance) {
+      final acctRows = await db.query(
+        'SELECT starting_amount, currency, is_deleted, deleted_at FROM accounts '
+        'WHERE type = ? AND user_id = ?',
+        [kind, _userId],
+      );
+      for (final row in acctRows) {
+        final isDeleted = ((row['is_deleted'] ?? 0) as int) == 1;
+        final deletedAt = row['deleted_at'] as String?;
+        if (isDeleted &&
+            (deletedAt == null || deletedAt.compareTo(prevStart) < 0)) {
+          continue;
+        }
+        final converted = await convert(
+            await _decryptAmount(row['starting_amount']),
+            row['currency'] as String?);
+        balance += converted;
+        if (isDeleted) {
+          deletionDeltas[deletedAt!] =
+              (deletionDeltas[deletedAt] ?? Decimal.zero) - converted;
+        }
+      }
+      final beforeRows = await db.query(
+        'SELECT t.amount, t.transaction_type, '
+        'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
+        'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
+        'WHERE a.type = ? AND t.user_id = ? AND t.is_deleted = 0 '
+        'AND t.date < ?',
+        [kind, _userId, prevStart],
+      );
+      for (final row in beforeRows) {
+        balance += await convert(
+            _signedAmount(row['transaction_type'] as String,
+                await _decryptAmount(row['amount'])),
+            row['currency'] as String?);
+      }
+    }
+
+    final rows = isBalance
+        ? await db.query(
+            'SELECT t.amount, t.transaction_type, t.date, '
+            'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
+            'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
+            'WHERE a.type = ? AND t.user_id = ? AND t.is_deleted = 0 '
+            'AND t.date >= ? AND t.date <= ?',
+            [kind, _userId, prevStart, today],
+          )
+        : await db.query(
+            'SELECT t.amount, t.transaction_type, t.date, t.account_id, '
+            'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency, '
+            'a.type as account_type, d.name as description_name '
+            'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
+            'LEFT JOIN descriptions d ON t.description_id = d.id AND d.is_deleted = 0 '
+            'WHERE t.user_id = ? AND t.is_deleted = 0 '
+            'AND t.date >= ? AND t.date <= ?',
+            [_userId, prevStart, today],
+          );
+
+    final prevDaily = List<double>.filled(prevMonthDays, 0.0);
+    final currDaily = List<double>.filled(currentDays, 0.0);
+    final prevKey =
+        '${prevMonth.year}-${prevMonth.month.toString().padLeft(2, '0')}';
+    final currKey =
+        '${thisMonth.year}-${thisMonth.month.toString().padLeft(2, '0')}';
+
+    for (final row in rows) {
+      final date = row['date'] as String;
+      final monthKey = date.substring(0, 7);
+      final day = int.parse(date.substring(8, 10));
+      final type = row['transaction_type'] as String;
+
+      Decimal delta;
+      if (isBalance) {
+        delta = _signedAmount(type, await _decryptAmount(row['amount']));
+      } else {
+        // Same filters as getMonthlySummary: checking + orphan transactions,
+        // transfers excluded.
+        final accountType = row['account_type'] as String?;
+        final hasAccount = row['account_id'] != null;
+        if (accountType != 'checking' && hasAccount) continue;
+        final desc = await _decryptValue(row['description_name']);
+        if (desc != null && _isTransferDescription(desc)) continue;
+        if (type != kind) continue;
+        delta = await _decryptAmount(row['amount']);
+      }
+      final converted = await convert(delta, row['currency'] as String?);
+
+      if (monthKey == prevKey && day <= prevMonthDays) {
+        prevDaily[day - 1] += converted.toDouble();
+      } else if (monthKey == currKey && day <= currentDays) {
+        currDaily[day - 1] += converted.toDouble();
+      }
+    }
+
+    for (final entry in deletionDeltas.entries) {
+      final monthKey = entry.key.substring(0, 7);
+      final day = int.parse(entry.key.substring(8, 10));
+      if (monthKey == prevKey && day <= prevMonthDays) {
+        prevDaily[day - 1] += entry.value.toDouble();
+      } else if (monthKey == currKey && day <= currentDays) {
+        currDaily[day - 1] += entry.value.toDouble();
+      }
+    }
+
+    final previous = <double>[];
+    var running = isBalance ? balance.toDouble() : 0.0;
+    for (final delta in prevDaily) {
+      running += delta;
+      previous.add(running);
+    }
+    if (!isBalance) running = 0.0;
+    final current = <double>[];
+    for (final delta in currDaily) {
+      running += delta;
+      current.add(running);
+    }
+
+    return {
+      'previous': previous,
+      'current': current,
+      'isBalance': isBalance,
+    };
+  }
+
+  Decimal _signedAmount(String type, Decimal amount) => type == 'income'
+      ? amount
+      : (type == 'expense' ? -amount : Decimal.zero);
 
   Future<List<Map<String, dynamic>>> getAccountsDistribution(
       {String targetCurrency = 'EUR', String? endDate}) async {

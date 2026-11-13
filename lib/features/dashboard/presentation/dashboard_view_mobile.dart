@@ -503,13 +503,11 @@ class _DashboardViewMobileState extends State<DashboardViewMobile> {
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 50,
+              reservedSize: 32,
               getTitlesWidget: (value, meta) {
                 if (value == 0) return const Text('');
                 return Text(
-                  value >= 1000
-                      ? '${(value / 1000).toStringAsFixed(1)}k'
-                      : value.toStringAsFixed(0),
+                  compactAxisLabel(value),
                   style: TextStyle(
                       color: colors.textSecondary, fontSize: 10),
                 );
@@ -620,14 +618,12 @@ class _DashboardViewMobileState extends State<DashboardViewMobile> {
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 50,
+              reservedSize: 32,
               interval: axis.interval,
               getTitlesWidget: (value, meta) {
                 if (value == 0) return const Text('');
                 return Text(
-                  value >= 1000
-                      ? '${(value / 1000).toStringAsFixed(1)}k'
-                      : value.toStringAsFixed(0),
+                  compactAxisLabel(value),
                   style: TextStyle(
                       color: colors.textSecondary, fontSize: 10),
                 );

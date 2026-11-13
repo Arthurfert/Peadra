@@ -4,11 +4,11 @@
 
 ### New
 
-- Added the date of the lastest currency rates fecth to the tools view
+- You can now click on the stats cards to go deeper into their evolution
 
 ### Fixes
 
-
+- View last currencies rates fetch date
 
 ## Known issues
 

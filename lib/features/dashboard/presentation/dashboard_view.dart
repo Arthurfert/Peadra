@@ -14,6 +14,7 @@ import 'dashboard_view_desktop.dart';
 import 'dashboard_view_mobile.dart';
 import 'widgets/custom_range_dialog.dart';
 import 'widgets/stat_card_grid.dart';
+import 'widgets/stat_comparison_modal.dart';
 import '../../../shared/widgets/peadra_modal.dart';
 
 class DashboardView extends StatefulWidget {
@@ -118,6 +119,15 @@ class _DashboardViewState extends State<DashboardView> {
               (now.day < lastMonthLastDay ? now.day : lastMonthLastDay) + 1)
           .toIso8601String()
           .substring(0, 10);
+      // Balance/savings percentages use the same comparison as the flow
+      // cards: the amount one month before (same day last month, or 30 days
+      // back in rolling mode), instead of the start of this month.
+      final balanceBaselineDate = isRolling
+          ? now
+              .subtract(const Duration(days: 30))
+              .toIso8601String()
+              .substring(0, 10)
+          : lastMonthSameDayEnd;
       final isCustom = _isCustomRange;
       final customStart = _customStart;
       final customEnd = _customEnd;
@@ -210,12 +220,12 @@ class _DashboardViewState extends State<DashboardView> {
               untilDay: now.day);
         }),
         _safeQuery(() => _db.getSavingsTotal(
-            targetCurrency: currency, before: thisMonthStart)),
+            targetCurrency: currency, before: balanceBaselineDate)),
         _safeQuery(() => isTagMode
             ? _db.getTagColors()
             : Future.value(<String, String>{})),
         _safeQuery(() =>
-            _db.getBalance(targetCurrency: currency, before: thisMonthStart)),
+            _db.getBalance(targetCurrency: currency, before: balanceBaselineDate)),
         _safeQuery(() => _db.getLifetimeStats(targetCurrency: currency)),
         _safeQuery(() => _db.getTotalPatrimony(
             targetCurrency: currency, before: thisMonthStart)),
@@ -421,10 +431,15 @@ class _DashboardViewState extends State<DashboardView> {
     final expensesChange = _changePct(currentExpenses, _previousExpenses);
     final savingsChange = _changePct(_savings, _previousSavings);
 
+    final balanceText = CurrencyService.formatAmount(_balance, currency);
+    final incomeText = CurrencyService.formatAmount(currentIncome, currency);
+    final expensesText = CurrencyService.formatAmount(currentExpenses, currency);
+    final savingsText = CurrencyService.formatAmount(_savings, currency);
+
     final cards = [
       _buildStatCard(
         title: Translator.t('dash_current_balance'),
-        value: CurrencyService.formatAmount(_balance, currency),
+        value: balanceText,
         change: balanceChange,
         icon: Icons.account_balance_wallet,
         iconColor: colors.info,
@@ -432,10 +447,18 @@ class _DashboardViewState extends State<DashboardView> {
         colors: colors,
         showSubtitle: showSubtitles,
         subtitle: Translator.t('dash_as_of_today'),
+        onTap: () => _showStatDetail(
+          colors: colors,
+          currency: currency,
+          kind: 'checking',
+          title: Translator.t('dash_current_balance'),
+          amountText: balanceText,
+          change: balanceChange,
+        ),
       ),
       _buildStatCard(
         title: Translator.t('dash_income'),
-        value: CurrencyService.formatAmount(currentIncome, currency),
+        value: incomeText,
         change: incomeChange,
         icon: Icons.trending_up,
         iconColor: colors.success,
@@ -443,10 +466,18 @@ class _DashboardViewState extends State<DashboardView> {
         colors: colors,
         showSubtitle: showSubtitles,
         subtitle: Translator.t('dash_this_month'),
+        onTap: () => _showStatDetail(
+          colors: colors,
+          currency: currency,
+          kind: 'income',
+          title: Translator.t('dash_income'),
+          amountText: incomeText,
+          change: incomeChange,
+        ),
       ),
       _buildStatCard(
         title: Translator.t('dash_expenses'),
-        value: CurrencyService.formatAmount(currentExpenses, currency),
+        value: expensesText,
         change: expensesChange,
         icon: Icons.trending_down,
         iconColor: colors.error,
@@ -455,10 +486,18 @@ class _DashboardViewState extends State<DashboardView> {
         invertChange: true,
         showSubtitle: showSubtitles,
         subtitle: Translator.t('dash_this_month'),
+        onTap: () => _showStatDetail(
+          colors: colors,
+          currency: currency,
+          kind: 'expense',
+          title: Translator.t('dash_expenses'),
+          amountText: expensesText,
+          change: expensesChange,
+        ),
       ),
       _buildStatCard(
         title: Translator.t('dash_savings_outside'),
-        value: CurrencyService.formatAmount(_savings, currency),
+        value: savingsText,
         change: savingsChange,
         icon: Icons.savings,
         iconColor: colors.savingsIcon,
@@ -466,10 +505,67 @@ class _DashboardViewState extends State<DashboardView> {
         colors: colors,
         showSubtitle: showSubtitles,
         subtitle: Translator.t('dash_as_of_today'),
+        onTap: () => _showStatDetail(
+          colors: colors,
+          currency: currency,
+          kind: 'savings',
+          title: Translator.t('dash_savings_outside'),
+          amountText: savingsText,
+          change: savingsChange,
+        ),
       ),
     ];
 
     return _buildResponsiveCards(cards);
+  }
+
+  /// Opens the comparison modal for one of the top stat cards, with a
+  /// sentence that explains the percentage currently shown on the card.
+  void _showStatDetail({
+    required PeadraColors colors,
+    required String currency,
+    required String kind,
+    required String title,
+    required String amountText,
+    required double? change,
+  }) {
+    final sentence = _statComparisonSentence(kind, amountText, change);
+    showPeadraModal(
+      context: context,
+      builder: (ctx) => PeadraModal(
+        title: Text(
+          title,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: colors.text,
+          ),
+        ),
+        content: StatComparisonContent(
+          kind: kind,
+          sentence: sentence,
+          currency: currency,
+          colors: colors,
+        ),
+      ),
+    );
+  }
+
+  String _statComparisonSentence(
+      String kind, String amountText, double? change) {
+    final kindKey = switch (kind) {
+      'income' => 'stat_cmp_earned',
+      'expense' => 'stat_cmp_spent',
+      'savings' => 'stat_cmp_saved',
+      _ => 'stat_cmp_balance',
+    };
+    final base = Translator.t(kindKey, params: {'amount': amountText});
+    if (change == null) return '$base.';
+    final percentage = '${change.abs().toStringAsFixed(1)}%';
+    final comparison = Translator.t(
+        change >= 0 ? 'stat_cmp_more' : 'stat_cmp_less',
+        params: {'percentage': percentage});
+    return '$base, $comparison.';
   }
 
   Decimal _avgPerMonth(Decimal total, int months) {
@@ -615,73 +711,76 @@ class _DashboardViewState extends State<DashboardView> {
     bool invertChange = false,
     String? subtitle,
     bool showSubtitle = true,
+    VoidCallback? onTap,
   }) {
     return Card(
       color: colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: bgColor,
-                    borderRadius: BorderRadius.circular(10),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: bgColor,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(icon, color: iconColor, size: 20),
                   ),
-                  child: Icon(icon, color: iconColor, size: 20),
-                ),
-                if (change == null)
-                  const SizedBox.shrink()
-                else
-                  _buildChangeIndicator(change, colors, invert: invertChange),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12,
-                color: colors.textSecondary,
-                fontWeight: FontWeight.w500,
+                  if (change != null)
+                    _buildChangeIndicator(change, colors, invert: invertChange),
+                ],
               ),
-            ),
-            const SizedBox(height: 4),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: _RollingDigitsText(
-                value,
-                TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: colors.text,
-                ),
-              ),
-            ),
-            if (showSubtitle) ...[
-              const SizedBox(height: 2),
+              const SizedBox(height: 12),
               Text(
-                // Always reserve the subtitle line (non-breaking space when
-                // empty) so every card keeps the same height.
-                subtitle ?? '\u00A0',
-                maxLines: 1,
+                title,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 12,
                   color: colors.textSecondary,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
+              const SizedBox(height: 4),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: _RollingDigitsText(
+                  value,
+                  TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: colors.text,
+                  ),
+                ),
+              ),
+              if (showSubtitle) ...[
+                const SizedBox(height: 2),
+                Text(
+                  // Always reserve the subtitle line (non-breaking space when
+                  // empty) so every card keeps the same height.
+                  subtitle ?? '\u00A0',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ],
             ],
-            ],
-            ),
+          ),
         ),
+      ),
     );
   }
 

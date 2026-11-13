@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Staggered entrance of a row: fades in while rising a few pixels, starting
 /// [index * 7%] of the animation later so rows flow from top to bottom.

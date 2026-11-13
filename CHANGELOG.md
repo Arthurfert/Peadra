@@ -12,8 +12,3 @@
 - Budget view: Delete and edit buttons when a goal is past due date
 - Settings: better update section on mobile
 - Dashboard: made the coordinates axis legends thinner so there is more space for the graphs
-
-## Known issues
-
-- On Linux only, graphs *can sometimes* have aliasing. It is a known issue
-  of Flutter dependencies with some graphical drivers.

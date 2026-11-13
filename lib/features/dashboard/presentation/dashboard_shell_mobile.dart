@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../core/i18n/translator.dart';
 import '../../../core/theme/peadra_colors.dart';

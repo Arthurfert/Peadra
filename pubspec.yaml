@@ -38,6 +38,8 @@ dependencies:
   flutter_markdown_plus: ^1.0.12
   connectivity_plus: ^7.3.1
 
+  material_ui: any
+  cupertino_ui: any
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -212,13 +212,13 @@ class _ParametersViewState extends State<ParametersView> {
           _buildSection(Translator.t('param_updates'), colors, [
             _buildVersionTile(colors),
             _buildCheckUpdateTile(colors),
-            _buildHideUpdateNotificationsTile(settings, colors),
             Selector<UpdateProvider, UpdateInfo?>(
               selector: (_, u) => u.availableUpdate,
               builder: (_, update, _) => update == null
                   ? const SizedBox.shrink()
                   : _buildUpdateAvailableTile(colors, update),
             ),
+            _buildHideUpdateNotificationsTile(settings, colors),
           ], icon: Icons.system_update),
           const SizedBox(height: 8),
           _buildSection(Translator.t('param_feedback'), colors, [
@@ -2325,61 +2325,55 @@ class _ParametersViewState extends State<ParametersView> {
     );
   }
 
-  Widget _checkUpdateControl(PeadraColors c, bool isChecking) {
-    if (isChecking) {
-      return SizedBox(
-        width: 20,
-        height: 20,
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          color: c.accent,
-        ),
-      );
-    }
-    return ElevatedButton.icon(
-      icon: const Icon(Icons.refresh, color: Colors.white, size: 16),
-      label: Text(Translator.t('param_check_updates'),
-          style: const TextStyle(color: Colors.white, fontSize: 12)),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: c.accent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
-      ),
-      onPressed: () async {
-        Navigator.of(context).pop();
-        await _checkForUpdate();
-      },
-    );
-  }
-
   Widget _buildCheckUpdateTile(PeadraColors colors) {
     if (ResponsiveLayout.isPhone(context)) {
       final isChecking = _updateStatus == _UpdateStatus.checking;
-      if (isChecking) {
-        return _mobileSettingRow(
-          colors,
-          Translator.t('param_check_updates'),
-          trailing: SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: colors.accent,
+      final status =
+          _updateStatus == _UpdateStatus.upToDate ||
+                  _updateStatus == _UpdateStatus.error
+              ? _updateStatusText(colors)
+              : '';
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ElevatedButton.icon(
+              icon: isChecking
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.refresh, color: Colors.white, size: 16),
+              label: Text(
+                isChecking
+                    ? Translator.t('param_update_status_checking')
+                    : Translator.t('param_check_updates'),
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colors.accent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              onPressed: isChecking ? null : _checkForUpdate,
             ),
-          ),
-        );
-      }
-      return _mobileSettingRow(
-        colors,
-        Translator.t('param_check_updates'),
-        onTap: () => _showMobileSetting(
-          title: Translator.t('param_check_updates'),
-          subtitle: _updateStatusText(colors).isEmpty
-              ? Translator.t('param_update_status_idle')
-              : _updateStatusText(colors),
-          controlBuilder: (sheetCtx, c) =>
-              _checkUpdateControl(c, false),
+            if (status.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                status,
+                textAlign: TextAlign.center,
+                style:
+                    TextStyle(color: colors.textSecondary, fontSize: 12),
+              ),
+            ],
+          ],
         ),
       );
     }
@@ -2486,21 +2480,6 @@ class _ParametersViewState extends State<ParametersView> {
   }
 
   Widget _buildUpdateAvailableTile(PeadraColors colors, UpdateInfo update) {
-    if (ResponsiveLayout.isPhone(context)) {
-      return _mobileSettingRow(
-        colors,
-        Translator.t('param_update_status_available',
-            params: {'version': update.version}),
-        titleColor: colors.success,
-        onTap: () => _showMobileSetting(
-          title: Translator.t('param_update_status_available',
-              params: {'version': update.version}),
-          subtitle: Translator.t('param_see_whats_new'),
-          controlBuilder: (sheetCtx, c) =>
-              _updateAvailableControl(c, update),
-        ),
-      );
-    }
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Column(

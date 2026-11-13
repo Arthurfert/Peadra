@@ -4,11 +4,12 @@
 
 ### New
 
-- You can now click on the stats cards to go deeper into their evolution
+- Dashboard: You can now click on the stats cards to go deeper into their evolution
 
 ### Fixes
 
-- View last currencies rates fetch date
+- Tools view: view last currencies rates fetch date
+- Budget view: Delete and edit buttons when a goal is past due date
 
 ## Known issues
 

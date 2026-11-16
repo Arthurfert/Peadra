@@ -8,4 +8,4 @@
 
 ### Fixes
 
-- Transactions : the search bar tried to open the keyboard infinitely on mobile
+- Transactions : the search bar tried to open the keyboard infinitely on phones

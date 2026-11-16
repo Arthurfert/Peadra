@@ -44,4 +44,30 @@ void main() {
     expect(LazyKeepAliveStack.activationSignals[0].value, 1,
         reason: 'staying on the same view must not re-trigger the signal');
   });
+
+  testWidgets('switching tabs clears focus so a hidden field stops requesting '
+      'the keyboard', (tester) async {
+    final focusNode = FocusNode();
+    addTearDown(focusNode.dispose);
+
+    Widget shell(int selected) => MaterialApp(
+          home: Scaffold(
+            body: LazyKeepAliveStack(
+              views: [TextField(focusNode: focusNode), const Text('B')],
+              selectedIndex: selected,
+            ),
+          ),
+        );
+
+    await tester.pumpWidget(shell(0));
+    await tester.showKeyboard(find.byType(TextField));
+    expect(focusNode.hasFocus, isTrue);
+    expect(tester.testTextInput.isVisible, isTrue);
+
+    await tester.pumpWidget(shell(1));
+    await tester.pump();
+
+    expect(focusNode.hasFocus, isFalse);
+    expect(tester.testTextInput.isVisible, isFalse);
+  });
 }

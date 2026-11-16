@@ -69,6 +69,10 @@ class _LazyKeepAliveStackState extends State<LazyKeepAliveStack> {
   void didUpdateWidget(LazyKeepAliveStack oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.selectedIndex != oldWidget.selectedIndex) {
+      // The outgoing view stays mounted, so a focused field (e.g. the
+      // transactions search bar) would otherwise keep the keyboard alive and
+      // reopen it on every refresh while hidden. Leaving the tab drops focus.
+      FocusManager.instance.primaryFocus?.unfocus();
       LazyKeepAliveStack.activationSignals[widget.selectedIndex].value++;
     }
   }

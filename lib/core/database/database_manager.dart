@@ -1858,6 +1858,7 @@ void setUserId(String userId) {
     String searchQuery = '',
     Set<String>? accountIds,
     Set<String>? tagIds,
+    bool? pinned,
   }) async {
     final db = await database;
 
@@ -1868,6 +1869,11 @@ void setUserId(String userId) {
       final placeholders = accountIds.map((_) => '?').join(', ');
       where.add('t.account_id IN ($placeholders)');
       args.addAll(accountIds);
+    }
+
+    if (pinned != null) {
+      where.add('t.pinned = ?');
+      args.add(pinned ? 1 : 0);
     }
 
     if (tagIds != null && tagIds.isNotEmpty) {

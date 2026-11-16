@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:math' show max;
+import 'dart:math' show max, pi;
 
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/gestures.dart';
@@ -48,6 +48,8 @@ class _DisplayItem {
   bool get isMergedTransfer => pairedTransaction != null;
 }
 
+enum _PinnedFilter { all, only, except }
+
 class TransactionsView extends StatefulWidget {
   final VoidCallback? onDataChanged;
 
@@ -75,6 +77,7 @@ class _TransactionsViewState extends State<TransactionsView> {
   bool _loading = true;
   bool _showUpcoming = false;
   String _searchQuery = '';
+  _PinnedFilter _pinnedFilter = _PinnedFilter.all;
   final Set<String> _selectedTagIds = {};
   final Set<String> _selectedAccountIds = {};
   int _displayLimit = 30;
@@ -350,6 +353,11 @@ class _TransactionsViewState extends State<TransactionsView> {
       searchQuery: _searchQuery,
       accountIds: _selectedAccountIds.isEmpty ? null : _selectedAccountIds,
       tagIds: _selectedTagIds.isEmpty ? null : _selectedTagIds,
+      pinned: switch (_pinnedFilter) {
+        _PinnedFilter.all => null,
+        _PinnedFilter.only => true,
+        _PinnedFilter.except => false,
+      },
     );
 
     final rawCount = txns.length;
@@ -424,7 +432,9 @@ class _TransactionsViewState extends State<TransactionsView> {
 
     if (mounted) {
       setState(() {
-        final newItems = _mergeTransfers(txns);
+        final newItems = _mergeTransfers(
+          txns,
+        ).where(_matchesPinnedFilter).toList();
         if (loadMore) {
           _displayItems.addAll(newItems);
         } else {
@@ -440,8 +450,28 @@ class _TransactionsViewState extends State<TransactionsView> {
   }
 
   String _filterSignature() =>
-      '$_searchQuery|${_selectedTagIds.toList()..sort()}'
+      '${_pinnedFilter.name}|$_searchQuery|${_selectedTagIds.toList()..sort()}'
       '|${_selectedAccountIds.toList()..sort()}';
+
+  /// A transfer's pin lives on its source leg, which the SQL pin filter may
+  /// exclude; the counterpart fetch can still bring it back into a merged
+  /// item, so the visible pin mode is enforced once more after merging.
+  bool _matchesPinnedFilter(_DisplayItem item) {
+    if (_pinnedFilter == _PinnedFilter.all) return true;
+    final isPinned = item.transaction?.pinned ?? false;
+    return _pinnedFilter == _PinnedFilter.only ? isPinned : !isPinned;
+  }
+
+  void _cyclePinnedFilter() {
+    setState(() {
+      _pinnedFilter = switch (_pinnedFilter) {
+        _PinnedFilter.all => _PinnedFilter.only,
+        _PinnedFilter.only => _PinnedFilter.except,
+        _PinnedFilter.except => _PinnedFilter.all,
+      };
+    });
+    _loadTransactions();
+  }
 
   void _showTransactionModal({
     TransactionWithDetails? editTxn,
@@ -1254,11 +1284,75 @@ class _TransactionsViewState extends State<TransactionsView> {
     colors.surface,
   );
 
+  /// Cycles All → only pinned → all but pinned. The icon mirrors the mode:
+  /// outlined pin, filled accent pin, crossed accent pin.
+  Widget _buildPinFilterButton(PeadraColors colors) {
+    final iconColor = _pinnedFilter == _PinnedFilter.all
+        ? colors.textSecondary
+        : colors.accent;
+    final label = switch (_pinnedFilter) {
+      _PinnedFilter.all => 'pin_filter_all',
+      _PinnedFilter.only => 'pin_filter_only',
+      _PinnedFilter.except => 'pin_filter_except',
+    };
+    return Tooltip(
+      message: Translator.t(label),
+      child: OutlinedButton(
+        onPressed: _cyclePinnedFilter,
+        style: OutlinedButton.styleFrom(
+          backgroundColor: colors.surface,
+          foregroundColor: iconColor,
+          minimumSize: const Size(0, 56),
+          padding: EdgeInsets.zero,
+          side: BorderSide(
+            color: _pinnedFilter == _PinnedFilter.all
+                ? colors.placeholderColor.withValues(alpha: 0.4)
+                : colors.accent,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        child: switch (_pinnedFilter) {
+          _PinnedFilter.all => Icon(
+            Icons.push_pin_outlined,
+            color: iconColor,
+          ),
+          _PinnedFilter.only => Icon(Icons.push_pin, color: iconColor),
+          _PinnedFilter.except => _pinOffIcon(iconColor),
+        },
+      ),
+    );
+  }
+
+  Widget _pinOffIcon(Color color) => SizedBox(
+    width: 22,
+    height: 22,
+    child: Stack(
+      alignment: Alignment.center,
+      children: [
+        Icon(Icons.push_pin_outlined, color: color, size: 20),
+        Transform.rotate(
+          angle: -pi / 4,
+          child: Container(
+            width: 22,
+            height: 2,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(1),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final themeName = context.watch<ThemeProvider>().themeName;
     final colors = PeadraTheme.getColors(themeName);
     final currency = context.watch<SettingsProvider>().currency;
+    final isPhone = ResponsiveLayout.isPhone(context);
 
     return Padding(
       padding: ResponsiveLayout.pagePaddingAll(context).copyWith(bottom: 0),
@@ -1300,23 +1394,52 @@ class _TransactionsViewState extends State<TransactionsView> {
             ],
           ),
           const SizedBox(height: 16),
-          TextField(
-            onChanged: (v) {
-              _searchQuery = v;
-              _searchDebounce?.cancel();
-              _searchDebounce = Timer(const Duration(milliseconds: 300), () {
-                _loadTransactions();
-              });
-            },
-            decoration: InputDecoration(
-              hintText: Translator.t('trans_search_placeholder'),
-              prefixIcon: Icon(Icons.search, color: colors.placeholderColor),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+          Row(
+            children: [
+              Expanded(
+                flex: isPhone ? 4 : 1,
+                child: TextField(
+                  onChanged: (v) {
+                    _searchQuery = v;
+                    _searchDebounce?.cancel();
+                    _searchDebounce = Timer(
+                      const Duration(milliseconds: 300),
+                      () {
+                        _loadTransactions();
+                      },
+                    );
+                  },
+                  decoration: InputDecoration(
+                    hintText: Translator.t('trans_search_placeholder'),
+                    prefixIcon: Icon(
+                      Icons.search,
+                      color: colors.placeholderColor,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    filled: true,
+                    fillColor: colors.surface,
+                  ),
+                ),
               ),
-              filled: true,
-              fillColor: colors.surface,
-            ),
+              if (isPhone)
+                Expanded(
+                  flex: 1,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: _buildPinFilterButton(colors),
+                  ),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: SizedBox(
+                    width: 56,
+                    child: _buildPinFilterButton(colors),
+                  ),
+                ),
+            ],
           ),
           if (_tags.isNotEmpty) ...[const SizedBox(height: 8), _buildTagBar()],
           if (_accounts.isNotEmpty) ...[

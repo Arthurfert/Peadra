@@ -1327,5 +1327,36 @@ void main() {
       await db.updateTransaction(id, amount: Decimal.fromInt(900));
       expect((await txnById(id)).pinned, isTrue);
     });
+
+    test('getTransactions filters by pinned', () async {
+      final db = DatabaseManager.instance;
+      final pinnedId = (await db.addTransaction(
+        date: '2025-03-10',
+        description: 'Pinned',
+        amount: Decimal.fromInt(10),
+        transactionType: 'expense',
+        accountId: accountIds[0],
+      ))!;
+      await db.addTransaction(
+        date: '2025-03-11',
+        description: 'Unpinned',
+        amount: Decimal.fromInt(20),
+        transactionType: 'expense',
+        accountId: accountIds[0],
+      );
+      await db.setTransactionPinned(pinnedId, true);
+
+      expect(
+        (await db.getTransactions(pinned: true)).map((t) => t.descriptionName),
+        ['Pinned'],
+      );
+      expect(
+        (await db.getTransactions(pinned: false)).map(
+          (t) => t.descriptionName,
+        ),
+        ['Unpinned'],
+      );
+      expect(await db.getTransactions(), hasLength(2));
+    });
   });
 }

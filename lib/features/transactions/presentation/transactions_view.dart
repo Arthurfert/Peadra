@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:math' show max;
+import 'dart:math' show max, pi;
 
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/gestures.dart';
@@ -48,6 +48,8 @@ class _DisplayItem {
   bool get isMergedTransfer => pairedTransaction != null;
 }
 
+enum _PinnedFilter { all, only, except }
+
 class TransactionsView extends StatefulWidget {
   final VoidCallback? onDataChanged;
 
@@ -75,6 +77,7 @@ class _TransactionsViewState extends State<TransactionsView> {
   bool _loading = true;
   bool _showUpcoming = false;
   String _searchQuery = '';
+  _PinnedFilter _pinnedFilter = _PinnedFilter.all;
   final Set<String> _selectedTagIds = {};
   final Set<String> _selectedAccountIds = {};
   int _displayLimit = 30;
@@ -251,6 +254,14 @@ class _TransactionsViewState extends State<TransactionsView> {
       DateTime.tryParse(t.createdAt ?? '') ??
       DateTime.fromMillisecondsSinceEpoch(0);
 
+  /// Stable identity for de-duplicating load-more pages: the single id, or an
+  /// order-independent pair of ids for a merged transfer.
+  static String _displayKey(_DisplayItem item) {
+    final a = item.transaction?.id ?? '';
+    final b = item.pairedTransaction?.id ?? '';
+    return a.compareTo(b) <= 0 ? '$a|$b' : '$b|$a';
+  }
+
   TransactionWithDetails? _findPaired(
     List<int> candidates,
     int i,
@@ -261,7 +272,7 @@ class _TransactionsViewState extends State<TransactionsView> {
     for (final j in candidates) {
       if (j <= i || consumed.contains(txns[j].id)) continue;
       final other = txns[j];
-      final otherDesc = (other.notes ?? other.descriptionName ?? '').trim();
+      final otherDesc = _legText(other);
       if (matchPattern.hasMatch(otherDesc)) {
         return other;
       }
@@ -341,15 +352,22 @@ class _TransactionsViewState extends State<TransactionsView> {
     final signature = _filterSignature();
     final sameFilters = signature == _lastFilterSignature;
     final fetchOffset = loadMore ? _loadedRowCount : 0;
-    final limit = (loadMore || loadAll)
+    final limit = loadAll
         ? null
-        : max(_displayLimit, sameFilters ? _loadedRowCount : 0);
+        : (loadMore
+            ? _displayLimit
+            : max(_displayLimit, sameFilters ? _loadedRowCount : 0));
     var txns = await _db.getTransactions(
       limit: limit,
       offset: fetchOffset,
       searchQuery: _searchQuery,
       accountIds: _selectedAccountIds.isEmpty ? null : _selectedAccountIds,
       tagIds: _selectedTagIds.isEmpty ? null : _selectedTagIds,
+      pinned: switch (_pinnedFilter) {
+        _PinnedFilter.all => null,
+        _PinnedFilter.only => true,
+        _PinnedFilter.except => false,
+      },
     );
 
     final rawCount = txns.length;
@@ -424,24 +442,51 @@ class _TransactionsViewState extends State<TransactionsView> {
 
     if (mounted) {
       setState(() {
-        final newItems = _mergeTransfers(txns);
+        final newItems = _mergeTransfers(
+          txns,
+        ).where(_matchesPinnedFilter).toList();
         if (loadMore) {
-          _displayItems.addAll(newItems);
+          // A load-more page can re-return a transfer half already shown; drop
+          // items whose pair/single key is already displayed.
+          final seen = {for (final item in _displayItems) _displayKey(item)};
+          _displayItems.addAll(
+            newItems.where((item) => seen.add(_displayKey(item))),
+          );
         } else {
           _displayItems = newItems;
         }
         _refreshSplits(_displayItems);
         _loadedRowCount = fetchOffset + rawCount;
         _lastFilterSignature = signature;
-        _hasMore = !(loadMore || loadAll) && limit != null && rawCount == limit;
+        _hasMore = !loadAll && limit != null && rawCount == limit;
         _loading = false;
       });
     }
   }
 
   String _filterSignature() =>
-      '$_searchQuery|${_selectedTagIds.toList()..sort()}'
+      '${_pinnedFilter.name}|$_searchQuery|${_selectedTagIds.toList()..sort()}'
       '|${_selectedAccountIds.toList()..sort()}';
+
+  /// A transfer's pin lives on its source leg, which the SQL pin filter may
+  /// exclude; the counterpart fetch can still bring it back into a merged
+  /// item, so the visible pin mode is enforced once more after merging.
+  bool _matchesPinnedFilter(_DisplayItem item) {
+    if (_pinnedFilter == _PinnedFilter.all) return true;
+    final isPinned = item.transaction?.pinned ?? false;
+    return _pinnedFilter == _PinnedFilter.only ? isPinned : !isPinned;
+  }
+
+  void _cyclePinnedFilter() {
+    setState(() {
+      _pinnedFilter = switch (_pinnedFilter) {
+        _PinnedFilter.all => _PinnedFilter.only,
+        _PinnedFilter.only => _PinnedFilter.except,
+        _PinnedFilter.except => _PinnedFilter.all,
+      };
+    });
+    _loadTransactions();
+  }
 
   void _showTransactionModal({
     TransactionWithDetails? editTxn,
@@ -682,7 +727,7 @@ class _TransactionsViewState extends State<TransactionsView> {
     widget.onDataChanged?.call();
   }
 
-  Future<void> _deleteTransaction(TransactionWithDetails txn) async {
+  Future<bool> _deleteTransaction(TransactionWithDetails txn) async {
     final themeName = context.read<ThemeProvider>().themeName;
     final colors = PeadraTheme.getColors(themeName);
 
@@ -717,7 +762,7 @@ class _TransactionsViewState extends State<TransactionsView> {
           ],
         ),
       );
-      if (scope == null || !mounted) return;
+      if (scope == null || !mounted) return false;
 
       if (scope == 'all') {
         await _db.deleteRecurringTransaction(
@@ -738,7 +783,7 @@ class _TransactionsViewState extends State<TransactionsView> {
       }
       _loadTransactions();
       widget.onDataChanged?.call();
-      return;
+      return false;
     }
 
     final confirmed = await showPeadraModal<bool>(
@@ -779,6 +824,7 @@ class _TransactionsViewState extends State<TransactionsView> {
       _loadTransactions();
       widget.onDataChanged?.call();
     }
+    return confirmed == true;
   }
 
   Future<void> _editTransaction(
@@ -1083,8 +1129,9 @@ class _TransactionsViewState extends State<TransactionsView> {
                                     child: OutlinedButton(
                                       onPressed: () async {
                                         Navigator.pop(ctx);
-                                        await _deleteTransaction(txn);
-                                        if (pairedTxn != null) {
+                                        final deleted =
+                                            await _deleteTransaction(txn);
+                                        if (deleted && pairedTxn != null) {
                                           await _db.deleteTransaction(
                                             pairedTxn.id!,
                                           );
@@ -1189,8 +1236,8 @@ class _TransactionsViewState extends State<TransactionsView> {
           TextButton(
             onPressed: () async {
               Navigator.pop(ctx);
-              await _deleteTransaction(txn);
-              if (pairedTxn != null) {
+              final deleted = await _deleteTransaction(txn);
+              if (deleted && pairedTxn != null) {
                 await _db.deleteTransaction(pairedTxn.id!);
               }
               _loadTransactions();
@@ -1254,11 +1301,75 @@ class _TransactionsViewState extends State<TransactionsView> {
     colors.surface,
   );
 
+  /// Cycles All → only pinned → all but pinned. The icon mirrors the mode:
+  /// outlined pin, filled accent pin, crossed accent pin.
+  Widget _buildPinFilterButton(PeadraColors colors) {
+    final iconColor = _pinnedFilter == _PinnedFilter.all
+        ? colors.textSecondary
+        : colors.accent;
+    final label = switch (_pinnedFilter) {
+      _PinnedFilter.all => 'pin_filter_all',
+      _PinnedFilter.only => 'pin_filter_only',
+      _PinnedFilter.except => 'pin_filter_except',
+    };
+    return Tooltip(
+      message: Translator.t(label),
+      child: OutlinedButton(
+        onPressed: _cyclePinnedFilter,
+        style: OutlinedButton.styleFrom(
+          backgroundColor: colors.surface,
+          foregroundColor: iconColor,
+          minimumSize: const Size(0, 56),
+          padding: EdgeInsets.zero,
+          side: BorderSide(
+            color: _pinnedFilter == _PinnedFilter.all
+                ? colors.placeholderColor.withValues(alpha: 0.4)
+                : colors.accent,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        child: switch (_pinnedFilter) {
+          _PinnedFilter.all => Icon(
+            Icons.push_pin_outlined,
+            color: iconColor,
+          ),
+          _PinnedFilter.only => Icon(Icons.push_pin, color: iconColor),
+          _PinnedFilter.except => _pinOffIcon(iconColor),
+        },
+      ),
+    );
+  }
+
+  Widget _pinOffIcon(Color color) => SizedBox(
+    width: 22,
+    height: 22,
+    child: Stack(
+      alignment: Alignment.center,
+      children: [
+        Icon(Icons.push_pin_outlined, color: color, size: 20),
+        Transform.rotate(
+          angle: -pi / 4,
+          child: Container(
+            width: 22,
+            height: 2,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(1),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final themeName = context.watch<ThemeProvider>().themeName;
     final colors = PeadraTheme.getColors(themeName);
     final currency = context.watch<SettingsProvider>().currency;
+    final isPhone = ResponsiveLayout.isPhone(context);
 
     return Padding(
       padding: ResponsiveLayout.pagePaddingAll(context).copyWith(bottom: 0),
@@ -1300,23 +1411,52 @@ class _TransactionsViewState extends State<TransactionsView> {
             ],
           ),
           const SizedBox(height: 16),
-          TextField(
-            onChanged: (v) {
-              _searchQuery = v;
-              _searchDebounce?.cancel();
-              _searchDebounce = Timer(const Duration(milliseconds: 300), () {
-                _loadTransactions();
-              });
-            },
-            decoration: InputDecoration(
-              hintText: Translator.t('trans_search_placeholder'),
-              prefixIcon: Icon(Icons.search, color: colors.placeholderColor),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+          Row(
+            children: [
+              Expanded(
+                flex: isPhone ? 4 : 1,
+                child: TextField(
+                  onChanged: (v) {
+                    _searchQuery = v;
+                    _searchDebounce?.cancel();
+                    _searchDebounce = Timer(
+                      const Duration(milliseconds: 300),
+                      () {
+                        _loadTransactions();
+                      },
+                    );
+                  },
+                  decoration: InputDecoration(
+                    hintText: Translator.t('trans_search_placeholder'),
+                    prefixIcon: Icon(
+                      Icons.search,
+                      color: colors.placeholderColor,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    filled: true,
+                    fillColor: colors.surface,
+                  ),
+                ),
               ),
-              filled: true,
-              fillColor: colors.surface,
-            ),
+              if (isPhone)
+                Expanded(
+                  flex: 1,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: _buildPinFilterButton(colors),
+                  ),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: SizedBox(
+                    width: 56,
+                    child: _buildPinFilterButton(colors),
+                  ),
+                ),
+            ],
           ),
           if (_tags.isNotEmpty) ...[const SizedBox(height: 8), _buildTagBar()],
           if (_accounts.isNotEmpty) ...[
@@ -1347,44 +1487,48 @@ class _TransactionsViewState extends State<TransactionsView> {
     );
   }
 
-  /// Memoized tag filter bar: chip colors come from [_tagColors] (parsed
-  /// once when the tag list loads), so builds do no parsing.
-  Widget _buildTagBar() {
+  /// Shared horizontal filter-chip bar for tags and accounts.
+  Widget _buildChipBar({
+    required List<({String id, String name})> items,
+    required Map<String, Color> colors,
+    required Set<String> selected,
+    required ScrollController controller,
+  }) {
     return SizedBox(
       height: 40,
       child: Listener(
         onPointerSignal: (event) {
-          if (event is PointerScrollEvent && _tagScrollController.hasClients) {
-            _tagScrollController.jumpTo(
-              (_tagScrollController.offset + event.scrollDelta.dy).clamp(
+          if (event is PointerScrollEvent && controller.hasClients) {
+            controller.jumpTo(
+              (controller.offset + event.scrollDelta.dy).clamp(
                 0.0,
-                _tagScrollController.position.maxScrollExtent,
+                controller.position.maxScrollExtent,
               ),
             );
           }
         },
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
-          controller: _tagScrollController,
-          itemCount: _tags.length,
+          controller: controller,
+          itemCount: items.length,
           separatorBuilder: (_, _) => const SizedBox(width: 6),
           itemBuilder: (context, index) {
-            final tag = _tags[index];
-            final isSelected = _selectedTagIds.contains(tag.id);
-            final tagColor = _tagColors[tag.id] ?? const Color(0xFF1976D2);
+            final item = items[index];
+            final isSelected = selected.contains(item.id);
+            final color = colors[item.id] ?? const Color(0xFF1976D2);
             return FilterChip(
-              label: Text(tag.name),
+              label: Text(item.name),
               labelStyle: TextStyle(
-                color: isSelected ? Colors.white : tagColor,
+                color: isSelected ? Colors.white : color,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),
               selected: isSelected,
-              selectedColor: tagColor,
-              backgroundColor: tagColor.withValues(alpha: 0.1),
+              selectedColor: color,
+              backgroundColor: color.withValues(alpha: 0.1),
               checkmarkColor: Colors.white,
               side: BorderSide(
-                color: isSelected ? tagColor : tagColor.withValues(alpha: 0.3),
+                color: isSelected ? color : color.withValues(alpha: 0.3),
               ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
@@ -1392,12 +1536,12 @@ class _TransactionsViewState extends State<TransactionsView> {
               padding: const EdgeInsets.symmetric(horizontal: 4),
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               visualDensity: VisualDensity.compact,
-              onSelected: (selected) {
+              onSelected: (selectedNow) {
                 setState(() {
-                  if (selected) {
-                    _selectedTagIds.add(tag.id!);
+                  if (selectedNow) {
+                    selected.add(item.id);
                   } else {
-                    _selectedTagIds.remove(tag.id);
+                    selected.remove(item.id);
                   }
                 });
                 _loadTransactions();
@@ -1409,70 +1553,28 @@ class _TransactionsViewState extends State<TransactionsView> {
     );
   }
 
+  /// Memoized tag filter bar: chip colors come from [_tagColors] (parsed
+  /// once when the tag list loads), so builds do no parsing.
+  Widget _buildTagBar() => _buildChipBar(
+        items: [
+          for (final tag in _tags)
+            if (tag.id != null) (id: tag.id!, name: tag.name),
+        ],
+        colors: _tagColors,
+        selected: _selectedTagIds,
+        controller: _tagScrollController,
+      );
+
   /// Memoized account filter bar: chip colors come from [_accountColors].
-  Widget _buildAccountBar() {
-    return SizedBox(
-      height: 40,
-      child: Listener(
-        onPointerSignal: (event) {
-          if (event is PointerScrollEvent &&
-              _accountScrollController.hasClients) {
-            _accountScrollController.jumpTo(
-              (_accountScrollController.offset + event.scrollDelta.dy).clamp(
-                0.0,
-                _accountScrollController.position.maxScrollExtent,
-              ),
-            );
-          }
-        },
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          controller: _accountScrollController,
-          itemCount: _accounts.length,
-          separatorBuilder: (_, _) => const SizedBox(width: 6),
-          itemBuilder: (context, index) {
-            final acct = _accounts[index];
-            final isSelected = _selectedAccountIds.contains(acct.id);
-            final acctColor =
-                _accountColors[acct.id] ?? const Color(0xFF1976D2);
-            return FilterChip(
-              label: Text(acct.name),
-              labelStyle: TextStyle(
-                color: isSelected ? Colors.white : acctColor,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
-              selected: isSelected,
-              selectedColor: acctColor,
-              backgroundColor: acctColor.withValues(alpha: 0.1),
-              checkmarkColor: Colors.white,
-              side: BorderSide(
-                color: isSelected
-                    ? acctColor
-                    : acctColor.withValues(alpha: 0.3),
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              visualDensity: VisualDensity.compact,
-              onSelected: (selected) {
-                setState(() {
-                  if (selected) {
-                    _selectedAccountIds.add(acct.id!);
-                  } else {
-                    _selectedAccountIds.remove(acct.id);
-                  }
-                });
-                _loadTransactions();
-              },
-            );
-          },
-        ),
-      ),
-    );
-  }
+  Widget _buildAccountBar() => _buildChipBar(
+        items: [
+          for (final acct in _accounts)
+            if (acct.id != null) (id: acct.id!, name: acct.name),
+        ],
+        colors: _accountColors,
+        selected: _selectedAccountIds,
+        controller: _accountScrollController,
+      );
 
   Widget _buildTransactionList(PeadraColors colors, String defaultCurrency) {
     final upcomingItems = _upcoming;

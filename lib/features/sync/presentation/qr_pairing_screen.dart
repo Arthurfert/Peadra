@@ -46,6 +46,10 @@ class _QrPairingScreenState extends State<QrPairingScreen> {
   @override
   void dispose() {
     _statusSub?.cancel();
+    final nodeId = _nodeId;
+    if (nodeId != null) {
+      SyncService.instance.unregisterPairingSecret(nodeId);
+    }
     super.dispose();
   }
 

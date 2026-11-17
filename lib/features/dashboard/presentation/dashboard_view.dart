@@ -36,6 +36,7 @@ class _DashboardViewState extends State<DashboardView> {
   Decimal _previousExpenses = Decimal.zero;
   Decimal _previousSavings = Decimal.zero;
   Decimal _previousTotalAssets = Decimal.zero;
+  Decimal _previousTotalAssetsMonthAgo = Decimal.zero;
   Decimal _totalAssetsBeforeLastMonth = Decimal.zero;
   Decimal _totalAssetsAtLastMonthSameDay = Decimal.zero;
   Map<String, Decimal> _monthlySummary = {};
@@ -233,6 +234,10 @@ class _DashboardViewState extends State<DashboardView> {
             targetCurrency: currency, before: lastMonthStart)),
         _safeQuery(() => _db.getTotalPatrimony(
             targetCurrency: currency, before: lastMonthSameDayEnd)),
+        _safeQuery(() => isRolling
+            ? _db.getTotalPatrimony(
+                targetCurrency: currency, before: balanceBaselineDate)
+            : Future<Decimal?>.value(null)),
       ]);
 
       if (mounted) {
@@ -254,6 +259,10 @@ class _DashboardViewState extends State<DashboardView> {
           _tagColors = (results[11] as Map<String, String>?) ?? {};
           _lifetimeStats = (results[13] as Map<String, dynamic>?) ?? {};
           _previousTotalAssets = (results[14] as Decimal?) ?? Decimal.zero;
+          _previousTotalAssetsMonthAgo =
+              (results[17] as Decimal?) ??
+                  (results[16] as Decimal?) ??
+                  Decimal.zero;
           _totalAssetsBeforeLastMonth = (results[15] as Decimal?) ?? Decimal.zero;
           _totalAssetsAtLastMonthSameDay =
               (results[16] as Decimal?) ?? Decimal.zero;
@@ -858,7 +867,9 @@ class _DashboardViewState extends State<DashboardView> {
       _customStart = picked.start.toIso8601String().substring(0, 10);
       _customEnd = picked.end.toIso8601String().substring(0, 10);
     });
-    _loadChartData();
+    // Reload everything: the pie distributions also depend on the range,
+    // not just the cash-flow/assets charts.
+    _loadData();
   }
 
   void _clearCustomRange() {
@@ -867,7 +878,7 @@ class _DashboardViewState extends State<DashboardView> {
       _customStart = null;
       _customEnd = null;
     });
-    _loadChartData();
+    _loadData();
   }
 
   Widget _buildTimeFilterButtons(PeadraColors colors) {
@@ -1297,7 +1308,7 @@ class _DashboardViewState extends State<DashboardView> {
 
   Widget _buildTotalAssetCard(PeadraColors colors, String currency,
       {required bool isNarrow, required String username}) {
-    final totalChange = _changePct(_totalAssets, _previousTotalAssets);
+    final totalChange = _changePct(_totalAssets, _previousTotalAssetsMonthAgo);
     final formattedAmount = CurrencyService.formatAmount(_totalAssets, currency);
     if (isNarrow) {
       return _buildTotalAssetBanner(

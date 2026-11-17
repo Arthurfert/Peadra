@@ -74,7 +74,10 @@ class _GoalDialogState extends State<_GoalDialog> {
       _deadline = existing.deadline;
       _targetCtrl.text = existing.targetAmount.toString();
     }
-    _loadRefs();
+    // Account/tag cannot change on an existing goal (updateGoal saves
+    // neither), so the pickers are create-only and the refs are only
+    // needed when creating.
+    if (!_isEdit) _loadRefs();
   }
 
   Future<void> _loadRefs() async {
@@ -268,7 +271,7 @@ class _GoalDialogState extends State<_GoalDialog> {
               ),
               const SizedBox(height: 12),
             ],
-            if (_type == 'account') ...[
+            if (!_isEdit && _type == 'account') ...[
               Text(Translator.t('budget_account'),
                   style: TextStyle(
                       color: colors.text, fontWeight: FontWeight.w500)),
@@ -297,7 +300,8 @@ class _GoalDialogState extends State<_GoalDialog> {
                         ),
               const SizedBox(height: 12),
             ],
-            if (_type == 'tag_expense' || _type == 'tag_income') ...[
+            if (!_isEdit &&
+                (_type == 'tag_expense' || _type == 'tag_income')) ...[
               Text(Translator.t('budget_tag'),
                   style: TextStyle(
                       color: colors.text, fontWeight: FontWeight.w500)),

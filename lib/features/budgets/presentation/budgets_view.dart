@@ -97,6 +97,8 @@ class _BudgetsViewState extends State<BudgetsView> {
     final now = DateTime.now().millisecondsSinceEpoch;
     if (_lastReplayAt != null && now - _lastReplayAt! < 100) return;
     _lastReplayAt = now;
+    // Goals/current values may have changed while another view was shown.
+    _loadData();
     if (mounted) setState(() => _appearEpoch++);
   }
 

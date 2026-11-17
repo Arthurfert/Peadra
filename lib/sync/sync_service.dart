@@ -33,9 +33,6 @@ class SyncService {
   SyncManager? _manager;
   StreamSubscription<bool>? _wifiSub;
 
-  /// The live manager, or null before [start] / after [stop].
-  SyncManager? get manager => _manager;
-
   bool get isRunning => _manager?.running ?? false;
 
   Future<String> get nodeId => _identity.nodeId;
@@ -129,6 +126,11 @@ class SyncService {
   /// Registers a fresh pairing secret so an unknown peer can authenticate.
   void registerPairingSecret(String nodeId, String sharedSecret) {
     _manager?.registerPairingSecret(nodeId, sharedSecret);
+  }
+
+  /// Drops a pending pairing secret when its QR code is no longer shown.
+  void unregisterPairingSecret(String nodeId) {
+    _manager?.unregisterPairingSecret(nodeId);
   }
 
   /// Runs the one-time pairing session against a freshly scanned device.

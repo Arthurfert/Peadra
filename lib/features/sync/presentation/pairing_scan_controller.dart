@@ -50,7 +50,6 @@ class PairingScanController {
   PairingScanPhase get phase => _phase;
   String? get expectedNodeId => _expectedNodeId;
   String? get expectedName => _expectedName;
-  Object? get error => _error;
   bool get isTimeoutError => _error is PairingTimeout;
 
   bool get busy => _phase == PairingScanPhase.discovering ||

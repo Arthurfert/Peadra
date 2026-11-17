@@ -13,12 +13,42 @@ class AuthService {
 
   AuthService(this._db);
 
+  /// Legacy unsalted SHA-256 hash. Kept so existing users can still log in;
+  /// [authenticateUser] upgrades them to [hashPasswordSalted] on success.
   static String hashPassword(String password) {
     return sha256.convert(utf8.encode(password)).toString();
   }
 
-  static bool verifyPassword(String password, String hash) {
-    return hashPassword(password) == hash;
+  /// Salted, slow hash for new/upgraded passwords.
+  static Future<String> hashPasswordSalted(
+      String password, String saltBase64) async {
+    final key = await EncryptionService.deriveKey(
+      password,
+      base64Decode(saltBase64),
+    );
+    return base64Encode(await key.extractBytes());
+  }
+
+  /// Verifies a salted hash, or the legacy unsalted SHA-256 when [salt] is null.
+  /// Comparison is constant-time so response latency does not leak the hash.
+  static Future<bool> verifyPassword(
+    String password,
+    String hash, {
+    String? salt,
+  }) async {
+    final computed = salt == null
+        ? hashPassword(password)
+        : await hashPasswordSalted(password, salt);
+    return _constantTimeEquals(computed, hash);
+  }
+
+  static bool _constantTimeEquals(String a, String b) {
+    if (a.length != b.length) return false;
+    var diff = 0;
+    for (var i = 0; i < a.length; i++) {
+      diff |= a.codeUnitAt(i) ^ b.codeUnitAt(i);
+    }
+    return diff == 0;
   }
 
   Future<bool> userExists(String username) async {
@@ -37,12 +67,14 @@ class AuthService {
     if (await userExists(username)) {
       throw ArgumentError("Username '$username' already exists.");
     }
-    final passwordHash = hashPassword(password);
+    final salt = base64Encode(EncryptionService.generateSalt());
+    final passwordHash = await hashPasswordSalted(password, salt);
     final id = _uuid.v4();
     final db = await _db.database;
     await db.execute(
-      'INSERT INTO users (id, username, password_hash) VALUES (?1, ?2, ?3)',
-      [id, username, passwordHash],
+      'INSERT INTO users (id, username, password_hash, password_salt) '
+      'VALUES (?1, ?2, ?3, ?4)',
+      [id, username, passwordHash, salt],
     );
     LogService().log('User registered: $username (id $id)');
     return id;
@@ -51,12 +83,25 @@ class AuthService {
   Future<String?> authenticateUser(String username, String password) async {
     final db = await _db.database;
     final results = await db.query(
-      'SELECT id, password_hash FROM users WHERE username = ? AND is_deleted = 0',
+      'SELECT id, password_hash, password_salt FROM users '
+      'WHERE username = ? AND is_deleted = 0',
       [username],
     );
     if (results.isEmpty) return null;
     final row = results.first;
-    if (verifyPassword(password, row['password_hash'] as String)) {
+    final storedHash = row['password_hash'] as String;
+    final salt = row['password_salt'] as String?;
+    if (await verifyPassword(password, storedHash, salt: salt)) {
+      // Transparently upgrade a legacy unsalted SHA-256 hash on first login.
+      if (salt == null) {
+        final newSalt = base64Encode(EncryptionService.generateSalt());
+        final upgraded = await hashPasswordSalted(password, newSalt);
+        await db.execute(
+          'UPDATE users SET password_hash = ?, password_salt = ? WHERE id = ?',
+          [upgraded, newSalt, row['id']],
+        );
+        LogService().log('Password hash upgraded for: $username');
+      }
       LogService().log('User authenticated: $username');
       return row['id'] as String;
     }
@@ -102,11 +147,13 @@ class AuthService {
     }
     final db = await _db.database;
     final rows = await db.query(
-      'SELECT password_hash FROM users WHERE id = ? AND is_deleted = 0',
+      'SELECT password_hash, password_salt FROM users WHERE id = ? AND is_deleted = 0',
       [userId],
     );
     if (rows.isEmpty) return false;
-    if (!verifyPassword(oldPassword, rows.first['password_hash'] as String)) {
+    final storedHash = rows.first['password_hash'] as String;
+    final oldSalt = rows.first['password_salt'] as String?;
+    if (!await verifyPassword(oldPassword, storedHash, salt: oldSalt)) {
       throw ArgumentError('Old password is incorrect.');
     }
 
@@ -117,10 +164,11 @@ class AuthService {
       await _db.reEncryptData(newKey);
     }
 
-    final newHash = hashPassword(newPassword);
+    final newSalt = base64Encode(EncryptionService.generateSalt());
+    final newHash = await hashPasswordSalted(newPassword, newSalt);
     await db.execute(
-      'UPDATE users SET password_hash = ? WHERE id = ?',
-      [newHash, userId],
+      'UPDATE users SET password_hash = ?, password_salt = ? WHERE id = ?',
+      [newHash, newSalt, userId],
     );
     LogService().log('Password changed for user $userId');
     return true;

@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
-import 'package:decimal/decimal.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/i18n/translator.dart';
@@ -69,6 +68,10 @@ class _LazyKeepAliveStackState extends State<LazyKeepAliveStack> {
   void didUpdateWidget(LazyKeepAliveStack oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.selectedIndex != oldWidget.selectedIndex) {
+      // The outgoing view stays mounted, so a focused field (e.g. the
+      // transactions search bar) would otherwise keep the keyboard alive and
+      // reopen it on every refresh while hidden. Leaving the tab drops focus.
+      FocusManager.instance.primaryFocus?.unfocus();
       LazyKeepAliveStack.activationSignals[widget.selectedIndex].value++;
     }
   }
@@ -98,14 +101,13 @@ class _LazyKeepAliveStackState extends State<LazyKeepAliveStack> {
 
 class _DashboardShellState extends State<DashboardShell> {
   int _selectedIndex = 0;
-  Decimal _totalPatrimony = Decimal.zero;
   int _dashboardRefreshSignal = 0;
   String _lastCurrency = '';
   bool _updateBannerDismissed = false;
   StreamSubscription<void>? _remoteDataSub;
 
   late final List<Widget> _staticViews = [
-    TransactionsView(onDataChanged: _loadTotalPatrimony),
+    TransactionsView(onDataChanged: _refreshDashboard),
     const BudgetsView(),
     const AccountsView(),
     const CategoriesView(),
@@ -138,7 +140,7 @@ class _DashboardShellState extends State<DashboardShell> {
       if (mounted) maybeShowRateAppPrompt(context);
     });
     _remoteDataSub = DatabaseManager.instance.onRemoteDataApplied.listen((_) {
-      _loadTotalPatrimony();
+      _refreshDashboard();
     });
   }
 
@@ -158,23 +160,15 @@ class _DashboardShellState extends State<DashboardShell> {
     final currency = context.watch<SettingsProvider>().currency;
     if (currency != _lastCurrency) {
       _lastCurrency = currency;
-      _loadTotalPatrimony();
+      _refreshDashboard();
     }
   }
 
-  Future<void> _loadTotalPatrimony() async {
-    try {
-      final db = DatabaseManager.instance;
-      if (db.userId == null) return;
-      final currency = context.read<SettingsProvider>().currency;
-      final total = await db.getTotalPatrimony(targetCurrency: currency);
-      if (mounted) {
-        setState(() {
-          _totalPatrimony = total;
-          _dashboardRefreshSignal++;
-        });
-      }
-    } catch (_) {}
+  /// The dashboard reads its own numbers; the shell only needs to trigger the
+  /// rebuild, so there is no reason to scan the patrimony here.
+  void _refreshDashboard() {
+    if (!mounted) return;
+    setState(() => _dashboardRefreshSignal++);
   }
 
   void _onNavTap(int index) {
@@ -184,12 +178,12 @@ class _DashboardShellState extends State<DashboardShell> {
     // stays reachable in content.
     if (index == 5) {
       setState(() => _selectedIndex = 5);
-      _loadTotalPatrimony();
+      _refreshDashboard();
       return;
     }
     setState(() => _selectedIndex = index);
     if (index == 0) {
-      _loadTotalPatrimony();
+      _refreshDashboard();
     }
   }
 
@@ -411,7 +405,6 @@ class _DashboardShellState extends State<DashboardShell> {
         if (constraints.maxWidth > 800) {
           return DashboardShellDesktop(
             selectedIndex: _selectedIndex,
-            totalPatrimony: _totalPatrimony,
             updateBanner: updateBanner,
             views: _views,
             onNavTap: _onNavTap,
@@ -425,7 +418,6 @@ class _DashboardShellState extends State<DashboardShell> {
             updateBanner: updateBanner,
             views: _views,
             onNavTap: _onNavTap,
-            onLogout: _logout,
             showNavLabels: showNavLabels,
             navViews: navViewsFor(navOrder),
             colors: colors,

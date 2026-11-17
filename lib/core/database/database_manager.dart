@@ -19,6 +19,7 @@ import '../models/transaction.dart';
 import '../models/recurring_transaction.dart';
 
 import '../utils/constants.dart';
+import '../../sync/storage/crdt_database_service.dart' show syncTables;
 import '../services/currency_service.dart';
 import '../services/auth_service.dart';
 import '../services/encryption_service.dart';
@@ -33,6 +34,10 @@ class DatabaseManager {
   final Map<String, String?> _appSettingCache = {};
   final Map<String, String> _descriptionCache = {};
   final Map<String, double?> _exchangeRateCache = {};
+  // ciphertext -> plaintext amount. Ciphertext never maps to two plaintexts, so
+  // this is safe across reads and key changes; cleared only when the user
+  // changes to avoid retaining another account's data.
+  final Map<String, Decimal> _amountCache = {};
   final Map<String, String?> _accountCurrencyCache = {};
   SecretKey? _encryptionKey;
   final Uuid _uuid = const Uuid();
@@ -74,17 +79,16 @@ class DatabaseManager {
 
   void clearEncryptionKey() {
     _encryptionKey = null;
+    _amountCache.clear();
   }
 
   Future<String?> _encrypt(String? plaintext) async {
     if (plaintext == null || plaintext.isEmpty || _encryptionKey == null) {
       return plaintext;
     }
-    try {
-      return await EncryptionService.encrypt(plaintext, _encryptionKey!);
-    } catch (_) {
-      return plaintext;
-    }
+    // Never fall back to plaintext: a transient failure must abort the write,
+    // not silently store unencrypted data in an encrypted database.
+    return await EncryptionService.encrypt(plaintext, _encryptionKey!);
   }
 
   Future<String?> _decrypt(String? ciphertext) async {
@@ -112,9 +116,13 @@ class DatabaseManager {
     if (s.isEmpty || _encryptionKey == null) {
       return Decimal.tryParse(s) ?? Decimal.zero;
     }
+    final cached = _amountCache[s];
+    if (cached != null) return cached;
     try {
       final decrypted = await _decrypt(s);
-      return Decimal.tryParse(decrypted ?? '') ?? Decimal.zero;
+      final amount = Decimal.tryParse(decrypted ?? '') ?? Decimal.zero;
+      _amountCache[s] = amount;
+      return amount;
     } catch (_) {
       return Decimal.tryParse(s) ?? Decimal.zero;
     }
@@ -454,6 +462,7 @@ class DatabaseManager {
         id TEXT PRIMARY KEY,
         username TEXT NOT NULL UNIQUE,
         password_hash TEXT NOT NULL,
+        password_salt TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     ''');
@@ -676,9 +685,24 @@ class DatabaseManager {
         "WHERE is_deleted = 1 AND deleted_at IS NULL",
       );
     }
+    // v11 -> v12: per-user password salt + sync watermark indexes.
+    // Existing users keep `password_salt = NULL` and are upgraded lazily on
+    // their next successful login (legacy SHA-256 hash still accepted).
+    if (oldVersion < 12) {
+      await db.execute('ALTER TABLE users ADD COLUMN password_salt TEXT');
+      await _createIndexes(db);
+    }
   }
 
   Future<void> _createIndexes(CrdtTableExecutor db) async {
+    for (final table in syncTables) {
+      // The sync layer filters on `modified`, so without this index every
+      // delta change is a full table scan.
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_${table}_modified '
+        'ON $table(modified)',
+      );
+    }
     await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_transactions_user_date ON transactions(user_id, date)',
     );
@@ -752,19 +776,8 @@ class DatabaseManager {
   /// safe on devices holding mixed-key data.
   Future<void> migrateEncryptionKey(SecretKey oldKey, SecretKey newKey) async {
     final db = await database;
+    final previousKey = _encryptionKey;
     _encryptionKey = newKey;
-
-    Future<void> updateRow(
-      String table,
-      Object? id,
-      Map<String, String> fields,
-    ) async {
-      final sets = fields.keys.map((k) => '$k = ?').join(', ');
-      await db.execute(
-        'UPDATE $table SET $sets WHERE id = ? AND user_id = ?',
-        [...fields.values, id, _userId],
-      );
-    }
 
     Future<String?> reencrypt(dynamic value) async {
       if (value == null || value.toString().isEmpty) return null;
@@ -777,71 +790,94 @@ class DatabaseManager {
       }
     }
 
-    final acctRows = await db.query(
-      'SELECT id, name, starting_amount FROM accounts WHERE user_id = ? AND is_deleted = 0',
-      [_userId],
-    );
-    for (final row in acctRows) {
-      final fields = <String, String>{};
-      final name = await reencrypt(row['name']);
-      final amount = await reencrypt(row['starting_amount']);
-      if (name != null) fields['name'] = name;
-      if (amount != null) fields['starting_amount'] = amount;
-      if (fields.isNotEmpty) await updateRow('accounts', row['id'], fields);
-    }
+    // One transaction: a crash mid-way must not leave some rows under the old
+    // key and some under the new one.
+    try {
+      await db.transaction((txn) async {
+        Future<void> updateRow(
+          String table,
+          Object? id,
+          Map<String, String> fields,
+        ) async {
+          final sets = fields.keys.map((k) => '$k = ?').join(', ');
+          await txn.execute(
+            'UPDATE $table SET $sets WHERE id = ? AND user_id = ?',
+            [...fields.values, id, _userId],
+          );
+        }
 
-    final descRows = await db.query(
-      'SELECT id, name FROM descriptions WHERE user_id = ? AND is_deleted = 0',
-      [_userId],
-    );
-    for (final row in descRows) {
-      final name = await reencrypt(row['name']);
-      if (name != null) {
-        await updateRow('descriptions', row['id'], {'name': name});
-      }
-    }
+        final acctRows = await txn.query(
+          'SELECT id, name, starting_amount FROM accounts WHERE user_id = ? AND is_deleted = 0',
+          [_userId],
+        );
+        for (final row in acctRows) {
+          final fields = <String, String>{};
+          final name = await reencrypt(row['name']);
+          final amount = await reencrypt(row['starting_amount']);
+          if (name != null) fields['name'] = name;
+          if (amount != null) fields['starting_amount'] = amount;
+          if (fields.isNotEmpty) {
+            await updateRow('accounts', row['id'], fields);
+          }
+        }
 
-    // NOTE: this query must select id (used by updateRow) and notes, and
-    // must cover all dates — including future pre-generated occurrences.
-    final txnRows = await db.query(
-      'SELECT id, amount, notes FROM transactions WHERE user_id = ? AND is_deleted = 0',
-      [_userId],
-    );
-    for (final row in txnRows) {
-      final fields = <String, String>{};
-      final amount = await reencrypt(row['amount']);
-      final notes = await reencrypt(row['notes']);
-      if (amount != null) fields['amount'] = amount;
-      if (notes != null) fields['notes'] = notes;
-      if (fields.isNotEmpty) {
-        await updateRow('transactions', row['id'], fields);
-      }
-    }
+        final descRows = await txn.query(
+          'SELECT id, name FROM descriptions WHERE user_id = ? AND is_deleted = 0',
+          [_userId],
+        );
+        for (final row in descRows) {
+          final name = await reencrypt(row['name']);
+          if (name != null) {
+            await updateRow('descriptions', row['id'], {'name': name});
+          }
+        }
 
-    final recRows = await db.query(
-      'SELECT id, amount, notes FROM recurring_transactions WHERE user_id = ? AND is_deleted = 0',
-      [_userId],
-    );
-    for (final row in recRows) {
-      final fields = <String, String>{};
-      final amount = await reencrypt(row['amount']);
-      final notes = await reencrypt(row['notes']);
-      if (amount != null) fields['amount'] = amount;
-      if (notes != null) fields['notes'] = notes;
-      if (fields.isNotEmpty) {
-        await updateRow('recurring_transactions', row['id'], fields);
-      }
-    }
+        // NOTE: this query must select id (used by updateRow) and notes, and
+        // must cover all dates — including future pre-generated occurrences.
+        final txnRows = await txn.query(
+          'SELECT id, amount, notes FROM transactions WHERE user_id = ? AND is_deleted = 0',
+          [_userId],
+        );
+        for (final row in txnRows) {
+          final fields = <String, String>{};
+          final amount = await reencrypt(row['amount']);
+          final notes = await reencrypt(row['notes']);
+          if (amount != null) fields['amount'] = amount;
+          if (notes != null) fields['notes'] = notes;
+          if (fields.isNotEmpty) {
+            await updateRow('transactions', row['id'], fields);
+          }
+        }
 
-    final goalRows = await db.query(
-      'SELECT id, target_amount FROM goals WHERE user_id = ? AND is_deleted = 0',
-      [_userId],
-    );
-    for (final row in goalRows) {
-      final amount = await reencrypt(row['target_amount']);
-      if (amount != null) {
-        await updateRow('goals', row['id'], {'target_amount': amount});
-      }
+        final recRows = await txn.query(
+          'SELECT id, amount, notes FROM recurring_transactions WHERE user_id = ? AND is_deleted = 0',
+          [_userId],
+        );
+        for (final row in recRows) {
+          final fields = <String, String>{};
+          final amount = await reencrypt(row['amount']);
+          final notes = await reencrypt(row['notes']);
+          if (amount != null) fields['amount'] = amount;
+          if (notes != null) fields['notes'] = notes;
+          if (fields.isNotEmpty) {
+            await updateRow('recurring_transactions', row['id'], fields);
+          }
+        }
+
+        final goalRows = await txn.query(
+          'SELECT id, target_amount FROM goals WHERE user_id = ? AND is_deleted = 0',
+          [_userId],
+        );
+        for (final row in goalRows) {
+          final amount = await reencrypt(row['target_amount']);
+          if (amount != null) {
+            await updateRow('goals', row['id'], {'target_amount': amount});
+          }
+        }
+      });
+    } catch (_) {
+      _encryptionKey = previousKey;
+      rethrow;
     }
   }
 
@@ -932,6 +968,7 @@ void setUserId(String userId) {
     _userId = userId;
     _descriptionCache.clear();
     _exchangeRateCache.clear();
+    _amountCache.clear();
     _accountCurrencyCache.clear();
     _invalidateTagColorsCache();
     _insertDefaultAccounts();
@@ -947,6 +984,7 @@ void setUserId(String userId) {
     _userId = userId;
     _descriptionCache.clear();
     _exchangeRateCache.clear();
+    _amountCache.clear();
     _accountCurrencyCache.clear();
     _invalidateTagColorsCache();
   }
@@ -1306,8 +1344,9 @@ void setUserId(String userId) {
     final cached = _descriptionCache[cacheKey];
     if (cached != null) {
       // The cached row may have been deleted or merged away since (possibly
-      // via a synced tombstone). Never hand out a dead id — it would leave
-      // the new transaction with an undecryptable/missing description.
+      // via a synced tombstone, or by a test swapping the database). Never
+      // hand out a dead id — the new transaction would reference a row that
+      // no longer exists.
       final db = await database;
       final live = await db.query(
         'SELECT id FROM descriptions WHERE id = ? AND user_id = ? AND is_deleted = 0',
@@ -1664,6 +1703,10 @@ void setUserId(String userId) {
       'UPDATE transactions SET tag_id = NULL WHERE tag_id = ? AND user_id = ?',
       [tagId, _userId],
     );
+    await db.execute(
+      'UPDATE recurring_transactions SET tag_id = NULL WHERE tag_id = ? AND user_id = ?',
+      [tagId, _userId],
+    );
     await db.execute('DELETE FROM tags WHERE id = ? AND user_id = ?', [tagId, _userId]);
     await db.execute('DELETE FROM goals WHERE tag_id = ? AND user_id = ?', [tagId, _userId]);
     _invalidateTagColorsCache();
@@ -1858,6 +1901,7 @@ void setUserId(String userId) {
     String searchQuery = '',
     Set<String>? accountIds,
     Set<String>? tagIds,
+    bool? pinned,
   }) async {
     final db = await database;
 
@@ -1868,6 +1912,11 @@ void setUserId(String userId) {
       final placeholders = accountIds.map((_) => '?').join(', ');
       where.add('t.account_id IN ($placeholders)');
       args.addAll(accountIds);
+    }
+
+    if (pinned != null) {
+      where.add('t.pinned = ?');
+      args.add(pinned ? 1 : 0);
     }
 
     if (tagIds != null && tagIds.isNotEmpty) {
@@ -1881,13 +1930,20 @@ void setUserId(String userId) {
     // Encrypted fields can't be filtered in SQL, so the search path still
     // scans (with an early break once the page is filled).
     final paginated = searchQuery.isEmpty && limit != null;
+    // When there is no search filter, let SQL skip the offset even without a
+    // page limit, so "load more" never decrypts the rows before it.
+    final applyOffsetInSql = offset > 0 && searchQuery.isEmpty;
     final query = '''
       $_txnJoin
       WHERE ${where.join(' AND ')}
       ORDER BY t.date DESC, COALESCE(t.updated_at, t.created_at) DESC, t.id DESC
-      ${paginated ? 'LIMIT ? OFFSET ?' : ''}
+      ${paginated ? 'LIMIT ? OFFSET ?' : (applyOffsetInSql ? 'LIMIT -1 OFFSET ?' : '')}
     ''';
-    if (paginated) args.addAll([limit, offset]);
+    if (paginated) {
+      args.addAll([limit, offset]);
+    } else if (applyOffsetInSql) {
+      args.add(offset);
+    }
 
     final rows = await db.query(query, args);
 
@@ -1912,7 +1968,9 @@ void setUserId(String userId) {
       if (limit != null && results.length >= limit + offset) break;
     }
 
-    return results.skip(offset).take(limit ?? results.length).toList();
+    return (applyOffsetInSql ? results : results.skip(offset))
+        .take(limit ?? results.length)
+        .toList();
   }
 
   Future<List<TransactionWithDetails>> getTransactionsByKeys(
@@ -4439,12 +4497,16 @@ void setUserId(String userId) {
     final db = await database;
 
     final rows = await db.query(
-      'SELECT password_hash FROM users WHERE id = ? AND is_deleted = 0',
+      'SELECT password_hash, password_salt FROM users WHERE id = ? AND is_deleted = 0',
       [_userId],
     );
     if (rows.isEmpty) return false;
 
-    if (!AuthService.verifyPassword(password, rows.first['password_hash'] as String)) {
+    if (!await AuthService.verifyPassword(
+      password,
+      rows.first['password_hash'] as String,
+      salt: rows.first['password_salt'] as String?,
+    )) {
       return false;
     }
 
@@ -4453,11 +4515,17 @@ void setUserId(String userId) {
     await db.execute('DELETE FROM recurring_transactions WHERE user_id = ?', [_userId]);
     await db.execute('DELETE FROM accounts WHERE user_id = ?', [_userId]);
     await db.execute('DELETE FROM descriptions WHERE user_id = ?', [_userId]);
+    await db.execute('DELETE FROM tags WHERE user_id = ?', [_userId]);
     await db.execute('DELETE FROM goals WHERE user_id = ?', [_userId]);
     await db.execute('DELETE FROM imported_files WHERE user_id = ?', [_userId]);
     await db.execute('DELETE FROM settings WHERE user_id = ?', [_userId]);
     await db.execute('DELETE FROM users WHERE id = ?', [_userId]);
     _userId = null;
+    _descriptionCache.clear();
+    _exchangeRateCache.clear();
+    _amountCache.clear();
+    _accountCurrencyCache.clear();
+    _invalidateTagColorsCache();
     return true;
   }
 

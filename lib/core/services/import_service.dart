@@ -109,6 +109,14 @@ class ImportService {
   /// Cap on the number of per-row error messages kept in memory.
   static const int maxErrors = 50;
 
+  /// Number of data rows shown in the import preview. Kept in sync with the
+  /// preview UI's `_previewRowLimit`.
+  static const int previewRowLimit = 20;
+
+  /// Decided once per file from the first unambiguous date: true = m/d/yyyy,
+  /// false = d/m/yyyy, null = leave the per-row day-first default.
+  bool? _monthFirst;
+
   // --- Keyword lists for type detection ---
   static final _dateKeywords = ['date', 'day', 'time', 'posted', 'transaction date', 'fecha', 'día', 'dia'];
   static final _amountKeywords = ['amount', 'sum', 'total', 'value', 'montant', 'valeur', 'importe', 'cantidad'];
@@ -117,12 +125,6 @@ class ImportService {
   static final _descKeywords = ['description', 'memo', 'note', 'details', 'libellé', 'désignation', 'descripción', 'descripcion', 'concepto', 'nota', 'referencia'];
   static final _typeKeywords = ['type', 'category', 'kind', 'nature', 'tipo', 'categoría', 'categoria', 'clase'];
   static final _tagKeywords = ['tag', 'label', 'étiquette', 'etiquette', 'etiqueta'];
-
-  /// Calculate the SHA-256 hash of a file (hex string).
-  Future<String> calculateFileHash(String path) async {
-    final bytes = await _readFileBytes(path);
-    return hashBytes(bytes);
-  }
 
   /// SHA-256 hex digest of in-memory [bytes]. Shared by the preview/import
   /// paths so the digest logic lives in one place.
@@ -260,7 +262,7 @@ class ImportService {
 
     return ImportPreview(
       headers: headers,
-      rows: dataRows.take(5).toList(),
+      rows: dataRows.take(previewRowLimit).toList(),
       suggestedMappings: mappings,
       filePath: filePath,
       fileHash: hash,
@@ -548,6 +550,37 @@ class ImportService {
 
   int _pivotYear(int yy) => yy <= 68 ? 2000 + yy : 1900 + yy;
 
+  /// Detects whether the file's numeric dates are day-first or month-first,
+  /// using the first row where a part is unambiguously > 12.
+  void _detectDateOrder(
+      List<List<String>> dataRows, Map<int, ColumnMapping> mappingByCol) {
+    _monthFirst = null;
+    int? dateCol;
+    for (final entry in mappingByCol.entries) {
+      if (entry.value == ColumnMapping.date) {
+        dateCol = entry.key;
+        break;
+      }
+    }
+    if (dateCol == null) return;
+    for (final row in dataRows) {
+      if (dateCol >= row.length) continue;
+      final parts = row[dateCol].trim().split(RegExp(r'[./\-]'));
+      if (parts.length != 3) continue;
+      final a = int.tryParse(parts[0]);
+      final b = int.tryParse(parts[1]);
+      if (a == null || b == null) continue;
+      if (a > 12) {
+        _monthFirst = false;
+        return;
+      }
+      if (b > 12) {
+        _monthFirst = true;
+        return;
+      }
+    }
+  }
+
   /// Parse a date from various formats. Returns null when the value is not
   /// a real calendar date.
   @visibleForTesting
@@ -611,7 +644,10 @@ class ImportService {
         final y = numeric[2].length == 2 ? _pivotYear(int.parse(numeric[2])) : int.parse(numeric[2]);
         if (a > 12) return _strictDate(y, b, a); // first can't be a month → d/m
         if (b > 12) return _strictDate(y, a, b); // second can't be a month → m/d
-        return _strictDate(y, b, a); // ambiguous → day-first default
+        // Ambiguous: use the order detected for the whole file, else day-first.
+        return _monthFirst == true
+            ? _strictDate(y, a, b)
+            : _strictDate(y, b, a);
       }
     }
 
@@ -690,7 +726,6 @@ class ImportService {
     required List<String> row,
     required int rowNum,
     required Map<int, ColumnMapping> mappingByCol,
-    required String fallbackType,
   }) {
     String? dateStr;
     String? description;
@@ -814,9 +849,10 @@ class ImportService {
       }
     }
 
-    final resolvedType = normalizedExplicit ?? inferredType ?? fallbackType;
-    if (resolvedType != 'income' && resolvedType != 'expense') {
-      return (row: null, error: 'Row $rowNum: invalid type "$resolvedType" (must be income or expense)');
+    final resolvedType = normalizedExplicit ?? inferredType;
+    if (resolvedType == null ||
+        (resolvedType != 'income' && resolvedType != 'expense')) {
+      return (row: null, error: 'Row $rowNum: invalid type "${resolvedType ?? ''}" (must be income or expense)');
     }
 
     return (
@@ -857,7 +893,6 @@ class ImportService {
         3: ColumnMapping.type,
         4: ColumnMapping.tag,
       },
-      fallbackType: 'expense',
     );
     if (result.row != null) return null;
     final err = result.error ?? 'invalid row';
@@ -895,16 +930,11 @@ class ImportService {
   Future<ImportResult> importCsv({
     required String filePath,
     required List<ImportMapping> mappings,
-    required String transactionType,
     required String accountId,
     required String currency,
     String? delimiter,
     String? expectedFileHash,
   }) async {
-    if (transactionType != 'income' && transactionType != 'expense') {
-      throw Exception('Invalid default transaction type "$transactionType"');
-    }
-
     final bytes = await _readFileBytes(filePath);
     final hash = hashBytes(bytes);
 
@@ -941,6 +971,7 @@ class ImportService {
     for (final m in mappings) {
       mappingByCol[m.columnIndex] = m.mapping;
     }
+    _detectDateOrder(dataRows, mappingByCol);
 
     // Phase 1 — parse and validate every row with zero writes.
     final parsed = <_ParsedRow>[];
@@ -958,7 +989,6 @@ class ImportService {
         row: dataRows[i],
         rowNum: rowNum,
         mappingByCol: mappingByCol,
-        fallbackType: transactionType,
       );
       if (result.row != null) {
         parsed.add(result.row!);
@@ -984,18 +1014,28 @@ class ImportService {
       );
     }
 
-    // Phase 2 — write. Preload existing transactions for duplicate detection.
-    final existingTxns = await _db.getTransactions(accountIds: {accountId});
-    final seenSignatures = <String>{
-      for (final t in existingTxns)
-        _signature(
-          t.date,
-          accountId,
-          Decimal.tryParse(t.amount.toString()) ?? Decimal.zero,
-          t.descriptionName,
-          t.transactionType,
-        ),
-    };
+    // Phase 2 — write. Preload only the imported date range for duplicate
+    // detection instead of decrypting the account's entire history.
+    final dates = parsed.map((p) => p.date).toList()..sort();
+    final existingTxns = await _db.getTransactionsByPeriod(
+      dates.first,
+      dates.last,
+      accountIds: {accountId},
+    );
+    final existingCounts = <String, int>{};
+    for (final t in existingTxns) {
+      final base = _signature(
+        t.date,
+        accountId,
+        Decimal.tryParse(t.amount.toString()) ?? Decimal.zero,
+        t.descriptionName,
+        t.transactionType,
+      );
+      existingCounts[base] = (existingCounts[base] ?? 0) + 1;
+    }
+    // Occurrence index per signature: lets genuinely repeated rows import
+    // while still detecting the same rows on a re-import.
+    final seenCounts = <String, int>{};
 
     int imported = 0;
     int duplicates = 0;
@@ -1016,6 +1056,15 @@ class ImportService {
       for (final name in distinctNames) {
         tagIds[name] = await _db.getOrCreateTag(name);
       }
+      // Pre-create every distinct description so the per-row lookup is a cache
+      // hit instead of a full scan + decrypt of all descriptions.
+      final distinctDescriptions = <String>{
+        for (final p in parsed)
+          if (p.description.trim().isNotEmpty) p.description.trim()
+      };
+      for (final name in distinctDescriptions) {
+        await _db.getOrCreateDescription(name);
+      }
     } catch (e) {
       await _rollbackCreatedTags(tagsBefore);
       fatalError = 'Database error during import (${e.runtimeType}); '
@@ -1026,7 +1075,9 @@ class ImportService {
     for (final p in parsed) {
       if (fatalError != null) break;
       final signature = _signature(p.date, accountId, p.amount, p.description, p.type);
-      if (seenSignatures.contains(signature)) {
+      final nth = (seenCounts[signature] ?? 0) + 1;
+      seenCounts[signature] = nth;
+      if (nth <= (existingCounts[signature] ?? 0)) {
         duplicates++;
         continue;
       }
@@ -1050,7 +1101,6 @@ class ImportService {
               'Already-imported rows will be detected as duplicates if you retry.';
           break;
         }
-        seenSignatures.add(signature);
         imported++;
       } catch (e) {
         fatalError = 'Database error during import (${e.runtimeType}); '

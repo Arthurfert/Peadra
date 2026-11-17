@@ -29,80 +29,6 @@ void main() {
   }
 
   group('Account model', () {
-    test('fromMap creates Account with all fields', () {
-      final map = {
-        'id': '1',
-        'user_id': '1',
-        'name': 'Checking',
-        'type': 'checking',
-        'color': '#FF0000',
-        'currency': 'USD',
-        'created_at': '2025-01-01',
-      };
-      final account = Account.fromMap(map);
-      expect(account.id, '1');
-      expect(account.userId, '1');
-      expect(account.name, 'Checking');
-      expect(account.type, 'checking');
-      expect(account.color, '#FF0000');
-      expect(account.currency, 'USD');
-      expect(account.createdAt, '2025-01-01');
-    });
-
-    test('fromMap handles missing optional fields with defaults', () {
-      final map = {
-        'id': '1',
-        'user_id': '1',
-        'name': 'Test',
-      };
-      final account = Account.fromMap(map);
-      expect(account.type, 'savings');
-      expect(account.color, '#1976D2');
-      expect(account.currency, 'EUR');
-      expect(account.createdAt, isNull);
-    });
-
-    test('toMap produces correct map', () {
-      final account = Account(
-        id: '1',
-        userId: '1',
-        name: 'Checking',
-        type: 'checking',
-        color: '#FF0000',
-        currency: 'USD',
-      );
-      final map = account.toMap();
-      expect(map['id'], '1');
-      expect(map['user_id'], '1');
-      expect(map['name'], 'Checking');
-      expect(map['type'], 'checking');
-      expect(map['color'], '#FF0000');
-      expect(map['currency'], 'USD');
-    });
-
-    test('toMap omits null id', () {
-      final account = Account(userId: '1', name: 'Test');
-      final map = account.toMap();
-      expect(map.containsKey('id'), isFalse);
-    });
-
-    test('copyWith creates new instance with overrides', () {
-      final original = Account(
-        id: '1',
-        userId: '1',
-        name: 'Original',
-        type: 'savings',
-        color: '#000',
-        currency: 'EUR',
-      );
-      final copy = original.copyWith(name: 'Updated', color: '#FFF');
-      expect(copy.name, 'Updated');
-      expect(copy.color, '#FFF');
-      expect(copy.type, 'savings');
-      expect(copy.id, '1');
-      expect(original.name, 'Original');
-    });
-
     test('isChecking and isSavings return correct values', () {
       final checking = Account(userId: '1', name: 'C', type: 'checking');
       final savings = Account(userId: '1', name: 'S', type: 'savings');
@@ -110,44 +36,6 @@ void main() {
       expect(checking.isSavings, isFalse);
       expect(savings.isChecking, isFalse);
       expect(savings.isSavings, isTrue);
-    });
-  });
-
-  group('AccountWithBalance model', () {
-    test('fromMap creates AccountWithBalance with balance', () {
-      final map = {
-        'id': '1',
-        'user_id': '1',
-        'name': 'Checking',
-        'type': 'checking',
-        'color': '#FF0000',
-        'currency': 'USD',
-        'balance': 150.5,
-      };
-      final awb = AccountWithBalance.fromMap(map);
-      expect(awb.balance, Decimal.parse('150.5'));
-      expect(awb.name, 'Checking');
-      expect(awb.id, '1');
-    });
-
-    test('fromMap defaults balance to 0.0 when missing', () {
-      final map = {
-        'id': '1',
-        'user_id': '1',
-        'name': 'Test',
-      };
-      final awb = AccountWithBalance.fromMap(map);
-      expect(awb.balance, Decimal.zero);
-    });
-
-    test('fromMap defaults currency to EUR when missing', () {
-      final map = {
-        'id': '1',
-        'user_id': '1',
-        'name': 'Test',
-      };
-      final awb = AccountWithBalance.fromMap(map);
-      expect(awb.currency, 'EUR');
     });
   });
 

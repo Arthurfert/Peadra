@@ -14,6 +14,7 @@ import '../../../core/responsive/responsive_layout.dart';
 import '../../../core/utils/chart_utils.dart';
 import '../../../shared/widgets/peadra_notification.dart';
 import '../../../shared/widgets/peadra_modal.dart';
+import '../../dashboard/presentation/dashboard_shell.dart';
 
 class CategoriesView extends StatefulWidget {
   const CategoriesView({super.key});
@@ -32,6 +33,7 @@ class _CategoriesViewState extends State<CategoriesView> {
   int _visibleExpenses = 5;
   int _visibleIncomes = 5;
   StreamSubscription<void>? _remoteDataSub;
+  ValueNotifier<int>? _activationSignal;
   Map<String, Map<String, Map<String, double>>>? _spotsRef;
   final Map<String, ({List<FlSpot> spots, List<String> labels, AxisScale axis})>
   _spotsCache = {};
@@ -43,11 +45,22 @@ class _CategoriesViewState extends State<CategoriesView> {
     _remoteDataSub = DatabaseManager.instance.onRemoteDataApplied.listen((_) {
       _loadData();
     });
+    // The shell re-shows this cached view instead of remounting it (keep-
+    // alive stack), so refresh on reactivation instead of staying stale.
+    // This view always sits at slot 4 of the shell's views list.
+    final signal = LazyKeepAliveStack.activationSignals[4];
+    _activationSignal = signal;
+    signal.addListener(_onViewReactivated);
+  }
+
+  void _onViewReactivated() {
+    if (mounted) _loadData();
   }
 
   @override
   void dispose() {
     _remoteDataSub?.cancel();
+    _activationSignal?.removeListener(_onViewReactivated);
     super.dispose();
   }
 
@@ -100,8 +113,6 @@ class _CategoriesViewState extends State<CategoriesView> {
         _topIncomes = results[1] as List<Map<String, dynamic>>;
         _monthlyData =
             results[2] as Map<String, Map<String, Map<String, double>>>;
-        _visibleExpenses = 5;
-        _visibleIncomes = 5;
         _loading = false;
       });
     }
@@ -113,6 +124,14 @@ class _CategoriesViewState extends State<CategoriesView> {
     final colors = PeadraTheme.getColors(themeName);
     final isPhone = ResponsiveLayout.isPhone(context);
     final lineChartDots = context.watch<SettingsProvider>().lineChartDots;
+    final expenseItems = _topExpenses
+        .where((i) => _spotsForDescription(_itemName(i), true).spots.isNotEmpty)
+        .toList();
+    final incomeItems = _topIncomes
+        .where(
+          (i) => _spotsForDescription(_itemName(i), false).spots.isNotEmpty,
+        )
+        .toList();
 
     return Padding(
       padding: ResponsiveLayout.pagePaddingAll(context).copyWith(bottom: 0),
@@ -130,27 +149,29 @@ class _CategoriesViewState extends State<CategoriesView> {
                       children: [
                         _buildSection(
                           Translator.t('cat_top_expenses'),
-                          _topExpenses.take(_visibleExpenses).toList(),
+                          expenseItems.take(_visibleExpenses).toList(),
                           colors.error,
                           colors,
                           showDots: lineChartDots,
+                          isExpense: true,
                         ),
-                        if (_visibleExpenses < _topExpenses.length)
+                        if (_visibleExpenses < expenseItems.length)
                           _buildLoadMoreButton(
-                              () => setState(() => _visibleExpenses += 5),
-                              colors),
+                            () => setState(() => _visibleExpenses += 5),
+                          ),
                         const SizedBox(height: 24),
                         _buildSection(
                           Translator.t('cat_top_incomes'),
-                          _topIncomes.take(_visibleIncomes).toList(),
+                          incomeItems.take(_visibleIncomes).toList(),
                           colors.success,
                           colors,
                           showDots: lineChartDots,
+                          isExpense: false,
                         ),
-                        if (_visibleIncomes < _topIncomes.length)
+                        if (_visibleIncomes < incomeItems.length)
                           _buildLoadMoreButton(
-                              () => setState(() => _visibleIncomes += 5),
-                              colors),
+                            () => setState(() => _visibleIncomes += 5),
+                          ),
                         const SizedBox(height: 12),
                       ],
                     ),
@@ -268,7 +289,7 @@ class _CategoriesViewState extends State<CategoriesView> {
     );
   }
 
-  Widget _buildLoadMoreButton(VoidCallback onPressed, PeadraColors colors) {
+  Widget _buildLoadMoreButton(VoidCallback onPressed) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.only(top: 12),
@@ -315,20 +336,24 @@ class _CategoriesViewState extends State<CategoriesView> {
     );
   }
 
+  static String _itemName(Map<String, dynamic> item) =>
+      (item['description'] ?? item['tag']) as String;
+
   Widget _buildSection(
     String title,
     List<Map<String, dynamic>> items,
     Color accentColor,
     PeadraColors colors, {
     required bool showDots,
+    required bool isExpense,
   }) {
     final itemsWithGraph = items
         .map((item) {
-          final name = (item['description'] ?? item['tag']) as String;
-          final data = _spotsForDescription(name);
+          final name = _itemName(item);
+          final data = _spotsForDescription(name, isExpense);
           return (item: item, name: name, data: data);
         })
-        .where((e) => e.data.spots.length > 1)
+        .where((e) => e.data.spots.isNotEmpty)
         .toList();
 
     if (itemsWithGraph.isEmpty) {
@@ -474,12 +499,13 @@ class _CategoriesViewState extends State<CategoriesView> {
   ];
 
   ({List<FlSpot> spots, List<String> labels, AxisScale axis})
-  _spotsForDescription(String description) {
+  _spotsForDescription(String description, bool isExpense) {
     if (!identical(_monthlyData, _spotsRef)) {
       _spotsRef = _monthlyData;
       _spotsCache.clear();
     }
-    final cached = _spotsCache[description];
+    final cacheKey = '${isExpense ? 'e' : 'i'}:$description';
+    final cached = _spotsCache[cacheKey];
     if (cached != null) return cached;
 
     final descData = _monthlyData[description];
@@ -488,7 +514,7 @@ class _CategoriesViewState extends State<CategoriesView> {
       // is invalidated whenever _monthlyData identity changes above.
       const emptyAxis = AxisScale(min: 0, max: 100, interval: 25);
       final empty = (spots: <FlSpot>[], labels: <String>[], axis: emptyAxis);
-      _spotsCache[description] = empty;
+      _spotsCache[cacheKey] = empty;
       return empty;
     }
 
@@ -497,7 +523,7 @@ class _CategoriesViewState extends State<CategoriesView> {
     final labels = <String>[];
     for (int i = 0; i < sortedMonths.length; i++) {
       final monthData = descData[sortedMonths[i]];
-      final amount = (monthData?['total'] ?? 0).abs();
+      final amount = (monthData?[isExpense ? 'expense' : 'income'] ?? 0).abs();
       spots.add(FlSpot(i.toDouble(), amount));
       final monthNum = int.tryParse(sortedMonths[i].split('-').last) ?? 1;
       labels.add(Translator.t(_monthKeys[(monthNum - 1).clamp(0, 11)]));
@@ -513,7 +539,7 @@ class _CategoriesViewState extends State<CategoriesView> {
       labels: labels,
       axis: niceAxisScale(minY, maxY),
     );
-    _spotsCache[description] = result;
+    _spotsCache[cacheKey] = result;
     return result;
   }
 
@@ -575,9 +601,7 @@ class _CategoriesViewState extends State<CategoriesView> {
               getTitlesWidget: (value, meta) {
                 if (value == 0) return const Text('');
                 return Text(
-                  value >= 1000
-                      ? '${(value / 1000).toStringAsFixed(1)}k'
-                      : value.toStringAsFixed(0),
+                  compactAxisLabel(value),
                   style: TextStyle(color: colors.textSecondary, fontSize: 9),
                 );
               },
@@ -735,6 +759,7 @@ class _CategoriesViewState extends State<CategoriesView> {
       builder: (ctx) => _ManageTagsDialog(db: _db, colors: colors),
     );
 
+    if (!mounted) return;
     _loadData();
   }
 }

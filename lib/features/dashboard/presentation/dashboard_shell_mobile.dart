@@ -11,7 +11,6 @@ class DashboardShellMobile extends StatelessWidget {
   final Widget? updateBanner;
   final List<Widget> views;
   final ValueChanged<int> onNavTap;
-  final VoidCallback onLogout;
   final bool showNavLabels;
 
   /// Destinations in the user's chosen order. The first
@@ -27,7 +26,6 @@ class DashboardShellMobile extends StatelessWidget {
     this.updateBanner,
     required this.views,
     required this.onNavTap,
-    required this.onLogout,
     this.showNavLabels = false,
     required this.navViews,
     required this.colors,

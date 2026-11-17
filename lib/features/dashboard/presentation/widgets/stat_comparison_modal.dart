@@ -32,8 +32,11 @@ class StatComparisonContent extends StatefulWidget {
 }
 
 class _StatComparisonContentState extends State<StatComparisonContent> {
-  late final Future<Map<String, dynamic>> _series =
-      DatabaseManager.instance.getStatComparisonSeries(kind: widget.kind);
+  late final Future<Map<String, dynamic>> _series = DatabaseManager.instance
+      .getStatComparisonSeries(
+        kind: widget.kind,
+        targetCurrency: widget.currency,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -83,10 +86,10 @@ class _StatComparisonContentState extends State<StatComparisonContent> {
                     ),
                   );
                 }
-                final previous =
-                    (snapshot.data!['previous'] as List).cast<double>();
-                final current =
-                    (snapshot.data!['current'] as List).cast<double>();
+                final previous = (snapshot.data!['previous'] as List)
+                    .cast<double>();
+                final current = (snapshot.data!['current'] as List)
+                    .cast<double>();
                 final isBalance = snapshot.data!['isBalance'] as bool;
                 return _buildChart(previous, current, isBalance);
               },
@@ -96,11 +99,15 @@ class _StatComparisonContentState extends State<StatComparisonContent> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _buildLegendDot(colors.textSecondary.withValues(alpha: 0.55),
-                  Translator.t('stat_cmp_prev_month')),
+              _buildLegendDot(
+                colors.textSecondary.withValues(alpha: 0.55),
+                Translator.t('stat_cmp_prev_month'),
+              ),
               const SizedBox(width: 16),
               _buildLegendDot(
-                  colors.accent, Translator.t('stat_cmp_this_month')),
+                colors.accent,
+                Translator.t('stat_cmp_this_month'),
+              ),
             ],
           ),
         ],
@@ -109,15 +116,23 @@ class _StatComparisonContentState extends State<StatComparisonContent> {
   }
 
   Widget _buildChart(
-      List<double> previous, List<double> current, bool isBalance) {
+    List<double> previous,
+    List<double> current,
+    bool isBalance,
+  ) {
     final colors = widget.colors;
-    final maxDays =
-        previous.length > current.length ? previous.length : current.length;
-    double maxValue = previous.isEmpty ? 0 : previous.reduce((a, b) => a > b ? a : b);
+    final maxDays = previous.length > current.length
+        ? previous.length
+        : current.length;
+    double maxValue = previous.isEmpty
+        ? 0
+        : previous.reduce((a, b) => a > b ? a : b);
     for (final v in current) {
       if (v > maxValue) maxValue = v;
     }
-    double minValue = previous.isEmpty ? 0 : previous.reduce((a, b) => a < b ? a : b);
+    double minValue = previous.isEmpty
+        ? 0
+        : previous.reduce((a, b) => a < b ? a : b);
     for (final v in current) {
       if (v < minValue) minValue = v;
     }
@@ -152,12 +167,15 @@ class _StatComparisonContentState extends State<StatComparisonContent> {
           ),
         ),
         titlesData: FlTitlesData(
-          leftTitles:
-              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles:
-              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          topTitles:
-              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
@@ -228,8 +246,7 @@ class _StatComparisonContentState extends State<StatComparisonContent> {
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 4),
-        Text(label,
-            style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
       ],
     );
   }

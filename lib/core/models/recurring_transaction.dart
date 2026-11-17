@@ -42,56 +42,6 @@ class RecurringTransaction {
     this.createdAt,
     this.updatedAt,
   });
-
-  Map<String, dynamic> toMap() => {
-        if (id != null) 'id': id,
-        'user_id': userId,
-        'account_id': accountId,
-        'description_id': descriptionId,
-        'tag_id': tagId,
-        'amount': amount,
-        'transaction_type': transactionType,
-        'currency': currency,
-        'notes': notes,
-        'frequency': frequency,
-        'interval': interval,
-        'day_of_week': dayOfWeek,
-        'day_of_month': dayOfMonth,
-        'start_date': startDate,
-        'end_date': endDate,
-        'next_due_date': nextDueDate,
-        'active': active ? 1 : 0,
-      };
-
-  factory RecurringTransaction.fromMap(Map<String, dynamic> map) =>
-      RecurringTransaction(
-        id: map['id'] as String?,
-        userId: map['user_id'] as String,
-        accountId: map['account_id'] as String?,
-        descriptionId: map['description_id'] as String?,
-        tagId: map['tag_id'] as String?,
-        amount: _parseDecimal(map['amount']),
-        transactionType: map['transaction_type'] as String,
-        currency: map['currency'] as String? ?? 'EUR',
-        notes: map['notes'] as String?,
-        frequency: map['frequency'] as String,
-        interval: map['interval'] as int? ?? 1,
-        dayOfWeek: map['day_of_week'] as int?,
-        dayOfMonth: map['day_of_month'] as int?,
-        startDate: map['start_date'] as String,
-        endDate: map['end_date'] as String?,
-        nextDueDate: map['next_due_date'] as String,
-        active: (map['active'] as int? ?? 1) == 1,
-        createdAt: map['created_at'] as String?,
-        updatedAt: map['updated_at'] as String?,
-      );
-
-  static Decimal _parseDecimal(dynamic value) {
-    if (value == null) return Decimal.zero;
-    if (value is Decimal) return value;
-    if (value is num) return Decimal.parse(value.toString());
-    return Decimal.tryParse(value.toString()) ?? Decimal.zero;
-  }
 }
 
 class RecurringTransactionWithDetails extends RecurringTransaction {
@@ -131,5 +81,4 @@ class RecurringTransactionWithDetails extends RecurringTransaction {
     this.tagColor,
     this.generatedCount = 0,
   });
-
 }

@@ -19,20 +19,61 @@ class RecurringService {
   static DateTime nextOccurrence(RecurringTransaction rec, DateTime current) {
     switch (rec.frequency) {
       case freqDaily:
-        return current.add(Duration(days: rec.interval));
+        // Calendar arithmetic, not +24h: across a DST change the latter can
+        // land on the same calendar day and emit a duplicate occurrence.
+        return DateTime(current.year, current.month, current.day + rec.interval);
       case freqWeekly:
-        return current.add(Duration(days: 7 * rec.interval));
+        final target = rec.dayOfWeek ?? current.weekday;
+        var daysToAdd = (target - current.weekday) % 7;
+        if (daysToAdd == 0) daysToAdd = 7;
+        final first =
+            DateTime(current.year, current.month, current.day + daysToAdd);
+        return DateTime(
+            first.year, first.month, first.day + 7 * (rec.interval - 1));
       case freqMonthly:
-        // Parsed lazily: daily/weekly (the hot paths) never touch startDate.
-        final anchorDay = DateTime.parse(rec.startDate).day;
+        // Prefer the day picked in the UI; fall back to the start date's day.
+        final anchorDay =
+            rec.dayOfMonth ?? DateTime.parse(rec.startDate).day;
         final dom = clampDay(anchorDay, current.year, current.month + rec.interval);
         return DateTime(current.year, current.month + rec.interval, dom);
       case freqYearly:
         final anchor = DateTime.parse(rec.startDate);
-        final dom = clampDay(anchor.day, current.year + rec.interval, anchor.month);
+        final anchorDay = rec.dayOfMonth ?? anchor.day;
+        final dom = clampDay(anchorDay, current.year + rec.interval, anchor.month);
         return DateTime(current.year + rec.interval, anchor.month, dom);
       default:
-        return current.add(Duration(days: rec.interval));
+        return DateTime(current.year, current.month, current.day + rec.interval);
+    }
+  }
+
+  /// Moves [start] forward to the first date that matches the schedule's
+  /// anchor day/weekday, so a template created on the 3rd but scheduled for
+  /// the 15th does not fire on the 3rd.
+  static DateTime _alignToSchedule(RecurringTransaction rec, DateTime start) {
+    switch (rec.frequency) {
+      case freqMonthly:
+        final anchorDay = rec.dayOfMonth ?? start.day;
+        final sameMonth = DateTime(
+            start.year, start.month, clampDay(anchorDay, start.year, start.month));
+        if (!sameMonth.isBefore(start)) return sameMonth;
+        final nextMonth = start.month + 1;
+        return DateTime(start.year, nextMonth,
+            clampDay(anchorDay, start.year, nextMonth));
+      case freqYearly:
+        final anchor = DateTime.parse(rec.startDate);
+        final anchorDay = rec.dayOfMonth ?? anchor.day;
+        final sameYear = DateTime(
+            start.year, anchor.month, clampDay(anchorDay, start.year, anchor.month));
+        if (!sameYear.isBefore(start)) return sameYear;
+        final nextYear = start.year + 1;
+        return DateTime(nextYear, anchor.month,
+            clampDay(anchorDay, nextYear, anchor.month));
+      case freqWeekly:
+        final target = rec.dayOfWeek ?? start.weekday;
+        final delta = (target - start.weekday) % 7;
+        return DateTime(start.year, start.month, start.day + delta);
+      default:
+        return start;
     }
   }
 
@@ -43,7 +84,7 @@ class RecurringService {
     final start = DateTime.parse(rec.startDate);
     final end = rec.endDate != null ? DateTime.parse(rec.endDate!) : null;
     if (end != null && start.isAfter(end)) return null;
-    var cursor = start;
+    var cursor = _alignToSchedule(rec, start);
     var guard = 0;
     while (cursor.isBefore(reference)) {
       final next = nextOccurrence(rec, cursor);
@@ -83,7 +124,8 @@ class RecurringService {
     int lookAheadDays = 0,
   }) {
     final endDate = rec.endDate != null ? DateTime.parse(rec.endDate!) : null;
-    var cursor = DateTime.parse(rec.nextDueDate);
+    var cursor =
+        _alignToSchedule(rec, DateTime.parse(rec.nextDueDate));
     final cutoff = today.add(Duration(days: lookAheadDays));
 
     if (endDate != null && cursor.isAfter(endDate)) {
@@ -94,11 +136,14 @@ class RecurringService {
     }
 
     final due = <String>[];
+    final seen = <String>{};
     var guard = 0;
     while (!cursor.isAfter(cutoff)) {
       if (endDate != null && cursor.isAfter(endDate)) break;
       final dateStr = dateOnly(cursor);
-      if (!existingDates.contains(dateStr) && !exceptionDates.contains(dateStr)) {
+      if (!existingDates.contains(dateStr) &&
+          !exceptionDates.contains(dateStr) &&
+          seen.add(dateStr)) {
         due.add(dateStr);
       }
       final next = nextOccurrence(rec, cursor);

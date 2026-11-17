@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:decimal/decimal.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:peadra/core/services/import_service.dart';
@@ -7,31 +5,18 @@ import 'package:peadra/core/services/import_service.dart';
 void main() {
   final service = ImportService();
 
-  group('calculateFileHash', () {
+  group('hashBytes', () {
     test('uses real SHA-256, not the legacy 8-char hash', () async {
-      final dir = await Directory.systemTemp.createTemp('import_hash');
-      try {
-        final file = File('${dir.path}/a.csv');
-        await file.writeAsString('date,amount\n2024-01-01,10\n');
-        final hash = await service.calculateFileHash(file.path);
-        // SHA-256 hex digest.
-        expect(hash.length, 64);
-        expect(RegExp(r'^[0-9a-f]+$').hasMatch(hash), isTrue);
-      } finally {
-        await dir.delete(recursive: true);
-      }
+      final bytes = 'date,amount\n2024-01-01,10\n'.codeUnits;
+      final hash = ImportService.hashBytes(bytes);
+      // SHA-256 hex digest.
+      expect(hash.length, 64);
+      expect(RegExp(r'^[0-9a-f]+$').hasMatch(hash), isTrue);
     });
 
-    test('different contents produce different hashes', () async {
-      final dir = await Directory.systemTemp.createTemp('import_hash2');
-      try {
-        final a = File('${dir.path}/a.csv')..writeAsStringSync('a');
-        final b = File('${dir.path}/b.csv')..writeAsStringSync('b');
-        expect(await service.calculateFileHash(a.path),
-            isNot(await service.calculateFileHash(b.path)));
-      } finally {
-        await dir.delete(recursive: true);
-      }
+    test('different contents produce different hashes', () {
+      expect(ImportService.hashBytes('a'.codeUnits),
+          isNot(ImportService.hashBytes('b'.codeUnits)));
     });
   });
 

@@ -519,15 +519,16 @@ void main() {
     final sub = DatabaseManager.instance.onRemoteDataApplied.listen(remoteEvents.add);
     addTearDown(sub.cancel);
 
-    // A local-only write (not in `syncTables`) schedules a background sync but
-    // leaves both changesets empty.
+    // A local-only write (not in `syncTables`) must not schedule a sync at
+    // all, and therefore must not notify views either.
     final before = await lastSeen();
     await b.crdt.execute(
       'INSERT OR REPLACE INTO settings (user_id, "key", value) VALUES (?1, ?2, ?3)',
       ['user-a', 'theme', 'dark'],
     );
-    await waitForSync(before);
-    await Future<void>.delayed(const Duration(milliseconds: 100));
+    // Longer than the 2 s sync debounce: a sync would have completed by now.
+    await Future<void>.delayed(const Duration(milliseconds: 2500));
+    expect((await lastSeen()), before);
     expect(remoteEvents, isEmpty);
   });
 }

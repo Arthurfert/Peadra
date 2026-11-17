@@ -34,11 +34,6 @@ class SecurePeerStorage {
     return recovered;
   }
 
-  /// Drops the in-memory copy; the next read reloads from storage.
-  void invalidateCache() {
-    _cache = null;
-  }
-
   Future<List<TrustedPeer>> getAll() async {
     final cached = _cache;
     if (cached != null) return [...cached];

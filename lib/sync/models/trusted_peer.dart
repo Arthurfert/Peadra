@@ -13,6 +13,10 @@ class TrustedPeer {
 
   /// The peer's database encryption key bytes (base64), shared at pairing.
   /// Null when the peer runs unencrypted.
+  ///
+  /// shortcut: persisted but not consumed by the current decrypt path; kept
+  /// for cross-version pairing key exchange. Upgrade when a peer-encrypted DB
+  /// path is actually needed.
   final String? dbEncryptionKey;
 
   /// The most recent HLC merged from this peer; used as the `since`

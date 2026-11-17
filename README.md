@@ -5,7 +5,9 @@
 <div align="center">
   <a href="https://github.com/Arthurfert/Peadra?tab=GPL-3.0-1-ov-file)"><img src="https://img.shields.io/badge/License-GPL%203.0-brightgreen.svg"></a>
   <img src="https://img.shields.io/github/v/release/Arthurfert/Peadra">
+  <a href="https://arthurfert.com/privacy/peadra"><img src="https://img.shields.io/badge/Privacy_Policy-blue"></a>
 </div>
+
 <div align="center">
     <a href="https://play.google.com/store/apps/details?id=com.peadra.peadra"><img src="./assets/GetItOnGooglePlay.svg" width=120 ></a>
 </div>
@@ -74,58 +76,9 @@ You can access the developer documentation [here](https://deepwiki.com/Arthurfer
 - **Database:** [sqflite](https://pub.dev/packages/sqflite) - SQLite for Flutter
 - **Encryption:** [cryptography](https://pub.dev/packages/cryptography) - AES-256-GCM + PBKDF2 for at-rest database encryption
 
-## Project Structure
+## External sources
 
-```
-Peadra/
-├── pubspec.yaml                       # Flutter/Dart dependencies
-├── lib/
-│   ├── main.dart                      # App entry point
-│   ├── core/                          # Shared infrastructure
-│   │   ├── database/
-│   │   │   └── database_manager.dart  # SQLite database layer
-│   │   ├── models/                    # Data models (User, Account, Transaction, Goal…)
-│   │   ├── services/                  # Auth, currency, import, export, update
-│   │   ├── providers/                 # State management (Provider)
-│   │   ├── i18n/                      # Translations (EN/FR)
-│   │   ├── theme/                     # Color schemes & theming
-│   │   ├── utils/                     # Constants, formatters
-│   │   └── responsive/                # Layout breakpoints (phone/tablet/desktop)
-│   ├── features/                      # Feature-first modules
-│   │   ├── auth/presentation/
-│   │   │   └── login_view.dart
-│   │   ├── dashboard/presentation/
-│   │   │   ├── charts/                # Shared chart widgets
-│   │   │   ├── dashboard_shell.dart   # Entrypoint → LayoutBuilder
-│   │   │   ├── dashboard_shell_desktop.dart
-│   │   │   ├── dashboard_shell_mobile.dart
-│   │   │   ├── dashboard_view.dart    # Entrypoint → LayoutBuilder
-│   │   │   ├── dashboard_view_desktop.dart
-│   │   │   └── dashboard_view_mobile.dart
-│   │   ├── transactions/presentation/
-│   │   │   ├── transactions_view.dart
-│   │   │   └── widgets/transaction_modal.dart
-│   │   ├── accounts/presentation/
-│   │   │   └── accounts_view.dart
-│   │   ├── budgets/presentation/
-│   │   │   ├── budgets_view.dart         # Goals with progress bars
-│   │   │   └── widgets/goal_dialog.dart  # Create/edit a goal
-│   │   ├── categories/presentation/
-│   │   │   └── categories_view.dart
-│   │   ├── parameters/presentation/
-│   │   │   └── parameters_view.dart
-│   │   └── import_data/presentation/
-│   │       └── import_data_view.dart
-│   └── shared/widgets/
-│       ├── peadra_notification.dart
-│       └── peadra_modal.dart          # Bottom-docked modals on phones, dialogs otherwise
-├── android/                           # Android platform files
-├── ios/                               # iOS platform files
-├── linux/                             # Linux platform files
-├── windows/                           # Windows platform files
-├── macos/                             # macOS platform files
-└── assets/                            # Images, icons
-```
+- **Exchange rates:** [ExchangeRate-API](https://www.exchangerate-api.com/) the open endpoint at [open.er-api.com](https://open.er-api.com/) provides the currency conversion rates used for multi-currency accounts.
 
 ## License
 

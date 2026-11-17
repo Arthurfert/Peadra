@@ -1,12 +1,9 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:csv/csv.dart';
 import 'package:decimal/decimal.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
 import '../database/database_manager.dart';
 
@@ -39,17 +36,8 @@ class ExportService {
   ///   and `Notes` would even risk being auto-mapped as a description),
   /// * UTF-8 with BOM so Excel opens the file correctly (the importer
   ///   strips the BOM back out).
-  Future<String> exportToCsv({
-    required String accountId,
-    String? startDate,
-    String? endDate,
-  }) async {
-    // The date filter lives in SQL (indexed) instead of pulling the whole
-    // account history into Dart first.
-    final transactions = (startDate != null && endDate != null)
-        ? await _db.getTransactionsByPeriod(startDate, endDate,
-            accountIds: {accountId})
-        : await _db.getTransactions(accountIds: {accountId});
+  Future<String> exportToCsv({required String accountId}) async {
+    final transactions = await _db.getTransactions(accountIds: {accountId});
     // Chronological order, like a bank statement.
     transactions.sort((a, b) => a.date.compareTo(b.date));
 
@@ -112,8 +100,7 @@ class ExportService {
   }
 
   /// Save export to file and return the path.
-  /// On desktop: opens a file picker dialog for the user to choose save location.
-  /// On mobile: saves to Downloads folder.
+  /// Uses the platform save dialog (SAF on Android, a save panel on desktop).
   Future<String?> saveToFile({
     required String content,
     required String format,
@@ -121,23 +108,6 @@ class ExportService {
   }) async {
     final timestamp = DateTime.now().toIso8601String().substring(0, 19).replaceAll(':', '-');
     final name = fileName ?? 'peadra_export_$timestamp.$format';
-
-    if (Platform.isAndroid) {
-      final dir = Directory('/storage/emulated/0/Download');
-      if (!await dir.exists()) {
-        await dir.create(recursive: true);
-      }
-      final filePath = p.join(dir.path, name);
-      await File(filePath).writeAsString(content);
-      return filePath;
-    }
-
-    if (Platform.isIOS) {
-      final dir = await getApplicationDocumentsDirectory();
-      final filePath = p.join(dir.path, name);
-      await File(filePath).writeAsString(content);
-      return filePath;
-    }
 
     // Note: file_picker writes [bytes] itself and returns the saved URI.
     final uri = await FilePicker.saveFile(

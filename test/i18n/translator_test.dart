@@ -24,7 +24,7 @@ void main() {
         'tag_delete_confirm',
         'budget_title',
         'period_1y',
-        'month_dec',
+        'month_dec_abbr',
         'week_sun',
         'rec_freq_every_monthly',
       ];

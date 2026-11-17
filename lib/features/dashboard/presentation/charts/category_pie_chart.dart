@@ -9,20 +9,14 @@ import '../../../../core/services/currency_service.dart';
 class _PieSlice {
   final String label;
   final double amount;
-  final double displayAmount;
-  final String itemCurrency;
   final Color color;
   final String formatted;
-  final double pct;
 
   const _PieSlice({
     required this.label,
     required this.amount,
-    required this.displayAmount,
-    required this.itemCurrency,
     required this.color,
     required this.formatted,
-    required this.pct,
   });
 }
 
@@ -129,11 +123,8 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
       slices.add(_PieSlice(
         label: d['label'] as String? ?? '',
         amount: amount,
-        displayAmount: displayAmount,
-        itemCurrency: itemCurrency,
         color: color,
         formatted: formatted,
-        pct: total == 0.0 ? 0.0 : amount / total * 100,
       ));
     }
     if (otherAmount > 0.0) {
@@ -144,11 +135,8 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
       slices.add(_PieSlice(
         label: label,
         amount: otherAmount,
-        displayAmount: otherAmount,
-        itemCurrency: itemCurrency,
         color: chartColors[top.length % chartColors.length],
         formatted: formatted,
-        pct: total == 0.0 ? 0.0 : otherAmount / total * 100,
       ));
     }
 

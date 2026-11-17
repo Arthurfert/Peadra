@@ -488,7 +488,7 @@ void main() {
         () async {
       final db = DatabaseManager.instance;
       final exportData = {
-        'accounts': (await db.getAllAccounts()).map((a) => a.toMap()).toList(),
+        'accounts': await db.getAllAccounts(),
         'transactions': await db.getTransactions(),
         'exported_at': DateTime.now().toIso8601String(),
       };
@@ -577,17 +577,17 @@ void main() {
       expect(txns.single.amount, Decimal.fromInt(100));
     });
 
-    test('export account map structure matches Account.toMap', () async {
+    test('export account fields are all present', () async {
       final db = DatabaseManager.instance;
       await db.addAccount('Checking', '#4CAF50', 'checking', 'EUR');
 
-      final first = (await db.getAllAccounts()).single.toMap();
-      expect(first.containsKey('id'), isTrue);
-      expect(first.containsKey('user_id'), isTrue);
-      expect(first.containsKey('name'), isTrue);
-      expect(first.containsKey('type'), isTrue);
-      expect(first.containsKey('color'), isTrue);
-      expect(first.containsKey('currency'), isTrue);
+      final first = (await db.getAllAccounts()).single;
+      expect(first.id, isNotNull);
+      expect(first.userId, isNotEmpty);
+      expect(first.name, isNotEmpty);
+      expect(first.type, isNotEmpty);
+      expect(first.color, isNotEmpty);
+      expect(first.currency, isNotEmpty);
     });
   });
 

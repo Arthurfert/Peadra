@@ -13,7 +13,6 @@ abstract final class SyncMessageTypes {
   static const String keyExchangeAck = 'KEY_EXCHANGE_ACK';
   static const String keyRefresh = 'KEY_REFRESH';
   static const String error = 'ERROR';
-  static const String close = 'CLOSE';
 }
 
 /// Thrown on malformed framing, unexpected messages or protocol violations.

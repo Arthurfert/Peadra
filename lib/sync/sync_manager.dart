@@ -92,7 +92,13 @@ class SyncManager {
 
   /// Max concurrent peer syncs in [_syncAllKnown].
   static const int maxConcurrentSyncs = 4;
+
+  /// How long a pairing secret stays valid after its QR code is shown. A
+  /// scanned code that is never used must not stay an open credential.
+  static const Duration pairingSecretTtl = Duration(minutes: 2);
+
   final Map<String, String> _pendingPairingSecrets = {};
+  final Map<String, Timer> _pairingSecretTimers = {};
   final Set<Future<void>> _inFlight = {};
   StreamSubscription<DiscoveredService>? _discoverySub;
   StreamSubscription<({Hlc hlc, Iterable<String> tables})>? _changeSub;
@@ -120,9 +126,22 @@ class SyncManager {
   }
 
   /// Registers a fresh pairing secret (generated for a QR code) so an unknown
-  /// peer presenting it can authenticate during the pairing handshake.
+  /// peer presenting it can authenticate during the pairing handshake. The
+  /// secret expires after [pairingSecretTtl].
   void registerPairingSecret(String nodeId, String sharedSecret) {
     _pendingPairingSecrets[nodeId] = sharedSecret;
+    _pairingSecretTimers.remove(nodeId)?.cancel();
+    _pairingSecretTimers[nodeId] = Timer(
+      pairingSecretTtl,
+      () => unregisterPairingSecret(nodeId),
+    );
+  }
+
+  /// Drops a pending pairing secret (e.g. the QR screen was closed) so a
+  /// scanned-but-unused code can no longer authenticate.
+  void unregisterPairingSecret(String nodeId) {
+    _pairingSecretTimers.remove(nodeId)?.cancel();
+    _pendingPairingSecrets.remove(nodeId);
   }
 
   Future<void> start() async {
@@ -169,6 +188,10 @@ class SyncManager {
       );
     }
     _knownPeers.clear();
+    for (final timer in _pairingSecretTimers.values) {
+      timer.cancel();
+    }
+    _pairingSecretTimers.clear();
     _pendingPairingSecrets.clear();
     LogService().log('SyncManager stopped');
   }
@@ -181,8 +204,15 @@ class SyncManager {
   /// Manual sync trigger from the peers list. Falls back to the freshest
   /// address seen via discovery when [host]/[port] are not supplied.
   /// Unlike background syncs, a manual trigger bypasses the reconnect
-  /// cooldown, always reports its [SyncOutcome] to the caller, and forces a
-  /// full exchange so rows skipped by an earlier watermark are recovered.
+  /// cooldown and always reports its [SyncOutcome] to the caller.
+  ///
+  /// Incremental (uses the peer watermark): a full exchange serializes the
+  /// whole database into one frame, which fails permanently once it exceeds
+  /// the frame cap.
+  ///
+  /// shortcut: a first-time full exchange (pairing) of a DB whose JSON
+  /// exceeds the frame cap still needs per-round chunking; upgrade when
+  /// large-DB pairing is required.
   Future<SyncOutcome> syncNow(String peerId, {String? host, int? port}) async {
     final resolved = _resolvePeerAddress(peerId, host: host, port: port);
     return _syncPeer(
@@ -190,7 +220,7 @@ class SyncManager {
       host: resolved.host,
       port: resolved.port,
       manual: true,
-      full: true,
+      full: false,
     );
   }
 
@@ -359,6 +389,8 @@ class SyncManager {
 
   void _onLocalChange(({Hlc hlc, Iterable<String> tables}) change) {
     if (!_running) return;
+    // Local-only writes (settings toggles, encryption_meta) need no sync.
+    if (!change.tables.any(syncTables.contains)) return;
     if (!db.isSyncSelfChange(hlc: change.hlc)) return;
     _syncTimer?.cancel();
     _syncTimer = Timer(syncDebounce, _syncAllKnown);
@@ -571,6 +603,10 @@ class SyncManager {
             lastSeen: now,
           ),
         );
+        for (final timer in _pairingSecretTimers.values) {
+          timer.cancel();
+        }
+        _pairingSecretTimers.clear();
         _pendingPairingSecrets.clear();
         LogService().log('Paired with ${peerInfo.deviceName} (${peerInfo.nodeId})');
       } else if (existing != null) {

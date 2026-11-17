@@ -198,7 +198,6 @@ class _ImportDataViewState extends State<ImportDataView> {
       final result = await _importService.importCsv(
         filePath: _preview!.filePath!,
         mappings: _userMappings ?? _preview!.suggestedMappings,
-        transactionType: 'expense',
         accountId: _selectedAccountId!,
         currency: account.currency,
         delimiter: _selectedDelimiter,

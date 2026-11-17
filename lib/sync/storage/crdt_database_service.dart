@@ -49,13 +49,16 @@ class CrdtDatabaseService {
   ///
   /// Returns the highest HLC contained in [changeset] — the value to send back
   /// as the peer's next `since` watermark — or null when the changeset had no
-  /// records. It must NOT be the local [lastModifiedHlc]: local writes,
+  /// records or merged no new rows. It must NOT be the local [lastModifiedHlc]: local writes,
   /// including local-only tables that are never synced (`settings`,
   /// `encryption_meta`), would advance the watermark past rows the peer has
   /// not sent yet, silently skipping them (and a transaction would only sync
   /// again once it was re-saved with a newer HLC).
   Future<Hlc?> applyChangeset(Map<String, dynamic> changeset) async {
     final parsed = parseCrdtChangeset(changeset);
+    // Trust boundary: never merge tables the peer is not allowed to write
+    // (`settings`, `encryption_meta` are local-only).
+    parsed.removeWhere((table, _) => !syncTables.contains(table));
     if (parsed.recordCount == 0) {
       return null;
     }
@@ -68,9 +71,39 @@ class CrdtDatabaseService {
         if (highest == null || hlc > highest) highest = hlc;
       }
     }
+    final before = await _crdt.getLastModified();
+    // A merge that changed no rows must not trigger a remote-data notification.
+    // A newer HLC always means at least one write; below it, lastModified does
+    // not move (the merge stamps rows with the local max), so compare rows.
+    final changed =
+        highest != null && (highest > before || await _hasNewerRecords(parsed));
+    // Set the watermark before merge() so the echo event it emits (at the
+    // changeset max, even for a no-op merge) is treated as a self change.
+    // Normalise to the local node id, as merge() does for the emitted event.
+    lastAppliedHlc = before.merge(highest!);
     await _crdt.merge(parsed);
-    lastAppliedHlc = await _crdt.getLastModified();
-    return highest;
+    return changed ? highest : null;
+  }
+
+  /// Whether merge would write any record in [changeset], i.e. it is newer
+  /// than the local row with the same primary key (or the row is absent).
+  Future<bool> _hasNewerRecords(CrdtChangeset changeset) async {
+    for (final entry in changeset.entries) {
+      final keys = (await _crdt.getTableKeys(entry.key)).toList();
+      if (keys.isEmpty) continue;
+      final where = keys.map((k) => '$k = ?').join(' AND ');
+      for (final record in entry.value) {
+        final rows = await _crdt.query(
+          'SELECT hlc FROM ${entry.key} WHERE $where',
+          [for (final key in keys) record[key]],
+        );
+        if (rows.isEmpty ||
+            record['hlc'] as Hlc > Hlc.parse(rows.first['hlc'] as String)) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   Future<Hlc> lastModifiedHlc() => _crdt.getLastModified();

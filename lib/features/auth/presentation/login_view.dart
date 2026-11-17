@@ -315,24 +315,40 @@ class _LoginViewState extends State<LoginView> {
     }
 
     final keyBase64 = credentials['encryptionKey'] as String?;
-    if (keyBase64 != null) {
-      final keyBytes = base64Decode(keyBase64);
-      _db.setEncryptionKey(SecretKey(keyBytes));
-      LogService().log('Biometric login: encryption key restored');
-    } else {
+    if (keyBase64 == null) {
+      // Without the key we cannot decrypt the DB, and deriving a key from an
+      // empty password would re-encrypt everything under a public key.
       LogService().log('Biometric login: no encryption key in storage');
+      if (mounted) {
+        setState(() => _error = Translator.t('param_biometric_re_enable'));
+      }
+      return;
     }
+    final keyBytes = base64Decode(keyBase64);
+    _db.setEncryptionKey(SecretKey(keyBytes));
+    LogService().log('Biometric login: encryption key restored');
 
     setState(() {
       _isLoading = true;
       _error = null;
     });
 
-    _onLoginSuccess(userId, username, '');
+    try {
+      await _onLoginSuccess(userId, username, '');
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   Future<void> _setupEncryption(String username, String password) async {
     if (_db.isEncrypted) return;
+    // An empty password must never become an encryption key.
+    if (password.isEmpty) return;
 
     // The salt is deterministic per account (derived from the username), so the
     // same password yields the same key on every device. No salt sync required.
@@ -340,17 +356,19 @@ class _LoginViewState extends State<LoginView> {
     final expectedSaltB64 = base64Encode(salt);
 
     final storedSaltStr = await _db.getSetting('encryption_salt');
+    SecretKey? migratedKey;
     if (storedSaltStr != null && storedSaltStr != expectedSaltB64) {
       // Legacy device encrypted under a random salt. Migrate its data to the
       // deterministic per-account key so it matches every other device for
       // this account, then persist the new salt.
-      final oldKey =
-          await EncryptionService.deriveKey(password, base64Decode(storedSaltStr));
-      final newKey = await EncryptionService.deriveKey(password, salt);
-      await _db.migrateEncryptionKey(oldKey, newKey);
+      final oldKey = await EncryptionService.deriveKey(
+          password, base64Decode(storedSaltStr));
+      migratedKey = await EncryptionService.deriveKey(password, salt);
+      await _db.migrateEncryptionKey(oldKey, migratedKey);
     }
 
-    final key = await EncryptionService.deriveKey(password, salt);
+    // Reuse the key derived for the migration instead of running PBKDF2 twice.
+    final key = migratedKey ?? await EncryptionService.deriveKey(password, salt);
     await _db.setEncryptionKey(key);
     await _db.setSetting('encryption_salt', expectedSaltB64);
     await _db.migrateToEncryption();

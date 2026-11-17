@@ -241,7 +241,7 @@ class _ToolsViewState extends State<ToolsView> {
   }
 
   Widget _field(PeadraColors colors, String label, TextEditingController ctrl,
-      {String? suffix, void Function(String)? onChanged, bool decimal = true}) {
+      {String? suffix, void Function(String)? onChanged}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -252,8 +252,7 @@ class _ToolsViewState extends State<ToolsView> {
         const SizedBox(height: 4),
         TextField(
           controller: ctrl,
-          keyboardType:
-              decimal ? const TextInputType.numberWithOptions(decimal: true) : null,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
           onChanged: onChanged,
           style: TextStyle(color: colors.text, fontSize: 15),
           decoration: InputDecoration(
@@ -639,9 +638,7 @@ class _ToolsViewState extends State<ToolsView> {
                 getTitlesWidget: (value, meta) {
                   if (value == 0) return const Text('');
                   return Text(
-                    value >= 1000
-                        ? '${(value / 1000).toStringAsFixed(1)}k'
-                        : value.toStringAsFixed(0),
+                    compactAxisLabel(value),
                     style: TextStyle(
                         color: colors.textSecondary, fontSize: 10),
                   );

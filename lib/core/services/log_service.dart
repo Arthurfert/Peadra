@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import 'export_service.dart';
+
 class LogService {
   static final LogService _instance = LogService._();
   factory LogService() => _instance;
@@ -77,12 +79,13 @@ class LogService {
 
   Future<String> export() async {
     final timestamp = _fileStampFormat.format(DateTime.now());
-    final name = 'peadra_log_$timestamp.txt';
-    final filePath = '/storage/emulated/0/Download/$name';
-    final file = File(filePath);
-    await file.create(recursive: true);
-    await file.writeAsString(buildContent());
-    return filePath;
+    final path = await ExportService().saveToFile(
+      content: buildContent(),
+      format: 'txt',
+      fileName: 'peadra_log_$timestamp.txt',
+    );
+    if (path == null) throw StateError('Log export cancelled');
+    return path;
   }
 }
 

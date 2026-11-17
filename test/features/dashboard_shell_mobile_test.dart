@@ -19,7 +19,6 @@ Widget buildShell({
         (i) => Text('view $i', textDirection: TextDirection.ltr),
       ),
       onNavTap: onNavTap ?? (_) {},
-      onLogout: () {},
       showNavLabels: showNavLabels,
       navViews: navViews,
       colors: PeadraTheme.getColors('dark'),

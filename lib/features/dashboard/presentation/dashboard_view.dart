@@ -234,8 +234,10 @@ class _DashboardViewState extends State<DashboardView> {
             targetCurrency: currency, before: lastMonthStart)),
         _safeQuery(() => _db.getTotalPatrimony(
             targetCurrency: currency, before: lastMonthSameDayEnd)),
-        _safeQuery(() => _db.getTotalPatrimony(
-            targetCurrency: currency, before: balanceBaselineDate)),
+        _safeQuery(() => isRolling
+            ? _db.getTotalPatrimony(
+                targetCurrency: currency, before: balanceBaselineDate)
+            : Future<Decimal?>.value(null)),
       ]);
 
       if (mounted) {
@@ -258,7 +260,9 @@ class _DashboardViewState extends State<DashboardView> {
           _lifetimeStats = (results[13] as Map<String, dynamic>?) ?? {};
           _previousTotalAssets = (results[14] as Decimal?) ?? Decimal.zero;
           _previousTotalAssetsMonthAgo =
-              (results[17] as Decimal?) ?? Decimal.zero;
+              (results[17] as Decimal?) ??
+                  (results[16] as Decimal?) ??
+                  Decimal.zero;
           _totalAssetsBeforeLastMonth = (results[15] as Decimal?) ?? Decimal.zero;
           _totalAssetsAtLastMonthSameDay =
               (results[16] as Decimal?) ?? Decimal.zero;
@@ -863,7 +867,9 @@ class _DashboardViewState extends State<DashboardView> {
       _customStart = picked.start.toIso8601String().substring(0, 10);
       _customEnd = picked.end.toIso8601String().substring(0, 10);
     });
-    _loadChartData();
+    // Reload everything: the pie distributions also depend on the range,
+    // not just the cash-flow/assets charts.
+    _loadData();
   }
 
   void _clearCustomRange() {
@@ -872,7 +878,7 @@ class _DashboardViewState extends State<DashboardView> {
       _customStart = null;
       _customEnd = null;
     });
-    _loadChartData();
+    _loadData();
   }
 
   Widget _buildTimeFilterButtons(PeadraColors colors) {

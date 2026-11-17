@@ -1,5 +1,4 @@
 import 'package:material_ui/material_ui.dart';
-import 'package:decimal/decimal.dart';
 
 import '../../../core/i18n/translator.dart';
 import '../../../core/theme/peadra_colors.dart';
@@ -8,7 +7,6 @@ import 'dashboard_shell.dart';
 
 class DashboardShellDesktop extends StatelessWidget {
   final int selectedIndex;
-  final Decimal totalPatrimony;
   final Widget? updateBanner;
   final List<Widget> views;
   final ValueChanged<int> onNavTap;
@@ -19,7 +17,6 @@ class DashboardShellDesktop extends StatelessWidget {
   const DashboardShellDesktop({
     super.key,
     required this.selectedIndex,
-    required this.totalPatrimony,
     this.updateBanner,
     required this.views,
     required this.onNavTap,

@@ -60,6 +60,8 @@ class _AccountsViewState extends State<AccountsView> {
     final now = DateTime.now().millisecondsSinceEpoch;
     if (_lastReplayAt != null && now - _lastReplayAt! < 100) return;
     _lastReplayAt = now;
+    // Balances may have changed while another view was shown.
+    _loadAccounts();
     if (mounted) setState(() => _appearEpoch++);
   }
 
@@ -84,16 +86,28 @@ class _AccountsViewState extends State<AccountsView> {
     final currency = _lastCurrency.isNotEmpty
         ? _lastCurrency
         : context.read<SettingsProvider>().currency;
-    final results = await Future.wait([
-      _db.getAccountsWithBalances(),
-      _db.getBalance(targetCurrency: currency),
-      _db.getSavingsTotal(targetCurrency: currency),
-    ]);
+    final accounts = await _db.getAccountsWithBalances();
+    // Balances are already valued in each account's currency; convert here
+    // instead of running getBalance()/getSavingsTotal() over every
+    // transaction again.
+    var checking = Decimal.zero;
+    var savings = Decimal.zero;
+    for (final a in accounts) {
+      final converted = a.currency == currency
+          ? a.balance
+          : a.balance *
+                Decimal.parse(
+                  ((await _db.getExchangeRate(a.currency, currency)) ?? 1.0)
+                      .toString(),
+                );
+      if (a.isChecking) checking += converted;
+      if (a.isSavings) savings += converted;
+    }
     if (mounted) {
       setState(() {
-        _accounts = results[0] as List<AccountWithBalance>;
-        _checkingConverted = results[1] as Decimal;
-        _savingsConverted = results[2] as Decimal;
+        _accounts = accounts;
+        _checkingConverted = checking;
+        _savingsConverted = savings;
         _loading = false;
       });
     }

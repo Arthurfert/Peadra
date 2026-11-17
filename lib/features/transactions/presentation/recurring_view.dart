@@ -226,15 +226,15 @@ class _RecurringViewState extends State<RecurringView> {
         iconTheme: IconThemeData(color: colors.text),
       ),
       body: isPhone
-          ? _buildContent(colors, currency, isPhone)
+          ? _buildContent(colors, currency)
           : Padding(
               padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-              child: _buildContent(colors, currency, isPhone),
+              child: _buildContent(colors, currency),
             ),
     );
   }
 
-  Widget _buildContent(PeadraColors colors, String currency, bool isPhone) {
+  Widget _buildContent(PeadraColors colors, String currency) {
     final items = _sorted;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

@@ -732,6 +732,8 @@ class _TransactionModalState extends State<TransactionModal> {
 
   Widget _buildTagSelector(PeadraColors colors) {
     return DropdownButtonFormField<String>(
+      // Re-key so programmatic tag changes (auto-tag, new tag) are shown.
+      key: ValueKey('tag:$_selectedTagId'),
       initialValue: _selectedTagId,
       isExpanded: true,
       decoration: InputDecoration(
@@ -780,7 +782,8 @@ class _TransactionModalState extends State<TransactionModal> {
   }
 
   Widget _buildRecurringSection(PeadraColors colors) {
-    final canEdit = widget.editTransaction == null;
+    // Editing a recurring template ignores is_recurring, so its switch stays off.
+    final canEdit = widget.editTransaction == null && widget.editRecurring == null;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       decoration: BoxDecoration(

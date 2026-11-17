@@ -11,24 +11,17 @@ import 'sync_messages.dart';
 
 /// The device we are connected to, as resolved during the handshake.
 class SessionPeer {
-  const SessionPeer(this.nodeId, this.deviceName, this.protocolVersion);
+  const SessionPeer(this.nodeId, this.deviceName);
 
   final String nodeId;
   final String deviceName;
-  final int protocolVersion;
 }
 
 /// The outcome of a successful mutual-authentication handshake.
 class HandshakeResult {
-  const HandshakeResult({
-    required this.peer,
-    required this.clientToServerKey,
-    required this.serverToClientKey,
-  });
+  const HandshakeResult({required this.peer});
 
   final SessionPeer peer;
-  final SecretKey clientToServerKey;
-  final SecretKey serverToClientKey;
 }
 
 /// A single authenticated sync connection.
@@ -132,11 +125,9 @@ class SyncSession {
     );
     _sendKey = serverKey;
     _receiveKey = clientKey;
-    _peer = SessionPeer(peerNodeId, peerDeviceName, peerVersion);
+    _peer = SessionPeer(peerNodeId, peerDeviceName);
     return HandshakeResult(
-      peer: SessionPeer(peerNodeId, peerDeviceName, peerVersion),
-      clientToServerKey: clientKey,
-      serverToClientKey: serverKey,
+      peer: SessionPeer(peerNodeId, peerDeviceName),
     );
   }
 
@@ -212,16 +203,12 @@ class SyncSession {
     _peer = SessionPeer(
       serverNodeId ?? expectedPeerNodeId ?? '',
       serverDeviceName,
-      _protocolVersion,
     );
     return HandshakeResult(
       peer: SessionPeer(
         serverNodeId ?? expectedPeerNodeId ?? '',
         serverDeviceName,
-        _protocolVersion,
       ),
-      clientToServerKey: clientKey,
-      serverToClientKey: serverKey,
     );
   }
 

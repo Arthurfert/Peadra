@@ -53,10 +53,9 @@ class BudgetGoal {
 
   bool get isTotalAssets => kind == kindTotalAssets;
   bool get isAccount => kind == kindAccount;
-  bool get isTag => kind == kindTag;
   bool get isMonthly => period == periodMonthly;
   bool get isCustom => period == periodCustom;
-  bool get isExpenseGoal => isTag && transactionType == 'expense';
+  bool get isExpenseGoal => kind == kindTag && transactionType == 'expense';
 
   /// Effective end date (YYYY-MM-DD) for display: the custom deadline,
   /// or the last day of the current month for monthly goals.
@@ -72,20 +71,4 @@ class BudgetGoal {
   bool isOverdue(String todayStr) {
     return effectiveDeadline(todayStr).compareTo(todayStr) < 0;
   }
-
-  Map<String, dynamic> toMap() => {
-        if (id != null) 'id': id,
-        'user_id': userId,
-        'kind': kind,
-        'account_id': accountId,
-        'tag_id': tagId,
-        'transaction_type': transactionType,
-        'target_amount': targetAmount.toString(),
-        'currency': currency,
-        'period': period,
-        'deadline': deadline,
-        'start_date': startDate,
-        if (createdAt != null) 'created_at': createdAt,
-      };
-
 }

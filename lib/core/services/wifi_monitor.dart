@@ -20,8 +20,6 @@ class WifiMonitor {
 
   bool _lastWifiState = false;
 
-  bool get isWifiAvailable => _lastWifiState;
-
   /// Starts listening for connectivity changes.
   Future<void> start() async {
     await _subscription?.cancel();

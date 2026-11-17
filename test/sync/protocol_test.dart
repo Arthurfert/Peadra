@@ -32,8 +32,8 @@ void main() {
           'since_hlc': message['since_hlc'],
           'changeset': {'rows': const []},
         });
-      } else if (message['type'] == SyncMessageTypes.close) {
-        await session.send({'type': SyncMessageTypes.close});
+      } else if (message['type'] == 'CLOSE') {
+        await session.send({'type': 'CLOSE'});
         break;
       }
     }
@@ -75,9 +75,9 @@ void main() {
     expect(serverSessions, hasLength(1));
     expect(serverSessions.first.authenticated, isTrue);
 
-    await session.send({'type': SyncMessageTypes.close});
+    await session.send({'type': 'CLOSE'});
     final closeReply = await session.receive();
-    expect(closeReply?['type'], SyncMessageTypes.close);
+    expect(closeReply?['type'], 'CLOSE');
     await session.close();
   });
 

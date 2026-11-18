@@ -23,8 +23,7 @@ Track your assets, manage transactions across multiple accounts and currencies, 
 ## Features
 
 **Privacy & Bank-Grade Security**
-* **100% Local Storage:** Local SQLite database encrypted with AES-256-GCM.
-* **Your Data Stays Yours:** Sensitive information never leaves your machine.
+* **Your data stays yours:** Local SQLite database encrypted with AES-256-GCM.
 * **Multi-User Security:** SHA-256 password hashing for safe local multi-user access.
 
 **Portfolio & Visual Insights**
@@ -82,7 +81,7 @@ You can access the developer documentation [here](https://deepwiki.com/Arthurfer
 
 ## License
 
-This project is licensed under the GNU-GPL License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the [GNU-GPL License](./LICENSE).
 
 ## Acknowledgments
 

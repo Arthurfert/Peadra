@@ -17,6 +17,7 @@ import '../models/goal.dart';
 import '../models/tag.dart';
 import '../models/transaction.dart';
 import '../models/recurring_transaction.dart';
+import '../models/stock_line.dart';
 
 import '../utils/constants.dart';
 import '../../sync/storage/crdt_database_service.dart' show syncTables;
@@ -134,6 +135,14 @@ class DatabaseManager {
 
   @visibleForTesting
   Future<void> migrateDatabaseForTest(String path) => _migrateToV7(path);
+
+  @visibleForTesting
+  Future<void> upgradeForTest(
+    CrdtTableExecutor db,
+    int oldVersion,
+    int newVersion,
+  ) =>
+      _onUpgrade(db, oldVersion, newVersion);
 
   /// Binds an in-memory production-schema CRDT for isolated tests, re-pointing
   /// the singleton's [database] so `migrateEncryptionKey` etc. can be driven.
@@ -472,7 +481,7 @@ class DatabaseManager {
         id TEXT PRIMARY KEY,
         user_id TEXT NOT NULL,
         name TEXT NOT NULL,
-        type TEXT NOT NULL DEFAULT 'savings' CHECK(type IN ('checking', 'savings')),
+        type TEXT NOT NULL DEFAULT 'savings' CHECK(type IN ('checking', 'savings', 'stock')),
         color TEXT DEFAULT '#1976D2',
         currency TEXT DEFAULT 'EUR',
         starting_amount REAL DEFAULT 0,
@@ -629,10 +638,81 @@ class DatabaseManager {
       )
     ''');
 
+    await _createStockTables(db);
+
     await _createIndexes(db);
   }
 
+  /// Stock tables are created before [DatabaseManager._onUpgrade]'s older
+  /// `_createIndexes` calls, because [syncTables] already lists them.
+  Future<void> _createStockTables(CrdtTableExecutor db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS stock_lines (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        account_id TEXT NOT NULL,
+        ticker TEXT NOT NULL,
+        name TEXT NOT NULL,
+        quantity INTEGER NOT NULL DEFAULT 0,
+        buy_price REAL NOT NULL DEFAULT 0,
+        currency TEXT DEFAULT 'USD',
+        bought_at DATE NOT NULL,
+        buy_cost REAL NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (account_id) REFERENCES accounts(id)
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS stock_sales (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        account_id TEXT NOT NULL,
+        line_id TEXT NOT NULL,
+        date DATE NOT NULL,
+        quantity INTEGER NOT NULL DEFAULT 0,
+        sell_price REAL NOT NULL DEFAULT 0,
+        proceeds REAL NOT NULL DEFAULT 0,
+        realized_gain REAL NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (account_id) REFERENCES accounts(id),
+        FOREIGN KEY (line_id) REFERENCES stock_lines(id)
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS stock_cash_flows (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        account_id TEXT NOT NULL,
+        date DATE NOT NULL,
+        amount REAL NOT NULL DEFAULT 0,
+        note TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (account_id) REFERENCES accounts(id)
+      )
+    ''');
+
+    // Public market data cached for offline display; never synced.
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS stock_quotes (
+        ticker TEXT PRIMARY KEY,
+        name TEXT,
+        currency TEXT DEFAULT 'USD',
+        price REAL NOT NULL DEFAULT 0,
+        history TEXT,
+        updated_at TIMESTAMP
+      )
+    ''');
+  }
+
   Future<void> _onUpgrade(CrdtTableExecutor db, int oldVersion, int newVersion) async {
+    if (oldVersion < 13) {
+      await _createStockTables(db);
+    }
     // v7 -> v8: budget goals.
     if (oldVersion < 8) {
       await db.execute('''
@@ -692,6 +772,35 @@ class DatabaseManager {
       await db.execute('ALTER TABLE users ADD COLUMN password_salt TEXT');
       await _createIndexes(db);
     }
+    // v12 -> v13: Stock Market account type and holdings. Widening the
+    // accounts.type CHECK requires a table rebuild; CRDT metadata and
+    // tombstones are copied explicitly so sync stays intact.
+    if (oldVersion < 13) {
+      await db.execute('''
+        CREATE TABLE accounts_v13 (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          type TEXT NOT NULL DEFAULT 'savings' CHECK(type IN ('checking', 'savings', 'stock')),
+          color TEXT DEFAULT '#1976D2',
+          currency TEXT DEFAULT 'EUR',
+          starting_amount REAL DEFAULT 0,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          deleted_at DATE,
+          UNIQUE(user_id, name),
+          FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+      ''');
+      await db.execute(
+        'INSERT INTO accounts_v13 (id, user_id, name, type, color, currency, '
+        'starting_amount, created_at, deleted_at, is_deleted, hlc, node_id, modified) '
+        'SELECT id, user_id, name, type, color, currency, starting_amount, '
+        'created_at, deleted_at, is_deleted, hlc, node_id, modified FROM accounts',
+      );
+      await db.execute('DROP TABLE accounts');
+      await db.execute('ALTER TABLE accounts_v13 RENAME TO accounts');
+      await _createIndexes(db);
+    }
   }
 
   Future<void> _createIndexes(CrdtTableExecutor db) async {
@@ -739,6 +848,15 @@ class DatabaseManager {
     await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_accounts_type_user ON accounts(type, user_id)',
     );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_stock_lines_account ON stock_lines(account_id)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_stock_sales_line ON stock_sales(line_id)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_stock_cash_flows_account ON stock_cash_flows(account_id)',
+    );
   }
 
   /// Encrypt all existing unencrypted data. Called after login when encryption is first enabled.
@@ -757,6 +875,8 @@ class DatabaseManager {
     await _encryptTransactions(db);
     await _encryptRecurring(db);
     await _encryptGoals(db);
+    await _encryptStockLines(db);
+    await _encryptStockCashFlows(db);
 
     await db.execute(
       'INSERT OR REPLACE INTO encryption_meta ("key", value) VALUES (?, ?)',
@@ -874,6 +994,58 @@ class DatabaseManager {
             await updateRow('goals', row['id'], {'target_amount': amount});
           }
         }
+
+        final lineRows = await txn.query(
+          'SELECT id, name, buy_price, buy_cost FROM stock_lines '
+          'WHERE user_id = ? AND is_deleted = 0',
+          [_userId],
+        );
+        for (final row in lineRows) {
+          final fields = <String, String>{};
+          final name = await reencrypt(row['name']);
+          final buyPrice = await reencrypt(row['buy_price']);
+          final buyCost = await reencrypt(row['buy_cost']);
+          if (name != null) fields['name'] = name;
+          if (buyPrice != null) fields['buy_price'] = buyPrice;
+          if (buyCost != null) fields['buy_cost'] = buyCost;
+          if (fields.isNotEmpty) {
+            await updateRow('stock_lines', row['id'], fields);
+          }
+        }
+
+        final saleRows = await txn.query(
+          'SELECT id, sell_price, proceeds, realized_gain FROM stock_sales '
+          'WHERE user_id = ? AND is_deleted = 0',
+          [_userId],
+        );
+        for (final row in saleRows) {
+          final fields = <String, String>{};
+          final sellPrice = await reencrypt(row['sell_price']);
+          final proceeds = await reencrypt(row['proceeds']);
+          final gain = await reencrypt(row['realized_gain']);
+          if (sellPrice != null) fields['sell_price'] = sellPrice;
+          if (proceeds != null) fields['proceeds'] = proceeds;
+          if (gain != null) fields['realized_gain'] = gain;
+          if (fields.isNotEmpty) {
+            await updateRow('stock_sales', row['id'], fields);
+          }
+        }
+
+        final cashRows = await txn.query(
+          'SELECT id, amount, note FROM stock_cash_flows '
+          'WHERE user_id = ? AND is_deleted = 0',
+          [_userId],
+        );
+        for (final row in cashRows) {
+          final fields = <String, String>{};
+          final amount = await reencrypt(row['amount']);
+          final note = await reencrypt(row['note']);
+          if (amount != null) fields['amount'] = amount;
+          if (note != null) fields['note'] = note;
+          if (fields.isNotEmpty) {
+            await updateRow('stock_cash_flows', row['id'], fields);
+          }
+        }
       });
     } catch (_) {
       _encryptionKey = previousKey;
@@ -962,6 +1134,65 @@ class DatabaseManager {
     }
   }
 
+  Future<void> _encryptStockLines(SqliteCrdt db) async {
+    final rows = await db.query(
+      'SELECT id, name, buy_price, buy_cost FROM stock_lines '
+      'WHERE user_id = ? AND is_deleted = 0',
+      [_userId],
+    );
+    for (final row in rows) {
+      await db.execute(
+        'UPDATE stock_lines SET name = ?, buy_price = ?, buy_cost = ? '
+        'WHERE id = ? AND user_id = ?',
+        [
+          await _encrypt(row['name'] as String?),
+          await _encrypt(row['buy_price']?.toString()),
+          await _encrypt(row['buy_cost']?.toString()),
+          row['id'],
+          _userId,
+        ],
+      );
+    }
+    final sales = await db.query(
+      'SELECT id, sell_price, proceeds, realized_gain FROM stock_sales '
+      'WHERE user_id = ? AND is_deleted = 0',
+      [_userId],
+    );
+    for (final row in sales) {
+      await db.execute(
+        'UPDATE stock_sales SET sell_price = ?, proceeds = ?, realized_gain = ? '
+        'WHERE id = ? AND user_id = ?',
+        [
+          await _encrypt(row['sell_price']?.toString()),
+          await _encrypt(row['proceeds']?.toString()),
+          await _encrypt(row['realized_gain']?.toString()),
+          row['id'],
+          _userId,
+        ],
+      );
+    }
+  }
+
+  Future<void> _encryptStockCashFlows(SqliteCrdt db) async {
+    final rows = await db.query(
+      'SELECT id, amount, note FROM stock_cash_flows '
+      'WHERE user_id = ? AND is_deleted = 0',
+      [_userId],
+    );
+    for (final row in rows) {
+      await db.execute(
+        'UPDATE stock_cash_flows SET amount = ?, note = ? '
+        'WHERE id = ? AND user_id = ?',
+        [
+          await _encrypt(row['amount']?.toString()),
+          await _encrypt(row['note'] as String?),
+          row['id'],
+          _userId,
+        ],
+      );
+    }
+  }
+
   // ==================== USER ====================
 
 void setUserId(String userId) {
@@ -1018,7 +1249,7 @@ void setUserId(String userId) {
 
   // ==================== ACCOUNTS ====================
 
-  Future<List<Account>> getAllAccounts() async {
+  Future<List<Account>> getAllAccounts({bool includeStock = false}) async {
     final db = await database;
     final rows = await db.query(
       'SELECT * FROM accounts WHERE user_id = ? AND is_deleted = 0',
@@ -1026,11 +1257,13 @@ void setUserId(String userId) {
     );
     final accounts = <Account>[];
     for (final r in rows) {
+      final type = r['type'] as String? ?? 'savings';
+      if (!includeStock && type == 'stock') continue;
       accounts.add(Account(
         id: r['id'] as String?,
         userId: r['user_id'] as String,
         name: await _decryptValue(r['name']) ?? '',
-        type: r['type'] as String? ?? 'savings',
+        type: type,
         color: r['color'] as String? ?? '#1976D2',
         currency: r['currency'] as String? ?? 'EUR',
         startingAmount: await _decryptAmount(r['starting_amount']),
@@ -1039,6 +1272,27 @@ void setUserId(String userId) {
     }
     accounts.sort((a, b) => a.name.compareTo(b.name));
     return accounts;
+  }
+
+  /// The single Stock Market account, if the user created one.
+  Future<Account?> getStockAccount() async {
+    final db = await database;
+    final rows = await db.query(
+      "SELECT * FROM accounts WHERE user_id = ? AND type = 'stock' AND is_deleted = 0 LIMIT 1",
+      [_userId],
+    );
+    if (rows.isEmpty) return null;
+    final r = rows.first;
+    return Account(
+      id: r['id'] as String?,
+      userId: r['user_id'] as String,
+      name: await _decryptValue(r['name']) ?? '',
+      type: 'stock',
+      color: r['color'] as String? ?? '#1976D2',
+      currency: r['currency'] as String? ?? 'EUR',
+      startingAmount: await _decryptAmount(r['starting_amount']),
+      createdAt: r['created_at'] as String?,
+    );
   }
 
   Future<List<AccountWithBalance>> getAccountsWithBalances() async {
@@ -1093,6 +1347,7 @@ void setUserId(String userId) {
   Future<String?> addAccount(String name, String color, String type, String currency, {Decimal? startingAmount}) async {
     final db = await database;
     try {
+      if (type == 'stock' && await getStockAccount() != null) return null;
       final encryptedName = await _encrypt(name);
       final encryptedAmount = await _encrypt((startingAmount ?? Decimal.zero).toString());
       final id = _newId();
@@ -1115,6 +1370,13 @@ void setUserId(String userId) {
       [accountId, _userId],
     );
     if (existing.isEmpty) return false;
+    // A Stock Market account owns stock lines; changing it to a cash account
+    // would orphan them.
+    if ((existing.first['type'] as String?) == 'stock' &&
+        type != null &&
+        type != 'stock') {
+      return false;
+    }
 
     final oldNameEncrypted = existing.first['name'] as String;
     final oldName = await _decrypt(oldNameEncrypted) ?? '';
@@ -1217,6 +1479,27 @@ void setUserId(String userId) {
     );
     if (existing.isEmpty) return false;
 
+    if ((existing.first['type'] as String?) == 'stock') {
+      // Sold-line realized gain/loss rows belong to the account; leaving them
+      // orphaned would make them count in the checking totals.
+      await db.execute(
+        'DELETE FROM stock_sales WHERE account_id = ? AND user_id = ?',
+        [accountId, _userId],
+      );
+      await db.execute(
+        'DELETE FROM stock_lines WHERE account_id = ? AND user_id = ?',
+        [accountId, _userId],
+      );
+      await db.execute(
+        'DELETE FROM stock_cash_flows WHERE account_id = ? AND user_id = ?',
+        [accountId, _userId],
+      );
+      await db.execute(
+        'DELETE FROM transactions WHERE account_id = ? AND user_id = ?',
+        [accountId, _userId],
+      );
+    }
+
     if (deleteTransactions) {
       final recIds = await db.query(
         'SELECT id FROM recurring_transactions WHERE account_id = ? AND user_id = ? AND is_deleted = 0',
@@ -1260,6 +1543,315 @@ void setUserId(String userId) {
     );
     _accountCurrencyCache.remove('${_userId}_$accountId');
     return true;
+  }
+
+  // ==================== STOCK MARKET ====================
+
+  Future<List<StockLine>> getStockLines(
+    String accountId, {
+    bool includeSold = false,
+  }) async {
+    final db = await database;
+    final rows = await db.query(
+      'SELECT * FROM stock_lines WHERE account_id = ? AND user_id = ? '
+      'AND is_deleted = 0 ORDER BY bought_at ASC, created_at ASC',
+      [accountId, _userId],
+    );
+    final saleRows = await db.query(
+      'SELECT line_id, quantity FROM stock_sales WHERE account_id = ? '
+      'AND user_id = ? AND is_deleted = 0',
+      [accountId, _userId],
+    );
+    final soldByLine = <String, int>{};
+    for (final s in saleRows) {
+      final lineId = s['line_id'] as String?;
+      if (lineId == null) continue;
+      soldByLine[lineId] =
+          (soldByLine[lineId] ?? 0) + (s['quantity'] as int? ?? 0);
+    }
+
+    final lines = <StockLine>[];
+    for (final r in rows) {
+      final sold = soldByLine[r['id']] ?? 0;
+      if (!includeSold && sold >= (r['quantity'] as int? ?? 0)) continue;
+      lines.add(StockLine(
+        id: r['id'] as String?,
+        userId: r['user_id'] as String,
+        accountId: r['account_id'] as String,
+        ticker: r['ticker'] as String,
+        name: await _decryptValue(r['name']) ?? (r['ticker'] as String),
+        quantity: r['quantity'] as int? ?? 0,
+        buyPrice: await _decryptAmount(r['buy_price']),
+        currency: r['currency'] as String? ?? 'USD',
+        boughtAt: r['bought_at'] as String,
+        buyCost: await _decryptAmount(r['buy_cost']),
+        soldQuantity: sold,
+        createdAt: r['created_at'] as String?,
+      ));
+    }
+    return lines;
+  }
+
+  Future<String?> addStockLine({
+    required String accountId,
+    required String ticker,
+    required String name,
+    required int quantity,
+    required Decimal buyPrice,
+    required String currency,
+    required String boughtAt,
+    required Decimal buyCost,
+  }) async {
+    if (_userId == null || quantity <= 0) return null;
+    final db = await database;
+    final id = _newId();
+    await db.execute(
+      'INSERT INTO stock_lines (id, user_id, account_id, ticker, name, quantity, '
+      'buy_price, currency, bought_at, buy_cost) '
+      'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)',
+      [
+        id,
+        _userId,
+        accountId,
+        ticker.trim().toUpperCase(),
+        await _encrypt(name.trim()),
+        quantity,
+        await _encrypt(buyPrice.toString()),
+        currency,
+        boughtAt,
+        await _encrypt(buyCost.toString()),
+      ],
+    );
+    return id;
+  }
+
+  Future<bool> deleteStockLine(String lineId) async {
+    final db = await database;
+    final rows = await db.query(
+      'SELECT id FROM stock_lines WHERE id = ? AND user_id = ? '
+      'AND is_deleted = 0',
+      [lineId, _userId],
+    );
+    if (rows.isEmpty) return false;
+    final sold = await db.query(
+      'SELECT id FROM stock_sales WHERE line_id = ? AND user_id = ? '
+      'AND is_deleted = 0 LIMIT 1',
+      [lineId, _userId],
+    );
+    // A partially/fully sold line is history: deleting it would erase the
+    // realized gain and cash movements.
+    if (sold.isNotEmpty) return false;
+    await db.execute(
+      'DELETE FROM stock_lines WHERE id = ? AND user_id = ?',
+      [lineId, _userId],
+    );
+    return true;
+  }
+
+  Future<List<StockSale>> getStockSales(String accountId) async {
+    final db = await database;
+    final rows = await db.query(
+      'SELECT * FROM stock_sales WHERE account_id = ? AND user_id = ? '
+      'AND is_deleted = 0 ORDER BY date ASC, created_at ASC',
+      [accountId, _userId],
+    );
+    final sales = <StockSale>[];
+    for (final r in rows) {
+      sales.add(StockSale(
+        id: r['id'] as String?,
+        userId: r['user_id'] as String,
+        accountId: r['account_id'] as String,
+        lineId: r['line_id'] as String,
+        date: r['date'] as String,
+        quantity: r['quantity'] as int? ?? 0,
+        sellPrice: await _decryptAmount(r['sell_price']),
+        proceeds: await _decryptAmount(r['proceeds']),
+        realizedGain: await _decryptAmount(r['realized_gain']),
+        createdAt: r['created_at'] as String?,
+      ));
+    }
+    return sales;
+  }
+
+  /// Sells [quantity] shares of [lineId]. Proceeds are credited to the
+  /// account cash ledger via the sale row; the realized gain/loss is booked as
+  /// an income/expense transaction on the stock account, which the standard
+  /// transaction list and patrimony queries exclude.
+  Future<StockSale?> sellStockLine({
+    required String lineId,
+    required int quantity,
+    required Decimal sellPrice,
+    required String date,
+    required String accountCurrency,
+  }) async {
+    if (_userId == null || quantity <= 0) return null;
+    final db = await database;
+    final rows = await db.query(
+      'SELECT * FROM stock_lines WHERE id = ? AND user_id = ? '
+      'AND is_deleted = 0',
+      [lineId, _userId],
+    );
+    if (rows.isEmpty) return null;
+    final line = rows.first;
+    final totalQuantity = line['quantity'] as int? ?? 0;
+    final soldRows = await db.query(
+      'SELECT COALESCE(SUM(quantity), 0) AS sold FROM stock_sales '
+      'WHERE line_id = ? AND user_id = ? AND is_deleted = 0',
+      [lineId, _userId],
+    );
+    final sold = (soldRows.first['sold'] as num?)?.toInt() ?? 0;
+    if (quantity > totalQuantity - sold) return null;
+
+    final buyPrice = await _decryptAmount(line['buy_price']);
+    final lineCurrency = line['currency'] as String? ?? 'USD';
+    final rate = lineCurrency == accountCurrency
+        ? 1.0
+        : (await getExchangeRate(lineCurrency, accountCurrency)) ?? 1.0;
+    final rateDecimal = Decimal.parse(rate.toString());
+
+    final proceeds = Decimal.fromInt(quantity) * sellPrice * rateDecimal;
+    final realized =
+        (Decimal.fromInt(quantity) * (sellPrice - buyPrice)) * rateDecimal;
+
+    final id = _newId();
+    await db.execute(
+      'INSERT INTO stock_sales (id, user_id, account_id, line_id, date, '
+      'quantity, sell_price, proceeds, realized_gain) '
+      'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)',
+      [
+        id,
+        _userId,
+        line['account_id'] as String,
+        lineId,
+        date,
+        quantity,
+        await _encrypt(sellPrice.toString()),
+        await _encrypt(proceeds.toString()),
+        await _encrypt(realized.toString()),
+      ],
+    );
+
+    if (realized != Decimal.zero) {
+      final ticker = line['ticker'] as String? ?? '';
+      await addTransaction(
+        date: date,
+        description: 'Stock sale: $ticker',
+        amount: realized.abs(),
+        transactionType: realized > Decimal.zero ? 'income' : 'expense',
+        accountId: line['account_id'] as String,
+        currency: accountCurrency,
+      );
+    }
+
+    return StockSale(
+      id: id,
+      userId: _userId!,
+      accountId: line['account_id'] as String,
+      lineId: lineId,
+      date: date,
+      quantity: quantity,
+      sellPrice: sellPrice,
+      proceeds: proceeds,
+      realizedGain: realized,
+    );
+  }
+
+  Future<List<StockCashFlow>> getStockCashFlows(String accountId) async {
+    final db = await database;
+    final rows = await db.query(
+      'SELECT * FROM stock_cash_flows WHERE account_id = ? AND user_id = ? '
+      'AND is_deleted = 0 ORDER BY date ASC, created_at ASC',
+      [accountId, _userId],
+    );
+    final flows = <StockCashFlow>[];
+    for (final r in rows) {
+      flows.add(StockCashFlow(
+        id: r['id'] as String?,
+        userId: r['user_id'] as String,
+        accountId: r['account_id'] as String,
+        date: r['date'] as String,
+        amount: await _decryptAmount(r['amount']),
+        note: await _decryptValue(r['note']),
+        createdAt: r['created_at'] as String?,
+      ));
+    }
+    return flows;
+  }
+
+  Future<void> addStockCashFlow({
+    required String accountId,
+    required String date,
+    required Decimal amount,
+    String? note,
+  }) async {
+    if (_userId == null) return;
+    final db = await database;
+    await db.execute(
+      'INSERT INTO stock_cash_flows (id, user_id, account_id, date, amount, note) '
+      'VALUES (?1, ?2, ?3, ?4, ?5, ?6)',
+      [
+        _newId(),
+        _userId,
+        accountId,
+        date,
+        await _encrypt(amount.toString()),
+        await _encrypt(note),
+      ],
+    );
+  }
+
+  Future<Map<String, StockQuote>> getStockQuotes() async {
+    final db = await database;
+    final rows = await db.query('SELECT * FROM stock_quotes');
+    final quotes = <String, StockQuote>{};
+    for (final r in rows) {
+      final ticker = r['ticker'] as String;
+      List<StockPricePoint> history = const [];
+      final rawHistory = r['history'] as String?;
+      if (rawHistory != null && rawHistory.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(rawHistory) as List<dynamic>;
+          history = decoded
+              .whereType<List<dynamic>>()
+              .map((e) => StockPricePoint(
+                    e[0] as String,
+                    (e[1] as num).toDouble(),
+                  ))
+              .toList();
+        } catch (_) {
+          history = const [];
+        }
+      }
+      quotes[ticker] = StockQuote(
+        ticker: ticker,
+        name: r['name'] as String? ?? ticker,
+        currency: r['currency'] as String? ?? 'USD',
+        price: Decimal.parse(((r['price'] as num?) ?? 0).toString()),
+        history: history,
+        updatedAt: r['updated_at'] as String?,
+      );
+    }
+    return quotes;
+  }
+
+  Future<void> upsertStockQuote(StockQuote quote) async {
+    final db = await database;
+    final history = jsonEncode([
+      for (final point in quote.history) [point.date, point.close],
+    ]);
+    await db.execute(
+      'INSERT OR REPLACE INTO stock_quotes '
+      '(ticker, name, currency, price, history, updated_at) '
+      'VALUES (?, ?, ?, ?, ?, ?)',
+      [
+        quote.ticker,
+        quote.name,
+        quote.currency,
+        quote.price.toDouble(),
+        history,
+        quote.updatedAt ?? DateTime.now().toIso8601String(),
+      ],
+    );
   }
 
   // ==================== DESCRIPTIONS ====================
@@ -1905,7 +2497,11 @@ void setUserId(String userId) {
   }) async {
     final db = await database;
 
-    final where = <String>['t.user_id = ? AND t.is_deleted = 0'];
+    final where = <String>[
+      't.user_id = ? AND t.is_deleted = 0',
+      "(t.account_id IS NULL OR t.account_id NOT IN "
+          "(SELECT id FROM accounts WHERE type = 'stock'))",
+    ];
     final args = <Object?>[_userId];
 
     if (accountIds != null && accountIds.isNotEmpty) {
@@ -1989,6 +2585,8 @@ void setUserId(String userId) {
       '''
       $_txnJoin
       WHERE t.user_id = ? AND t.is_deleted = 0
+        AND (t.account_id IS NULL OR t.account_id NOT IN
+          (SELECT id FROM accounts WHERE type = 'stock'))
         AND (t.account_id, t.date, t.transaction_type) IN ($placeholders)
       ''',
       args,
@@ -2006,6 +2604,8 @@ void setUserId(String userId) {
       't.date BETWEEN ? AND ?',
       't.user_id = ?',
       't.is_deleted = 0',
+      "(t.account_id IS NULL OR t.account_id NOT IN "
+          "(SELECT id FROM accounts WHERE type = 'stock'))",
     ];
     final args = <Object?>[startDate, endDate, _userId];
     if (accountIds != null && accountIds.isNotEmpty) {
@@ -2542,7 +3142,8 @@ void setUserId(String userId) {
   ) async {
     final db = await database;
     final acctRows = await db.query(
-      'SELECT starting_amount, currency, is_deleted, deleted_at FROM accounts WHERE user_id = ?',
+      "SELECT starting_amount, currency, is_deleted, deleted_at FROM accounts "
+      "WHERE user_id = ? AND type != 'stock'",
       [_userId],
     );
 
@@ -2583,7 +3184,8 @@ void setUserId(String userId) {
       {String targetCurrency = 'EUR', String? before}) async {
     final db = await database;
     final acctRows = await db.query(
-      'SELECT starting_amount, currency FROM accounts WHERE user_id = ? '
+      "SELECT starting_amount, currency FROM accounts WHERE user_id = ? "
+      "AND type != 'stock' "
       '${before != null ? 'AND (is_deleted = 0 OR deleted_at >= ?)' : 'AND is_deleted = 0'}',
       before != null ? [_userId, before] : [_userId],
     );
@@ -2605,7 +3207,9 @@ void setUserId(String userId) {
     final txnRows = await db.query(
       'SELECT t.amount, t.transaction_type, COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
       'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
-      'WHERE t.user_id = ? AND t.is_deleted = 0 AND t.date <= ?'
+      'WHERE t.user_id = ? AND t.is_deleted = 0 AND t.date <= ? '
+      "AND (t.account_id IS NULL OR t.account_id NOT IN "
+      "(SELECT id FROM accounts WHERE type = 'stock'))"
       '${before != null ? ' AND t.date < ?' : ''}',
       before != null ? [_userId, today, before] : [_userId, today],
     );
@@ -2772,7 +3376,7 @@ void setUserId(String userId) {
     for (final row in txnRows) {
       final accountType = row['account_type'] as String?;
       final hasAccount = row['account_id'] != null;
-      if (accountType != 'checking' && hasAccount) continue;
+      if (accountType != 'checking' && accountType != 'stock' && hasAccount) continue;
 
       final desc = await _decryptValue(row['description_name']);
       if (desc != null && _isTransferDescription(desc)) continue;
@@ -2825,7 +3429,7 @@ void setUserId(String userId) {
     for (final row in txnRows) {
       final accountType = row['account_type'] as String?;
       final hasAccount = row['account_id'] != null;
-      if (accountType != 'checking' && hasAccount) continue;
+      if (accountType != 'checking' && accountType != 'stock' && hasAccount) continue;
 
       final desc = await _decryptValue(row['description_name']);
       if (desc != null && _isTransferDescription(desc)) continue;
@@ -2908,7 +3512,7 @@ void setUserId(String userId) {
     for (final row in txnRows) {
       final accountType = row['account_type'] as String?;
       final hasAccount = row['account_id'] != null;
-      if (accountType != 'checking' && hasAccount) continue;
+      if (accountType != 'checking' && accountType != 'stock' && hasAccount) continue;
 
       final desc = await _decryptValue(row['description_name']);
       if (desc != null && _isTransferDescription(desc)) continue;
@@ -3064,7 +3668,7 @@ void setUserId(String userId) {
         // transfers excluded.
         final accountType = row['account_type'] as String?;
         final hasAccount = row['account_id'] != null;
-        if (accountType != 'checking' && hasAccount) continue;
+        if (accountType != 'checking' && accountType != 'stock' && hasAccount) continue;
         final desc = await _decryptValue(row['description_name']);
         if (desc != null && _isTransferDescription(desc)) continue;
         if (type != kind) continue;
@@ -3117,7 +3721,8 @@ void setUserId(String userId) {
       {String targetCurrency = 'EUR', String? endDate}) async {
     final db = await database;
     final acctRows = await db.query(
-      'SELECT * FROM accounts WHERE user_id = ? AND is_deleted = 0 ORDER BY name',
+      "SELECT * FROM accounts WHERE user_id = ? AND is_deleted = 0 "
+      "AND type != 'stock' ORDER BY name",
       [_userId],
     );
 
@@ -3523,7 +4128,9 @@ void setUserId(String userId) {
       'SELECT t.amount, t.transaction_type, t.date, '
       'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
       'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
-      'WHERE t.date < ? AND t.user_id = ? AND t.is_deleted = 0',
+      'WHERE t.date < ? AND t.user_id = ? AND t.is_deleted = 0 '
+      "AND (t.account_id IS NULL OR t.account_id NOT IN "
+      "(SELECT id FROM accounts WHERE type = 'stock'))",
       [queryUpperBound, _userId],
     );
 
@@ -3613,7 +4220,9 @@ void setUserId(String userId) {
       'SELECT t.amount, t.transaction_type, t.date, '
       'COALESCE(NULLIF(a.currency, \'\'), \'EUR\') as currency '
       'FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id AND a.is_deleted = 0 '
-      'WHERE t.date <= ? AND t.user_id = ? AND t.is_deleted = 0',
+      'WHERE t.date <= ? AND t.user_id = ? AND t.is_deleted = 0 '
+      "AND (t.account_id IS NULL OR t.account_id NOT IN "
+      "(SELECT id FROM accounts WHERE type = 'stock'))",
       [clampedEnd, _userId],
     );
 
@@ -4513,6 +5122,9 @@ void setUserId(String userId) {
     await db.execute('DELETE FROM transactions WHERE user_id = ?', [_userId]);
     await db.execute('DELETE FROM recurring_exceptions WHERE recurring_id IN (SELECT id FROM recurring_transactions WHERE user_id = ?)', [_userId]);
     await db.execute('DELETE FROM recurring_transactions WHERE user_id = ?', [_userId]);
+    await db.execute('DELETE FROM stock_sales WHERE user_id = ?', [_userId]);
+    await db.execute('DELETE FROM stock_lines WHERE user_id = ?', [_userId]);
+    await db.execute('DELETE FROM stock_cash_flows WHERE user_id = ?', [_userId]);
     await db.execute('DELETE FROM accounts WHERE user_id = ?', [_userId]);
     await db.execute('DELETE FROM descriptions WHERE user_id = ?', [_userId]);
     await db.execute('DELETE FROM tags WHERE user_id = ?', [_userId]);

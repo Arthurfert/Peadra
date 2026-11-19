@@ -105,6 +105,7 @@ class DashboardShellDesktop extends StatelessWidget {
           Translator.t('nav_accounts')),
       (Icons.bubble_chart_outlined, Icons.bubble_chart,
           Translator.t('nav_categories')),
+      (Icons.show_chart, Icons.show_chart, Translator.t('nav_stock')),
       (Icons.build_outlined, Icons.build, Translator.t('nav_tools')),
     ];
 
@@ -117,9 +118,13 @@ class DashboardShellDesktop extends StatelessWidget {
           ...items.asMap().entries.map((entry) {
             final i = entry.key;
             final item = entry.value;
-            // The tools view sits after settings in the views list, so its
-            // sidebar position (5) maps to view index 6.
-            final viewIndex = i == 5 ? 6 : i;
+            // The tools and stock views sit after settings in the views list,
+            // so their sidebar positions (5, 6) map to view indices 7 and 6.
+            final viewIndex = switch (i) {
+              5 => 7,
+              6 => 6,
+              _ => i,
+            };
             final isSelected = selectedIndex == viewIndex;
             return _buildNavItem(
               iconOff: item.$1,

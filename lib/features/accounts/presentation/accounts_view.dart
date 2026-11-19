@@ -11,6 +11,7 @@ import '../../../core/database/database_manager.dart';
 import '../../../core/models/account.dart';
 import '../../../core/theme/peadra_colors.dart';
 import '../../../core/services/currency_service.dart';
+import '../../../core/services/stock_service.dart';
 import '../../../core/responsive/responsive_layout.dart';
 import '../../../shared/widgets/peadra_modal.dart';
 import '../../../shared/widgets/appear_animation.dart';
@@ -26,6 +27,7 @@ class AccountsView extends StatefulWidget {
 class _AccountsViewState extends State<AccountsView> {
   final _db = DatabaseManager.instance;
   List<AccountWithBalance> _accounts = [];
+  final Map<String, Decimal> _stockTotals = {};
   Decimal _checkingConverted = Decimal.zero;
   Decimal _savingsConverted = Decimal.zero;
   bool _loading = true;
@@ -87,6 +89,14 @@ class _AccountsViewState extends State<AccountsView> {
         ? _lastCurrency
         : context.read<SettingsProvider>().currency;
     final accounts = await _db.getAccountsWithBalances();
+    final stockTotals = <String, Decimal>{};
+    for (final a in accounts.where((a) => a.isStock)) {
+      final snapshot = await StockService.instance.buildSnapshot(
+        account: a,
+        targetCurrency: currency,
+      );
+      if (snapshot != null) stockTotals[a.id!] = snapshot.total;
+    }
     // Balances are already valued in each account's currency; convert here
     // instead of running getBalance()/getSavingsTotal() over every
     // transaction again.
@@ -106,6 +116,9 @@ class _AccountsViewState extends State<AccountsView> {
     if (mounted) {
       setState(() {
         _accounts = accounts;
+        _stockTotals
+          ..clear()
+          ..addAll(stockTotals);
         _checkingConverted = checking;
         _savingsConverted = savings;
         _loading = false;
@@ -203,6 +216,11 @@ class _AccountsViewState extends State<AccountsView> {
     final displayCurrency = acct.currency.isNotEmpty
         ? acct.currency
         : defaultCurrency;
+    final balance = acct.isStock
+        ? (_stockTotals[acct.id] ?? acct.startingAmount)
+        : acct.balance;
+    final balanceCurrency =
+        acct.isStock ? defaultCurrency : displayCurrency;
 
     return Card(
       color: colors.surface,
@@ -283,18 +301,20 @@ class _AccountsViewState extends State<AccountsView> {
             Text(
               acct.isChecking
                   ? Translator.t('acc_checking')
-                  : Translator.t('acc_savings'),
+                  : acct.isSavings
+                      ? Translator.t('acc_savings')
+                      : Translator.t('acc_stock'),
               style: TextStyle(fontSize: 12, color: colors.textSecondary),
             ),
             const SizedBox(height: 4),
             FittedBox(
               fit: BoxFit.scaleDown,
               child: _RollingDigitsText(
-                CurrencyService.formatAmount(acct.balance, displayCurrency),
+                CurrencyService.formatAmount(balance, balanceCurrency),
                 TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: acct.balance >= Decimal.zero
+                  color: balance >= Decimal.zero
                       ? colors.success
                       : colors.error,
                 ),
@@ -477,6 +497,11 @@ class _AccountsViewState extends State<AccountsView> {
                       value: 'savings',
                       child: Text(Translator.t('acc_savings')),
                     ),
+                    if (!_accounts.any((a) => a.isStock))
+                      DropdownMenuItem(
+                        value: 'stock',
+                        child: Text(Translator.t('acc_stock')),
+                      ),
                   ],
                   onChanged: (v) => setDialogState(() => type = v ?? 'savings'),
                 ),
@@ -507,7 +532,11 @@ class _AccountsViewState extends State<AccountsView> {
                     signed: true,
                   ),
                   decoration: InputDecoration(
-                    labelText: Translator.t('acc_starting_amount'),
+                    labelText: Translator.t(
+                      type == 'stock'
+                          ? 'acc_initial_cash'
+                          : 'acc_starting_amount',
+                    ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -596,6 +625,7 @@ class _AccountsViewState extends State<AccountsView> {
                   ),
                 ),
                 const SizedBox(height: 12),
+                if (!acct.isStock) ...[
                 DropdownButtonFormField<String>(
                   initialValue: type,
                   decoration: InputDecoration(
@@ -613,10 +643,15 @@ class _AccountsViewState extends State<AccountsView> {
                       value: 'savings',
                       child: Text(Translator.t('acc_savings')),
                     ),
+                    DropdownMenuItem(
+                      value: 'stock',
+                      child: Text(Translator.t('acc_stock')),
+                    ),
                   ],
                   onChanged: (v) => setDialogState(() => type = v ?? acct.type),
                 ),
                 const SizedBox(height: 12),
+                ],
                 DropdownButtonFormField<String>(
                   initialValue: currency,
                   decoration: InputDecoration(
@@ -643,7 +678,11 @@ class _AccountsViewState extends State<AccountsView> {
                     signed: true,
                   ),
                   decoration: InputDecoration(
-                    labelText: Translator.t('acc_starting_amount'),
+                    labelText: Translator.t(
+                      type == 'stock'
+                          ? 'acc_initial_cash'
+                          : 'acc_starting_amount',
+                    ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -720,6 +759,7 @@ class _AccountsViewState extends State<AccountsView> {
                 Translator.t('acc_delete_confirm'),
                 style: TextStyle(color: colors.textSecondary),
               ),
+              if (!acct.isStock) ...[
               const SizedBox(height: 16),
               Row(
                 children: [
@@ -754,6 +794,7 @@ class _AccountsViewState extends State<AccountsView> {
                   ),
                 ],
               ),
+              ],
             ],
           ),
         ),

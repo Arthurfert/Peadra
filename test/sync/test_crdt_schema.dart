@@ -28,7 +28,7 @@ Future<SqliteCrdt> createCrdtDatabase() {
           id TEXT PRIMARY KEY,
           user_id TEXT NOT NULL,
           name TEXT NOT NULL,
-          type TEXT NOT NULL DEFAULT 'savings' CHECK(type IN ('checking', 'savings')),
+          type TEXT NOT NULL DEFAULT 'savings' CHECK(type IN ('checking', 'savings', 'stock')),
           color TEXT DEFAULT '#1976D2',
           currency TEXT DEFAULT 'EUR',
           starting_amount REAL DEFAULT 0,
@@ -185,6 +185,62 @@ Future<SqliteCrdt> createCrdtDatabase() {
 
       // Mirrors DatabaseManager._createIndexes so sync tests exercise the
       // same query plans as production.
+      await db.execute('''
+        CREATE TABLE stock_lines (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          account_id TEXT NOT NULL,
+          ticker TEXT NOT NULL,
+          name TEXT NOT NULL,
+          quantity INTEGER NOT NULL DEFAULT 0,
+          buy_price REAL NOT NULL DEFAULT 0,
+          currency TEXT DEFAULT 'USD',
+          bought_at TEXT NOT NULL,
+          buy_cost REAL NOT NULL DEFAULT 0,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES users(id),
+          FOREIGN KEY (account_id) REFERENCES accounts(id)
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE stock_sales (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          account_id TEXT NOT NULL,
+          line_id TEXT NOT NULL,
+          date TEXT NOT NULL,
+          quantity INTEGER NOT NULL DEFAULT 0,
+          sell_price REAL NOT NULL DEFAULT 0,
+          proceeds REAL NOT NULL DEFAULT 0,
+          realized_gain REAL NOT NULL DEFAULT 0,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES users(id),
+          FOREIGN KEY (account_id) REFERENCES accounts(id),
+          FOREIGN KEY (line_id) REFERENCES stock_lines(id)
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE stock_cash_flows (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          account_id TEXT NOT NULL,
+          date TEXT NOT NULL,
+          amount REAL NOT NULL DEFAULT 0,
+          note TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES users(id),
+          FOREIGN KEY (account_id) REFERENCES accounts(id)
+        )
+      ''');
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_stock_lines_account ON stock_lines(account_id)',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_stock_sales_line ON stock_sales(line_id)',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_stock_cash_flows_account ON stock_cash_flows(account_id)',
+      );
       await db.execute(
         'CREATE INDEX IF NOT EXISTS idx_transactions_user_date ON transactions(user_id, date)',
       );

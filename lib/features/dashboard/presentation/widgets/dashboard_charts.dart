@@ -439,6 +439,8 @@ class DashboardTotalAssetsCard extends StatelessWidget {
   final List<Map<String, dynamic>> assetsHistory;
   final DashboardLineCache? cache;
   final bool showLineDots;
+  final String? title;
+  final String? legendLabel;
 
   const DashboardTotalAssetsCard({
     super.key,
@@ -446,6 +448,8 @@ class DashboardTotalAssetsCard extends StatelessWidget {
     required this.assetsHistory,
     required this.cache,
     required this.showLineDots,
+    this.title,
+    this.legendLabel,
   });
 
   @override
@@ -468,7 +472,7 @@ class DashboardTotalAssetsCard extends StatelessWidget {
               spacing: 12,
               children: [
                 Text(
-                  Translator.t('dash_total_assets'),
+                  title ?? Translator.t('dash_total_assets'),
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -480,7 +484,7 @@ class DashboardTotalAssetsCard extends StatelessWidget {
                   children: [
                     _legendDot(
                       colors.chartAsset,
-                      Translator.t('dash_total_assets'),
+                      legendLabel ?? Translator.t('dash_total_assets'),
                     ),
                     if (hasFuture) ...[
                       const SizedBox(width: 16),

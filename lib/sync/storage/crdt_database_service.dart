@@ -13,6 +13,9 @@ const List<String> syncTables = [
   'imported_files',
   'exchange_rates',
   'goals',
+  'stock_lines',
+  'stock_sales',
+  'stock_cash_flows',
 ];
 
 /// A user identity remap produced by reconciliation: every reference to
@@ -146,6 +149,9 @@ class CrdtDatabaseService {
         'imported_files',
         'settings',
         'goals',
+        'stock_lines',
+        'stock_sales',
+        'stock_cash_flows',
       ];
       final whens = <String>[];
       final args = <Object?>[];

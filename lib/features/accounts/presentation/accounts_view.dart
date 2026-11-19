@@ -525,6 +525,7 @@ class _AccountsViewState extends State<AccountsView> {
                   onChanged: (v) => setDialogState(() => currency = v ?? 'EUR'),
                 ),
                 const SizedBox(height: 12),
+                if (type != 'stock') ...[
                 TextField(
                   controller: startingAmountCtrl,
                   keyboardType: const TextInputType.numberWithOptions(
@@ -543,6 +544,7 @@ class _AccountsViewState extends State<AccountsView> {
                   ),
                 ),
                 const SizedBox(height: 12),
+                ],
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
@@ -671,6 +673,7 @@ class _AccountsViewState extends State<AccountsView> {
                   onChanged: (v) => setDialogState(() => currency = v ?? 'EUR'),
                 ),
                 const SizedBox(height: 12),
+                if (type != 'stock') ...[
                 TextField(
                   controller: startingAmountCtrl,
                   keyboardType: const TextInputType.numberWithOptions(
@@ -689,6 +692,7 @@ class _AccountsViewState extends State<AccountsView> {
                   ),
                 ),
                 const SizedBox(height: 12),
+                ],
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(

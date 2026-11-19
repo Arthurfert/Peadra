@@ -15,7 +15,7 @@ void main() {
   });
 
   test(
-    'v12 -> v13 migration accepts stock accounts and keeps tombstones',
+    'v12 -> v14 migration accepts stock accounts and keeps tombstones',
     () async {
       final dir = await Directory.systemTemp.createTemp(
         'peadra_stock_migration',
@@ -74,8 +74,11 @@ void main() {
       expect(accounts.last['is_deleted'], 1);
       expect(accounts.last['deleted_at'], '2025-06-01');
 
-      final txns = await upgraded.query('SELECT account_id FROM transactions');
+      final txns = await upgraded.query(
+        'SELECT account_id, is_hidden FROM transactions',
+      );
       expect(txns.single['account_id'], 'a1');
+      expect(txns.single['is_hidden'], 0);
 
       // The widened CHECK now accepts a Stock Market account.
       await upgraded.execute(
@@ -120,7 +123,7 @@ void main() {
   );
 
   test(
-    'v7 -> v13 migration creates stock tables before index backfill',
+    'v7 -> v14 migration creates stock tables before index backfill',
     () async {
       final dir = await Directory.systemTemp.createTemp('peadra_stock_v7');
       addTearDown(() => dir.delete(recursive: true));

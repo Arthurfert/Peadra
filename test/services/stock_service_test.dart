@@ -179,6 +179,87 @@ void main() {
       },
     );
 
+    test(
+      'cash deposits and withdrawals are standard visible transfers',
+      () async {
+        final db = DatabaseManager.instance;
+        final checkingId = await db.addAccount(
+          'Checking',
+          '#4CAF50',
+          'checking',
+          'EUR',
+          startingAmount: Decimal.fromInt(1000),
+        );
+        final stockId = await db.addAccount(
+          'Broker',
+          '#1976D2',
+          'stock',
+          'EUR',
+        );
+        final today = DateTime.now().toIso8601String().substring(0, 10);
+
+        expect(
+          await db.addTransfer(
+            sourceId: checkingId!,
+            destId: stockId!,
+            amount: Decimal.fromInt(500),
+            date: today,
+          ),
+          isTrue,
+        );
+
+        final txns = await db.getTransactions();
+        expect(txns, hasLength(2));
+        expect(
+          txns.any(
+            (t) => t.transactionType == 'expense' && t.accountId == checkingId,
+          ),
+          isTrue,
+        );
+        expect(
+          txns.any(
+            (t) => t.transactionType == 'income' && t.accountId == stockId,
+          ),
+          isTrue,
+        );
+        final transfers = await db.getStockTransfers(stockId);
+        expect(transfers, hasLength(1));
+        expect(transfers.single.$2, Decimal.fromInt(500));
+
+        final service = StockService(
+          client: MockClient((request) async => http.Response('{}', 404)),
+        );
+        final account = (await db.getStockAccount())!;
+        var snapshot = await service.buildSnapshot(
+          account: account,
+          targetCurrency: 'EUR',
+        );
+        expect(snapshot!.cashNative, Decimal.fromInt(500));
+        expect(snapshot.netDeposits, Decimal.fromInt(500));
+        // The standard account leg is counted; the stock leg is not (the
+        // snapshot above supplies the portfolio value).
+        expect(await db.getTotalPatrimony(), Decimal.fromInt(500));
+
+        expect(
+          await db.addTransfer(
+            sourceId: stockId,
+            destId: checkingId,
+            amount: Decimal.fromInt(200),
+            date: today,
+          ),
+          isTrue,
+        );
+        snapshot = await service.buildSnapshot(
+          account: account,
+          targetCurrency: 'EUR',
+        );
+        expect(snapshot!.cashNative, Decimal.fromInt(300));
+        expect(snapshot.netDeposits, Decimal.fromInt(300));
+        expect(await db.getTotalPatrimony(), Decimal.fromInt(700));
+        expect(await db.getTransactions(), hasLength(4));
+      },
+    );
+
     test('deleting an unsold line refunds its cash', () async {
       final db = DatabaseManager.instance;
       final accountId = await db.addAccount(

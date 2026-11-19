@@ -287,6 +287,7 @@ class StockService extends ChangeNotifier {
     final lines = await db.getStockLines(account.id!, includeSold: true);
     final sales = await db.getStockSales(account.id!);
     final flows = await db.getStockCashFlows(account.id!);
+    final transfers = await db.getStockTransfers(account.id!);
 
     final targetFx = await _rate(account.currency, targetCurrency);
     final salesByLine = <String, List<StockSale>>{};
@@ -297,6 +298,9 @@ class StockService extends ChangeNotifier {
     var cashNative = account.startingAmount;
     for (final flow in flows) {
       cashNative += flow.amount;
+    }
+    for (final transfer in transfers) {
+      cashNative += transfer.$2;
     }
     for (final sale in sales) {
       cashNative += sale.proceeds;
@@ -339,7 +343,7 @@ class StockService extends ChangeNotifier {
       holdingsValue += value;
     }
 
-    final firstDate = _firstDate(account, lines, flows);
+    final firstDate = _firstDate(account, lines, flows, transfers);
     final history = <Map<String, dynamic>>[];
     final valueByMonth = <String, Decimal>{};
     if (firstDate != null) {
@@ -361,6 +365,7 @@ class StockService extends ChangeNotifier {
           account: account,
           lines: lines,
           flows: flows,
+          transfers: transfers,
           sales: sales,
           salesByLine: salesByLine,
           targetCurrency: targetCurrency,
@@ -385,6 +390,9 @@ class StockService extends ChangeNotifier {
     for (final flow in flows) {
       netDeposits += flow.amount;
     }
+    for (final transfer in transfers) {
+      netDeposits += transfer.$2;
+    }
     netDeposits *= targetFx;
 
     return StockSnapshot(
@@ -408,6 +416,7 @@ class StockService extends ChangeNotifier {
     required Account account,
     required List<StockLine> lines,
     required List<StockCashFlow> flows,
+    required List<(String, Decimal)> transfers,
     required List<StockSale> sales,
     required Map<String, List<StockSale>> salesByLine,
     required String targetCurrency,
@@ -420,6 +429,9 @@ class StockService extends ChangeNotifier {
     var cashNative = account.startingAmount;
     for (final flow in flows) {
       if (flow.date.compareTo(monthEnd) <= 0) cashNative += flow.amount;
+    }
+    for (final transfer in transfers) {
+      if (transfer.$1.compareTo(monthEnd) <= 0) cashNative += transfer.$2;
     }
     for (final sale in sales) {
       if (sale.date.compareTo(monthEnd) <= 0) cashNative += sale.proceeds;
@@ -483,11 +495,13 @@ class StockService extends ChangeNotifier {
     Account account,
     List<StockLine> lines,
     List<StockCashFlow> flows,
+    List<(String, Decimal)> transfers,
   ) {
     final dates = <String>[
       if (account.createdAt != null) account.createdAt!.substring(0, 10),
       for (final line in lines) line.boughtAt,
       for (final flow in flows) flow.date,
+      for (final transfer in transfers) transfer.$1,
     ];
     if (dates.isEmpty) return null;
     dates.sort();

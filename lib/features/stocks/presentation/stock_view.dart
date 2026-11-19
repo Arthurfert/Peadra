@@ -359,50 +359,29 @@ class _StockViewState extends State<StockView> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
+        child: Row(
           children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.account_balance_wallet_outlined,
-                  size: 20,
-                  color: colors.textSecondary,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    Translator.t('stock_cash'),
-                    style: TextStyle(
-                      color: colors.text,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                Text(
-                  CurrencyService.formatAmount(
-                    snapshot.cashNative,
-                    snapshot.accountCurrency,
-                  ),
-                  style: TextStyle(
-                    color: colors.text,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
+            Icon(
+              Icons.account_balance_wallet_outlined,
+              size: 20,
+              color: colors.textSecondary,
             ),
-            const SizedBox(height: 4),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () => _showCashDialog(colors, true),
-                  child: Text(Translator.t('stock_add_cash')),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                Translator.t('stock_cash'),
+                style: TextStyle(
+                  color: colors.text,
+                  fontWeight: FontWeight.w600,
                 ),
-                TextButton(
-                  onPressed: () => _showCashDialog(colors, false),
-                  child: Text(Translator.t('stock_withdraw_cash')),
-                ),
-              ],
+              ),
+            ),
+            Text(
+              CurrencyService.formatAmount(
+                snapshot.cashNative,
+                snapshot.accountCurrency,
+              ),
+              style: TextStyle(color: colors.text, fontWeight: FontWeight.bold),
             ),
           ],
         ),
@@ -430,43 +409,44 @@ class _StockViewState extends State<StockView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text.rich(
-                    TextSpan(
-                      style: TextStyle(
-                        color: colors.text,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      children: [
-                        TextSpan(text: '${holding.displayName} '),
-                        TextSpan(
-                          text: '(${holding.line.ticker}  ',
-                          style: TextStyle(color: colors.textSecondary),
-                        ),
-                        TextSpan(
-                          text: pct,
-                          style: TextStyle(color: changeColor),
-                        ),
-                        const TextSpan(text: ' ('),
-                        TextSpan(
-                          text: change,
-                          style: TextStyle(color: changeColor),
-                        ),
-                        const TextSpan(text: '))'),
-                      ],
+                  Text(
+                    holding.displayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: colors.text,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
-                    '${Translator.t('stock_remaining', params: {'count': '${holding.remainingQuantity}'})} · '
-                    '${Translator.t('stock_buy_price')} '
-                    '${CurrencyService.formatAmount(holding.line.buyPrice, holding.line.currency)} · '
-                    '${CurrencyService.formatAmount(holding.latestPrice, holding.currency)} · '
-                    '${CurrencyService.formatAmount(holding.value, _snapshot?.currency ?? 'EUR')}',
+                    '${holding.line.ticker} · '
+                    '${holding.remainingQuantity} × '
+                    '${CurrencyService.formatAmount(holding.line.buyPrice, holding.line.currency)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(color: colors.textSecondary, fontSize: 12),
                   ),
                 ],
               ),
             ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  pct,
+                  style: TextStyle(
+                    color: changeColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  change,
+                  style: TextStyle(color: changeColor, fontSize: 11),
+                ),
+              ],
+            ),
+            const SizedBox(width: 4),
             PopupMenuButton<String>(
               tooltip: Translator.t('btn_menu'),
               icon: Icon(Icons.more_vert, color: colors.placeholderColor),
@@ -557,87 +537,6 @@ class _StockViewState extends State<StockView> {
       );
     }
     await _load();
-  }
-
-  Future<void> _showCashDialog(PeadraColors colors, bool deposit) async {
-    final account = _account;
-    final snapshot = _snapshot;
-    if (account == null || snapshot == null) return;
-    final amountCtrl = TextEditingController();
-    String? error;
-
-    await showPeadraModal(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => PeadraModal(
-          title: Text(
-            Translator.t(deposit ? 'stock_add_cash' : 'stock_withdraw_cash'),
-            style: TextStyle(color: colors.text),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: amountCtrl,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: InputDecoration(
-                  labelText: Translator.t('stock_cash_amount'),
-                  suffixText: CurrencyService.getSymbol(account.currency),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-              if (error != null) ...[
-                const SizedBox(height: 8),
-                Text(error!, style: TextStyle(color: colors.error)),
-              ],
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(Translator.t('btn_cancel')),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
-              onPressed: () async {
-                final value = Decimal.tryParse(amountCtrl.text) ?? Decimal.zero;
-                if (value <= Decimal.zero) {
-                  setDialogState(
-                    () => error = Translator.t('stock_amount_required'),
-                  );
-                  return;
-                }
-                if (!deposit && value > snapshot.cashNative) {
-                  setDialogState(
-                    () => error = Translator.t('stock_withdraw_too_much'),
-                  );
-                  return;
-                }
-                await _db.addStockCashFlow(
-                  accountId: account.id!,
-                  date: DateTime.now().toIso8601String().substring(0, 10),
-                  amount: deposit ? value : -value,
-                  note: Translator.t(
-                    deposit ? 'stock_deposit_note' : 'stock_withdraw_note',
-                  ),
-                );
-                if (!ctx.mounted || !mounted) return;
-                Navigator.pop(ctx);
-                await _load();
-              },
-              child: Text(
-                Translator.t('btn_save'),
-                style: const TextStyle(color: Colors.white),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   Future<void> _showAddLineDialog(PeadraColors colors) async {

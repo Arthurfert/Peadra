@@ -74,6 +74,8 @@ Future<SqliteCrdt> createCrdtDatabase() {
           currency TEXT DEFAULT 'EUR',
           notes TEXT,
           recurring_id TEXT,
+          pinned INTEGER NOT NULL DEFAULT 0,
+          is_hidden INTEGER NOT NULL DEFAULT 0,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           FOREIGN KEY (user_id) REFERENCES users(id),

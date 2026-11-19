@@ -517,6 +517,7 @@ class DatabaseManager {
         notes TEXT,
         recurring_id TEXT,
         pinned INTEGER NOT NULL DEFAULT 0,
+        is_hidden INTEGER NOT NULL DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id),
@@ -682,9 +683,10 @@ class DatabaseManager {
       )
     ''');
 
+    // Legacy manual cash rows. New deposits/withdrawals are standard
+    // transfers, but old rows still count in the cash ledger.
     await db.execute('''
-      CREATE TABLE IF NOT EXISTS stock_cash_flows (
-        id TEXT PRIMARY KEY,
+      CREATE TABLE IF NOT EXISTS stock_cash_flows (        id TEXT PRIMARY KEY,
         user_id TEXT NOT NULL,
         account_id TEXT NOT NULL,
         date DATE NOT NULL,
@@ -800,6 +802,13 @@ class DatabaseManager {
       await db.execute('DROP TABLE accounts');
       await db.execute('ALTER TABLE accounts_v13 RENAME TO accounts');
       await _createIndexes(db);
+    }
+    // v13 -> v14: hidden flag for stock realized gains/losses. They count in
+    // dashboard income/expense but stay out of the standard transaction list.
+    if (oldVersion < 14) {
+      await db.execute(
+        'ALTER TABLE transactions ADD COLUMN is_hidden INTEGER NOT NULL DEFAULT 0',
+      );
     }
   }
 
@@ -1740,6 +1749,7 @@ void setUserId(String userId) {
         transactionType: realized > Decimal.zero ? 'income' : 'expense',
         accountId: line['account_id'] as String,
         currency: accountCurrency,
+        isHidden: true,
       );
     }
 
@@ -1776,6 +1786,30 @@ void setUserId(String userId) {
       ));
     }
     return flows;
+  }
+
+  /// Signed standard-transfer amounts on [accountId] (in the account's
+  /// currency): money in minus money out. Stock cash uses these so deposits
+  /// and withdrawals always exist as normal transfer transactions.
+  Future<List<(String, Decimal)>> getStockTransfers(String accountId) async {
+    final db = await database;
+    final rows = await db.query(
+      'SELECT t.amount, t.transaction_type, t.date, d.name as description_name '
+      'FROM transactions t '
+      'LEFT JOIN descriptions d ON t.description_id = d.id AND d.is_deleted = 0 '
+      'WHERE t.account_id = ? AND t.user_id = ? AND t.is_deleted = 0 '
+      'AND t.is_hidden = 0 ORDER BY t.date ASC',
+      [accountId, _userId],
+    );
+    final transfers = <(String, Decimal)>[];
+    for (final r in rows) {
+      final description = await _decryptValue(r['description_name']);
+      if (!_isTransferDescription(description)) continue;
+      final amount = await _decryptAmount(r['amount']);
+      final signed = r['transaction_type'] == 'income' ? amount : -amount;
+      transfers.add((r['date'] as String, signed));
+    }
+    return transfers;
   }
 
   Future<void> addStockCashFlow({
@@ -2348,6 +2382,7 @@ void setUserId(String userId) {
     String? tagId,
     String? notes,
     String? currency,
+    bool isHidden = false,
   }) async {
     final db = await database;
     // Never create a junk empty-string description row (e.g. from imports
@@ -2371,11 +2406,64 @@ void setUserId(String userId) {
     final nowIso = DateTime.now().toIso8601String();
 
     await db.execute(
-      'INSERT INTO transactions (id, user_id, account_id, description_id, tag_id, date, amount, transaction_type, currency, notes, created_at, updated_at) '
-      'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)',
-      [id, _userId, accountId, descId, tagId, date, encryptedAmount, transactionType, effectiveCurrency, encryptedNotes, nowIso, nowIso],
+      'INSERT INTO transactions (id, user_id, account_id, description_id, tag_id, date, amount, transaction_type, currency, notes, is_hidden, created_at, updated_at) '
+      'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)',
+      [id, _userId, accountId, descId, tagId, date, encryptedAmount, transactionType, effectiveCurrency, encryptedNotes, isHidden ? 1 : 0, nowIso, nowIso],
     );
     return id;
+  }
+
+  /// Creates the standard two-leg transfer used by the Transactions view.
+  /// The stock cash line uses this so money never appears from nowhere.
+  Future<bool> addTransfer({
+    required String sourceId,
+    required String destId,
+    required Decimal amount,
+    required String date,
+  }) async {
+    if (_userId == null || amount <= Decimal.zero) return false;
+    final srcCurrency = await getAccountCurrency(sourceId) ?? defaultCurrency;
+    final destCurrency = await getAccountCurrency(destId) ?? defaultCurrency;
+    final srcName = await _getAccountName(sourceId) ?? '';
+    final destName = await _getAccountName(destId) ?? '';
+
+    Decimal destAmount = amount;
+    if (srcCurrency != destCurrency) {
+      final rate = await getExchangeRate(srcCurrency, destCurrency);
+      if (rate != null) {
+        destAmount = amount * Decimal.parse(rate.toString());
+      }
+    }
+
+    final srcId = await addTransaction(
+      accountId: sourceId,
+      date: date,
+      amount: amount,
+      description: 'Transfer to $destName',
+      transactionType: 'expense',
+      currency: srcCurrency,
+      notes: 'Transfer to $destName',
+    );
+    final destResult = await addTransaction(
+      accountId: destId,
+      date: date,
+      amount: destAmount,
+      description: 'Transfer from $srcName',
+      transactionType: 'income',
+      currency: destCurrency,
+      notes: 'Transfer from $srcName',
+    );
+    return srcId != null && destResult != null;
+  }
+
+  Future<String?> _getAccountName(String accountId) async {
+    final db = await database;
+    final rows = await db.query(
+      'SELECT name FROM accounts WHERE id = ? AND user_id = ? AND is_deleted = 0',
+      [accountId, _userId],
+    );
+    if (rows.isEmpty) return null;
+    return _decryptValue(rows.first['name']);
   }
 
   Future<bool> updateTransaction(String transactionId, {
@@ -2465,6 +2553,7 @@ void setUserId(String userId) {
       createdAt: r['created_at'] as String?,
       updatedAt: r['updated_at'] as String?,
       pinned: (r['pinned'] as int? ?? 0) != 0,
+      isHidden: (r['is_hidden'] as int? ?? 0) != 0,
       accountName: decrypted[2] as String?,
       accountColor: r['account_color'] as String?,
       accountCurrency: r['account_currency'] as String?,
@@ -2499,8 +2588,7 @@ void setUserId(String userId) {
 
     final where = <String>[
       't.user_id = ? AND t.is_deleted = 0',
-      "(t.account_id IS NULL OR t.account_id NOT IN "
-          "(SELECT id FROM accounts WHERE type = 'stock'))",
+      't.is_hidden = 0',
     ];
     final args = <Object?>[_userId];
 
@@ -2584,9 +2672,7 @@ void setUserId(String userId) {
     final rows = await db.query(
       '''
       $_txnJoin
-      WHERE t.user_id = ? AND t.is_deleted = 0
-        AND (t.account_id IS NULL OR t.account_id NOT IN
-          (SELECT id FROM accounts WHERE type = 'stock'))
+      WHERE t.user_id = ? AND t.is_deleted = 0 AND t.is_hidden = 0
         AND (t.account_id, t.date, t.transaction_type) IN ($placeholders)
       ''',
       args,
@@ -2604,8 +2690,7 @@ void setUserId(String userId) {
       't.date BETWEEN ? AND ?',
       't.user_id = ?',
       't.is_deleted = 0',
-      "(t.account_id IS NULL OR t.account_id NOT IN "
-          "(SELECT id FROM accounts WHERE type = 'stock'))",
+      't.is_hidden = 0',
     ];
     final args = <Object?>[startDate, endDate, _userId];
     if (accountIds != null && accountIds.isNotEmpty) {

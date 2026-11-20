@@ -94,13 +94,13 @@ class _StockViewState extends State<StockView> {
     });
   }
 
-  Future<void> _refreshQuotes() async {
+  Future<void> _refreshQuotes({bool force = false}) async {
     final account = _account;
     if (account?.id == null || _refreshing) return;
     final lines = await _db.getStockLines(account!.id!);
     if (lines.isEmpty) return;
     if (mounted) setState(() => _refreshing = true);
-    await _stocks.refreshAll(lines.map((l) => l.ticker), force: true);
+    await _stocks.refreshAll(lines.map((l) => l.ticker), force: force);
     final failed = lines.any((l) => _stocks.quoteFor(l.ticker) == null);
     await _load();
     if (mounted) {
@@ -149,7 +149,9 @@ class _StockViewState extends State<StockView> {
               if (_account != null)
                 IconButton(
                   tooltip: Translator.t('stock_refresh'),
-                  onPressed: _refreshing ? null : _refreshQuotes,
+                  onPressed: _refreshing
+                      ? null
+                      : () => _refreshQuotes(force: true),
                   icon: _refreshing
                       ? SizedBox(
                           width: 20,
@@ -420,7 +422,7 @@ class _StockViewState extends State<StockView> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '${holding.line.ticker} · '
+                    '${StockService.displayTicker(holding.line.ticker)} · '
                     '${holding.remainingQuantity} × '
                     '${CurrencyService.formatAmount(holding.line.buyPrice, holding.line.currency)}',
                     maxLines: 1,
@@ -553,253 +555,248 @@ class _StockViewState extends State<StockView> {
     var results = <StockSearchResult>[];
     var searching = false;
     String? error;
-    Timer? debounce;
 
     await showPeadraModal(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => PeadraModal(
-          title: Text(
-            Translator.t('stock_add_line'),
-            style: TextStyle(color: colors.text),
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: tickerCtrl,
-                  textCapitalization: TextCapitalization.characters,
-                  decoration: InputDecoration(
-                    labelText: Translator.t('stock_ticker'),
-                    hintText: Translator.t('stock_search_hint'),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  onChanged: (value) {
-                    debounce?.cancel();
-                    if (value.trim().isEmpty) {
-                      setDialogState(() {
-                        results = [];
-                        searching = false;
-                      });
-                      return;
-                    }
-                    setDialogState(() => searching = true);
-                    debounce = Timer(
-                      const Duration(milliseconds: 350),
-                      () async {
-                        final found = await _stocks.search(value);
-                        if (!ctx.mounted) return;
-                        setDialogState(() {
-                          results = found;
-                          searching = false;
-                        });
-                      },
-                    );
-                  },
-                ),
-                if (searching)
-                  const Padding(
-                    padding: EdgeInsets.all(8),
-                    child: LinearProgressIndicator(),
-                  ),
-                for (final result in results)
-                  ListTile(
-                    dense: true,
-                    title: Text(result.ticker),
-                    subtitle: Text(
-                      '${result.name}'
-                      '${result.exchange.isEmpty ? '' : ' · ${result.exchange}'}',
-                    ),
-                    onTap: () async {
-                      tickerCtrl.text = result.ticker;
-                      nameCtrl.text = result.name;
-                      setDialogState(() {
-                        results = [];
-                        searching = true;
-                      });
-                      await _stocks.refreshAll([result.ticker], force: true);
-                      final quote = _stocks.quoteFor(result.ticker);
-                      if (!ctx.mounted) return;
-                      setDialogState(() {
-                        searching = false;
-                        if (quote != null) {
-                          currency = quote.currency;
-                          if (priceCtrl.text.isEmpty) {
-                            priceCtrl.text = quote.price.toString();
-                          }
-                        }
-                      });
-                    },
-                  ),
-                if (!searching && results.isEmpty && tickerCtrl.text.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        Translator.t('stock_search_empty'),
-                        style: TextStyle(
-                          color: colors.textSecondary,
-                          fontSize: 11,
-                        ),
+        builder: (ctx, setDialogState) {
+          Future<void> lookup() async {
+            final value = tickerCtrl.text.trim();
+            if (value.isEmpty) return;
+            setDialogState(() => searching = true);
+            final found = await _stocks.search(value);
+            if (!ctx.mounted) return;
+            setDialogState(() {
+              results = found;
+              searching = false;
+            });
+          }
+
+          return PeadraModal(
+            title: Text(
+              Translator.t('stock_add_line'),
+              style: TextStyle(color: colors.text),
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: tickerCtrl,
+                    textCapitalization: TextCapitalization.characters,
+                    textInputAction: TextInputAction.search,
+                    decoration: InputDecoration(
+                      labelText: Translator.t('stock_ticker'),
+                      hintText: Translator.t('stock_search_hint'),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.search),
+                        onPressed: searching ? null : lookup,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                  ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: nameCtrl,
-                  decoration: InputDecoration(
-                    labelText: Translator.t('stock_company'),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: quantityCtrl,
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
-                          labelText: Translator.t('stock_quantity'),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: priceCtrl,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        decoration: InputDecoration(
-                          labelText: Translator.t('stock_buy_price'),
-                          suffixText: currency,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: () async {
-                      final picked = await showDatePicker(
-                        context: ctx,
-                        initialDate: date,
-                        firstDate: DateTime(2000),
-                        lastDate: DateTime.now(),
-                      );
-                      if (picked != null) {
-                        setDialogState(() => date = picked);
+                    onChanged: (_) {
+                      if (results.isNotEmpty) {
+                        setDialogState(() => results = []);
                       }
                     },
-                    icon: const Icon(Icons.date_range, size: 16),
-                    label: Text(
-                      '${Translator.t('stock_buy_date')} : '
-                      '${date.toIso8601String().substring(0, 10)}',
+                    onSubmitted: (_) => lookup(),
+                  ),
+                  if (searching)
+                    const Padding(
+                      padding: EdgeInsets.all(8),
+                      child: LinearProgressIndicator(),
+                    ),
+                  for (final result in results)
+                    ListTile(
+                      dense: true,
+                      title: Text(result.ticker),
+                      subtitle: Text(
+                        '${result.name}'
+                        '${result.exchange.isEmpty ? '' : ' · ${result.exchange}'}',
+                      ),
+                      onTap: () {
+                        tickerCtrl.text = result.ticker;
+                        nameCtrl.text = result.name;
+                        setDialogState(() {
+                          results = [];
+                          searching = false;
+                          currency = result.currency;
+                          if (result.price > Decimal.zero &&
+                              priceCtrl.text.isEmpty) {
+                            priceCtrl.text = result.price.toString();
+                          }
+                        });
+                      },
+                    ),
+                  if (!searching &&
+                      results.isEmpty &&
+                      tickerCtrl.text.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          Translator.t('stock_search_empty'),
+                          style: TextStyle(
+                            color: colors.textSecondary,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: nameCtrl,
+                    decoration: InputDecoration(
+                      labelText: Translator.t('stock_company'),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                   ),
-                ),
-                if (error != null) ...[
-                  const SizedBox(height: 8),
-                  Text(error!, style: TextStyle(color: colors.error)),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: quantityCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            labelText: Translator.t('stock_quantity'),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: priceCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: InputDecoration(
+                            labelText: Translator.t('stock_buy_price'),
+                            suffixText: currency,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () async {
+                        final picked = await showDatePicker(
+                          context: ctx,
+                          initialDate: date,
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime.now(),
+                        );
+                        if (picked != null) {
+                          setDialogState(() => date = picked);
+                        }
+                      },
+                      icon: const Icon(Icons.date_range, size: 16),
+                      label: Text(
+                        '${Translator.t('stock_buy_date')} : '
+                        '${date.toIso8601String().substring(0, 10)}',
+                      ),
+                    ),
+                  ),
+                  if (error != null) ...[
+                    const SizedBox(height: 8),
+                    Text(error!, style: TextStyle(color: colors.error)),
+                  ],
                 ],
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(Translator.t('btn_cancel')),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
-              onPressed: () async {
-                final ticker = tickerCtrl.text.trim().toUpperCase();
-                final quantity = int.tryParse(quantityCtrl.text.trim());
-                final price = Decimal.tryParse(priceCtrl.text.trim());
-                if (ticker.isEmpty || nameCtrl.text.trim().isEmpty) {
-                  setDialogState(
-                    () => error = Translator.t('stock_name_required'),
-                  );
-                  return;
-                }
-                if (quantity == null || quantity <= 0) {
-                  setDialogState(
-                    () => error = Translator.t('stock_amount_required'),
-                  );
-                  return;
-                }
-                if (price == null || price <= Decimal.zero) {
-                  setDialogState(
-                    () => error = Translator.t('stock_amount_required'),
-                  );
-                  return;
-                }
-                if (_stocks.quoteFor(ticker) == null) {
-                  await _stocks.refreshAll([ticker], force: true);
-                }
-                final lineCurrency =
-                    _stocks.quoteFor(ticker)?.currency ?? currency;
-                final rate = lineCurrency == account.currency
-                    ? 1.0
-                    : (await _db.getExchangeRate(
-                            lineCurrency,
-                            account.currency,
-                          ) ??
-                          1.0);
-                final cost =
-                    Decimal.fromInt(quantity) *
-                    price *
-                    Decimal.parse(rate.toString());
-                if (cost > snapshot.cashNative) {
-                  setDialogState(
-                    () => error = Translator.t('stock_insufficient_cash'),
-                  );
-                  return;
-                }
-                await _db.addStockLine(
-                  accountId: account.id!,
-                  ticker: ticker,
-                  name: nameCtrl.text.trim(),
-                  quantity: quantity,
-                  buyPrice: price,
-                  currency: lineCurrency,
-                  boughtAt: date.toIso8601String().substring(0, 10),
-                  buyCost: cost,
-                );
-                if (!ctx.mounted || !mounted) return;
-                Navigator.pop(ctx);
-                unawaited(_stocks.refreshAll([ticker], force: true));
-                PeadraNotification.show(
-                  context,
-                  message: Translator.t('stock_line_added'),
-                );
-                await _load();
-              },
-              child: Text(
-                Translator.t('btn_save'),
-                style: const TextStyle(color: Colors.white),
               ),
             ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(Translator.t('btn_cancel')),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
+                onPressed: () async {
+                  final ticker = tickerCtrl.text.trim().toUpperCase();
+                  final quantity = int.tryParse(quantityCtrl.text.trim());
+                  final price = Decimal.tryParse(priceCtrl.text.trim());
+                  if (ticker.isEmpty || nameCtrl.text.trim().isEmpty) {
+                    setDialogState(
+                      () => error = Translator.t('stock_name_required'),
+                    );
+                    return;
+                  }
+                  if (quantity == null || quantity <= 0) {
+                    setDialogState(
+                      () => error = Translator.t('stock_amount_required'),
+                    );
+                    return;
+                  }
+                  if (price == null || price <= Decimal.zero) {
+                    setDialogState(
+                      () => error = Translator.t('stock_amount_required'),
+                    );
+                    return;
+                  }
+                  if (_stocks.quoteFor(ticker) == null) {
+                    await _stocks.refreshAll([ticker], force: true);
+                  }
+                  final lineCurrency =
+                      _stocks.quoteFor(ticker)?.currency ?? currency;
+                  final rate = lineCurrency == account.currency
+                      ? 1.0
+                      : (await _db.getExchangeRate(
+                              lineCurrency,
+                              account.currency,
+                            ) ??
+                            1.0);
+                  final cost =
+                      Decimal.fromInt(quantity) *
+                      price *
+                      Decimal.parse(rate.toString());
+                  if (cost > snapshot.cashNative) {
+                    setDialogState(
+                      () => error = Translator.t('stock_insufficient_cash'),
+                    );
+                    return;
+                  }
+                  await _db.addStockLine(
+                    accountId: account.id!,
+                    ticker: ticker,
+                    name: nameCtrl.text.trim(),
+                    quantity: quantity,
+                    buyPrice: price,
+                    currency: lineCurrency,
+                    boughtAt: date.toIso8601String().substring(0, 10),
+                    buyCost: cost,
+                  );
+                  if (!ctx.mounted || !mounted) return;
+                  Navigator.pop(ctx);
+                  PeadraNotification.show(
+                    context,
+                    message: Translator.t('stock_line_added'),
+                  );
+                  await _load();
+                },
+                child: Text(
+                  Translator.t('btn_save'),
+                  style: const TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
-    debounce?.cancel();
   }
 
   Future<void> _showSellDialog(

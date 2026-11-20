@@ -221,7 +221,7 @@ class Translator {
       'stock_quantity': 'Quantity',
       'stock_buy_price': 'Buy price',
       'stock_buy_date': 'Buy date',
-      'stock_search_hint': 'Search a ticker (e.g. AAPL)',
+      'stock_search_hint': 'Search a company or symbol (e.g. TotalEnergies or TTE)',
       'stock_search_empty': 'No matching ticker',
       'stock_sell_quantity': 'Quantity to sell',
       'stock_sell_price': 'Sell price',
@@ -787,7 +787,8 @@ class Translator {
       'stock_quantity': 'Quantit\u00e9',
       'stock_buy_price': "Prix d'achat",
       'stock_buy_date': "Date d'achat",
-      'stock_search_hint': 'Rechercher un symbole (ex. AAPL)',
+      'stock_search_hint':
+          'Rechercher une entreprise ou un symbole (ex. TotalEnergies ou TTE)',
       'stock_search_empty': 'Aucun symbole trouv\u00e9',
       'stock_sell_quantity': 'Quantit\u00e9 \u00e0 vendre',
       'stock_sell_price': 'Prix de vente',
@@ -1371,7 +1372,8 @@ class Translator {
       'stock_quantity': 'Cantidad',
       'stock_buy_price': 'Precio de compra',
       'stock_buy_date': 'Fecha de compra',
-      'stock_search_hint': 'Buscar un símbolo (p. ej. AAPL)',
+      'stock_search_hint':
+          'Busca una empresa o símbolo (p. ej. TotalEnergies o TTE)',
       'stock_search_empty': 'Ningún símbolo encontrado',
       'stock_sell_quantity': 'Cantidad a vender',
       'stock_sell_price': 'Precio de venta',

@@ -6,31 +6,69 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 import 'package:peadra/core/database/database_manager.dart';
+import 'package:peadra/core/models/stock_line.dart';
 import 'package:peadra/core/services/stock_service.dart';
 
 import '../helpers/test_helper.dart';
 
-String _chartBody({double price = 150}) => jsonEncode({
-  'chart': {
-    'result': [
+const _searchBody = '''
+[
+  {"symbol":"<em>TTE</em>","description":"TotalEnergies SE","type":"stock","exchange":"Euronext Paris","source_id":"EURONEXT","currency_code":"EUR","is_primary_listing":true},
+  {"symbol":"<em>TTE</em>","description":"TotalEnergies SE","type":"stock","exchange":"NYSE","source_id":"NYSE","currency_code":"USD"}
+]
+''';
+
+const _scannerBody = '''
+{"totalCount":2,"data":[
+  {"s":"NASDAQ:AAPL","d":["AAPL",150,-1.0,"USD","Apple Inc","NASDAQ","stock","delayed_streaming_900"]},
+  {"s":"EURONEXT:TTE","d":["TTE",78.19,-1.2,"EUR","TotalEnergies SE","EURONEXT","stock","delayed_streaming_900"]}
+]}
+''';
+
+String _historyFrame() {
+  final jan = DateTime.utc(2025, 1, 1).millisecondsSinceEpoch ~/ 1000;
+  final feb = DateTime.utc(2025, 2, 1).millisecondsSinceEpoch ~/ 1000;
+  final payload = jsonEncode({
+    'm': 'timescale_update',
+    'p': [
+      'cs',
       {
-        'meta': {
-          'currency': 'EUR',
-          'regularMarketPrice': price,
-          'longName': 'Apple Inc.',
-        },
-        'timestamp': [1767225600, 1769904000],
-        'indicators': {
-          'quote': [
+        's1': {
+          's': [
             {
-              'close': [120.0, price],
+              'v': [jan, 100, 110, 90, 120, 1000],
+            },
+            {
+              'v': [feb, 100, 160, 90, 150, 1000],
             },
           ],
         },
       },
     ],
-  },
-});
+  });
+  return '~m~${payload.length}~m~$payload';
+}
+
+MockClient _mockClient() {
+  return MockClient((request) async {
+    if (request.url.host == 'scanner.tradingview.com') {
+      return http.Response(_scannerBody, 200);
+    }
+    if (request.url.host == 'symbol-search.tradingview.com') {
+      return http.Response(_searchBody, 200);
+    }
+    return http.Response('{}', 404);
+  });
+}
+
+Future<Map<String, List<StockPricePoint>>> _fakeHistory(Set<String> symbols) {
+  return Future.value({
+    'NASDAQ:AAPL': [
+      const StockPricePoint('2025-01', 120),
+      const StockPricePoint('2025-02', 150),
+    ],
+  });
+}
 
 void main() {
   setUpAll(initializeTestDatabase);
@@ -38,38 +76,53 @@ void main() {
     await DatabaseManager.instance.openInMemoryForTest(userId: 'user-1');
   });
 
-  group('Yahoo parsing', () {
-    test('parseQuote reads price, currency and monthly history', () {
-      final quote = StockService.parseQuote('AAPL', jsonDecode(_chartBody()));
-      expect(quote, isNotNull);
-      expect(quote!.ticker, 'AAPL');
-      expect(quote.name, 'Apple Inc.');
-      expect(quote.currency, 'EUR');
-      expect(quote.price, Decimal.fromInt(150));
-      expect(quote.history.map((p) => p.date).toList(), ['2026-01', '2026-02']);
-      expect(quote.history.last.close, 150);
+  group('TradingView parsing', () {
+    test('search keeps exchange listings and strips highlight tags', () {
+      final results = StockService.parseSearchResults(jsonDecode(_searchBody));
+      expect(results, hasLength(2));
+      expect(results.first.ticker, 'EURONEXT:TTE');
+      expect(results.first.name, 'TotalEnergies SE');
+      expect(results.first.currency, 'EUR');
+      expect(results.first.primary, isTrue);
+      expect(results.last.ticker, 'NYSE:TTE');
+      expect(results.last.primary, isFalse);
     });
 
-    test('parseSearch keeps equities and drops other quote types', () {
-      final results = StockService.parseSearch({
-        'quotes': [
-          {
-            'symbol': 'AAPL',
-            'longname': 'Apple Inc.',
-            'quoteType': 'EQUITY',
-            'exchDisp': 'NASDAQ',
-          },
-          {'symbol': '^GSPC', 'shortname': 'S&P 500', 'quoteType': 'INDEX'},
-        ],
-      });
-      expect(results, hasLength(1));
-      expect(results.single.ticker, 'AAPL');
-      expect(results.single.exchange, 'NASDAQ');
+    test('scanner reads price, currency and exchange', () {
+      final quotes = StockService.parseScannerQuotes(jsonDecode(_scannerBody));
+      final aapl = quotes['NASDAQ:AAPL'];
+      expect(aapl, isNotNull);
+      expect(aapl!.name, 'Apple Inc');
+      expect(aapl.exchange, 'NASDAQ');
+      expect(aapl.currency, 'USD');
+      expect(aapl.price, Decimal.fromInt(150));
+    });
+
+    test('history frame becomes monthly closes', () {
+      final out = <String, List<StockPricePoint>>{};
+      final completed = <String>{};
+      StockService.parseHistoryFrame(
+        _historyFrame(),
+        {'cs': 'NASDAQ:AAPL'},
+        out,
+        completed,
+      );
+      expect(completed, contains('cs'));
+      expect(out['NASDAQ:AAPL'], isNotNull);
+      expect(out['NASDAQ:AAPL']!.first.date, '2025-01');
+      expect(out['NASDAQ:AAPL']!.last.close, 150);
+    });
+
+    test('displayTicker handles TradingView, Google and plain symbols', () {
+      expect(StockService.displayTicker('NASDAQ:AAPL'), 'AAPL');
+      expect(StockService.displayTicker('AAPL:NASDAQ'), 'AAPL');
+      expect(StockService.displayTicker('EURONEXT:TTE'), 'TTE');
+      expect(StockService.displayTicker('AAPL'), 'AAPL');
     });
   });
 
   group('Stock account valuation', () {
-    test('cash, holdings and history use cached quotes', () async {
+    test('cash, holdings and history use TradingView data', () async {
       final db = DatabaseManager.instance;
       final accountId = await db.addAccount(
         'Broker',
@@ -80,7 +133,7 @@ void main() {
       );
       await db.addStockLine(
         accountId: accountId!,
-        ticker: 'AAPL',
+        ticker: 'NASDAQ:AAPL',
         name: 'Apple Inc.',
         quantity: 2,
         buyPrice: Decimal.fromInt(100),
@@ -90,14 +143,10 @@ void main() {
       );
 
       final service = StockService(
-        client: MockClient((request) async {
-          if (request.url.path.contains('/v8/finance/chart/')) {
-            return http.Response(_chartBody(), 200);
-          }
-          return http.Response('{}', 404);
-        }),
+        client: _mockClient(),
+        historyFetcher: _fakeHistory,
       );
-      await service.refreshAll(['AAPL'], force: true);
+      await service.refreshAll(['NASDAQ:AAPL'], force: true);
 
       final account = (await db.getStockAccount())!;
       final snapshot = await service.buildSnapshot(
@@ -115,6 +164,14 @@ void main() {
       expect(snapshot.valueByMonth.containsKey('2026-01'), isTrue);
     });
 
+    test('search returns all matching listings', () async {
+      final service = StockService(client: _mockClient());
+      final results = await service.search('TotalEnergies');
+      expect(results, hasLength(2));
+      expect(results.first.ticker, 'EURONEXT:TTE');
+      expect(results.first.primary, isTrue);
+    });
+
     test(
       'selling books realized gain and hides the stock transaction',
       () async {
@@ -128,7 +185,7 @@ void main() {
         );
         final lineId = await db.addStockLine(
           accountId: accountId!,
-          ticker: 'AAPL',
+          ticker: 'NASDAQ:AAPL',
           name: 'Apple Inc.',
           quantity: 2,
           buyPrice: Decimal.fromInt(100),
@@ -138,11 +195,10 @@ void main() {
         );
 
         final service = StockService(
-          client: MockClient((request) async {
-            return http.Response(_chartBody(), 200);
-          }),
+          client: _mockClient(),
+          historyFetcher: _fakeHistory,
         );
-        await service.refreshAll(['AAPL'], force: true);
+        await service.refreshAll(['NASDAQ:AAPL'], force: true);
 
         final today = DateTime.now().toIso8601String().substring(0, 10);
         final sale = await db.sellStockLine(
@@ -164,8 +220,6 @@ void main() {
         expect(snapshot.holdingsValue, Decimal.fromInt(150));
         expect(snapshot.total, Decimal.fromInt(1100));
 
-        // Stock transactions never leak into the normal transaction list nor
-        // into patrimony (the dashboard adds the portfolio value itself).
         expect(await db.getTransactions(), isEmpty);
         expect(await db.getTotalPatrimony(), Decimal.zero);
 
@@ -227,7 +281,8 @@ void main() {
         expect(transfers.single.$2, Decimal.fromInt(500));
 
         final service = StockService(
-          client: MockClient((request) async => http.Response('{}', 404)),
+          client: _mockClient(),
+          historyFetcher: _fakeHistory,
         );
         final account = (await db.getStockAccount())!;
         var snapshot = await service.buildSnapshot(
@@ -236,8 +291,6 @@ void main() {
         );
         expect(snapshot!.cashNative, Decimal.fromInt(500));
         expect(snapshot.netDeposits, Decimal.fromInt(500));
-        // The standard account leg is counted; the stock leg is not (the
-        // snapshot above supplies the portfolio value).
         expect(await db.getTotalPatrimony(), Decimal.fromInt(500));
 
         expect(
@@ -271,7 +324,7 @@ void main() {
       );
       final lineId = await db.addStockLine(
         accountId: accountId!,
-        ticker: 'AAPL',
+        ticker: 'NASDAQ:AAPL',
         name: 'Apple Inc.',
         quantity: 1,
         buyPrice: Decimal.fromInt(100),
@@ -281,9 +334,10 @@ void main() {
       );
 
       final service = StockService(
-        client: MockClient((request) async => http.Response(_chartBody(), 200)),
+        client: _mockClient(),
+        historyFetcher: _fakeHistory,
       );
-      await service.refreshAll(['AAPL'], force: true);
+      await service.refreshAll(['NASDAQ:AAPL'], force: true);
       final account = (await db.getStockAccount())!;
       expect(
         (await service.buildSnapshot(

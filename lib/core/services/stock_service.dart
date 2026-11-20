@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:decimal/decimal.dart';
 import 'package:flutter/foundation.dart';
@@ -14,11 +15,17 @@ class StockSearchResult {
   final String ticker;
   final String name;
   final String exchange;
+  final String currency;
+  final Decimal price;
+  final bool primary;
 
   const StockSearchResult({
     required this.ticker,
     required this.name,
     required this.exchange,
+    required this.currency,
+    required this.price,
+    this.primary = false,
   });
 }
 
@@ -87,25 +94,171 @@ class StockSnapshot {
   }
 }
 
-/// Fetches and caches Yahoo Finance quotes, and values the Stock Market
-/// account. Cash lives inside the account: buys spend it, sells credit it.
+/// Fetches and caches TradingView quotes and monthly history, and values the
+/// Stock Market account. Cash lives inside the account: buys spend it, sells
+/// credit it.
 class StockService extends ChangeNotifier {
-  StockService({http.Client? client}) : _client = client ?? http.Client();
+  StockService({
+    http.Client? client,
+    Future<Map<String, List<StockPricePoint>>> Function(Set<String>)?
+    historyFetcher,
+  }) : _client = client ?? http.Client(),
+       _customHistoryFetcher = historyFetcher;
 
   static final StockService instance = StockService();
 
-  static const _userAgent = 'Mozilla/5.0';
-  static const _timeout = Duration(seconds: 10);
+  static const _userAgent =
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 '
+      '(KHTML, like Gecko) Chrome/124 Safari/537.36';
+  static const _timeout = Duration(seconds: 20);
+  static const _historyTimeout = Duration(seconds: 15);
   static const _minRefreshInterval = Duration(minutes: 1);
 
+  static const Map<String, String> _browserHeaders = {
+    'User-Agent': _userAgent,
+    'Accept': 'application/json, text/plain, */*',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Origin': 'https://www.tradingview.com',
+    'Referer': 'https://www.tradingview.com/',
+  };
+
+  static const Set<String> _exchangeCodes = {
+    'NASDAQ',
+    'NYSE',
+    'AMEX',
+    'NYSEARCA',
+    'BATS',
+    'OTC',
+    'CBOE',
+    'CBOT',
+    'CME',
+    'COMEX',
+    'NYMEX',
+    'EURONEXT',
+    'ENX',
+    'PAR',
+    'EPA',
+    'AMS',
+    'BRU',
+    'EBR',
+    'LIS',
+    'MIL',
+    'BIT',
+    'BME',
+    'MAD',
+    'FRA',
+    'XETRA',
+    'ETR',
+    'DUS',
+    'BER',
+    'MUN',
+    'HAM',
+    'STU',
+    'GETTEX',
+    'LSE',
+    'LON',
+    'LSIN',
+    'AIM',
+    'FIRSTNORTH',
+    'NGM',
+    'SWX',
+    'SIX',
+    'VTX',
+    'VIE',
+    'WBAG',
+    'PRA',
+    'BUD',
+    'WAR',
+    'WSE',
+    'RSE',
+    'BVB',
+    'LUXSE',
+    'LUX',
+    'HKG',
+    'TSE',
+    'TYO',
+    'TSX',
+    'TSXV',
+    'NEO',
+    'ASX',
+    'NZX',
+    'NSE',
+    'BOM',
+    'BSE',
+    'KRX',
+    'TWSE',
+    'TPE',
+    'SGX',
+    'SET',
+    'BKK',
+    'IDX',
+    'JKSE',
+    'KLSE',
+    'MYX',
+    'PSE',
+    'UPCOM',
+    'HNX',
+    'HOSE',
+    'STO',
+    'CPH',
+    'HEL',
+    'OSL',
+    'JSE',
+    'BVMF',
+    'B3',
+    'BMV',
+    'MEX',
+    'BIVA',
+    'BCBA',
+    'IST',
+    'BIST',
+    'TLV',
+    'ATH',
+    'DFM',
+    'ADX',
+    'TADAWUL',
+    'QSE',
+    'KSE',
+    'TASE',
+    'EGX',
+    'NGX',
+    'DSE',
+    'PSX',
+    'MOEX',
+    'INDEXSP',
+    'INDEXDJX',
+    'INDEXNASDAQ',
+    'CRYPTOCAP',
+    'BITSTAMP',
+    'COINBASE',
+    'BINANCE',
+  };
+
   final http.Client _client;
+  final Future<Map<String, List<StockPricePoint>>> Function(Set<String>)?
+  _customHistoryFetcher;
   final Map<String, StockQuote> _quotes = {};
   final Map<String, Decimal> _rateCache = {};
+  final Map<String, String> _resolvedSymbols = {};
   bool _cacheLoaded = false;
   DateTime? _lastRefresh;
 
   /// Latest known quote for [ticker], or null when it was never fetched.
   StockQuote? quoteFor(String ticker) => _quotes[ticker];
+
+  /// The row label for a stored symbol: `NASDAQ:AAPL` and `AAPL:NASDAQ` both
+  /// display as `AAPL`, while an old plain `AAPL` is unchanged.
+  static String displayTicker(String ticker) {
+    final index = ticker.indexOf(':');
+    if (index < 0) return ticker;
+    final first = ticker.substring(0, index).toUpperCase();
+    final second = ticker.substring(index + 1);
+    if (_exchangeCodes.contains(first)) return second;
+    if (_exchangeCodes.contains(second.toUpperCase())) {
+      return ticker.substring(0, index);
+    }
+    return second;
+  }
 
   Future<void> _loadCache() async {
     if (_cacheLoaded) return;
@@ -134,20 +287,51 @@ class StockService extends ChangeNotifier {
     return () async {
       await _loadCache();
       _rateCache.clear();
-      var changed = false;
+
+      final resolved = <String, String>{};
       for (final ticker in unique) {
+        final symbol = await _resolveTicker(ticker);
+        if (symbol != null) resolved[ticker] = symbol;
+      }
+      if (resolved.isEmpty) {
+        _lastRefresh = DateTime.now();
+        return;
+      }
+
+      final symbols = resolved.values.toSet();
+      final quotes = await _fetchScannerQuotes(symbols);
+      final histories = await _historyFor(symbols);
+
+      var changed = false;
+      for (final entry in resolved.entries) {
+        final original = entry.key;
+        final symbol = entry.value;
+        final scanned = quotes[symbol];
+        if (scanned == null) continue;
+        final existing = _quotes[original];
+        final merged = StockQuote(
+          ticker: original,
+          symbol: symbol,
+          exchange: scanned.exchange,
+          name: scanned.name.isNotEmpty
+              ? scanned.name
+              : (existing?.name ?? symbol),
+          currency: scanned.currency.isNotEmpty
+              ? scanned.currency
+              : (existing?.currency ?? 'USD'),
+          price: scanned.price,
+          history: _mergeHistory(
+            existing?.history ?? const [],
+            histories[symbol] ?? const [],
+          ),
+          updatedAt: DateTime.now().toIso8601String(),
+        );
+        _quotes[original] = merged;
+        changed = true;
         try {
-          final quote = await fetchQuote(ticker);
-          if (quote == null) continue;
-          _quotes[ticker] = quote;
-          changed = true;
-          try {
-            await DatabaseManager.instance.upsertStockQuote(quote);
-          } catch (_) {
-            // Cache write failure only affects offline display.
-          }
+          await DatabaseManager.instance.upsertStockQuote(merged);
         } catch (_) {
-          // A single failing ticker keeps its previous cached quote.
+          // Cache write failure only affects offline display.
         }
       }
       _lastRefresh = DateTime.now();
@@ -155,124 +339,332 @@ class StockService extends ChangeNotifier {
     }();
   }
 
-  Future<StockQuote?> fetchQuote(String ticker) async {
-    final url = Uri.parse(
-      'https://query1.finance.yahoo.com/v8/finance/chart/'
-      '${Uri.encodeComponent(ticker)}?interval=1mo&range=max',
-    );
-    final response = await _client
-        .get(url, headers: {'User-Agent': _userAgent})
-        .timeout(_timeout);
-    if (response.statusCode != 200) return null;
-    return parseQuote(ticker, jsonDecode(response.body));
+  Future<Map<String, List<StockPricePoint>>> _historyFor(Set<String> symbols) {
+    final custom = _customHistoryFetcher;
+    if (custom != null) return custom(symbols);
+    return _fetchTradingViewHistory(symbols);
   }
 
-  /// Exposed for tests: turns a Yahoo chart response into a quote.
-  static StockQuote? parseQuote(String ticker, dynamic decoded) {
-    try {
-      final chart = (decoded as Map)['chart'] as Map?;
-      final results = chart?['result'] as List?;
-      if (results == null || results.isEmpty) return null;
-      final data = results.first as Map;
-      final meta = data['meta'] as Map? ?? const {};
-      final indicators = data['indicators'] as Map?;
-      final quotes = indicators?['quote'] as List?;
-      final closes = quotes != null && quotes.isNotEmpty
-          ? (quotes.first as Map)['close'] as List?
-          : null;
-      final timestamps = data['timestamp'] as List?;
-
-      final history = <StockPricePoint>[];
-      if (closes != null && timestamps != null) {
-        final seen = <String>{};
-        for (var i = 0; i < closes.length && i < timestamps.length; i++) {
-          final close = closes[i];
-          final ts = timestamps[i];
-          if (close is! num || ts is! num) continue;
-          final date = DateTime.fromMillisecondsSinceEpoch(
-            (ts * 1000).toInt(),
-            isUtc: true,
-          ).toIso8601String().substring(0, 7);
-          if (!seen.add(date)) {
-            history[history.indexWhere((p) => p.date == date)] =
-                StockPricePoint(date, close.toDouble());
-          } else {
-            history.add(StockPricePoint(date, close.toDouble()));
-          }
-        }
-        history.sort((a, b) => a.date.compareTo(b.date));
+  Future<String?> _resolveTicker(String ticker) async {
+    final cached = _resolvedSymbols[ticker];
+    if (cached != null) return cached;
+    final upper = ticker.trim().toUpperCase();
+    if (upper.isEmpty) return null;
+    final index = upper.indexOf(':');
+    if (index >= 0) {
+      final first = upper.substring(0, index);
+      if (_exchangeCodes.contains(first)) {
+        _resolvedSymbols[ticker] = upper;
+        return upper;
       }
-
-      final marketPrice = meta['regularMarketPrice'] as num?;
-      final fallback = history.isEmpty ? 0.0 : history.last.close;
-      final price = marketPrice?.toDouble() ?? fallback;
-      final currency = meta['currency'] as String? ?? 'USD';
-      final name =
-          (meta['longName'] as String?) ??
-          (meta['shortName'] as String?) ??
-          ticker;
-
-      return StockQuote(
-        ticker: ticker.toUpperCase(),
-        name: name,
-        currency: currency,
-        price: Decimal.parse(price.toString()),
-        history: history,
-        updatedAt: DateTime.now().toIso8601String(),
-      );
-    } catch (_) {
-      return null;
     }
+    final base = index >= 0 ? upper.substring(0, index) : upper;
+    final queries = <String>[upper];
+    if (index >= 0) {
+      queries.add(base);
+      queries.add(upper.substring(index + 1));
+    }
+    List<StockSearchResult>? fallback;
+    for (final query in queries.toSet()) {
+      final results = await search(query);
+      if (results.isEmpty) continue;
+      fallback ??= results;
+      final exact = results.where((r) {
+        final i = r.ticker.indexOf(':');
+        final symbol = i >= 0 ? r.ticker.substring(i + 1) : r.ticker;
+        return symbol.toUpperCase() == base;
+      }).toList();
+      if (exact.isEmpty) continue;
+      final primary = exact.where((r) => r.primary).toList();
+      final pick = primary.isNotEmpty ? primary.first : exact.first;
+      _resolvedSymbols[ticker] = pick.ticker;
+      return pick.ticker;
+    }
+    if (fallback != null) {
+      final primary = fallback.where((r) => r.primary).toList();
+      final pick = primary.isNotEmpty ? primary.first : fallback.first;
+      _resolvedSymbols[ticker] = pick.ticker;
+      return pick.ticker;
+    }
+    return null;
   }
 
-  /// Yahoo symbol search used by the add-line autocomplete.
+  /// TradingView symbol search. Returns stocks, funds and ETFs from every
+  /// exchange covered by TradingView.
   Future<List<StockSearchResult>> search(String query) async {
     final q = query.trim();
     if (q.isEmpty) return const [];
     try {
       final url = Uri.parse(
-        'https://query1.finance.yahoo.com/v1/finance/search'
-        '?q=${Uri.encodeQueryComponent(q)}&quotesCount=10&newsCount=0',
+        'https://symbol-search.tradingview.com/symbol_search/'
+        '?text=${Uri.encodeQueryComponent(q)}'
+        '&hl=1&exchange=&lang=en&type=&domain=production',
       );
       final response = await _client
-          .get(url, headers: {'User-Agent': _userAgent})
+          .get(url, headers: _browserHeaders)
           .timeout(_timeout);
       if (response.statusCode != 200) return const [];
-      return parseSearch(jsonDecode(response.body));
+      return parseSearchResults(jsonDecode(response.body));
     } catch (_) {
       return const [];
     }
   }
 
-  /// Exposed for tests: parses a Yahoo search response.
-  static List<StockSearchResult> parseSearch(dynamic decoded) {
-    try {
-      final quotes = (decoded as Map)['quotes'] as List?;
-      if (quotes == null) return const [];
-      final results = <StockSearchResult>[];
-      for (final raw in quotes) {
-        if (raw is! Map) continue;
-        final type = raw['quoteType'] as String?;
-        if (type != 'EQUITY' && type != 'ETF' && type != 'MUTUALFUND') {
-          continue;
-        }
-        final ticker = raw['symbol'] as String?;
-        if (ticker == null || ticker.isEmpty) continue;
-        results.add(
-          StockSearchResult(
-            ticker: ticker,
-            name:
-                (raw['longname'] as String?) ??
-                (raw['shortname'] as String?) ??
-                ticker,
-            exchange: (raw['exchDisp'] as String?) ?? '',
-          ),
-        );
-      }
-      return results;
-    } catch (_) {
-      return const [];
+  /// Exposed for tests: parses the TradingView symbol-search JSON.
+  static List<StockSearchResult> parseSearchResults(dynamic decoded) {
+    if (decoded is! List) return const [];
+    const allowedTypes = {
+      'stock',
+      'fund',
+      'etf',
+      'dr',
+      'reit',
+      'trust',
+      'preferred',
+      'closedend',
+      'unit',
+    };
+    final results = <StockSearchResult>[];
+    final seen = <String>{};
+    for (final raw in decoded) {
+      if (raw is! Map) continue;
+      final type = (raw['type'] as String?)?.toLowerCase() ?? '';
+      if (type.isNotEmpty && !allowedTypes.contains(type)) continue;
+      final symbol = _stripTags((raw['symbol'] as String?) ?? '').toUpperCase();
+      final source =
+          ((raw['source_id'] as String?) ?? (raw['prefix'] as String?) ?? '')
+              .toUpperCase();
+      if (symbol.isEmpty || source.isEmpty) continue;
+      final ticker = '$source:$symbol';
+      if (!seen.add(ticker)) continue;
+      results.add(
+        StockSearchResult(
+          ticker: ticker,
+          name: _stripTags((raw['description'] as String?) ?? symbol),
+          exchange:
+              (raw['exchange'] as String?) ??
+              (raw['source_id'] as String?) ??
+              source,
+          currency: (raw['currency_code'] as String?) ?? '',
+          price: Decimal.zero,
+          primary: raw['is_primary_listing'] == true,
+        ),
+      );
+      if (results.length >= 15) break;
     }
+    return results;
+  }
+
+  static String _stripTags(String value) {
+    return value.replaceAll(RegExp(r'<[^>]*>'), '').trim();
+  }
+
+  Future<Map<String, StockQuote>> _fetchScannerQuotes(
+    Set<String> symbols,
+  ) async {
+    if (symbols.isEmpty) return const {};
+    try {
+      final response = await _client
+          .post(
+            Uri.parse('https://scanner.tradingview.com/global/scan'),
+            headers: {..._browserHeaders, 'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'symbols': {
+                'tickers': symbols.toList(),
+                'query': {'types': []},
+              },
+              'columns': [
+                'name',
+                'close',
+                'change',
+                'currency',
+                'description',
+                'exchange',
+                'type',
+                'update_mode',
+              ],
+            }),
+          )
+          .timeout(_timeout);
+      if (response.statusCode != 200) return const {};
+      return parseScannerQuotes(jsonDecode(response.body));
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  /// Exposed for tests: parses the TradingView scanner JSON.
+  static Map<String, StockQuote> parseScannerQuotes(dynamic decoded) {
+    if (decoded is! Map) return const {};
+    final data = decoded['data'];
+    if (data is! List) return const {};
+    final quotes = <String, StockQuote>{};
+    for (final row in data) {
+      if (row is! Map) continue;
+      final symbol = row['s'] as String?;
+      final values = row['d'];
+      if (symbol == null || symbol.isEmpty || values is! List) continue;
+      if (values.length < 5) continue;
+      final close = values[1];
+      if (close is! num || close <= 0) continue;
+      final currency = values[3] is String ? values[3] as String : '';
+      final name = values[4] is String && (values[4] as String).isNotEmpty
+          ? values[4] as String
+          : (values[0] is String ? values[0] as String : symbol);
+      final exchange = values[5] is String ? values[5] as String : '';
+      quotes[symbol] = StockQuote(
+        ticker: symbol,
+        symbol: symbol,
+        exchange: exchange,
+        name: name,
+        currency: currency,
+        price: Decimal.parse(close.toString()),
+      );
+    }
+    return quotes;
+  }
+
+  Future<Map<String, List<StockPricePoint>>> _fetchTradingViewHistory(
+    Set<String> symbols,
+  ) async {
+    if (symbols.isEmpty) return const {};
+    WebSocket? socket;
+    final chartSessions = <String, String>{};
+    final history = <String, List<StockPricePoint>>{};
+    final completed = <String>{};
+    try {
+      final date = DateTime.now().toIso8601String().substring(0, 10);
+      socket = await WebSocket.connect(
+        'wss://data.tradingview.com/socket.io/websocket'
+        '?from=chart%2F&date=$date',
+        headers: {
+          'Origin': 'https://www.tradingview.com',
+          'User-Agent': _userAgent,
+        },
+      ).timeout(_timeout);
+      _send(socket, 'set_auth_token', ['unauthorized_user_token']);
+      var index = 0;
+      for (final symbol in symbols) {
+        index++;
+        // A free TradingView session allows one series per chart session.
+        final chartId =
+            'peadra_${DateTime.now().microsecondsSinceEpoch}_$index';
+        chartSessions[chartId] = symbol;
+        _send(socket, 'chart_create_session', [chartId, '']);
+        _send(socket, 'resolve_symbol', [
+          chartId,
+          'symbol_1',
+          '=${jsonEncode({'symbol': symbol, 'adjustment': 'splits'})}',
+        ]);
+        _send(socket, 'create_series', [
+          chartId,
+          's1',
+          's1',
+          'symbol_1',
+          '1M',
+          600,
+          '',
+        ]);
+      }
+
+      await for (final frame in socket.timeout(_historyTimeout)) {
+        parseHistoryFrame(frame.toString(), chartSessions, history, completed);
+        if (completed.length >= chartSessions.length) break;
+      }
+    } catch (_) {
+      // Timeouts and protocol errors leave the cached history in place.
+    } finally {
+      try {
+        await socket?.close();
+      } catch (_) {}
+    }
+    return history;
+  }
+
+  static void _send(WebSocket socket, String method, List<dynamic> params) {
+    final payload = jsonEncode({'m': method, 'p': params});
+    socket.add('~m~${payload.length}~m~$payload');
+  }
+
+  /// Exposed for tests: consumes one `~m~`-framed TradingView message.
+  /// [chartSessions] maps a chart session id to its symbol.
+  static void parseHistoryFrame(
+    String frame,
+    Map<String, String> chartSessions,
+    Map<String, List<StockPricePoint>> out,
+    Set<String> completed,
+  ) {
+    for (final part in frame.split('~m~')) {
+      if (!part.startsWith('{')) continue;
+      dynamic decoded;
+      try {
+        decoded = jsonDecode(part);
+      } catch (_) {
+        continue;
+      }
+      if (decoded is! Map) continue;
+      final method = decoded['m'];
+      final params = decoded['p'];
+      if (params is! List || params.isEmpty) continue;
+      final chartId = params[0].toString();
+      final symbol = chartSessions[chartId];
+      if (symbol == null) continue;
+      if (method == 'timescale_update' && params.length > 1) {
+        final payload = params[1];
+        if (payload is Map) {
+          for (final entry in payload.entries) {
+            final value = entry.value;
+            final bars = value is Map ? value['s'] : null;
+            if (bars is! List) continue;
+            final byMonth = <String, double>{};
+            for (final bar in bars) {
+              if (bar is! Map) continue;
+              final v = bar['v'];
+              if (v is! List || v.length < 5) continue;
+              final time = v[0];
+              final close = v[4];
+              if (time is! num || close is! num || close <= 0) continue;
+              final date = DateTime.fromMillisecondsSinceEpoch(
+                (time * 1000).toInt(),
+                isUtc: true,
+              ).toIso8601String().substring(0, 7);
+              byMonth[date] = close.toDouble();
+            }
+            if (byMonth.isNotEmpty) {
+              final dates = byMonth.keys.toList()..sort();
+              out[symbol] = [
+                for (final date in dates) StockPricePoint(date, byMonth[date]!),
+              ];
+            }
+          }
+        }
+        completed.add(chartId);
+      } else if (method == 'series_completed' ||
+          method == 'series_error' ||
+          method == 'symbol_error' ||
+          method == 'critical_error') {
+        completed.add(chartId);
+      }
+    }
+  }
+
+  static List<StockPricePoint> _mergeHistory(
+    List<StockPricePoint> oldPoints,
+    List<StockPricePoint> fresh,
+  ) {
+    // The chart is monthly. Normalize old daily Google points to one close per
+    // month so a fresh monthly TradingView bar always wins.
+    final byMonth = <String, double>{};
+    for (final point in [...oldPoints, ...fresh]) {
+      final month = point.date.length >= 7
+          ? point.date.substring(0, 7)
+          : point.date;
+      byMonth[month] = point.close;
+    }
+    final months = byMonth.keys.toList()..sort();
+    return [
+      for (final month in months) StockPricePoint(month, byMonth[month]!),
+    ];
   }
 
   /// Values the account in [targetCurrency] using cached quotes; never hits
@@ -343,11 +735,18 @@ class StockService extends ChangeNotifier {
       holdingsValue += value;
     }
 
-    final firstDate = _firstDate(account, lines, flows, transfers);
+    final firstEvent = _firstDate(account, lines, flows, transfers);
+    final earliestHistory = _earliestHistory(lines);
+    var startDate = firstEvent;
+    if (earliestHistory != null &&
+        startDate != null &&
+        earliestHistory.compareTo(startDate) > 0) {
+      startDate = earliestHistory;
+    }
     final history = <Map<String, dynamic>>[];
     final valueByMonth = <String, Decimal>{};
-    if (firstDate != null) {
-      final first = DateTime.parse(firstDate);
+    if (startDate != null) {
+      final first = DateTime.parse(startDate);
       var month = DateTime(first.year, first.month, 1);
       final now = DateTime.now();
       final currentMonth = DateTime(now.year, now.month, 1);
@@ -469,7 +868,10 @@ class StockService extends ChangeNotifier {
     if (quote != null) {
       StockPricePoint? best;
       for (final point in quote.history) {
-        if (point.date.compareTo(month) <= 0) {
+        final pointMonth = point.date.length >= 7
+            ? point.date.substring(0, 7)
+            : point.date;
+        if (pointMonth.compareTo(month) <= 0) {
           best = point;
         } else {
           break;
@@ -489,6 +891,17 @@ class StockService extends ChangeNotifier {
     final value = Decimal.parse((rate ?? 1.0).toString());
     _rateCache[key] = value;
     return value;
+  }
+
+  String? _earliestHistory(List<StockLine> lines) {
+    String? best;
+    for (final line in lines) {
+      final history = _quotes[line.ticker]?.history;
+      if (history == null || history.isEmpty) continue;
+      final date = history.first.date;
+      if (best == null || date.compareTo(best) < 0) best = date;
+    }
+    return best;
   }
 
   String? _firstDate(

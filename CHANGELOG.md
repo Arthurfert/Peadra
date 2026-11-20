@@ -4,7 +4,7 @@
 
 ### New
 
-- Stock Market : new account type with Yahoo Finance quotes, a transfer-funded cash balance and dashboard integration
+- Stock Market : new account type with TradingView quotes, a transfer-funded cash balance and dashboard integration
 
 ### Fixes
 

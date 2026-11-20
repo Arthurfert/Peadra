@@ -108,6 +108,11 @@ class StockPricePoint {
 
 class StockQuote {
   final String ticker;
+
+  /// Google Finance's canonical quote id, e.g. `AAPL:NASDAQ`. [ticker] may be
+  /// the user's plain symbol while this holds the resolved listing.
+  final String symbol;
+  final String exchange;
   final String name;
   final String currency;
   final Decimal price;
@@ -116,15 +121,19 @@ class StockQuote {
 
   StockQuote({
     required this.ticker,
+    String? symbol,
+    this.exchange = '',
     required this.name,
     required this.currency,
     required this.price,
     this.history = const [],
     this.updatedAt,
-  });
+  }) : symbol = symbol ?? ticker;
 
   StockQuote copyWith({
     String? name,
+    String? symbol,
+    String? exchange,
     String? currency,
     Decimal? price,
     List<StockPricePoint>? history,
@@ -132,6 +141,8 @@ class StockQuote {
   }) {
     return StockQuote(
       ticker: ticker,
+      symbol: symbol ?? this.symbol,
+      exchange: exchange ?? this.exchange,
       name: name ?? this.name,
       currency: currency ?? this.currency,
       price: price ?? this.price,

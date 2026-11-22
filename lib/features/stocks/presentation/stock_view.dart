@@ -122,6 +122,49 @@ class _StockViewState extends State<StockView> {
     await _load();
   }
 
+  void _showInfoDialog(PeadraColors colors) {
+    showPeadraModal(
+      context: context,
+      builder: (ctx) => PeadraModal(
+        title: Text(
+          Translator.t('stock_info_title'),
+          style: TextStyle(color: colors.text),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                Translator.t('stock_info_source'),
+                style: TextStyle(color: colors.text, fontSize: 14, height: 1.4),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                Translator.t('stock_info_broker'),
+                style: TextStyle(
+                  color: colors.textSecondary,
+                  fontSize: 14,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              Translator.t('btn_close'),
+              style: const TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeName = context.watch<ThemeProvider>().themeName;
@@ -145,6 +188,11 @@ class _StockViewState extends State<StockView> {
                     color: colors.text,
                   ),
                 ),
+              ),
+              IconButton(
+                tooltip: Translator.t('stock_info_title'),
+                onPressed: () => _showInfoDialog(colors),
+                icon: Icon(Icons.info_outline, color: colors.textSecondary),
               ),
               if (_account != null)
                 IconButton(

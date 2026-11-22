@@ -221,7 +221,7 @@ class Translator {
       'stock_quantity': 'Quantity',
       'stock_buy_price': 'Buy price',
       'stock_buy_date': 'Buy date',
-      'stock_search_hint': 'Search a company or symbol (e.g. TotalEnergies or TTE)',
+      'stock_search_hint': 'Search a company or symbol (e.g. Apple or APPL)',
       'stock_search_empty': 'No matching ticker',
       'stock_sell_quantity': 'Quantity to sell',
       'stock_sell_price': 'Sell price',
@@ -232,6 +232,9 @@ class Translator {
       'stock_insufficient_cash': 'Not enough cash for this purchase',
       'stock_refresh': 'Refresh prices',
       'stock_quotes_stale': 'Prices could not be refreshed',
+      'stock_info_title': 'About stock data',
+      'stock_info_source': 'Data comes from TradingView. They are daily data and may be delayed.',
+      'stock_info_broker': 'Values may differ from your broker: fees, dividends, splits, exchange rates and market delays are not all reflected.',
       'stock_total_value': 'Portfolio value',
       'stock_total_change': 'Total gain/loss',
       'stock_evolution': 'Portfolio evolution',
@@ -327,8 +330,7 @@ class Translator {
       'param_stat_subtitles': 'Stat card subtitles',
       'param_stat_subtitles_desc': 'Show the small caption under stat card values.',
       'param_work_hours': 'Work-hours equivalent',
-      'param_work_hours_desc':
-          'Show below each amount how many hours of work it represents.',
+      'param_work_hours_desc': 'Show below each amount how many hours of work it represents.',
       'param_work_hours_rate': 'Value of one hour',
       'param_work_hours_rate_desc': 'How much do you earn per hour?',
       'param_nav_order': 'Navigation order',
@@ -550,8 +552,7 @@ class Translator {
       'budget_delete_confirm': 'Delete this goal?',
       'budget_of_target': '{current} of {target}',
       'rate_title': 'Rate Peadra',
-      'rate_body':
-          'Enjoying Peadra? A rating on the Play Store helps us a lot.',
+      'rate_body': 'Enjoying Peadra? A rating on the Play Store helps us a lot.',
       'rate_cta': 'Rate Peadra now',
       'rate_later': 'Maybe later',
       'stat_cmp_spent': 'You have spent {amount}',
@@ -653,8 +654,7 @@ class Translator {
       'cat_new_name_label': 'Nouveau nom :',
       'cat_merge_btn': 'Fusionner',
       'cat_rename_btn': 'Renommer',
-      'cat_need_at_least_two_descriptions':
-          "Vous avez besoin d'au moins deux descriptions pour fusionner",
+      'cat_need_at_least_two_descriptions': "Vous avez besoin d'au moins deux descriptions pour fusionner",
       'cat_no_descriptions': 'Aucune description trouv\u00e9e',
       'cat_merge_success': "Fusion de '{source}' vers '{target}' r\u00e9ussie",
       'cat_merge_failed': '\u00c9chec de la fusion des descriptions',
@@ -685,11 +685,9 @@ class Translator {
       'import_preview': 'Aper\u00e7u',
       'import_title': 'Importer les transactions',
       'import_duplicate_warning': 'Avertissement : Importation en doublon',
-      'import_duplicate_content':
-          'Ce fichier semble avoir d\u00e9j\u00e0 \u00e9t\u00e9 import\u00e9.\nVoulez-vous continuer ?',
+      'import_duplicate_content': 'Ce fichier semble avoir d\u00e9j\u00e0 \u00e9t\u00e9 import\u00e9.\nVoulez-vous continuer ?',
       'import_anyway': 'Importer quand m\u00eame',
-      'import_select_csv_desc':
-          'S\u00e9lectionnez un fichier CSV pour importer vos transactions bancaires.',
+      'import_select_csv_desc': 'S\u00e9lectionnez un fichier CSV pour importer vos transactions bancaires.',
       'msg_transaction_modified': 'Transaction modifi\u00e9e',
       'msg_transfer_completed': 'Transfert effectu\u00e9',
       'msg_transaction_added': 'Transaction ajout\u00e9e',
@@ -775,7 +773,7 @@ class Translator {
       'acc_stock': 'Compte boursier',
       'acc_stock_total': 'Total boursier',
       'acc_initial_cash': 'Tr\u00e9sorerie initiale',
-      'stock_title': 'Compte boursier',
+      'stock_title': 'Bourse',
       'stock_no_account': 'Aucun compte boursier pour le moment.',
       'stock_create_account': 'Cr\u00e9er un compte boursier',
       'stock_no_lines': 'Aucune position pour le moment.\nAjoutez une ligne pour commencer.',
@@ -787,8 +785,7 @@ class Translator {
       'stock_quantity': 'Quantit\u00e9',
       'stock_buy_price': "Prix d'achat",
       'stock_buy_date': "Date d'achat",
-      'stock_search_hint':
-          'Rechercher une entreprise ou un symbole (ex. TotalEnergies ou TTE)',
+      'stock_search_hint': 'Rechercher une entreprise ou un symbole (ex. Apple ou APPL)',
       'stock_search_empty': 'Aucun symbole trouv\u00e9',
       'stock_sell_quantity': 'Quantit\u00e9 \u00e0 vendre',
       'stock_sell_price': 'Prix de vente',
@@ -799,6 +796,9 @@ class Translator {
       'stock_insufficient_cash': 'Tr\u00e9sorerie insuffisante pour cet achat',
       'stock_refresh': 'Actualiser les prix',
       'stock_quotes_stale': 'Impossible d\u2019actualiser les prix',
+      'stock_info_title': '\u00c0 propos des donn\u00e9es boursi\u00e8res',
+      'stock_info_source': 'Les prix proviennent de TradingView. Ce sont des donn\u00e9es journali\u00e8res, parfois diff\u00e9r\u00e9es.',
+      'stock_info_broker': 'Les valeurs peuvent diff\u00e9rer de celles de votre courtier : frais, dividendes, splits, taux de change et d\u00e9lais de march\u00e9 ne sont pas tous pris en compte.',
       'stock_total_value': 'Valeur du portefeuille',
       'stock_total_change': 'Gain/perte total',
       'stock_evolution': '\u00c9volution du portefeuille',
@@ -857,8 +857,7 @@ class Translator {
       'param_high_contrast_dark_theme': 'Contraste \u00e9lev\u00e9 (Sombre)',
       'param_import': 'Importer',
       'param_export_logs': 'Exporter les logs',
-      'param_export_logs_desc':
-          'Exportez le fichier de log de la session en cours pour le d\u00e9bogage.',
+      'param_export_logs_desc': 'Exportez le fichier de log de la session en cours pour le d\u00e9bogage.',
       'param_updates': 'Mise \u00e0 jour',
       'param_version': 'Version',
       'param_check_updates': 'Rechercher les mises \u00e0 jour',
@@ -869,10 +868,8 @@ class Translator {
       'param_changelog_empty': "Aucun changelog n'est disponible pour cette version.",
       'param_update_status_idle': 'Aucune v\u00e9rification effectu\u00e9e pour le moment.',
       'param_update_status_checking': 'Recherche des mises \u00e0 jour...',
-      'param_update_status_available':
-          'Une nouvelle version est disponible : {version}',
-      'param_update_status_up_to_date':
-          'Vous utilisez d\u00e9j\u00e0 la derni\u00e8re version.',
+      'param_update_status_available': 'Une nouvelle version est disponible : {version}',
+      'param_update_status_up_to_date': 'Vous utilisez d\u00e9j\u00e0 la derni\u00e8re version.',
       'param_update_status_error': 'Erreur de mise \u00e0 jour : {error}',
       'param_hide_update_notifications': 'Notifications de mise \u00e0 jour',
       'param_hide_update_notifications_desc': 'Masquer la banni\u00e8re lorsqu\'une nouvelle version est disponible.',
@@ -881,37 +878,28 @@ class Translator {
       'param_display_limit_desc': 'Nombre de transactions charg\u00e9es par d\u00e9faut.',
       'param_charts': 'Graphiques',
       'param_max_categories': 'Cat\u00e9gories max',
-      'param_max_categories_desc':
-          "Nombre maximum de cat\u00e9gories affich\u00e9es dans les graphiques en camembert.",
+      'param_max_categories_desc': "Nombre maximum de cat\u00e9gories affich\u00e9es dans les graphiques en camembert.",
       'param_month_mode': 'Mode de calcul du mois',
-      'param_month_mode_desc':
-          'Mois calendaire : Jan 1-31. Roulant : 30 derniers jours \u00e0 partir d\'aujourd\'hui.',
+      'param_month_mode_desc': 'Mois calendaire : Jan 1-31. Roulant : 30 derniers jours \u00e0 partir d\'aujourd\'hui.',
       'param_calendar_month': 'Mois calendaire',
       'param_rolling_30': '30 derniers jours',
       'param_line_chart_dots': 'Points sur les courbes',
-      'param_line_chart_dots_desc':
-          'Afficher les points de donn\u00e9es sur les courbes.',
+      'param_line_chart_dots_desc': 'Afficher les points de donn\u00e9es sur les courbes.',
       'param_assets_granularity': 'Pr\u00e9cision du graphique des actifs',
-      'param_assets_granularity_desc':
-          'Afficher un point par mois ou par jour sur le graphique en ligne des actifs.',
+      'param_assets_granularity_desc': 'Afficher un point par mois ou par jour sur le graphique en ligne des actifs.',
       'param_assets_monthly': 'Mensuel',
       'param_assets_daily': 'Quotidien',
       'param_nav_labels': 'Libell\u00e9s du menu',
-      'param_nav_labels_desc':
-          'Afficher le texte sous les ic\u00f4nes de la barre de navigation.',
+      'param_nav_labels_desc': 'Afficher le texte sous les ic\u00f4nes de la barre de navigation.',
       'param_stat_subtitles': 'Sous-titres des stats',
-      'param_stat_subtitles_desc':
-          'Afficher la petite l\u00e9gende sous les valeurs des cartes.',
+      'param_stat_subtitles_desc': 'Afficher la petite l\u00e9gende sous les valeurs des cartes.',
       'param_work_hours': '\u00c9quivalent en heures de travail',
-      'param_work_hours_desc':
-          'Afficher sous chaque montant le nombre d\u2019heures de travail qu\u2019il repr\u00e9sente.',
+      'param_work_hours_desc': 'Afficher sous chaque montant le nombre d\u2019heures de travail qu\u2019il repr\u00e9sente.',
       'param_work_hours_rate': 'Valeur d\u2019une heure',
-      'param_work_hours_rate_desc':
-          'Combien gagnez vous par heure ?',
+      'param_work_hours_rate_desc': 'Combien gagnez vous par heure ?',
       'param_nav_order': 'Ordre de navigation',
       'param_nav_order_desc': 'R\u00e9organisez les vues de la barre de navigation.',
-      'param_nav_order_hint':
-          'Les 4 premi\u00e8res vues apparaissent dans la barre ; les autres dans le menu.',
+      'param_nav_order_hint': 'Les 4 premi\u00e8res vues apparaissent dans la barre ; les autres dans le menu.',
       'param_nav_order_saved': 'Ordre de navigation mis \u00e0 jour',
       'param_nav_order_reset': 'R\u00e9initialiser',
       'param_nav_order_bar': 'Dans la barre',
@@ -928,11 +916,9 @@ class Translator {
       'param_switch_backup_title': 'S\u00e9lectionnez une sauvegarde',
       'param_security': 'S\u00e9curit\u00e9',
       'param_username': "Nom d'utilisateur",
-      'param_username_desc':
-          "Votre nom d'utilisateur. Sert \u00e0 vous connecter.",
+      'param_username_desc': "Votre nom d'utilisateur. Sert \u00e0 vous connecter.",
       'param_password': 'Mot de passe',
-      'param_password_desc':
-          "Exiger un mot de passe pour ouvrir l'application.",
+      'param_password_desc': "Exiger un mot de passe pour ouvrir l'application.",
       'param_password_confirm': 'Confirmer',
       'param_password_empty': 'Le mot de passe ne peut pas \u00eatre vide',
       'param_password_mismatch': 'Les mots de passe ne correspondent pas',
@@ -946,13 +932,10 @@ class Translator {
       'param_btn_save': 'Enregistrer',
       'param_danger_zone': '\u00c0 risque',
       'param_delete_account': 'Supprimer le compte',
-      'param_delete_account_desc':
-          'Supprimez d\u00e9finitivement votre compte et toutes les donn\u00e9es associ\u00e9es.',
+      'param_delete_account_desc': 'Supprimez d\u00e9finitivement votre compte et toutes les donn\u00e9es associ\u00e9es.',
       'param_delete_confirm': 'Supprimer le compte',
-      'param_delete_warning':
-          'Cette action est permanente et ne peut pas \u00eatre annul\u00e9e.',
-      'param_delete_password_prompt':
-          'Entrez votre mot de passe pour confirmer :',
+      'param_delete_warning': 'Cette action est permanente et ne peut pas \u00eatre annul\u00e9e.',
+      'param_delete_password_prompt': 'Entrez votre mot de passe pour confirmer :',
       'param_privacy_policy': 'Politique de confidentialité',
       'param_feedback': 'Retour',
       'param_feedback_text': 'Un probl\u00e8me \u00e0 signaler ou un retour g\u00e9n\u00e9ral ?',
@@ -1004,22 +987,17 @@ class Translator {
       'sync_sync_failed': '\u00c9chec de la synchronisation',
       'sync_unreachable': 'Impossible de joindre "{name}". V\u00e9rifiez qu\'il est allum\u00e9 et sur le m\u00eame r\u00e9seau.',
       'sync_peer_forgotten': 'Appareil supprim\u00e9',
-      'msg_confirm_delete':
-          '\u00cates-vous s\u00fbr de vouloir le supprimer ?',
-      'msg_transaction_deleted':
-          'Transaction supprim\u00e9e avec succ\u00e8s',
+      'msg_confirm_delete': '\u00cates-vous s\u00fbr de vouloir le supprimer ?',
+      'msg_transaction_deleted': 'Transaction supprim\u00e9e avec succ\u00e8s',
       'msg_export_success': 'Export r\u00e9ussi : {file_path}',
       'msg_export_success_mobile': 'CSV export\u00e9 dans T\u00e9l\u00e9chargements',
       'msg_export_error': "Erreur lors de l'export",
       'msg_password_required': 'Le mot de passe est requis.',
       'msg_user_select_required': 'Veuillez s\u00e9lectionner un utilisateur.',
-      'msg_username_min_length':
-          "Le nom d'utilisateur doit contenir au moins 3 caract\u00e8res.",
-      'msg_password_min_length':
-          'Le mot de passe doit contenir au moins 6 caract\u00e8res.',
+      'msg_username_min_length': "Le nom d'utilisateur doit contenir au moins 3 caract\u00e8res.",
+      'msg_password_min_length': 'Le mot de passe doit contenir au moins 6 caract\u00e8res.',
       'msg_passwords_not_match': 'Les mots de passe ne correspondent pas.',
-      'msg_incorrect_credentials':
-          "Nom d'utilisateur ou mot de passe incorrect.",
+      'msg_incorrect_credentials': "Nom d'utilisateur ou mot de passe incorrect.",
       'import_step_file': 'Fichier',
       'import_step_configure': 'Configurer',
       'import_step_result': 'R\u00e9sultat',
@@ -1138,8 +1116,7 @@ class Translator {
       'budget_delete_confirm': 'Supprimer cet objectif ?',
       'budget_of_target': '{current} sur {target}',
       'rate_title': 'Noter Peadra',
-      'rate_body':
-          'Vous aimez Peadra ? Une note sur le Play Store nous aide beaucoup.',
+      'rate_body': 'Vous aimez Peadra ? Une note sur le Play Store nous aide beaucoup.',
       'rate_cta': 'Noter Peadra maintenant',
       'rate_later': 'Plus tard',
       'stat_cmp_spent': 'Vous avez dépensé {amount}',
@@ -1360,7 +1337,7 @@ class Translator {
       'acc_stock': 'Cuenta de bolsa',
       'acc_stock_total': 'Total de bolsa',
       'acc_initial_cash': 'Efectivo inicial',
-      'stock_title': 'Cuenta de bolsa',
+      'stock_title': 'Bolsa',
       'stock_no_account': 'Aún no hay cuenta de bolsa.',
       'stock_create_account': 'Crear cuenta de bolsa',
       'stock_no_lines': 'Aún no hay posiciones.\nAñade una línea para empezar.',
@@ -1372,8 +1349,7 @@ class Translator {
       'stock_quantity': 'Cantidad',
       'stock_buy_price': 'Precio de compra',
       'stock_buy_date': 'Fecha de compra',
-      'stock_search_hint':
-          'Busca una empresa o símbolo (p. ej. TotalEnergies o TTE)',
+      'stock_search_hint': 'Busca una empresa o símbolo (p. ej. Apple o APPL)',
       'stock_search_empty': 'Ningún símbolo encontrado',
       'stock_sell_quantity': 'Cantidad a vender',
       'stock_sell_price': 'Precio de venta',
@@ -1384,6 +1360,9 @@ class Translator {
       'stock_insufficient_cash': 'Efectivo insuficiente para esta compra',
       'stock_refresh': 'Actualizar precios',
       'stock_quotes_stale': 'No se pudieron actualizar los precios',
+      'stock_info_title': 'Sobre los datos bursátiles',
+      'stock_info_source': 'Los precios proceden de TradingView. Son datos diarios y pueden estar retrasados.',
+      'stock_info_broker': 'Los valores pueden diferir de los de tu bróker: no se reflejan necesariamente comisiones, dividendos, splits, tipos de cambio ni retrasos del mercado.',
       'stock_total_value': 'Valor de la cartera',
       'stock_total_change': 'Ganancia/pérdida total',
       'stock_evolution': 'Evolución de la cartera',
@@ -1484,8 +1463,7 @@ class Translator {
       'param_work_hours_rate_desc': '¿Cuánto ganas por hora?',
       'param_nav_order': 'Orden de navegación',
       'param_nav_order_desc': 'Reordena las vistas de la barra de navegación.',
-      'param_nav_order_hint':
-          'Las 4 primeras vistas aparecen en la barra; el resto en el menú.',
+      'param_nav_order_hint': 'Las 4 primeras vistas aparecen en la barra; el resto en el menú.',
       'param_nav_order_saved': 'Orden de navegación actualizado',
       'param_nav_order_reset': 'Restablecer',
       'param_nav_order_bar': 'En la barra',
@@ -1702,8 +1680,7 @@ class Translator {
       'budget_delete_confirm': '¿Eliminar este objetivo?',
       'budget_of_target': '{current} de {target}',
       'rate_title': 'Valorar Peadra',
-      'rate_body':
-          '¿Te gusta Peadra? Una valoración en Play Store nos ayuda mucho.',
+      'rate_body': '¿Te gusta Peadra? Una valoración en Play Store nos ayuda mucho.',
       'rate_cta': 'Valorar Peadra ahora',
       'rate_later': 'Quizás más tarde',
       'stat_cmp_spent': 'Has gastado {amount}',
@@ -1723,8 +1700,10 @@ class Translator {
       _language = lang;
     }
   }
+
   static String t(String key, {Map<String, String>? params}) {
-    final text = _translations[_language]?[key] ?? _translations['en']?[key] ?? key;
+    final text =
+        _translations[_language]?[key] ?? _translations['en']?[key] ?? key;
     if (params != null) {
       var result = text;
       for (final entry in params.entries) {
@@ -1734,16 +1713,36 @@ class Translator {
     }
     return text;
   }
+
   static const _monthKeys = [
-    'month_jan', 'month_feb', 'month_mar', 'month_apr',
-    'month_may', 'month_jun', 'month_jul', 'month_aug',
-    'month_sep', 'month_oct', 'month_nov', 'month_dec',
+    'month_jan',
+    'month_feb',
+    'month_mar',
+    'month_apr',
+    'month_may',
+    'month_jun',
+    'month_jul',
+    'month_aug',
+    'month_sep',
+    'month_oct',
+    'month_nov',
+    'month_dec',
   ];
   static const _monthAbbrKeys = [
-    'month_jan_abbr', 'month_feb_abbr', 'month_mar_abbr', 'month_apr_abbr',
-    'month_may_abbr', 'month_jun_abbr', 'month_jul_abbr', 'month_aug_abbr',
-    'month_sep_abbr', 'month_oct_abbr', 'month_nov_abbr', 'month_dec_abbr',
+    'month_jan_abbr',
+    'month_feb_abbr',
+    'month_mar_abbr',
+    'month_apr_abbr',
+    'month_may_abbr',
+    'month_jun_abbr',
+    'month_jul_abbr',
+    'month_aug_abbr',
+    'month_sep_abbr',
+    'month_oct_abbr',
+    'month_nov_abbr',
+    'month_dec_abbr',
   ];
+  
   /// Formats a "YYYY-MM-DD" date string to a localized human-readable form
   /// such as "12 August 2026" or "12 août 2026".
   /// With [compact] true, uses abbreviated months: "12 Aug 2026".
@@ -1757,9 +1756,10 @@ class Translator {
     final monthName = t(keys[(month - 1).clamp(0, 11)]);
     return '$day $monthName $year';
   }
+
   static Map<String, String> get availableLanguages => {
-        'en': t('param_language_en'),
-        'fr': t('param_language_fr'),
-        'es': t('param_language_es'),
-      };
+    'en': t('param_language_en'),
+    'fr': t('param_language_fr'),
+    'es': t('param_language_es'),
+  };
 }

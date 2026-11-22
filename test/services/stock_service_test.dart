@@ -98,7 +98,7 @@ void main() {
       expect(aapl.price, Decimal.fromInt(150));
     });
 
-    test('history frame becomes monthly closes', () {
+    test('history frame becomes daily closes', () {
       final out = <String, List<StockPricePoint>>{};
       final completed = <String>{};
       StockService.parseHistoryFrame(
@@ -109,7 +109,7 @@ void main() {
       );
       expect(completed, contains('cs'));
       expect(out['NASDAQ:AAPL'], isNotNull);
-      expect(out['NASDAQ:AAPL']!.first.date, '2025-01');
+      expect(out['NASDAQ:AAPL']!.first.date, '2025-01-01');
       expect(out['NASDAQ:AAPL']!.last.close, 150);
     });
 

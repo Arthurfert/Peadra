@@ -63,6 +63,8 @@ class StockSnapshot {
   final List<StockHoldingView> holdings;
   final List<Map<String, dynamic>> history;
   final Map<String, Decimal> valueByMonth;
+  final Map<String, Decimal> valueByDate;
+  final List<String> valueDates;
   final bool hasQuotes;
 
   const StockSnapshot({
@@ -77,12 +79,19 @@ class StockSnapshot {
     required this.holdings,
     required this.history,
     required this.valueByMonth,
+    required this.valueByDate,
+    required this.valueDates,
     required this.hasQuotes,
   });
 
-  /// Portfolio value strictly before [date]'s month. Used for the dashboard's
-  /// month-ago baselines so the comparison never looks ahead.
+  /// Portfolio value at or before [date]. Daily points are preferred; older
+  /// monthly points are the fallback. Used for the dashboard baselines and for
+  /// its daily stock contribution.
   Decimal valueAt(String date) {
+    if (valueDates.isNotEmpty) {
+      final index = _lastAtOrBefore(valueDates, date);
+      if (index >= 0) return valueByDate[valueDates[index]]!;
+    }
     if (date.length < 7) return Decimal.zero;
     final key = date.substring(0, 7);
     String? best;
@@ -91,6 +100,22 @@ class StockSnapshot {
       if (best == null || month.compareTo(best) > 0) best = month;
     }
     return best == null ? Decimal.zero : valueByMonth[best]!;
+  }
+
+  static int _lastAtOrBefore(List<String> sorted, String value) {
+    var low = 0;
+    var high = sorted.length - 1;
+    var best = -1;
+    while (low <= high) {
+      final mid = (low + high) >> 1;
+      if (sorted[mid].compareTo(value) <= 0) {
+        best = mid;
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+    return best;
   }
 }
 
@@ -111,7 +136,7 @@ class StockService extends ChangeNotifier {
       'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 '
       '(KHTML, like Gecko) Chrome/124 Safari/537.36';
   static const _timeout = Duration(seconds: 20);
-  static const _historyTimeout = Duration(seconds: 15);
+  static const _historyTimeout = Duration(seconds: 25);
   static const _minRefreshInterval = Duration(minutes: 1);
 
   static const Map<String, String> _browserHeaders = {
@@ -561,8 +586,8 @@ class StockService extends ChangeNotifier {
           's1',
           's1',
           'symbol_1',
-          '1M',
-          600,
+          '1D',
+          5000,
           '',
         ]);
       }
@@ -616,7 +641,7 @@ class StockService extends ChangeNotifier {
             final value = entry.value;
             final bars = value is Map ? value['s'] : null;
             if (bars is! List) continue;
-            final byMonth = <String, double>{};
+            final byDate = <String, double>{};
             for (final bar in bars) {
               if (bar is! Map) continue;
               final v = bar['v'];
@@ -627,13 +652,13 @@ class StockService extends ChangeNotifier {
               final date = DateTime.fromMillisecondsSinceEpoch(
                 (time * 1000).toInt(),
                 isUtc: true,
-              ).toIso8601String().substring(0, 7);
-              byMonth[date] = close.toDouble();
+              ).toIso8601String().substring(0, 10);
+              byDate[date] = close.toDouble();
             }
-            if (byMonth.isNotEmpty) {
-              final dates = byMonth.keys.toList()..sort();
+            if (byDate.isNotEmpty) {
+              final dates = byDate.keys.toList()..sort();
               out[symbol] = [
-                for (final date in dates) StockPricePoint(date, byMonth[date]!),
+                for (final date in dates) StockPricePoint(date, byDate[date]!),
               ];
             }
           }
@@ -652,19 +677,15 @@ class StockService extends ChangeNotifier {
     List<StockPricePoint> oldPoints,
     List<StockPricePoint> fresh,
   ) {
-    // The chart is monthly. Normalize old daily Google points to one close per
-    // month so a fresh monthly TradingView bar always wins.
-    final byMonth = <String, double>{};
-    for (final point in [...oldPoints, ...fresh]) {
-      final month = point.date.length >= 7
-          ? point.date.substring(0, 7)
-          : point.date;
-      byMonth[month] = point.close;
+    final byDate = <String, double>{};
+    for (final point in oldPoints) {
+      byDate[point.date] = point.close;
     }
-    final months = byMonth.keys.toList()..sort();
-    return [
-      for (final month in months) StockPricePoint(month, byMonth[month]!),
-    ];
+    for (final point in fresh) {
+      byDate[point.date] = point.close;
+    }
+    final dates = byDate.keys.toList()..sort();
+    return [for (final date in dates) StockPricePoint(date, byDate[date]!)];
   }
 
   /// Values the account in [targetCurrency] using cached quotes; never hits
@@ -745,43 +766,83 @@ class StockService extends ChangeNotifier {
     }
     final history = <Map<String, dynamic>>[];
     final valueByMonth = <String, Decimal>{};
+    final valueByDate = <String, Decimal>{};
+    final valueDates = <String>[];
     if (startDate != null) {
       final first = DateTime.parse(startDate);
-      var month = DateTime(first.year, first.month, 1);
       final now = DateTime.now();
-      final currentMonth = DateTime(now.year, now.month, 1);
-      while (!month.isAfter(currentMonth)) {
-        final isCurrent = month == currentMonth;
-        final monthEnd = isCurrent
-            ? now.toIso8601String().substring(0, 10)
-            : DateTime(
-                month.year,
-                month.month + 1,
-                0,
-              ).toIso8601String().substring(0, 10);
-        final value = await _valueAtMonth(
-          monthEnd: monthEnd,
-          account: account,
-          lines: lines,
-          flows: flows,
-          transfers: transfers,
-          sales: sales,
-          salesByLine: salesByLine,
-          targetCurrency: targetCurrency,
-          targetFx: targetFx,
-          live: isCurrent,
-          currentTotal: cash + holdingsValue,
-        );
-        final key = month.toIso8601String().substring(0, 7);
-        valueByMonth[key] = value;
-        history.add({
-          'month': month,
-          'label': _monthLabel(month.month),
-          'tooltipLabel': _monthLabel(month.month),
-          'value': value.toDouble(),
-          'isFuture': false,
-        });
-        month = DateTime(month.year, month.month + 1, 1);
+      final today = DateTime(now.year, now.month, now.day);
+      final spanDays = today
+          .difference(DateTime(first.year, first.month, first.day))
+          .inDays;
+      final daily = spanDays <= 5000;
+      if (daily) {
+        var day = DateTime(first.year, first.month, first.day);
+        while (!day.isAfter(today)) {
+          final date = day.toIso8601String().substring(0, 10);
+          final isToday = day == today;
+          final value = await _valueAtMonth(
+            monthEnd: date,
+            account: account,
+            lines: lines,
+            flows: flows,
+            transfers: transfers,
+            sales: sales,
+            salesByLine: salesByLine,
+            targetCurrency: targetCurrency,
+            targetFx: targetFx,
+            live: isToday,
+            currentTotal: cash + holdingsValue,
+          );
+          final key = date.substring(0, 7);
+          valueByMonth[key] = value;
+          valueByDate[date] = value;
+          valueDates.add(date);
+          history.add({
+            'date': date,
+            'label': day.day == 1 ? _monthLabel(day.month) : '',
+            'tooltipLabel': '${day.day} ${_monthLabel(day.month)}',
+            'value': value.toDouble(),
+            'isFuture': false,
+          });
+          day = DateTime(day.year, day.month, day.day + 1);
+        }
+      } else {
+        var month = DateTime(first.year, first.month, 1);
+        final currentMonth = DateTime(now.year, now.month, 1);
+        while (!month.isAfter(currentMonth)) {
+          final isCurrent = month == currentMonth;
+          final monthEnd = isCurrent
+              ? now.toIso8601String().substring(0, 10)
+              : DateTime(
+                  month.year,
+                  month.month + 1,
+                  0,
+                ).toIso8601String().substring(0, 10);
+          final value = await _valueAtMonth(
+            monthEnd: monthEnd,
+            account: account,
+            lines: lines,
+            flows: flows,
+            transfers: transfers,
+            sales: sales,
+            salesByLine: salesByLine,
+            targetCurrency: targetCurrency,
+            targetFx: targetFx,
+            live: isCurrent,
+            currentTotal: cash + holdingsValue,
+          );
+          final key = month.toIso8601String().substring(0, 7);
+          valueByMonth[key] = value;
+          history.add({
+            'month': month,
+            'label': _monthLabel(month.month),
+            'tooltipLabel': _monthLabel(month.month),
+            'value': value.toDouble(),
+            'isFuture': false,
+          });
+          month = DateTime(month.year, month.month + 1, 1);
+        }
       }
     }
 
@@ -806,6 +867,8 @@ class StockService extends ChangeNotifier {
       holdings: holdings,
       history: history,
       valueByMonth: valueByMonth,
+      valueByDate: valueByDate,
+      valueDates: valueDates,
       hasQuotes: lines.any((l) => _quotes.containsKey(l.ticker)),
     );
   }
@@ -848,7 +911,7 @@ class StockService extends ChangeNotifier {
       }
       if (remaining <= 0) continue;
       final quote = _quotes[line.ticker];
-      final price = _historyPrice(line, quote, monthEnd.substring(0, 7));
+      final price = _historyPrice(line, quote, monthEnd);
       final currency = quote?.currency ?? line.currency;
       final fx = await _rate(currency, targetCurrency);
       value += Decimal.fromInt(remaining) * price * fx;
@@ -864,17 +927,26 @@ class StockService extends ChangeNotifier {
     return line.buyPrice;
   }
 
-  Decimal _historyPrice(StockLine line, StockQuote? quote, String month) {
-    if (quote != null) {
+  Decimal _historyPrice(StockLine line, StockQuote? quote, String target) {
+    final history = quote?.history;
+    if (history != null && history.isNotEmpty) {
+      final isDay = target.length >= 10;
+      var low = 0;
+      var high = history.length - 1;
       StockPricePoint? best;
-      for (final point in quote.history) {
-        final pointMonth = point.date.length >= 7
-            ? point.date.substring(0, 7)
-            : point.date;
-        if (pointMonth.compareTo(month) <= 0) {
+      while (low <= high) {
+        final mid = (low + high) >> 1;
+        final point = history[mid];
+        final key = isDay
+            ? point.date
+            : (point.date.length >= 7
+                  ? point.date.substring(0, 7)
+                  : point.date);
+        if (key.compareTo(target) <= 0) {
           best = point;
+          low = mid + 1;
         } else {
-          break;
+          high = mid - 1;
         }
       }
       if (best != null) return Decimal.parse(best.close.toString());

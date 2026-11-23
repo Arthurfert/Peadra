@@ -125,11 +125,13 @@ class _CategoriesViewState extends State<CategoriesView> {
     final isPhone = ResponsiveLayout.isPhone(context);
     final lineChartDots = context.watch<SettingsProvider>().lineChartDots;
     final expenseItems = _topExpenses
-        .where((i) => _spotsForDescription(_itemName(i), true).spots.isNotEmpty)
+        .where(
+          (i) => _spotsForDescription(_itemName(i), true).spots.length > 1,
+        )
         .toList();
     final incomeItems = _topIncomes
         .where(
-          (i) => _spotsForDescription(_itemName(i), false).spots.isNotEmpty,
+          (i) => _spotsForDescription(_itemName(i), false).spots.length > 1,
         )
         .toList();
 
@@ -353,7 +355,7 @@ class _CategoriesViewState extends State<CategoriesView> {
           final data = _spotsForDescription(name, isExpense);
           return (item: item, name: name, data: data);
         })
-        .where((e) => e.data.spots.isNotEmpty)
+        .where((e) => e.data.spots.length > 1)
         .toList();
 
     if (itemsWithGraph.isEmpty) {
@@ -518,12 +520,24 @@ class _CategoriesViewState extends State<CategoriesView> {
       return empty;
     }
 
-    final sortedMonths = descData.keys.toList()..sort();
+    // Only months where this category actually had a transaction of the
+    // requested type. A month can exist in the map for the other type only.
+    final type = isExpense ? 'expense' : 'income';
+    final sortedMonths = descData.keys
+        .where((month) => (descData[month]?[type] ?? 0) != 0)
+        .toList()
+      ..sort();
+    if (sortedMonths.isEmpty) {
+      const emptyAxis = AxisScale(min: 0, max: 100, interval: 25);
+      final empty = (spots: <FlSpot>[], labels: <String>[], axis: emptyAxis);
+      _spotsCache[cacheKey] = empty;
+      return empty;
+    }
+
     final spots = <FlSpot>[];
     final labels = <String>[];
     for (int i = 0; i < sortedMonths.length; i++) {
-      final monthData = descData[sortedMonths[i]];
-      final amount = (monthData?[isExpense ? 'expense' : 'income'] ?? 0).abs();
+      final amount = (descData[sortedMonths[i]]?[type] ?? 0).abs();
       spots.add(FlSpot(i.toDouble(), amount));
       final monthNum = int.tryParse(sortedMonths[i].split('-').last) ?? 1;
       labels.add(Translator.t(_monthKeys[(monthNum - 1).clamp(0, 11)]));

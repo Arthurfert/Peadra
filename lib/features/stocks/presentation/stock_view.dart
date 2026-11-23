@@ -35,6 +35,7 @@ class _StockViewState extends State<StockView> {
   bool _loading = true;
   bool _refreshing = false;
   bool _refreshFailed = false;
+  String _period = 'all';
   String _lastCurrency = '';
   ValueNotifier<int>? _activationSignal;
 
@@ -278,86 +279,116 @@ class _StockViewState extends State<StockView> {
     return ListView(
       padding: const EdgeInsets.only(bottom: 24),
       children: [
-        Card(
-          color: colors.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  Translator.t('stock_total_value'),
-                  style: TextStyle(fontSize: 12, color: colors.textSecondary),
-                ),
-                const SizedBox(height: 6),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    CurrencyService.formatAmount(snapshot.total, currency),
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: colors.text,
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth > 600
+                ? 340.0
+                : constraints.maxWidth;
+            return Align(
+              alignment: Alignment.centerLeft,
+              child: SizedBox(
+                width: width,
+                child: Card(
+                  color: colors.surface,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          Translator.t('stock_total_value'),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            CurrencyService.formatAmount(
+                              snapshot.total,
+                              currency,
+                            ),
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: colors.text,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(
+                              gain >= Decimal.zero
+                                  ? Icons.arrow_upward
+                                  : Icons.arrow_downward,
+                              size: 14,
+                              color: gainColor,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              CurrencyService.formatAmount(gain, currency),
+                              style: TextStyle(
+                                color: gainColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            if (gainPct != null) ...[
+                              const SizedBox(width: 6),
+                              Text(
+                                '(${gainPct >= 0 ? '+' : ''}'
+                                '${gainPct.toStringAsFixed(1)}%)',
+                                style: TextStyle(
+                                  color: gainColor,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        if (_refreshFailed)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              Translator.t('stock_quotes_stale'),
+                              style: TextStyle(
+                                color: colors.textSecondary,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Icon(
-                      gain >= Decimal.zero
-                          ? Icons.arrow_upward
-                          : Icons.arrow_downward,
-                      size: 14,
-                      color: gainColor,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      CurrencyService.formatAmount(gain, currency),
-                      style: TextStyle(
-                        color: gainColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    if (gainPct != null) ...[
-                      const SizedBox(width: 6),
-                      Text(
-                        '(${gainPct >= 0 ? '+' : ''}'
-                        '${gainPct.toStringAsFixed(1)}%)',
-                        style: TextStyle(color: gainColor, fontSize: 12),
-                      ),
-                    ],
-                  ],
-                ),
-                if (_refreshFailed)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      Translator.t('stock_quotes_stale'),
-                      style: TextStyle(
-                        color: colors.textSecondary,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
         if (snapshot.history.length > 1) ...[
-          const SizedBox(height: 12),
-          DashboardTotalAssetsCard(
-            colors: colors,
-            assetsHistory: snapshot.history,
-            cache: DashboardChartCache(
-              lineLabelLimit: 6,
-            ).line(snapshot.history),
-            showLineDots: showDots,
-            title: Translator.t('stock_evolution'),
-            legendLabel: Translator.t('stock_total_value'),
+          const SizedBox(height: 8),
+          _buildPeriodSelector(colors),
+          const SizedBox(height: 8),
+          Builder(
+            builder: (context) {
+              final chartHistory = _filterHistory(snapshot.history);
+              final cache = chartHistory.length > 1
+                  ? DashboardChartCache(lineLabelLimit: 6).line(chartHistory)
+                  : null;
+              return DashboardTotalAssetsCard(
+                colors: colors,
+                assetsHistory: chartHistory,
+                cache: cache,
+                showLineDots: showDots,
+                title: Translator.t('stock_evolution'),
+                legendLabel: Translator.t('stock_total_value'),
+              );
+            },
           ),
         ],
         const SizedBox(height: 12),
@@ -401,6 +432,90 @@ class _StockViewState extends State<StockView> {
             _buildHoldingCard(colors, holding),
       ],
     );
+  }
+
+  Widget _buildPeriodSelector(PeadraColors colors) {
+    const options = ['1W', '1M', '3M', '1Y', 'all'];
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Container(
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: options.map((period) {
+            final selected = _period == period;
+            return GestureDetector(
+              onTap: () => setState(() => _period = period),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: selected ? colors.accent : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  Translator.t(_periodLabelKey(period)),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                    color: selected ? Colors.white : colors.textSecondary,
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  static String _periodLabelKey(String period) {
+    return switch (period) {
+      '1W' => 'period_1w',
+      '1M' => 'period_1m',
+      '3M' => 'period_3m',
+      '1Y' => 'period_1y',
+      _ => 'segment_all',
+    };
+  }
+
+  List<Map<String, dynamic>> _filterHistory(
+    List<Map<String, dynamic>> history,
+  ) {
+    if (_period == 'all') return history;
+    final days = switch (_period) {
+      '1W' => 7,
+      '1M' => 30,
+      '3M' => 90,
+      '1Y' => 365,
+      _ => 0,
+    };
+    final now = DateTime.now();
+    final cutoff = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).subtract(Duration(days: days));
+    return history.where((entry) {
+      DateTime? date;
+      final rawDate = entry['date'];
+      final rawMonth = entry['month'];
+      if (rawDate is String) {
+        date = DateTime.tryParse(rawDate);
+      } else if (rawMonth is DateTime) {
+        date = rawMonth;
+      }
+      if (date == null) return false;
+      final effective = rawMonth is DateTime
+          ? DateTime(date.year, date.month + 1, 0)
+          : date;
+      return !effective.isBefore(cutoff);
+    }).toList();
   }
 
   Widget _buildCashCard(PeadraColors colors, StockSnapshot snapshot) {

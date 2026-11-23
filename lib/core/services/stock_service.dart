@@ -775,7 +775,7 @@ class StockService extends ChangeNotifier {
       final spanDays = today
           .difference(DateTime(first.year, first.month, first.day))
           .inDays;
-      final daily = spanDays <= 5000;
+      final daily = spanDays <= 7300;
       if (daily) {
         var day = DateTime(first.year, first.month, first.day);
         while (!day.isAfter(today)) {

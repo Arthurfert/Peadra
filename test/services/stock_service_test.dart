@@ -164,6 +164,52 @@ void main() {
       expect(snapshot.valueByMonth.containsKey('2026-01'), isTrue);
     });
 
+    test('holdings are ordered by decreasing added value', () async {
+      final db = DatabaseManager.instance;
+      final accountId = await db.addAccount(
+        'Broker',
+        '#1976D2',
+        'stock',
+        'EUR',
+      );
+      await db.addStockLine(
+        accountId: accountId!,
+        ticker: 'EURONEXT:TTE',
+        name: 'TotalEnergies SE',
+        quantity: 1,
+        buyPrice: Decimal.fromInt(100),
+        currency: 'EUR',
+        boughtAt: '2026-01-02',
+        buyCost: Decimal.fromInt(100),
+      );
+      await db.addStockLine(
+        accountId: accountId,
+        ticker: 'NASDAQ:AAPL',
+        name: 'Apple Inc.',
+        quantity: 1,
+        buyPrice: Decimal.fromInt(100),
+        currency: 'EUR',
+        boughtAt: '2026-01-03',
+        buyCost: Decimal.fromInt(100),
+      );
+
+      final service = StockService(
+        client: _mockClient(),
+        historyFetcher: _fakeHistory,
+      );
+      await service.refreshAll(['EURONEXT:TTE', 'NASDAQ:AAPL'], force: true);
+      final account = (await db.getStockAccount())!;
+      final snapshot = await service.buildSnapshot(
+        account: account,
+        targetCurrency: 'EUR',
+      );
+
+      expect(snapshot, isNotNull);
+      expect(snapshot!.holdings, hasLength(2));
+      expect(snapshot.holdings.first.line.ticker, 'NASDAQ:AAPL');
+      expect(snapshot.holdings.last.line.ticker, 'EURONEXT:TTE');
+    });
+
     test('search returns all matching listings', () async {
       final service = StockService(client: _mockClient());
       final results = await service.search('TotalEnergies');

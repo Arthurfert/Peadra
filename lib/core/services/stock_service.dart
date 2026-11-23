@@ -756,6 +756,14 @@ class StockService extends ChangeNotifier {
       holdingsValue += value;
     }
 
+    holdings.sort((a, b) {
+      final byChange = b.change.compareTo(a.change);
+      if (byChange != 0) return byChange;
+      final byPercent = b.percent.compareTo(a.percent);
+      if (byPercent != 0) return byPercent;
+      return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
+    });
+
     final firstEvent = _firstDate(account, lines, flows, transfers);
     final earliestHistory = _earliestHistory(lines);
     var startDate = firstEvent;

@@ -490,10 +490,14 @@ class _StockViewState extends State<StockView> {
             ),
             TextButton.icon(
               onPressed: () => _showAddLineDialog(colors),
-              icon: Icon(Icons.add, size: 18, color: colors.accent),
+              icon: Icon(Icons.add, size: 18, color: colors.text),
               label: Text(
                 Translator.t('stock_add_line'),
-                style: TextStyle(color: colors.accent),
+                style: TextStyle(color: colors.text),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colors.accent,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
             ),
           ],
@@ -647,95 +651,183 @@ class _StockViewState extends State<StockView> {
     return Card(
       color: colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => _showHoldingDetails(colors, holding),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      holding.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: colors.text,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${StockService.displayTicker(holding.line.ticker)} · '
+                      '${holding.remainingQuantity} × '
+                      '${CurrencyService.formatAmount(holding.line.buyPrice, holding.line.currency)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    holding.displayName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    pct,
                     style: TextStyle(
-                      color: colors.text,
+                      color: changeColor,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 2),
                   Text(
-                    '${StockService.displayTicker(holding.line.ticker)} · '
-                    '${holding.remainingQuantity} × '
-                    '${CurrencyService.formatAmount(holding.line.buyPrice, holding.line.currency)}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: colors.textSecondary, fontSize: 12),
+                    change,
+                    style: TextStyle(color: changeColor, fontSize: 11),
                   ),
                 ],
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showHoldingDetails(
+    PeadraColors colors,
+    StockHoldingView holding,
+  ) async {
+    final currency = _snapshot?.currency ?? 'EUR';
+    final isGain = holding.change >= Decimal.zero;
+    final changeColor = isGain ? colors.success : colors.error;
+    final pct = '${isGain ? '+' : ''}${holding.percent.toStringAsFixed(1)}%';
+    final ticker = StockService.displayTicker(holding.line.ticker);
+
+    await showPeadraModal(
+      context: context,
+      builder: (ctx) => PeadraModal(
+        title: Text(
+          '${holding.displayName} ($ticker)',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: colors.text,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _detailRow(
+              Translator.t('stock_quantity'),
+              '${holding.remainingQuantity}',
+              colors,
             ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  pct,
-                  style: TextStyle(
-                    color: changeColor,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Text(
-                  change,
-                  style: TextStyle(color: changeColor, fontSize: 11),
-                ),
-              ],
+            _detailRow(
+              Translator.t('stock_buy_price'),
+              CurrencyService.formatAmount(
+                holding.line.buyPrice,
+                holding.line.currency,
+              ),
+              colors,
             ),
-            const SizedBox(width: 4),
-            PopupMenuButton<String>(
-              tooltip: Translator.t('btn_menu'),
-              icon: Icon(Icons.more_vert, color: colors.placeholderColor),
-              onSelected: (action) {
-                if (action == 'sell') {
-                  _showSellDialog(colors, holding);
-                } else if (action == 'delete') {
-                  _confirmDelete(colors, holding);
-                }
-              },
-              itemBuilder: (_) => [
-                PopupMenuItem(
-                  value: 'sell',
-                  child: Row(
-                    children: [
-                      Icon(Icons.sell_outlined, size: 18, color: colors.text),
-                      const SizedBox(width: 8),
-                      Text(Translator.t('stock_sell')),
-                    ],
-                  ),
-                ),
-                if (holding.line.soldQuantity == 0)
-                  PopupMenuItem(
-                    value: 'delete',
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.delete_outline,
-                          size: 18,
-                          color: colors.deleteColor,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          Translator.t('btn_delete'),
-                          style: TextStyle(color: colors.deleteColor),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
+            _detailRow(
+              Translator.t('stock_latest_price'),
+              CurrencyService.formatAmount(
+                holding.latestPrice,
+                holding.currency,
+              ),
+              colors,
+            ),
+            _detailRow(
+              Translator.t('stock_current_value'),
+              CurrencyService.formatAmount(holding.value, currency),
+              colors,
+            ),
+            _detailRow(
+              Translator.t('stock_total_change'),
+              '$pct  (${CurrencyService.formatAmount(holding.change, currency)})',
+              colors,
+              valueColor: changeColor,
+            ),
+            _detailRow(
+              Translator.t('stock_buy_date'),
+              Translator.formatDate(holding.line.boughtAt),
+              colors,
             ),
           ],
         ),
+        actions: [
+          if (holding.line.soldQuantity == 0)
+            TextButton(
+              style: TextButton.styleFrom(foregroundColor: colors.deleteColor),
+              onPressed: () {
+                Navigator.pop(ctx);
+                _confirmDelete(colors, holding);
+              },
+              child: Text(Translator.t('btn_delete')),
+            ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _showSellDialog(colors, holding);
+            },
+            child: Text(
+              Translator.t('stock_sell'),
+              style: const TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailRow(
+    String label,
+    String value,
+    PeadraColors colors, {
+    Color? valueColor,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 110,
+            child: Text(
+              label,
+              style: TextStyle(color: colors.textSecondary, fontSize: 13),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                color: valueColor ?? colors.text,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

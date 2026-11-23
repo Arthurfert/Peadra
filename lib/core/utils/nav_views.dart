@@ -16,7 +16,7 @@ class NavView {
   final String key;
 
   /// Index in the dashboard views list (0 dashboard, 1 transactions,
-  /// 2 budgets, 3 accounts, 4 categories, 5 settings, 6 tools).
+  /// 2 budgets, 3 accounts, 4 categories, 5 settings, 6 tools, 7 stock).
   final int viewIndex;
 
   final IconData iconOff;
@@ -63,6 +63,13 @@ const List<NavView> allNavViews = [
     labelKey: 'nav_accounts',
   ),
   NavView(
+    key: 'stock',
+    viewIndex: 7,
+    iconOff: Icons.show_chart,
+    iconOn: Icons.show_chart,
+    labelKey: 'nav_stock',
+  ),
+  NavView(
     key: 'categories',
     viewIndex: 4,
     iconOff: Icons.bubble_chart_outlined,
@@ -93,6 +100,7 @@ const List<String> defaultNavOrder = [
   'budgets',
   'categories',
   'accounts',
+  'stock',
   'tools',
   'settings',
 ];

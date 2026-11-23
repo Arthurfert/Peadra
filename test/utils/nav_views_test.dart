@@ -12,7 +12,7 @@ void main() {
 
     test('view indexes match the dashboard views list', () {
       expect(navViewsFor(defaultNavOrder).map((v) => v.viewIndex).toList(),
-          [0, 1, 2, 4, 3, 6, 5]);
+          [0, 1, 2, 4, 3, 7, 6, 5]);
     });
 
     test('labels resolve to translations', () {
@@ -26,7 +26,7 @@ void main() {
       expect(defaultNavOrder.take(mobileNavBarSlots),
           ['dashboard', 'transactions', 'budgets', 'categories']);
       expect(defaultNavOrder.skip(mobileNavBarSlots).toList(),
-          ['accounts', 'tools', 'settings']);
+          ['accounts', 'stock', 'tools', 'settings']);
     });
   });
 
@@ -34,13 +34,14 @@ void main() {
     test('keeps a valid order untouched', () {
       expect(
           parseNavOrder(
-              'settings,dashboard,transactions,budgets,accounts,categories,tools'),
+              'settings,dashboard,transactions,budgets,accounts,stock,categories,tools'),
           [
             'settings',
             'dashboard',
             'transactions',
             'budgets',
             'accounts',
+            'stock',
             'categories',
             'tools'
           ]);
@@ -55,13 +56,14 @@ void main() {
     test('drops unknown keys', () {
       expect(
           parseNavOrder(
-              'dashboard,nope,transactions,budgets,categories,accounts,tools,settings'),
+              'dashboard,nope,transactions,budgets,categories,accounts,stock,tools,settings'),
           [
             'dashboard',
             'transactions',
             'budgets',
             'categories',
             'accounts',
+            'stock',
             'tools',
             'settings'
           ]);
@@ -70,7 +72,7 @@ void main() {
     test('drops duplicates, keeping the first occurrence', () {
       expect(
           parseNavOrder(
-              'dashboard,dashboard,transactions,budgets,categories,accounts,tools,settings'),
+              'dashboard,dashboard,transactions,budgets,categories,accounts,stock,tools,settings'),
           defaultNavOrder);
     });
 
@@ -81,6 +83,7 @@ void main() {
         'transactions',
         'budgets',
         'accounts',
+        'stock',
         'categories',
         'tools'
       ]);
@@ -89,7 +92,7 @@ void main() {
     test('tolerates whitespace around keys', () {
       expect(
           parseNavOrder(
-              ' dashboard , transactions , budgets , categories , accounts , tools , settings '),
+              ' dashboard , transactions , budgets , categories , accounts , stock , tools , settings '),
           defaultNavOrder);
     });
 
@@ -101,13 +104,13 @@ void main() {
   group('encodeNavOrder', () {
     test('round-trips through parseNavOrder', () {
       const order =
-          'settings,accounts,categories,budgets,transactions,tools,dashboard';
+          'settings,accounts,stock,categories,budgets,transactions,tools,dashboard';
       expect(encodeNavOrder(order.split(',')), order);
     });
 
     test('completes unknown keys instead of storing a broken order', () {
       expect(encodeNavOrder(['settings', 'nope']),
-          'settings,dashboard,transactions,budgets,accounts,categories,tools');
+          'settings,dashboard,transactions,budgets,accounts,stock,categories,tools');
     });
   });
 
@@ -133,6 +136,7 @@ void main() {
             'transactions',
             'budgets',
             'accounts',
+            'stock',
             'categories',
             'tools'
           ]);

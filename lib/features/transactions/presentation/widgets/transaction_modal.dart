@@ -21,6 +21,10 @@ typedef OnTransactionSaved = void Function(Map<String, dynamic> data);
 
 class TransactionModal extends StatefulWidget {
   final List<Account> accounts;
+
+  /// Accounts selectable as transfer endpoints. Includes the Stock Market
+  /// account while [accounts] keeps normal transaction creation stock-free.
+  final List<Account>? transferAccounts;
   final OnTransactionSaved onSave;
   final String transactionType;
   final TransactionWithDetails? editTransaction;
@@ -31,6 +35,7 @@ class TransactionModal extends StatefulWidget {
   const TransactionModal({
     super.key,
     required this.accounts,
+    this.transferAccounts,
     required this.onSave,
     this.transactionType = 'expense',
     this.editTransaction,
@@ -45,8 +50,12 @@ class TransactionModal extends StatefulWidget {
 
 class _TransactionModalState extends State<TransactionModal> {
   final _db = DatabaseManager.instance;
+
+  List<Account> get _transferAccounts =>
+      widget.transferAccounts ?? widget.accounts;
   final _dateController = TextEditingController(
-      text: DateTime.now().toIso8601String().substring(0, 10));
+    text: DateTime.now().toIso8601String().substring(0, 10),
+  );
   final _descController = TextEditingController();
   final _amountController = TextEditingController();
   final _notesController = TextEditingController();
@@ -69,8 +78,10 @@ class _TransactionModalState extends State<TransactionModal> {
   Decimal? _convertedAmount;
   List<Tag> _tags = [];
   String? _selectedTagId;
+
   /// Tag automatically applied from the typed description, if any.
   String? _autoTaggedId;
+
   /// True once the user picked a tag (or "None") themselves; disables
   /// further automatic tag filing for this session.
   bool _tagTouched = false;
@@ -88,8 +99,8 @@ class _TransactionModalState extends State<TransactionModal> {
     _transactionType = widget.editPairedTransaction != null
         ? 'transfer'
         : widget.editTransaction?.transactionType ??
-            widget.editRecurring?.transactionType ??
-            widget.transactionType;
+              widget.editRecurring?.transactionType ??
+              widget.transactionType;
     _isRecurring = widget.editRecurring != null || widget.defaultRecurring;
 
     if (widget.editRecurring != null) {
@@ -128,10 +139,16 @@ class _TransactionModalState extends State<TransactionModal> {
 
     if (widget.accounts.isNotEmpty) {
       _selectedAccountId ??= widget.accounts.first.id;
-      _sourceAccountId ??= widget.accounts.first.id;
-      _destAccountId ??= widget.accounts.length > 1
-          ? widget.accounts[1].id
-          : widget.accounts.first.id;
+      final transferAccounts = _transferAccounts;
+      if (transferAccounts.isNotEmpty) {
+        _sourceAccountId ??= transferAccounts.first.id;
+        _destAccountId ??= transferAccounts.length > 1
+            ? transferAccounts[1].id
+            : transferAccounts.first.id;
+      }
+      if (widget.editTransaction == null && widget.editRecurring == null) {
+        _selectedCurrency = widget.accounts.first.currency;
+      }
     }
 
     _amountController.addListener(_onAmountChanged);
@@ -167,7 +184,9 @@ class _TransactionModalState extends State<TransactionModal> {
   }
 
   Future<void> _updateExchangeRate() async {
-    if (_transactionType != 'transfer' || _sourceAccountId == null || _destAccountId == null) {
+    if (_transactionType != 'transfer' ||
+        _sourceAccountId == null ||
+        _destAccountId == null) {
       if (mounted) {
         setState(() {
           _exchangeRate = null;
@@ -278,8 +297,9 @@ class _TransactionModalState extends State<TransactionModal> {
     // automatic pick.
     if (_selectedTagId != null && _selectedTagId != _autoTaggedId) return;
     final tagId = tag?.id;
-    final resolved =
-        tagId != null && _tags.any((t) => t.id == tagId) ? tagId : null;
+    final resolved = tagId != null && _tags.any((t) => t.id == tagId)
+        ? tagId
+        : null;
     if (resolved == _selectedTagId) return;
     setState(() {
       _selectedTagId = resolved;
@@ -355,8 +375,9 @@ class _TransactionModalState extends State<TransactionModal> {
       data['frequency'] = _frequency;
       data['interval'] = _interval;
       data['day_of_week'] = _frequency == 'weekly' ? _dayOfWeek : null;
-      data['day_of_month'] =
-          (_frequency == 'monthly' || _frequency == 'yearly') ? _dayOfMonth : null;
+      data['day_of_month'] = (_frequency == 'monthly' || _frequency == 'yearly')
+          ? _dayOfMonth
+          : null;
       data['start_date'] = _dateController.text.trim();
       data['end_date'] = _hasEndDate ? _endDateController.text.trim() : null;
     }
@@ -364,13 +385,17 @@ class _TransactionModalState extends State<TransactionModal> {
     if (_transactionType == 'transfer') {
       data['source_id'] = _sourceAccountId;
       data['dest_id'] = _destAccountId;
-      final srcName = widget.accounts
-          .firstWhere((a) => a.id == _sourceAccountId,
-              orElse: () => widget.accounts.first)
+      final srcName = _transferAccounts
+          .firstWhere(
+            (a) => a.id == _sourceAccountId,
+            orElse: () => _transferAccounts.first,
+          )
           .name;
-      final destName = widget.accounts
-          .firstWhere((a) => a.id == _destAccountId,
-              orElse: () => widget.accounts.first)
+      final destName = _transferAccounts
+          .firstWhere(
+            (a) => a.id == _destAccountId,
+            orElse: () => _transferAccounts.first,
+          )
           .name;
       data['source_name'] = srcName;
       data['dest_name'] = destName;
@@ -398,25 +423,32 @@ class _TransactionModalState extends State<TransactionModal> {
     final title = widget.editRecurring != null
         ? Translator.t('rec_edit')
         : widget.editTransaction != null
-            ? Translator.t('modal_edit_transaction')
-            : typeLabels[_transactionType] ?? Translator.t('modal_new_transaction');
+        ? Translator.t('modal_edit_transaction')
+        : typeLabels[_transactionType] ?? Translator.t('modal_new_transaction');
 
     final saveAction = ElevatedButton(
       onPressed: canSave ? _save : null,
       style: ElevatedButton.styleFrom(
         backgroundColor: colors.accent,
-        disabledBackgroundColor:
-            colors.placeholderColor.withValues(alpha: 0.3),
+        disabledBackgroundColor: colors.placeholderColor.withValues(alpha: 0.3),
       ),
-      child: Text(Translator.t('btn_save'),
-          style: const TextStyle(color: Colors.white)),
+      child: Text(
+        Translator.t('btn_save'),
+        style: const TextStyle(color: Colors.white),
+      ),
     );
 
     final form = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         // Type selector
-        _buildTypeSelector(colors, enabled: widget.editPairedTransaction == null && (widget.editTransaction == null || widget.editTransaction!.transactionType != 'transfer')),
+        _buildTypeSelector(
+          colors,
+          enabled:
+              widget.editPairedTransaction == null &&
+              (widget.editTransaction == null ||
+                  widget.editTransaction!.transactionType != 'transfer'),
+        ),
         const SizedBox(height: 16),
 
         // Date
@@ -471,21 +503,16 @@ class _TransactionModalState extends State<TransactionModal> {
     if (isPhone) {
       // App-standard bottom sheet (matches every other modal). The type
       // selector doubles as the header, so the repeating title is dropped.
-      return PeadraModal(
-        content: form,
-        actions: [saveAction],
-      );
+      return PeadraModal(content: form, actions: [saveAction]);
     }
 
     return AlertDialog(
       backgroundColor: colors.surface,
-      title: Text(title,
-          style: TextStyle(
-              fontWeight: FontWeight.bold, color: colors.text)),
-      content: SizedBox(
-        width: 480,
-        child: SingleChildScrollView(child: form),
+      title: Text(
+        title,
+        style: TextStyle(fontWeight: FontWeight.bold, color: colors.text),
       ),
+      content: SizedBox(width: 480, child: SingleChildScrollView(child: form)),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
@@ -500,26 +527,50 @@ class _TransactionModalState extends State<TransactionModal> {
     final transferEnabled = enabled && widget.editRecurring == null;
     return Row(
       children: [
-        _buildTypeChip('expense', Translator.t('trans_expense'), colors.expenseIcon, colors, enabled: enabled),
+        _buildTypeChip(
+          'expense',
+          Translator.t('trans_expense'),
+          colors.expenseIcon,
+          colors,
+          enabled: enabled,
+        ),
         const SizedBox(width: 8),
-        _buildTypeChip('income', Translator.t('trans_income'), colors.incomeIcon, colors, enabled: enabled),
+        _buildTypeChip(
+          'income',
+          Translator.t('trans_income'),
+          colors.incomeIcon,
+          colors,
+          enabled: enabled,
+        ),
         const SizedBox(width: 8),
-        _buildTypeChip('transfer', Translator.t('trans_transfer'), colors.transferIcon, colors, enabled: transferEnabled),
+        _buildTypeChip(
+          'transfer',
+          Translator.t('trans_transfer'),
+          colors.transferIcon,
+          colors,
+          enabled: transferEnabled,
+        ),
       ],
     );
   }
 
-  Widget _buildTypeChip(String type, String label, Color color, PeadraColors colors, {bool enabled = true}) {
+  Widget _buildTypeChip(
+    String type,
+    String label,
+    Color color,
+    PeadraColors colors, {
+    bool enabled = true,
+  }) {
     final isSelected = _transactionType == type;
     return Expanded(
       child: GestureDetector(
         onTap: enabled
             ? () => setState(() {
-                  _transactionType = type;
-                  if (type == 'transfer') {
-                    _isRecurring = false;
-                  }
-                })
+                _transactionType = type;
+                if (type == 'transfer') {
+                  _isRecurring = false;
+                }
+              })
             : null,
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12),
@@ -535,7 +586,9 @@ class _TransactionModalState extends State<TransactionModal> {
             child: Text(
               label,
               style: TextStyle(
-                color: enabled ? (isSelected ? color : colors.textSecondary) : colors.placeholderColor,
+                color: enabled
+                    ? (isSelected ? color : colors.textSecondary)
+                    : colors.placeholderColor,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                 fontSize: 13,
               ),
@@ -598,7 +651,10 @@ class _TransactionModalState extends State<TransactionModal> {
             final s = _suggestions[index];
             return ListTile(
               dense: true,
-              title: Text(s, style: TextStyle(color: colors.text, fontSize: 14)),
+              title: Text(
+                s,
+                style: TextStyle(color: colors.text, fontSize: 14),
+              ),
               onTap: () => _selectSuggestion(s),
             );
           },
@@ -659,11 +715,18 @@ class _TransactionModalState extends State<TransactionModal> {
             filled: true,
             fillColor: colors.bg,
           ),
-          items: widget.accounts
+          items: _transferAccounts
               .map((a) => DropdownMenuItem(value: a.id, child: Text(a.name)))
               .toList(),
           onChanged: (v) {
             setState(() => _sourceAccountId = v);
+            if (v != null) {
+              final acct = _transferAccounts.firstWhere(
+                (a) => a.id == v,
+                orElse: () => _transferAccounts.first,
+              );
+              setState(() => _selectedCurrency = acct.currency);
+            }
             _updateExchangeRate();
           },
         ),
@@ -677,7 +740,7 @@ class _TransactionModalState extends State<TransactionModal> {
             filled: true,
             fillColor: colors.bg,
           ),
-          items: widget.accounts
+          items: _transferAccounts
               .map((a) => DropdownMenuItem(value: a.id, child: Text(a.name)))
               .toList(),
           onChanged: (v) {
@@ -750,26 +813,30 @@ class _TransactionModalState extends State<TransactionModal> {
       items: [
         DropdownMenuItem<String>(
           value: null,
-          child: Text(Translator.t('tag_none'),
-              style: TextStyle(color: colors.placeholderColor)),
+          child: Text(
+            Translator.t('tag_none'),
+            style: TextStyle(color: colors.placeholderColor),
+          ),
         ),
-        ..._tags.map((t) => DropdownMenuItem<String>(
-              value: t.id,
-              child: Row(
-                children: [
-                  Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: Color(int.parse(t.color.replaceFirst('#', '0xFF'))),
-                      shape: BoxShape.circle,
-                    ),
+        ..._tags.map(
+          (t) => DropdownMenuItem<String>(
+            value: t.id,
+            child: Row(
+              children: [
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: Color(int.parse(t.color.replaceFirst('#', '0xFF'))),
+                    shape: BoxShape.circle,
                   ),
-                  const SizedBox(width: 8),
-                  Text(t.name),
-                ],
-              ),
-            )),
+                ),
+                const SizedBox(width: 8),
+                Text(t.name),
+              ],
+            ),
+          ),
+        ),
       ],
       onChanged: (v) {
         setState(() {
@@ -783,7 +850,8 @@ class _TransactionModalState extends State<TransactionModal> {
 
   Widget _buildRecurringSection(PeadraColors colors) {
     // Editing a recurring template ignores is_recurring, so its switch stays off.
-    final canEdit = widget.editTransaction == null && widget.editRecurring == null;
+    final canEdit =
+        widget.editTransaction == null && widget.editRecurring == null;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       decoration: BoxDecoration(
@@ -795,9 +863,7 @@ class _TransactionModalState extends State<TransactionModal> {
         children: [
           SwitchListTile(
             value: _isRecurring,
-            onChanged: canEdit
-                ? (v) => setState(() => _isRecurring = v)
-                : null,
+            onChanged: canEdit ? (v) => setState(() => _isRecurring = v) : null,
             dense: true,
             contentPadding: EdgeInsets.zero,
             activeTrackColor: colors.accent,
@@ -844,13 +910,16 @@ class _TransactionModalState extends State<TransactionModal> {
             isExpanded: true,
             decoration: InputDecoration(
               labelText: Translator.t('rec_frequency'),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
               filled: true,
               fillColor: colors.surface,
             ),
             items: frequencies.entries
-                .map((e) =>
-                    DropdownMenuItem(value: e.key, child: Text(e.value)))
+                .map(
+                  (e) => DropdownMenuItem(value: e.key, child: Text(e.value)),
+                )
                 .toList(),
             onChanged: (v) {
               setState(() => _frequency = v ?? 'monthly');
@@ -863,7 +932,9 @@ class _TransactionModalState extends State<TransactionModal> {
             initialValue: _interval,
             decoration: InputDecoration(
               labelText: Translator.t('rec_interval'),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
               filled: true,
               fillColor: colors.surface,
             ),
@@ -899,7 +970,8 @@ class _TransactionModalState extends State<TransactionModal> {
       items: days
           .map((d) => DropdownMenuItem(value: d.$1, child: Text(d.$2)))
           .toList(),
-      onChanged: (v) => setState(() => _dayOfWeek = v ?? DateTime.now().weekday),
+      onChanged: (v) =>
+          setState(() => _dayOfWeek = v ?? DateTime.now().weekday),
     );
   }
 
@@ -913,11 +985,11 @@ class _TransactionModalState extends State<TransactionModal> {
         filled: true,
         fillColor: colors.surface,
       ),
-      items: List.generate(31, (i) => i + 1)
-          .map((n) => DropdownMenuItem(value: n, child: Text('$n')))
-          .toList(),
-      onChanged: (v) =>
-          setState(() => _dayOfMonth = v ?? DateTime.now().day),
+      items: List.generate(
+        31,
+        (i) => i + 1,
+      ).map((n) => DropdownMenuItem(value: n, child: Text('$n'))).toList(),
+      onChanged: (v) => setState(() => _dayOfMonth = v ?? DateTime.now().day),
     );
   }
 
@@ -944,10 +1016,13 @@ class _TransactionModalState extends State<TransactionModal> {
             onTap: () => _pickDate(_endDateController),
             decoration: InputDecoration(
               labelText: Translator.t('rec_end_date'),
-              suffixIcon:
-                  Icon(Icons.calendar_today, color: colors.placeholderColor),
-              border:
-                  OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              suffixIcon: Icon(
+                Icons.calendar_today,
+                color: colors.placeholderColor,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
               filled: true,
               fillColor: colors.surface,
             ),
@@ -1000,7 +1075,9 @@ class _CommaToDotFormatter extends TextInputFormatter {
 
   @override
   TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue, TextEditingValue newValue) {
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
     if (!newValue.text.contains(',')) return newValue;
     final text = newValue.text.replaceAll(',', '.');
     return TextEditingValue(
@@ -1045,8 +1122,10 @@ class _CreateTagDialogState extends State<_CreateTagDialog> {
     final tagColors = PeadraTheme.presetColors;
 
     return PeadraModal(
-      title: Text(Translator.t('tag_create'),
-          style: TextStyle(color: colors.text)),
+      title: Text(
+        Translator.t('tag_create'),
+        style: TextStyle(color: colors.text),
+      ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1058,13 +1137,15 @@ class _CreateTagDialogState extends State<_CreateTagDialog> {
             decoration: InputDecoration(
               labelText: Translator.t('tag_name'),
               border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8)),
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
           ),
           const SizedBox(height: 12),
-          Text(Translator.t('tag_color'),
-              style: TextStyle(
-                  color: colors.text, fontWeight: FontWeight.w500)),
+          Text(
+            Translator.t('tag_color'),
+            style: TextStyle(color: colors.text, fontWeight: FontWeight.w500),
+          ),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
@@ -1104,13 +1185,17 @@ class _CreateTagDialogState extends State<_CreateTagDialog> {
               : () async {
                   final name = _nameController.text.trim();
                   final id = await _db.createTag(
-                      name: name, color: _selectedColor);
+                    name: name,
+                    color: _selectedColor,
+                  );
                   if (id != null) await widget.onTagCreated(id);
                   if (context.mounted) Navigator.pop(context);
                 },
           style: ElevatedButton.styleFrom(backgroundColor: colors.accent),
-          child: Text(Translator.t('btn_save'),
-              style: const TextStyle(color: Colors.white)),
+          child: Text(
+            Translator.t('btn_save'),
+            style: const TextStyle(color: Colors.white),
+          ),
         ),
       ],
     );

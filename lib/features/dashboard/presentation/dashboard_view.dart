@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:decimal/decimal.dart';
 import 'package:provider/provider.dart';
@@ -9,6 +11,8 @@ import '../../../core/providers/auth_provider.dart';
 import '../../../core/database/database_manager.dart';
 import '../../../core/theme/peadra_colors.dart';
 import '../../../core/services/currency_service.dart';
+import '../../../core/services/stock_service.dart';
+import '../../../core/models/account.dart';
 import 'charts/category_pie_chart.dart';
 import 'dashboard_view_desktop.dart';
 import 'dashboard_view_mobile.dart';
@@ -67,6 +71,24 @@ class _DashboardViewState extends State<DashboardView> {
   String _lastMonthMode = '';
   String _lastDashboardPieView = '';
   String _lastAssetsGranularity = '';
+  StockSnapshot? _stockSnapshot;
+  bool _stockRefreshRequested = false;
+
+  @override
+  void initState() {
+    super.initState();
+    StockService.instance.addListener(_onStockQuotesChanged);
+  }
+
+  @override
+  void dispose() {
+    StockService.instance.removeListener(_onStockQuotesChanged);
+    super.dispose();
+  }
+
+  void _onStockQuotesChanged() {
+    _loadData();
+  }
 
   @override
   void didUpdateWidget(DashboardView oldWidget) {
@@ -240,15 +262,60 @@ class _DashboardViewState extends State<DashboardView> {
             : Future<Decimal?>.value(null)),
       ]);
 
+      final stockAccount = await _db.getStockAccount();
+      final stockSnapshot = stockAccount == null
+          ? null
+          : await StockService.instance.buildSnapshot(
+              account: stockAccount,
+              targetCurrency: currency,
+            );
+
+      var totalAssets = (results[2] as Decimal?) ?? Decimal.zero;
+      var previousTotalAssets = (results[14] as Decimal?) ?? Decimal.zero;
+      var previousTotalAssetsMonthAgo = (results[17] as Decimal?) ??
+          (results[16] as Decimal?) ??
+          Decimal.zero;
+      var totalAssetsBeforeLastMonth =
+          (results[15] as Decimal?) ?? Decimal.zero;
+      var totalAssetsAtLastMonthSameDay =
+          (results[16] as Decimal?) ?? Decimal.zero;
+      var accountsDistribution =
+          (results[4] as List<Map<String, dynamic>>?) ?? [];
+      var assetsHistory = (results[6] as List<Map<String, dynamic>>?) ?? [];
+
+      if (stockSnapshot != null && stockAccount != null) {
+        totalAssets += stockSnapshot.total;
+        previousTotalAssets += stockSnapshot.valueAt(thisMonthStart);
+        previousTotalAssetsMonthAgo += stockSnapshot.valueAt(
+          isRolling ? balanceBaselineDate : lastMonthSameDayEnd,
+        );
+        totalAssetsBeforeLastMonth +=
+            stockSnapshot.valueAt(lastMonthStart);
+        totalAssetsAtLastMonthSameDay +=
+            stockSnapshot.valueAt(lastMonthSameDayEnd);
+        accountsDistribution = [
+          ...accountsDistribution,
+          {
+            'name': Translator.t('acc_stock'),
+            'color': stockAccount.color,
+            'type': 'stock',
+            'value': stockSnapshot.total.toDouble(),
+            'nativeValue': stockSnapshot.total.toDouble(),
+            'currency': currency,
+          },
+        ];
+        assetsHistory = _addStockToHistory(assetsHistory, stockSnapshot);
+      }
+
       if (mounted) {
         setState(() {
           _balance = (results[0] as Decimal?) ?? Decimal.zero;
           _savings = (results[1] as Decimal?) ?? Decimal.zero;
-          _totalAssets = (results[2] as Decimal?) ?? Decimal.zero;
+          _totalAssets = totalAssets;
           _monthlySummary = (results[3] as Map<String, Decimal>?) ?? {};
-          _accountsDistribution = (results[4] as List<Map<String, dynamic>>?) ?? [];
+          _accountsDistribution = accountsDistribution;
           _cashFlowData = (results[5] as List<Map<String, dynamic>>?) ?? [];
-          _assetsHistory = (results[6] as List<Map<String, dynamic>>?) ?? [];
+          _assetsHistory = assetsHistory;
           _monthlyExpenses = (results[7] as Map<String, Decimal>?) ?? {};
           _monthlyIncomes = (results[8] as Map<String, Decimal>?) ?? {};
           final prevSummary = (results[9] as Map<String, Decimal>?) ?? {};
@@ -258,14 +325,11 @@ class _DashboardViewState extends State<DashboardView> {
           _previousSavings = (results[10] as Decimal?) ?? Decimal.zero;
           _tagColors = (results[11] as Map<String, String>?) ?? {};
           _lifetimeStats = (results[13] as Map<String, dynamic>?) ?? {};
-          _previousTotalAssets = (results[14] as Decimal?) ?? Decimal.zero;
-          _previousTotalAssetsMonthAgo =
-              (results[17] as Decimal?) ??
-                  (results[16] as Decimal?) ??
-                  Decimal.zero;
-          _totalAssetsBeforeLastMonth = (results[15] as Decimal?) ?? Decimal.zero;
-          _totalAssetsAtLastMonthSameDay =
-              (results[16] as Decimal?) ?? Decimal.zero;
+          _previousTotalAssets = previousTotalAssets;
+          _previousTotalAssetsMonthAgo = previousTotalAssetsMonthAgo;
+          _totalAssetsBeforeLastMonth = totalAssetsBeforeLastMonth;
+          _totalAssetsAtLastMonthSameDay = totalAssetsAtLastMonthSameDay;
+          _stockSnapshot = stockSnapshot;
           _expenseDrillTag = null;
           _incomeDrillTag = null;
           _expenseShowAll = false;
@@ -278,6 +342,12 @@ class _DashboardViewState extends State<DashboardView> {
           _incomeDrillLoading = false;
           _loading = false;
         });
+        if (stockAccount != null &&
+            stockSnapshot != null &&
+            !_stockRefreshRequested) {
+          _stockRefreshRequested = true;
+          unawaited(_refreshStockQuotes(stockAccount));
+        }
       }
     } catch (e, stack) {
       debugPrint('[DashboardView] _loadData error: $e\n$stack');
@@ -296,6 +366,32 @@ class _DashboardViewState extends State<DashboardView> {
       debugPrint('[DashboardView] query failed: $e\n$stack');
       return null;
     }
+  }
+
+  Future<void> _refreshStockQuotes(Account account) async {
+    if (account.id == null) return;
+    final lines = await _db.getStockLines(account.id!);
+    if (lines.isEmpty) return;
+    await StockService.instance.refreshAll(lines.map((l) => l.ticker));
+  }
+
+  List<Map<String, dynamic>> _addStockToHistory(
+    List<Map<String, dynamic>> history,
+    StockSnapshot snapshot,
+  ) {
+    return history.map((point) {
+      final month = point['month'];
+      final stock = month is DateTime
+          ? (snapshot.valueByMonth[
+                  month.toIso8601String().substring(0, 7)] ??
+              Decimal.zero)
+          : snapshot.valueAt((point['date'] as String?) ?? '');
+      return {
+        ...point,
+        'value': ((point['value'] as num?)?.toDouble() ?? 0.0) +
+            stock.toDouble(),
+      };
+    }).toList();
   }
 
   Future<void> _loadChartData() async {
@@ -323,7 +419,10 @@ class _DashboardViewState extends State<DashboardView> {
       if (mounted) {
         setState(() {
           _cashFlowData = results[0];
-          _assetsHistory = results[1];
+          final history = results[1];
+          _assetsHistory = _stockSnapshot == null
+              ? history
+              : _addStockToHistory(history, _stockSnapshot!);
         });
       }
     } catch (_) {}
@@ -1056,8 +1155,13 @@ class _DashboardViewState extends State<DashboardView> {
       return;
     }
     if (label == Translator.t('acc_type_checking') ||
-        label == Translator.t('acc_type_savings')) {
-      final type = label == Translator.t('acc_type_checking') ? 'checking' : 'savings';
+        label == Translator.t('acc_type_savings') ||
+        label == Translator.t('acc_stock')) {
+      final type = label == Translator.t('acc_type_checking')
+          ? 'checking'
+          : label == Translator.t('acc_type_savings')
+              ? 'savings'
+              : 'stock';
       if (_assetsDrillType == type) return;
       setState(() {
         _assetsDrillType = type;
@@ -1081,6 +1185,7 @@ class _DashboardViewState extends State<DashboardView> {
       PeadraColors colors, String currency, int maxCategories) {
     final checkingLabel = Translator.t('acc_type_checking');
     final savingsLabel = Translator.t('acc_type_savings');
+    final stockLabel = Translator.t('acc_stock');
 
     Decimal clampPositive(num v) =>
         Decimal.parse(v.clamp(0.0, double.infinity).toString());
@@ -1088,6 +1193,7 @@ class _DashboardViewState extends State<DashboardView> {
     final Map<String, Decimal> typeData = {
       checkingLabel: Decimal.zero,
       savingsLabel: Decimal.zero,
+      stockLabel: Decimal.zero,
     };
     for (final a in _accountsDistribution) {
       final t = a['type'] as String?;
@@ -1096,25 +1202,42 @@ class _DashboardViewState extends State<DashboardView> {
         typeData[checkingLabel] = typeData[checkingLabel]! + amount;
       } else if (t == 'savings') {
         typeData[savingsLabel] = typeData[savingsLabel]! + amount;
+      } else if (t == 'stock') {
+        typeData[stockLabel] = typeData[stockLabel]! + amount;
       }
     }
     typeData.removeWhere((_, v) => v <= Decimal.zero);
 
     final drilled = _assetsDrillType != null;
-    final drillLabel =
-        _assetsDrillType == 'checking' ? checkingLabel : savingsLabel;
+    final drillLabel = switch (_assetsDrillType) {
+      'checking' => checkingLabel,
+      'savings' => savingsLabel,
+      _ => stockLabel,
+    };
     final Map<String, Decimal> drillData = {};
     final Map<String, String> drillColors = {};
     if (drilled) {
-      for (final a in _accountsDistribution) {
-        if ((a['type'] as String?) != _assetsDrillType) continue;
-        final name = a['name'] as String? ?? '';
-        if (name.isEmpty) continue;
-        drillData[name] =
-            clampPositive((a['value'] as num?)?.toDouble() ?? 0.0);
-        drillColors[name] = (a['color'] as String?) ?? '#1976D2';
+      if (_assetsDrillType == 'stock') {
+        final holdings = _stockSnapshot?.holdings ?? const [];
+        for (var i = 0; i < holdings.length; i++) {
+          final holding = holdings[i];
+          if (holding.value <= Decimal.zero) continue;
+          drillData['${holding.displayName} (${holding.line.ticker})'] =
+              holding.value;
+          drillColors['${holding.displayName} (${holding.line.ticker})'] =
+              PeadraTheme.presetColors[i % PeadraTheme.presetColors.length];
+        }
+      } else {
+        for (final a in _accountsDistribution) {
+          if ((a['type'] as String?) != _assetsDrillType) continue;
+          final name = a['name'] as String? ?? '';
+          if (name.isEmpty) continue;
+          drillData[name] =
+              clampPositive((a['value'] as num?)?.toDouble() ?? 0.0);
+          drillColors[name] = (a['color'] as String?) ?? '#1976D2';
+        }
+        drillData.removeWhere((_, v) => v <= Decimal.zero);
       }
-      drillData.removeWhere((_, v) => v <= Decimal.zero);
     }
 
     return _buildPieChartCard(

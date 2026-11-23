@@ -41,7 +41,8 @@ class Translator {
       'onboarding_language_desc': 'You can change it anytime in the settings.',
       'onboarding_name_title': 'What should we call you?',
       'onboarding_password_title': 'Create your password',
-      'onboarding_password_desc': 'This password is what protects your data: Peadra uses it to derive the AES key that encrypts everything you store. Keep it safe, it cannot be recovered.',
+      'onboarding_password_desc':
+          'This password is what protects your data: Peadra uses it to derive the AES key that encrypts everything you store. Keep it safe, it cannot be recovered.',
       'onboarding_next': 'Next',
       'btn_save': 'Save',
       'btn_back': 'Back',
@@ -69,7 +70,8 @@ class Translator {
       'dash_other': 'Other',
       'cat_top_expenses': 'Top expense categories',
       'cat_top_incomes': 'Top income categories',
-      'cat_no_data_period': 'No data to display for this period.\nAdd matching descriptions transactions from several month.',
+      'cat_no_data_period':
+          'No data to display for this period.\nAdd matching descriptions transactions from several month.',
       'btn_load_more': 'Load more',
       'btn_load_all': 'Load all',
       'btn_pin': 'Pin',
@@ -79,18 +81,21 @@ class Translator {
       'cat_merge_descriptions': 'Merge',
       'cat_merge_source': 'Description to merge',
       'cat_merge_target': 'Target description',
-      'cat_merge_hint': 'Select the description to merge and the target description.',
+      'cat_merge_hint':
+          'Select the description to merge and the target description.',
       'cat_merge_from': 'From:',
       'cat_merge_to': 'To:',
       'cat_rename_description': 'Rename',
       'cat_select_description': 'Select description',
       'cat_new_name': 'New name',
-      'cat_rename_hint': 'Select the description to rename and enter the new name.',
+      'cat_rename_hint':
+          'Select the description to rename and enter the new name.',
       'cat_select_description_to_rename': 'Description to rename:',
       'cat_new_name_label': 'New name:',
       'cat_merge_btn': 'Merge',
       'cat_rename_btn': 'Rename',
-      'cat_need_at_least_two_descriptions': 'You need at least two descriptions to merge',
+      'cat_need_at_least_two_descriptions':
+          'You need at least two descriptions to merge',
       'cat_no_descriptions': 'No descriptions found',
       'cat_merge_success': 'Merged \'{source}\' into \'{target}\'',
       'cat_merge_failed': 'Failed to merge descriptions',
@@ -121,9 +126,11 @@ class Translator {
       'import_preview': 'Preview',
       'import_title': 'Import Transactions',
       'import_duplicate_warning': 'Warning: Duplicate Import',
-      'import_duplicate_content': 'This file appears to have been imported already.\nDo you want to continue?',
+      'import_duplicate_content':
+          'This file appears to have been imported already.\nDo you want to continue?',
       'import_anyway': 'Import Anyway',
-      'import_select_csv_desc': 'Select a CSV file to import your bank transactions.',
+      'import_select_csv_desc':
+          'Select a CSV file to import your bank transactions.',
       'msg_transaction_modified': 'Transaction modified',
       'msg_transfer_completed': 'Transfer completed',
       'msg_transaction_added': 'Transaction added',
@@ -150,7 +157,8 @@ class Translator {
       'rec_no_end_date': 'No end date',
       'rec_next_due': 'Next due',
       'rec_generated_count': '{count} occurrences',
-      'rec_no_data': 'No recurring transactions yet.\nCreate one to automatically add transactions on a schedule.',
+      'rec_no_data':
+          'No recurring transactions yet.\nCreate one to automatically add transactions on a schedule.',
       'rec_active': 'Active',
       'rec_inactive': 'Inactive',
       'rec_delete_confirm': 'Delete this recurring transaction?',
@@ -205,6 +213,49 @@ class Translator {
       'acc_delete_confirm': 'Are you sure you want to delete this account?',
       'acc_delete_transactions': 'Also delete associated transactions',
       'acc_delete_starting_amount': 'Also delete starting amount',
+      'nav_stock': 'Stocks',
+      'acc_stock': 'Stock Market',
+      'acc_stock_total': 'Stock Market total',
+      'acc_initial_cash': 'Initial cash',
+      'stock_title': 'Stock Market',
+      'stock_no_account': 'No Stock Market account yet.',
+      'stock_create_account': 'Create Stock Market account',
+      'stock_no_lines': 'No holdings yet.\nAdd a line to start tracking.',
+      'stock_add_line': 'Add holding',
+      'stock_sell': 'Sell',
+      'stock_cash': 'Cash',
+      'stock_ticker': 'Ticker',
+      'stock_company': 'Company name',
+      'stock_quantity': 'Quantity',
+      'stock_buy_price': 'Buy price',
+      'stock_latest_price': 'Latest price',
+      'stock_current_value': 'Current value',
+      'stock_buy_date': 'Buy date',
+      'stock_search_hint': 'Search a company or symbol (e.g. Apple or APPL)',
+      'stock_search_empty': 'No matching ticker',
+      'stock_sell_quantity': 'Quantity to sell',
+      'stock_sell_price': 'Sell price',
+      'stock_sell_date': 'Sell date',
+      'stock_sell_success': 'Holding sold',
+      'stock_line_added': 'Holding added',
+      'stock_line_deleted': 'Holding removed',
+      'stock_insufficient_cash': 'Not enough cash for this purchase',
+      'stock_refresh': 'Refresh prices',
+      'stock_quotes_stale': 'Prices could not be refreshed',
+      'stock_info_title': 'About stock data',
+      'stock_info_source':
+          'Data comes from TradingView. They are daily data and may be delayed.',
+      'stock_info_broker':
+          'Values may differ from your broker: fees, dividends, splits, exchange rates and market delays are not all reflected.',
+      'stock_total_value': 'Portfolio value',
+      'stock_value_short': 'Value',
+      'stock_total_change': 'Total gain/loss',
+      'stock_evolution': 'Portfolio evolution',
+      'stock_chart_title': 'Evolution',
+      'stock_amount_required': 'Enter an amount',
+      'stock_name_required': 'Select a ticker',
+      'stock_delete_confirm': 'Remove this holding?',
+      'stock_delete_sold_hint': 'Sold holdings are kept for history.',
       'month_jan_abbr': 'Jan',
       'month_feb_abbr': 'Feb',
       'month_mar_abbr': 'Mar',
@@ -256,7 +307,8 @@ class Translator {
       'param_high_contrast_dark_theme': 'High Contrast (Dark)',
       'param_import': 'Import',
       'param_export_logs': 'Export Logs',
-      'param_export_logs_desc': 'Export the current session log file for debugging.',
+      'param_export_logs_desc':
+          'Export the current session log file for debugging.',
       'param_updates': 'Update',
       'param_version': 'Version',
       'param_check_updates': 'Check for updates',
@@ -271,27 +323,32 @@ class Translator {
       'param_update_status_up_to_date': 'You are using the latest version.',
       'param_update_status_error': 'Update error: {error}',
       'param_hide_update_notifications': 'Update notifications',
-      'param_hide_update_notifications_desc': 'Hide the update banner when a new version is available.',
+      'param_hide_update_notifications_desc':
+          'Hide the update banner when a new version is available.',
       'param_transactions': 'Transactions',
       'param_display_limit': 'Display limit',
       'param_display_limit_desc': 'Number of transactions loaded by default.',
       'param_charts': 'Charts',
       'param_max_categories': 'Max categories',
-      'param_max_categories_desc': 'Maximum number of categories shown in pie charts.',
+      'param_max_categories_desc':
+          'Maximum number of categories shown in pie charts.',
       'param_month_mode': 'Month calculation mode',
-      'param_month_mode_desc': 'Calendar month: Jan 1-31. Rolling: last 30 days from today.',
+      'param_month_mode_desc':
+          'Calendar month: Jan 1-31. Rolling: last 30 days from today.',
       'param_calendar_month': 'Calendar month',
       'param_rolling_30': 'Rolling 30 days',
       'param_line_chart_dots': 'Line chart data points',
       'param_line_chart_dots_desc': 'Show data points on line charts.',
       'param_assets_granularity': 'Asset chart granularity',
-      'param_assets_granularity_desc': 'Show one data point per month or per day on the asset line chart.',
+      'param_assets_granularity_desc':
+          'Show one data point per month or per day on the asset line chart.',
       'param_assets_monthly': 'Monthly',
       'param_assets_daily': 'Daily',
       'param_nav_labels': 'Navigation labels',
       'param_nav_labels_desc': 'Show text below the navigation bar icons.',
       'param_stat_subtitles': 'Stat card subtitles',
-      'param_stat_subtitles_desc': 'Show the small caption under stat card values.',
+      'param_stat_subtitles_desc':
+          'Show the small caption under stat card values.',
       'param_work_hours': 'Work-hours equivalent',
       'param_work_hours_desc':
           'Show below each amount how many hours of work it represents.',
@@ -299,7 +356,8 @@ class Translator {
       'param_work_hours_rate_desc': 'How much do you earn per hour?',
       'param_nav_order': 'Navigation order',
       'param_nav_order_desc': 'Reorder the views in the navigation bar.',
-      'param_nav_order_hint': 'The first 4 views appear in the bar; the rest appear in the menu.',
+      'param_nav_order_hint':
+          'The first 4 views appear in the bar; the rest appear in the menu.',
       'param_nav_order_saved': 'Navigation order updated',
       'param_nav_order_reset': 'Reset to default',
       'param_nav_order_bar': 'In bar',
@@ -310,8 +368,10 @@ class Translator {
       'param_switch_backup': 'Switch to backup',
       'param_switch_backup_desc': 'Replace the current database with a backup.',
       'param_switch_backup_confirm': 'Switch to backup',
-      'param_switch_backup_warning': 'This will replace your current database with the selected backup. The current database will be deleted.',
-      'param_switch_backup_success': 'Database switched successfully. The app will restart.',
+      'param_switch_backup_warning':
+          'This will replace your current database with the selected backup. The current database will be deleted.',
+      'param_switch_backup_success':
+          'Database switched successfully. The app will restart.',
       'param_switch_backup_no_backups': 'No backups available.',
       'param_switch_backup_title': 'Select a backup',
       'param_security': 'Security',
@@ -328,11 +388,13 @@ class Translator {
       'param_biometric_enabled': 'Biometric login enabled',
       'param_biometric_disabled': 'Biometric login disabled',
       'param_biometric_failed': 'Biometric authentication failed',
-      'param_biometric_re_enable': 'Biometric credentials were cleared. Please re-enable biometric login.',
+      'param_biometric_re_enable':
+          'Biometric credentials were cleared. Please re-enable biometric login.',
       'param_btn_save': 'Save',
       'param_danger_zone': 'Danger Zone',
       'param_delete_account': 'Delete Account',
-      'param_delete_account_desc': 'Permanently delete your account and all associated data.',
+      'param_delete_account_desc':
+          'Permanently delete your account and all associated data.',
       'param_delete_confirm': 'Delete Account',
       'param_delete_warning': 'This action is permanent and cannot be undone.',
       'param_delete_password_prompt': 'Enter your password to confirm:',
@@ -340,7 +402,8 @@ class Translator {
       'param_feedback': 'Feedback',
       'param_feedback_text': 'An issue to report or general feedback?',
       'param_feedback_mail_me': 'Mail me',
-      'param_feedback_no_mail_app': 'No mail app found. Email address copied to clipboard: peadra@arthurfert.com',
+      'param_feedback_no_mail_app':
+          'No mail app found. Email address copied to clipboard: peadra@arthurfert.com',
       'param_link_open_failed': 'Could not open link',
       'param_delete_password_required': 'Password is required',
       'param_delete_password_incorrect': 'Incorrect password',
@@ -351,10 +414,12 @@ class Translator {
       'sync_scan_desc': 'Scan another device\'s QR code to pair with it.',
       'sync_manage': 'Manage devices',
       'sync_manage_desc': 'View, sync or remove your paired devices.',
-      'sync_peers_empty': 'No paired devices yet.\nPair a device to keep your data in sync between devices.',
+      'sync_peers_empty':
+          'No paired devices yet.\nPair a device to keep your data in sync between devices.',
       'sync_peers_load_failed': 'Couldn\'t load paired devices.',
       'sync_retry': 'Try again',
-      'sync_peers_reset_notice': 'Saved devices couldn\'t be read and were reset.\nPlease pair your devices again.',
+      'sync_peers_reset_notice':
+          'Saved devices couldn\'t be read and were reset.\nPlease pair your devices again.',
       'sync_last_seen': 'Last seen {time}',
       'sync_never_synced': 'Never synced',
       'sync_sync_now': 'Sync now',
@@ -365,7 +430,8 @@ class Translator {
       'sync_reshare_failed': 'Key re-share failed',
       'sync_qr_title': 'Pair this device',
       'sync_qr_device': 'Device: {name}',
-      'sync_qr_instructions': 'On another device, open Settings > Sync and scan this QR code.\nBoth devices must be connected to the same network.',
+      'sync_qr_instructions':
+          'On another device, open Settings > Sync and scan this QR code.\nBoth devices must be connected to the same network.',
       'sync_qr_waiting': 'Waiting for the other device to pair...',
       'sync_qr_paired': 'Pairing complete!',
       'sync_qr_connecting': 'The other device is connecting...',
@@ -375,17 +441,20 @@ class Translator {
       'sync_step_users': 'Reconciling accounts...',
       'sync_step_sync': 'Syncing data...',
       'sync_scan_title': 'Scan a device QR code',
-      'sync_scan_prompt': 'Point the camera at the QR code shown on the other device.',
+      'sync_scan_prompt':
+          'Point the camera at the QR code shown on the other device.',
       'sync_scan_discovering': 'Looking for this device on the network...',
       'sync_scan_pairing': 'Pairing and syncing...',
       'sync_scan_retry': 'Scan again',
       'sync_scan_no_camera': 'No camera available on this device.',
-      'sync_scan_timeout': 'The device was not found on the network. Make sure it is powered on and on the same network.',
+      'sync_scan_timeout':
+          'The device was not found on the network. Make sure it is powered on and on the same network.',
       'sync_pair_success': 'Paired with {name}',
       'sync_pair_failed': 'Pairing failed',
       'sync_sync_success': 'Sync complete',
       'sync_sync_failed': 'Sync failed',
-      'sync_unreachable': 'Couldn\'t reach "{name}". Make sure it is powered on and on the same network.',
+      'sync_unreachable':
+          'Couldn\'t reach "{name}". Make sure it is powered on and on the same network.',
       'sync_peer_forgotten': 'Device removed',
       'msg_confirm_delete': 'Are you sure you want to delete this?',
       'msg_transaction_deleted': 'Transaction deleted successfully',
@@ -403,8 +472,10 @@ class Translator {
       'import_csv_hint': 'Supported format: CSV files with headers',
       'import_select_file': 'Select a CSV file to import',
       'import_column_mapping': 'Column Mapping',
-      'import_mapping_hint': 'Match each CSV column to the corresponding transaction field.',
-      'import_type_hint': 'Type must be: income, expense, or transfer. Amount column positive = income, negative = expense.',
+      'import_mapping_hint':
+          'Match each CSV column to the corresponding transaction field.',
+      'import_type_hint':
+          'Type must be: income, expense, or transfer. Amount column positive = income, negative = expense.',
       'import_mapping_target': 'Target',
       'import_separator': 'CSV Separator',
       'import_separator_auto': 'Auto-detect',
@@ -462,15 +533,20 @@ class Translator {
       'tag_manage': 'Manage tags',
       'tag_delete': 'Delete tag',
       'tag_untagged': 'Untagged',
-      'tag_delete_confirm': 'Delete tag "{name}"? Transactions will be kept but untagged.',
+      'tag_delete_confirm':
+          'Delete tag "{name}"? Transactions will be kept but untagged.',
       'tag_delete_success': 'Tag deleted',
       'tag_no_tags': 'No tags yet.',
       'param_categories_view': 'Categories view',
-      'param_categories_view_desc': 'Choose what to display in the categories view',
+      'param_categories_view_desc':
+          'Choose what to display in the categories view',
       'param_categories_descriptions': 'Descriptions',
       'param_categories_tags': 'Tags',
       'param_dashboard_pie_view': 'Dashboard pie charts',
-      'param_dashboard_pie_view_desc': 'Choose what to display in the dashboard distribution pie charts',
+      'param_dashboard_pie_view_desc':
+          'Choose what to display in the dashboard distribution pie charts',
+      'period_1w': '1W',
+      'period_1m': '1M',
       'period_3m': '3M',
       'period_6m': '6M',
       'period_1y': '1Y',
@@ -496,7 +572,8 @@ class Translator {
       'budget_currency': 'Currency',
       'budget_period': 'Period',
       'budget_monthly': 'Monthly',
-      'budget_monthly_hint': 'Resets every month. Tag goals count this month, balances show the current value.',
+      'budget_monthly_hint':
+          'Resets every month. Tag goals count this month, balances show the current value.',
       'budget_custom': 'Custom deadline',
       'budget_pick_date': 'Pick a date',
       'budget_target_invalid': 'Enter an amount greater than 0',
@@ -567,10 +644,12 @@ class Translator {
       'login_create_account': 'Cr\u00e9er un nouveau compte',
       'login_connect_account': 'Se connecter \u00e0 un compte existant',
       'onboarding_language_title': 'Quelle langue préférez-vous ?',
-      'onboarding_language_desc': 'Vous pourrez la changer à tout moment dans les paramètres.',
+      'onboarding_language_desc':
+          'Vous pourrez la changer à tout moment dans les paramètres.',
       'onboarding_name_title': 'Comment devons-nous vous appeler ?',
       'onboarding_password_title': 'Créez votre mot de passe',
-      'onboarding_password_desc': 'Ce mot de passe protège vos données : Peadra l\'utilise pour dériver la clé AES qui chiffre tout ce que vous enregistrez. Gardez-le, il ne pourra pas être récupéré.',
+      'onboarding_password_desc':
+          'Ce mot de passe protège vos données : Peadra l\'utilise pour dériver la clé AES qui chiffre tout ce que vous enregistrez. Gardez-le, il ne pourra pas être récupéré.',
       'onboarding_next': 'Suivant',
       'btn_save': 'Enregistrer',
       'btn_back': 'Retour',
@@ -598,7 +677,8 @@ class Translator {
       'dash_other': 'Autres',
       'cat_top_expenses': 'Cat\u00e9gories de d\u00e9penses principales',
       'cat_top_incomes': 'Cat\u00e9gories de revenus principales',
-      'cat_no_data_period': "Aucune donn\u00e9e \u00e0 afficher pour cette p\u00e9riode.\nAjoutez des transactions avec la même description sur plusieurs mois.",
+      'cat_no_data_period':
+          "Aucune donn\u00e9e \u00e0 afficher pour cette p\u00e9riode.\nAjoutez des transactions avec la même description sur plusieurs mois.",
       'btn_load_more': 'Charger plus',
       'btn_load_all': 'Tout charger',
       'btn_pin': '\u00c9pingler',
@@ -608,13 +688,15 @@ class Translator {
       'cat_merge_descriptions': 'Fusionner',
       'cat_merge_source': 'Description \u00e0 fusionner',
       'cat_merge_target': 'Description cible',
-      'cat_merge_hint': 'S\u00e9lectionnez la description \u00e0 fusionner et la description cible.',
+      'cat_merge_hint':
+          'S\u00e9lectionnez la description \u00e0 fusionner et la description cible.',
       'cat_merge_from': 'De :',
       'cat_merge_to': 'Vers :',
       'cat_rename_description': 'Renommer',
       'cat_select_description': 'S\u00e9lectionnez une description',
       'cat_new_name': 'Nouveau nom',
-      'cat_rename_hint': 'S\u00e9lectionnez la description \u00e0 renommer et entrez le nouveau nom.',
+      'cat_rename_hint':
+          'S\u00e9lectionnez la description \u00e0 renommer et entrez le nouveau nom.',
       'cat_select_description_to_rename': 'Description \u00e0 renommer :',
       'cat_new_name_label': 'Nouveau nom :',
       'cat_merge_btn': 'Fusionner',
@@ -682,13 +764,16 @@ class Translator {
       'rec_no_end_date': 'Sans date de fin',
       'rec_next_due': 'Prochaine \u00e9ch\u00e9ance',
       'rec_generated_count': '{count} occurrences',
-      'rec_no_data': 'Aucune transaction r\u00e9currente pour le moment.\nCr\u00e9ez-en une pour ajouter automatiquement des transactions selon un calendrier.',
+      'rec_no_data':
+          'Aucune transaction r\u00e9currente pour le moment.\nCr\u00e9ez-en une pour ajouter automatiquement des transactions selon un calendrier.',
       'rec_active': 'Active',
       'rec_inactive': 'Inactive',
       'rec_delete_confirm': 'Supprimer cette transaction r\u00e9currente ?',
-      'rec_delete_occurrences': 'Supprimer aussi les transactions g\u00e9n\u00e9r\u00e9es',
+      'rec_delete_occurrences':
+          'Supprimer aussi les transactions g\u00e9n\u00e9r\u00e9es',
       'rec_scope_title': 'Transaction r\u00e9currente',
-      'rec_scope_message': 'Cette transaction fait partie d\u2019une s\u00e9rie r\u00e9currente.',
+      'rec_scope_message':
+          'Cette transaction fait partie d\u2019une s\u00e9rie r\u00e9currente.',
       'rec_edit_this': 'Cette occurrence uniquement',
       'rec_edit_all': 'Toutes les occurrences futures',
       'rec_delete_this': 'Cette occurrence uniquement',
@@ -734,9 +819,58 @@ class Translator {
       'acc_starting_amount': 'Montant de d\u00e9part',
       'acc_create_account': 'Cr\u00e9er un compte',
       'acc_currency': 'Devise',
-      'acc_delete_confirm': '\u00cates-vous s\u00fbr de vouloir supprimer ce compte ?',
-      'acc_delete_transactions': 'Supprimer aussi les transactions associ\u00e9es',
-      'acc_delete_starting_amount': 'Supprimer \u00e9galement le montant de d\u00e9part',
+      'acc_delete_confirm':
+          '\u00cates-vous s\u00fbr de vouloir supprimer ce compte ?',
+      'acc_delete_transactions':
+          'Supprimer aussi les transactions associ\u00e9es',
+      'acc_delete_starting_amount':
+          'Supprimer \u00e9galement le montant de d\u00e9part',
+      'nav_stock': 'Bourse',
+      'acc_stock': 'Compte boursier',
+      'acc_stock_total': 'Total boursier',
+      'acc_initial_cash': 'Tr\u00e9sorerie initiale',
+      'stock_title': 'Bourse',
+      'stock_no_account': 'Aucun compte boursier pour le moment.',
+      'stock_create_account': 'Cr\u00e9er un compte boursier',
+      'stock_no_lines':
+          'Aucune position pour le moment.\nAjoutez une ligne pour commencer.',
+      'stock_add_line': 'Ajouter une position',
+      'stock_sell': 'Vendre',
+      'stock_cash': 'Tr\u00e9sorerie',
+      'stock_ticker': 'Symbole',
+      'stock_company': 'Nom de la soci\u00e9t\u00e9',
+      'stock_quantity': 'Quantit\u00e9',
+      'stock_buy_price': "Prix d'achat",
+      'stock_latest_price': 'Dernier prix',
+      'stock_current_value': 'Valeur actuelle',
+      'stock_buy_date': "Date d'achat",
+      'stock_search_hint':
+          'Rechercher une entreprise ou un symbole (ex. Apple ou APPL)',
+      'stock_search_empty': 'Aucun symbole trouv\u00e9',
+      'stock_sell_quantity': 'Quantit\u00e9 \u00e0 vendre',
+      'stock_sell_price': 'Prix de vente',
+      'stock_sell_date': 'Date de vente',
+      'stock_sell_success': 'Position vendue',
+      'stock_line_added': 'Position ajout\u00e9e',
+      'stock_line_deleted': 'Position supprim\u00e9e',
+      'stock_insufficient_cash': 'Tr\u00e9sorerie insuffisante pour cet achat',
+      'stock_refresh': 'Actualiser les prix',
+      'stock_quotes_stale': 'Impossible d\u2019actualiser les prix',
+      'stock_info_title': '\u00c0 propos des donn\u00e9es boursi\u00e8res',
+      'stock_info_source':
+          'Les prix proviennent de TradingView. Ce sont des donn\u00e9es journali\u00e8res, parfois diff\u00e9r\u00e9es.',
+      'stock_info_broker':
+          'Les valeurs peuvent diff\u00e9rer de celles de votre courtier : frais, dividendes, splits, taux de change et d\u00e9lais de march\u00e9 ne sont pas tous pris en compte.',
+      'stock_total_value': 'Valeur du portefeuille',
+      'stock_value_short': 'Valeur',
+      'stock_total_change': 'Gain/perte total',
+      'stock_evolution': '\u00c9volution du portefeuille',
+      'stock_chart_title': '\u00c9volution',
+      'stock_amount_required': 'Entrez un montant',
+      'stock_name_required': 'S\u00e9lectionnez un symbole',
+      'stock_delete_confirm': 'Supprimer cette position ?',
+      'stock_delete_sold_hint':
+          'Les positions vendues sont conserv\u00e9es dans l\u2019historique.',
       'month_jan_abbr': 'janv.',
       'month_feb_abbr': 'f\u00e9vr.',
       'month_mar_abbr': 'mars',
@@ -771,7 +905,8 @@ class Translator {
       'param_new_password': 'Nouveau mot de passe',
       'param_general': 'G\u00e9n\u00e9ral',
       'param_currency': 'Devise',
-      'param_currency_desc': "Choisissez la devise d'affichage pour l'application.",
+      'param_currency_desc':
+          "Choisissez la devise d'affichage pour l'application.",
       'param_language_label': 'Langue',
       'param_language_desc': 'Choisissez votre langue pr\u00e9f\u00e9r\u00e9e.',
       'param_theme_label': 'Th\u00e8me',
@@ -797,8 +932,10 @@ class Translator {
       'param_install_apk_github': 'Installer l\'APK depuis GitHub',
       'param_see_whats_new': 'Voir les nouveaut\u00e9s',
       'param_changelog_title': 'Nouveaut\u00e9s',
-      'param_changelog_empty': "Aucun changelog n'est disponible pour cette version.",
-      'param_update_status_idle': 'Aucune v\u00e9rification effectu\u00e9e pour le moment.',
+      'param_changelog_empty':
+          "Aucun changelog n'est disponible pour cette version.",
+      'param_update_status_idle':
+          'Aucune v\u00e9rification effectu\u00e9e pour le moment.',
       'param_update_status_checking': 'Recherche des mises \u00e0 jour...',
       'param_update_status_available':
           'Une nouvelle version est disponible : {version}',
@@ -806,10 +943,12 @@ class Translator {
           'Vous utilisez d\u00e9j\u00e0 la derni\u00e8re version.',
       'param_update_status_error': 'Erreur de mise \u00e0 jour : {error}',
       'param_hide_update_notifications': 'Notifications de mise \u00e0 jour',
-      'param_hide_update_notifications_desc': 'Masquer la banni\u00e8re lorsqu\'une nouvelle version est disponible.',
+      'param_hide_update_notifications_desc':
+          'Masquer la banni\u00e8re lorsqu\'une nouvelle version est disponible.',
       'param_transactions': 'Transactions',
       'param_display_limit': "Limite d'affichage",
-      'param_display_limit_desc': 'Nombre de transactions charg\u00e9es par d\u00e9faut.',
+      'param_display_limit_desc':
+          'Nombre de transactions charg\u00e9es par d\u00e9faut.',
       'param_charts': 'Graphiques',
       'param_max_categories': 'Cat\u00e9gories max',
       'param_max_categories_desc':
@@ -837,10 +976,10 @@ class Translator {
       'param_work_hours_desc':
           'Afficher sous chaque montant le nombre d\u2019heures de travail qu\u2019il repr\u00e9sente.',
       'param_work_hours_rate': 'Valeur d\u2019une heure',
-      'param_work_hours_rate_desc':
-          'Combien gagnez vous par heure ?',
+      'param_work_hours_rate_desc': 'Combien gagnez vous par heure ?',
       'param_nav_order': 'Ordre de navigation',
-      'param_nav_order_desc': 'R\u00e9organisez les vues de la barre de navigation.',
+      'param_nav_order_desc':
+          'R\u00e9organisez les vues de la barre de navigation.',
       'param_nav_order_hint':
           'Les 4 premi\u00e8res vues apparaissent dans la barre ; les autres dans le menu.',
       'param_nav_order_saved': 'Ordre de navigation mis \u00e0 jour',
@@ -849,12 +988,16 @@ class Translator {
       'param_nav_order_menu': 'Dans le menu',
       'param_database': 'Base de donn\u00e9es',
       'param_locate_database': 'Localiser la base',
-      'param_locate_database_desc': 'Ouvrir le dossier contenant la base de donn\u00e9es.',
+      'param_locate_database_desc':
+          'Ouvrir le dossier contenant la base de donn\u00e9es.',
       'param_switch_backup': 'Restaurer une sauvegarde',
-      'param_switch_backup_desc': 'Remplacer la base actuelle par une sauvegarde.',
+      'param_switch_backup_desc':
+          'Remplacer la base actuelle par une sauvegarde.',
       'param_switch_backup_confirm': 'Restaurer la sauvegarde',
-      'param_switch_backup_warning': 'Cela remplacera votre base actuelle par la sauvegarde s\u00e9lectionn\u00e9e. La base actuelle sera supprim\u00e9e.',
-      'param_switch_backup_success': 'Base restaur\u00e9e avec succ\u00e8s. L\'application va red\u00e9marrer.',
+      'param_switch_backup_warning':
+          'Cela remplacera votre base actuelle par la sauvegarde s\u00e9lectionn\u00e9e. La base actuelle sera supprim\u00e9e.',
+      'param_switch_backup_success':
+          'Base restaur\u00e9e avec succ\u00e8s. L\'application va red\u00e9marrer.',
       'param_switch_backup_no_backups': 'Aucune sauvegarde disponible.',
       'param_switch_backup_title': 'S\u00e9lectionnez une sauvegarde',
       'param_security': 'S\u00e9curit\u00e9',
@@ -869,11 +1012,15 @@ class Translator {
       'param_password_mismatch': 'Les mots de passe ne correspondent pas',
       'param_username_saved': "Nom d'utilisateur mis \u00e0 jour",
       'param_biometric': 'Connexion biom\u00e9trique',
-      'param_biometric_desc': 'Utiliser l\'empreinte digitale ou le visage pour se connecter.',
+      'param_biometric_desc':
+          'Utiliser l\'empreinte digitale ou le visage pour se connecter.',
       'param_biometric_enabled': 'Connexion biom\u00e9trique activ\u00e9e',
-      'param_biometric_disabled': 'Connexion biom\u00e9trique d\u00e9sactiv\u00e9e',
-      'param_biometric_failed': 'L\'authentification biom\u00e9trique a \u00e9chou\u00e9',
-      'param_biometric_re_enable': 'Les identifiants biom\u00e9triques ont \u00e9t\u00e9 supprim\u00e9s. Veuillez r\u00e9activer la connexion biom\u00e9trique.',
+      'param_biometric_disabled':
+          'Connexion biom\u00e9trique d\u00e9sactiv\u00e9e',
+      'param_biometric_failed':
+          'L\'authentification biom\u00e9trique a \u00e9chou\u00e9',
+      'param_biometric_re_enable':
+          'Les identifiants biom\u00e9triques ont \u00e9t\u00e9 supprim\u00e9s. Veuillez r\u00e9activer la connexion biom\u00e9trique.',
       'param_btn_save': 'Enregistrer',
       'param_danger_zone': '\u00c0 risque',
       'param_delete_account': 'Supprimer le compte',
@@ -886,34 +1033,44 @@ class Translator {
           'Entrez votre mot de passe pour confirmer :',
       'param_privacy_policy': 'Politique de confidentialité',
       'param_feedback': 'Retour',
-      'param_feedback_text': 'Un probl\u00e8me \u00e0 signaler ou un retour g\u00e9n\u00e9ral ?',
+      'param_feedback_text':
+          'Un probl\u00e8me \u00e0 signaler ou un retour g\u00e9n\u00e9ral ?',
       'param_feedback_mail_me': '\u00c9crivez-moi',
-      'param_feedback_no_mail_app': 'Aucune application mail trouv\u00e9e. Adresse copi\u00e9e : peadra@arthurfert.com',
+      'param_feedback_no_mail_app':
+          'Aucune application mail trouv\u00e9e. Adresse copi\u00e9e : peadra@arthurfert.com',
       'param_link_open_failed': 'Impossible d\'ouvrir le lien',
       'param_delete_password_required': 'Le mot de passe est requis',
       'param_delete_password_incorrect': 'Mot de passe incorrect',
       'sync_title': 'Synchroniser',
       'sync_pair': 'Associer un appareil',
-      'sync_pair_desc': 'Affichez un QR code qu\'un autre appareil peut scanner pour s\'associer.',
+      'sync_pair_desc':
+          'Affichez un QR code qu\'un autre appareil peut scanner pour s\'associer.',
       'sync_scan': 'Scanner un QR code',
-      'sync_scan_desc': 'Scannez le QR code d\'un autre appareil pour vous associer avec lui.',
+      'sync_scan_desc':
+          'Scannez le QR code d\'un autre appareil pour vous associer avec lui.',
       'sync_manage': 'G\u00e9rer les appareils',
-      'sync_manage_desc': 'Consultez, synchronisez ou supprimez vos appareils associ\u00e9s.',
-      'sync_peers_empty': 'Aucun appareil associ\u00e9.\nAssociez un appareil pour synchroniser vos donn\u00e9es entre appareils.',
-      'sync_peers_load_failed': 'Impossible de charger les appareils associ\u00e9s.',
+      'sync_manage_desc':
+          'Consultez, synchronisez ou supprimez vos appareils associ\u00e9s.',
+      'sync_peers_empty':
+          'Aucun appareil associ\u00e9.\nAssociez un appareil pour synchroniser vos donn\u00e9es entre appareils.',
+      'sync_peers_load_failed':
+          'Impossible de charger les appareils associ\u00e9s.',
       'sync_retry': 'R\u00e9essayer',
-      'sync_peers_reset_notice': 'Les appareils enregistr\u00e9s \u00e9taient illisibles et ont \u00e9t\u00e9 r\u00e9initialis\u00e9s.\nVeuillez associer \u00e0 nouveau vos appareils.',
+      'sync_peers_reset_notice':
+          'Les appareils enregistr\u00e9s \u00e9taient illisibles et ont \u00e9t\u00e9 r\u00e9initialis\u00e9s.\nVeuillez associer \u00e0 nouveau vos appareils.',
       'sync_last_seen': 'Vu {time}',
       'sync_never_synced': 'Jamais synchronis\u00e9',
       'sync_sync_now': 'Synchroniser',
       'sync_forget': 'Oublier',
-      'sync_forget_confirm': 'Supprimer "{name}" de vos appareils associ\u00e9s ?',
+      'sync_forget_confirm':
+          'Supprimer "{name}" de vos appareils associ\u00e9s ?',
       'sync_reshare': 'R\u00e9appareiller la cl\u00e9',
       'sync_reshare_success': 'Cl\u00e9 de chiffrement r\u00e9appareill\u00e9e',
       'sync_reshare_failed': '\u00c9chec du r\u00e9appareillage de la cl\u00e9',
       'sync_qr_title': 'Associer cet appareil',
       'sync_qr_device': 'Appareil : {name}',
-      'sync_qr_instructions': 'Sur un autre appareil, ouvrez Param\u00e8tres > Synchronisation et scannez ce QR code.\nLes deux appareils doivent \u00eatre sur le m\u00eame r\u00e9seau.',
+      'sync_qr_instructions':
+          'Sur un autre appareil, ouvrez Param\u00e8tres > Synchronisation et scannez ce QR code.\nLes deux appareils doivent \u00eatre sur le m\u00eame r\u00e9seau.',
       'sync_qr_waiting': 'En attente de l\'autre appareil...',
       'sync_qr_paired': 'Association terminée !',
       'sync_qr_connecting': 'L\'autre appareil se connecte...',
@@ -923,24 +1080,27 @@ class Translator {
       'sync_step_users': 'R\u00e9conciliation des comptes...',
       'sync_step_sync': 'Synchronisation des donn\u00e9es...',
       'sync_scan_title': 'Scanner un QR code',
-      'sync_scan_prompt': 'Dirigez la cam\u00e9ra vers le QR code affich\u00e9 sur l\'autre appareil.',
-      'sync_scan_discovering': 'Recherche de cet appareil sur le r\u00e9seau...',
+      'sync_scan_prompt':
+          'Dirigez la cam\u00e9ra vers le QR code affich\u00e9 sur l\'autre appareil.',
+      'sync_scan_discovering':
+          'Recherche de cet appareil sur le r\u00e9seau...',
       'sync_scan_pairing': 'Association et synchronisation...',
       'sync_scan_retry': 'Scanner \u00e0 nouveau',
       'sync_scan_no_camera': 'Aucune cam\u00e9ra disponible sur cet appareil.',
-      'sync_scan_timeout': 'L\'appareil est introuvable sur le r\u00e9seau. V\u00e9rifiez qu\'il est allum\u00e9 et sur le m\u00eame r\u00e9seau.',
+      'sync_scan_timeout':
+          'L\'appareil est introuvable sur le r\u00e9seau. V\u00e9rifiez qu\'il est allum\u00e9 et sur le m\u00eame r\u00e9seau.',
       'sync_pair_success': 'Associ\u00e9 avec {name}',
       'sync_pair_failed': '\u00c9chec de l\'association',
       'sync_sync_success': 'Synchronisation termin\u00e9e',
       'sync_sync_failed': '\u00c9chec de la synchronisation',
-      'sync_unreachable': 'Impossible de joindre "{name}". V\u00e9rifiez qu\'il est allum\u00e9 et sur le m\u00eame r\u00e9seau.',
+      'sync_unreachable':
+          'Impossible de joindre "{name}". V\u00e9rifiez qu\'il est allum\u00e9 et sur le m\u00eame r\u00e9seau.',
       'sync_peer_forgotten': 'Appareil supprim\u00e9',
-      'msg_confirm_delete':
-          '\u00cates-vous s\u00fbr de vouloir le supprimer ?',
-      'msg_transaction_deleted':
-          'Transaction supprim\u00e9e avec succ\u00e8s',
+      'msg_confirm_delete': '\u00cates-vous s\u00fbr de vouloir le supprimer ?',
+      'msg_transaction_deleted': 'Transaction supprim\u00e9e avec succ\u00e8s',
       'msg_export_success': 'Export r\u00e9ussi : {file_path}',
-      'msg_export_success_mobile': 'CSV export\u00e9 dans T\u00e9l\u00e9chargements',
+      'msg_export_success_mobile':
+          'CSV export\u00e9 dans T\u00e9l\u00e9chargements',
       'msg_export_error': "Erreur lors de l'export",
       'msg_password_required': 'Le mot de passe est requis.',
       'msg_user_select_required': 'Veuillez s\u00e9lectionner un utilisateur.',
@@ -962,11 +1122,14 @@ class Translator {
       'import_skipped': 'Ignor\u00e9es',
       'import_duplicates': 'Doublons',
       'import_errors': 'Erreurs',
-      'import_csv_hint': 'Format support\u00e9 : fichiers CSV avec en-t\u00eates',
+      'import_csv_hint':
+          'Format support\u00e9 : fichiers CSV avec en-t\u00eates',
       'import_select_file': 'S\u00e9lectionnez un fichier CSV \u00e0 importer',
       'import_column_mapping': 'Correspondance des colonnes',
-      'import_mapping_hint': 'Associez chaque colonne CSV au champ de transaction correspondant.',
-      'import_type_hint': 'Le type doit être : income, expense ou transfer. Montant positif = income, négatif = expense.',
+      'import_mapping_hint':
+          'Associez chaque colonne CSV au champ de transaction correspondant.',
+      'import_type_hint':
+          'Le type doit être : income, expense ou transfer. Montant positif = income, négatif = expense.',
       'import_mapping_target': 'Cible',
       'import_separator': 'S\u00e9parateur CSV',
       'import_separator_auto': 'D\u00e9tection auto',
@@ -1015,15 +1178,20 @@ class Translator {
       'tag_manage': 'G\u00e9rer les tag',
       'tag_delete': 'Supprimer le tag',
       'tag_untagged': 'Sans tag',
-      'tag_delete_confirm': 'Supprimer le tag "{name}" ? Les transactions seront simplement d\u00e9tiquet\u00e9es.',
+      'tag_delete_confirm':
+          'Supprimer le tag "{name}" ? Les transactions seront simplement d\u00e9tiquet\u00e9es.',
       'tag_delete_success': 'Tag supprim\u00e9',
       'tag_no_tags': 'Aucun tag pour le moment.',
       'param_categories_view': 'Vue des cat\u00e9gories',
-      'param_categories_view_desc': 'Choisir ce qui est affich\u00e9 dans la vue des cat\u00e9gories',
+      'param_categories_view_desc':
+          'Choisir ce qui est affich\u00e9 dans la vue des cat\u00e9gories',
       'param_categories_descriptions': 'Descriptions',
       'param_categories_tags': 'Tags',
       'param_dashboard_pie_view': 'Camemberts du tableau de bord',
-      'param_dashboard_pie_view_desc': 'Choisir ce qui est affich\u00e9 dans les camemberts de r\u00e9partition',
+      'param_dashboard_pie_view_desc':
+          'Choisir ce qui est affich\u00e9 dans les camemberts de r\u00e9partition',
+      'period_1w': '1 sem.',
+      'period_1m': '1 mois',
       'period_3m': '3 mois',
       'period_6m': '6 mois',
       'period_1y': '1 an',
@@ -1037,7 +1205,8 @@ class Translator {
       'budget_set_goal': 'Définir un objectif',
       'budget_new_goal': 'Nouvel objectif',
       'budget_edit_goal': "Modifier l'objectif",
-      'budget_no_goals': 'Aucun objectif.\nDéfinissez un objectif pour suivre votre progression.',
+      'budget_no_goals':
+          'Aucun objectif.\nDéfinissez un objectif pour suivre votre progression.',
       'budget_goal_type': "Type d'objectif",
       'budget_type_total': 'Patrimoine total',
       'budget_type_account': 'Compte',
@@ -1049,7 +1218,8 @@ class Translator {
       'budget_currency': 'Devise',
       'budget_period': 'Période',
       'budget_monthly': 'Mensuel',
-      'budget_monthly_hint': 'Remis à zéro chaque mois. Les tags comptent le mois en cours, les soldes affichent la valeur actuelle.',
+      'budget_monthly_hint':
+          'Remis à zéro chaque mois. Les tags comptent le mois en cours, les soldes affichent la valeur actuelle.',
       'budget_custom': 'Échéance personnalisée',
       'budget_pick_date': 'Choisir une date',
       'budget_target_invalid': 'Saisissez un montant supérieur à 0',
@@ -1120,10 +1290,12 @@ class Translator {
       'login_create_account': 'Crear una cuenta nueva',
       'login_connect_account': 'Conectar con una cuenta existante',
       'onboarding_language_title': '¿Qué idioma prefieres?',
-      'onboarding_language_desc': 'Podrás cambiarlo en cualquier momento en los ajustes.',
+      'onboarding_language_desc':
+          'Podrás cambiarlo en cualquier momento en los ajustes.',
       'onboarding_name_title': '¿Cómo podemos llamarte?',
       'onboarding_password_title': 'Crea tu contraseña',
-      'onboarding_password_desc': 'Esta contraseña es lo que protege tus datos: Peadra la usa para derivar la clave AES que cifra todo lo que guardas. Consérvala, no se podrá recuperar.',
+      'onboarding_password_desc':
+          'Esta contraseña es lo que protege tus datos: Peadra la usa para derivar la clave AES que cifra todo lo que guardas. Consérvala, no se podrá recuperar.',
       'onboarding_next': 'Siguiente',
       'btn_save': 'Guardar',
       'btn_back': 'Atrás',
@@ -1151,7 +1323,8 @@ class Translator {
       'dash_other': 'Otros',
       'cat_top_expenses': 'Principales categorías de gasto',
       'cat_top_incomes': 'Principales categorías de ingreso',
-      'cat_no_data_period': 'Sin datos para este período.\nAñade transacciones con descripciones coincidentes de varios meses.',
+      'cat_no_data_period':
+          'Sin datos para este período.\nAñade transacciones con descripciones coincidentes de varios meses.',
       'btn_load_more': 'Cargar más',
       'btn_load_all': 'Cargar todo',
       'btn_pin': 'Fijar',
@@ -1161,18 +1334,21 @@ class Translator {
       'cat_merge_descriptions': 'Fusionar',
       'cat_merge_source': 'Descripción a fusionar',
       'cat_merge_target': 'Descripción destino',
-      'cat_merge_hint': 'Selecciona la descripción a fusionar y la descripción destino.',
+      'cat_merge_hint':
+          'Selecciona la descripción a fusionar y la descripción destino.',
       'cat_merge_from': 'De:',
       'cat_merge_to': 'A:',
       'cat_rename_description': 'Renombrar',
       'cat_select_description': 'Seleccionar descripción',
       'cat_new_name': 'Nombre nuevo',
-      'cat_rename_hint': 'Selecciona la descripción a renombrar e introduce el nombre nuevo.',
+      'cat_rename_hint':
+          'Selecciona la descripción a renombrar e introduce el nombre nuevo.',
       'cat_select_description_to_rename': 'Descripción a renombrar:',
       'cat_new_name_label': 'Nombre nuevo:',
       'cat_merge_btn': 'Fusionar',
       'cat_rename_btn': 'Renombrar',
-      'cat_need_at_least_two_descriptions': 'Necesitas al menos dos descripciones para fusionar',
+      'cat_need_at_least_two_descriptions':
+          'Necesitas al menos dos descripciones para fusionar',
       'cat_no_descriptions': 'No se encontraron descripciones',
       'cat_merge_success': 'Se fusionó \'{source}\' en \'{target}\'',
       'cat_merge_failed': 'No se pudieron fusionar las descripciones',
@@ -1203,9 +1379,11 @@ class Translator {
       'import_preview': 'Vista previa',
       'import_title': 'Importar transacciones',
       'import_duplicate_warning': 'Aviso: importación duplicada',
-      'import_duplicate_content': 'Este archivo parece haberse importado ya.\n¿Quieres continuar?',
+      'import_duplicate_content':
+          'Este archivo parece haberse importado ya.\n¿Quieres continuar?',
       'import_anyway': 'Importar de todos modos',
-      'import_select_csv_desc': 'Selecciona un archivo CSV para importar tus transacciones bancarias.',
+      'import_select_csv_desc':
+          'Selecciona un archivo CSV para importar tus transacciones bancarias.',
       'msg_transaction_modified': 'Transacción modificada',
       'msg_transfer_completed': 'Traspaso completado',
       'msg_transaction_added': 'Transacción añadida',
@@ -1232,13 +1410,15 @@ class Translator {
       'rec_no_end_date': 'Sin fecha de fin',
       'rec_next_due': 'Próximo vencimiento',
       'rec_generated_count': '{count} ocurrencias',
-      'rec_no_data': 'Aún no hay transacciones recurrentes.\nCrea una para añadir transacciones automáticamente según un calendario.',
+      'rec_no_data':
+          'Aún no hay transacciones recurrentes.\nCrea una para añadir transacciones automáticamente según un calendario.',
       'rec_active': 'Activa',
       'rec_inactive': 'Inactiva',
       'rec_delete_confirm': '¿Eliminar esta transacción recurrente?',
       'rec_delete_occurrences': 'Eliminar también las transacciones generadas',
       'rec_scope_title': 'Transacción recurrente',
-      'rec_scope_message': 'Esta transacción forma parte de una serie recurrente.',
+      'rec_scope_message':
+          'Esta transacción forma parte de una serie recurrente.',
       'rec_edit_this': 'Solo esta ocurrencia',
       'rec_edit_all': 'Todas las ocurrencias futuras',
       'rec_delete_this': 'Solo esta ocurrencia',
@@ -1287,6 +1467,50 @@ class Translator {
       'acc_delete_confirm': '¿Seguro que quieres eliminar esta cuenta?',
       'acc_delete_transactions': 'Eliminar también las transacciones asociadas',
       'acc_delete_starting_amount': 'Eliminar también el saldo inicial',
+      'nav_stock': 'Bolsa',
+      'acc_stock': 'Cuenta de bolsa',
+      'acc_stock_total': 'Total de bolsa',
+      'acc_initial_cash': 'Efectivo inicial',
+      'stock_title': 'Bolsa',
+      'stock_no_account': 'Aún no hay cuenta de bolsa.',
+      'stock_create_account': 'Crear cuenta de bolsa',
+      'stock_no_lines': 'Aún no hay posiciones.\nAñade una línea para empezar.',
+      'stock_add_line': 'Añadir posición',
+      'stock_sell': 'Vender',
+      'stock_cash': 'Efectivo',
+      'stock_ticker': 'Símbolo',
+      'stock_company': 'Nombre de la empresa',
+      'stock_quantity': 'Cantidad',
+      'stock_buy_price': 'Precio de compra',
+      'stock_latest_price': 'Último precio',
+      'stock_current_value': 'Valor actual',
+      'stock_buy_date': 'Fecha de compra',
+      'stock_search_hint': 'Busca una empresa o símbolo (p. ej. Apple o APPL)',
+      'stock_search_empty': 'Ningún símbolo encontrado',
+      'stock_sell_quantity': 'Cantidad a vender',
+      'stock_sell_price': 'Precio de venta',
+      'stock_sell_date': 'Fecha de venta',
+      'stock_sell_success': 'Posición vendida',
+      'stock_line_added': 'Posición añadida',
+      'stock_line_deleted': 'Posición eliminada',
+      'stock_insufficient_cash': 'Efectivo insuficiente para esta compra',
+      'stock_refresh': 'Actualizar precios',
+      'stock_quotes_stale': 'No se pudieron actualizar los precios',
+      'stock_info_title': 'Sobre los datos bursátiles',
+      'stock_info_source':
+          'Los precios proceden de TradingView. Son datos diarios y pueden estar retrasados.',
+      'stock_info_broker':
+          'Los valores pueden diferir de los de tu bróker: no se reflejan necesariamente comisiones, dividendos, splits, tipos de cambio ni retrasos del mercado.',
+      'stock_total_value': 'Valor de la cartera',
+      'stock_value_short': 'Valor',
+      'stock_total_change': 'Ganancia/pérdida total',
+      'stock_evolution': 'Evolución de la cartera',
+      'stock_chart_title': 'Evolución',
+      'stock_amount_required': 'Introduce un importe',
+      'stock_name_required': 'Selecciona un símbolo',
+      'stock_delete_confirm': '¿Eliminar esta posición?',
+      'stock_delete_sold_hint':
+          'Las posiciones vendidas se conservan en el historial.',
       'month_jan_abbr': 'ene',
       'month_feb_abbr': 'feb',
       'month_mar_abbr': 'mar',
@@ -1321,7 +1545,8 @@ class Translator {
       'param_new_password': 'Contraseña nueva',
       'param_general': 'General',
       'param_currency': 'Moneda',
-      'param_currency_desc': 'Elige la moneda de visualización de la aplicación.',
+      'param_currency_desc':
+          'Elige la moneda de visualización de la aplicación.',
       'param_language_label': 'Idioma',
       'param_language_desc': 'Elige tu idioma preferido.',
       'param_theme_label': 'Tema',
@@ -1338,7 +1563,8 @@ class Translator {
       'param_high_contrast_dark_theme': 'Contraste alto (oscuro)',
       'param_import': 'Importar',
       'param_export_logs': 'Exportar registros',
-      'param_export_logs_desc': 'Exporta el archivo de registro de la sesión actual para depuración.',
+      'param_export_logs_desc':
+          'Exporta el archivo de registro de la sesión actual para depuración.',
       'param_updates': 'Actualización',
       'param_version': 'Versión',
       'param_check_updates': 'Buscar actualizaciones',
@@ -1346,36 +1572,46 @@ class Translator {
       'param_install_apk_github': 'Instalar APK desde GitHub',
       'param_see_whats_new': 'Ver novedades',
       'param_changelog_title': 'Novedades',
-      'param_changelog_empty': 'No hay novedades disponibles para esta versión.',
+      'param_changelog_empty':
+          'No hay novedades disponibles para esta versión.',
       'param_update_status_idle': 'Aún no se ha buscado ninguna actualización.',
       'param_update_status_checking': 'Buscando actualizaciones...',
-      'param_update_status_available': 'Hay una nueva versión disponible: {version}',
+      'param_update_status_available':
+          'Hay una nueva versión disponible: {version}',
       'param_update_status_up_to_date': 'Ya usas la última versión.',
       'param_update_status_error': 'Error de actualización: {error}',
       'param_hide_update_notifications': 'Notificaciones de actualización',
-      'param_hide_update_notifications_desc': 'Ocultar el banner de actualización cuando haya una nueva versión disponible.',
+      'param_hide_update_notifications_desc':
+          'Ocultar el banner de actualización cuando haya una nueva versión disponible.',
       'param_transactions': 'Transacciones',
       'param_display_limit': 'Límite de visualización',
-      'param_display_limit_desc': 'Número de transacciones cargadas por defecto.',
+      'param_display_limit_desc':
+          'Número de transacciones cargadas por defecto.',
       'param_charts': 'Gráficos',
       'param_max_categories': 'Máx. categorías',
-      'param_max_categories_desc': 'Número máximo de categorías mostradas en los gráficos circulares.',
+      'param_max_categories_desc':
+          'Número máximo de categorías mostradas en los gráficos circulares.',
       'param_month_mode': 'Modo de cálculo del mes',
-      'param_month_mode_desc': 'Mes natural: 1-31 ene. Móvil: últimos 30 días desde hoy.',
+      'param_month_mode_desc':
+          'Mes natural: 1-31 ene. Móvil: últimos 30 días desde hoy.',
       'param_calendar_month': 'Mes natural',
       'param_rolling_30': 'Últimos 30 días',
       'param_line_chart_dots': 'Puntos de datos en curvas',
       'param_line_chart_dots_desc': 'Mostrar puntos de datos en las curvas.',
       'param_assets_granularity': 'Granularidad del gráfico de patrimonio',
-      'param_assets_granularity_desc': 'Mostrar un punto por mes o por día en el gráfico lineal del patrimonio.',
+      'param_assets_granularity_desc':
+          'Mostrar un punto por mes o por día en el gráfico lineal del patrimonio.',
       'param_assets_monthly': 'Mensual',
       'param_assets_daily': 'Diaria',
       'param_nav_labels': 'Etiquetas de navegación',
-      'param_nav_labels_desc': 'Mostrar texto bajo los iconos de la barra de navegación.',
+      'param_nav_labels_desc':
+          'Mostrar texto bajo los iconos de la barra de navegación.',
       'param_stat_subtitles': 'Subtítulos de las estadísticas',
-      'param_stat_subtitles_desc': 'Mostrar la pequeña leyenda bajo los valores de las tarjetas.',
+      'param_stat_subtitles_desc':
+          'Mostrar la pequeña leyenda bajo los valores de las tarjetas.',
       'param_work_hours': 'Equivalente en horas de trabajo',
-      'param_work_hours_desc': 'Mostrar bajo cada importe cuántas horas de trabajo representa.',
+      'param_work_hours_desc':
+          'Mostrar bajo cada importe cuántas horas de trabajo representa.',
       'param_work_hours_rate': 'Valor de una hora',
       'param_work_hours_rate_desc': '¿Cuánto ganas por hora?',
       'param_nav_order': 'Orden de navegación',
@@ -1388,13 +1624,18 @@ class Translator {
       'param_nav_order_menu': 'En el menú',
       'param_database': 'Base de datos',
       'param_locate_database': 'Localizar base de datos',
-      'param_locate_database_desc': 'Abrir la carpeta que contiene la base de datos.',
+      'param_locate_database_desc':
+          'Abrir la carpeta que contiene la base de datos.',
       'param_switch_backup': 'Cambiar a copia de seguridad',
-      'param_switch_backup_desc': 'Reemplazar la base de datos actual con una copia de seguridad.',
+      'param_switch_backup_desc':
+          'Reemplazar la base de datos actual con una copia de seguridad.',
       'param_switch_backup_confirm': 'Cambiar a copia de seguridad',
-      'param_switch_backup_warning': 'Esto reemplazará tu base de datos actual con la copia seleccionada. La base de datos actual se eliminará.',
-      'param_switch_backup_success': 'Base de datos restaurada correctamente. La aplicación se reiniciará.',
-      'param_switch_backup_no_backups': 'No hay copias de seguridad disponibles.',
+      'param_switch_backup_warning':
+          'Esto reemplazará tu base de datos actual con la copia seleccionada. La base de datos actual se eliminará.',
+      'param_switch_backup_success':
+          'Base de datos restaurada correctamente. La aplicación se reiniciará.',
+      'param_switch_backup_no_backups':
+          'No hay copias de seguridad disponibles.',
       'param_switch_backup_title': 'Selecciona una copia de seguridad',
       'param_security': 'Seguridad',
       'param_username': 'Nombre de usuario',
@@ -1410,44 +1651,57 @@ class Translator {
       'param_biometric_enabled': 'Acceso biométrico activado',
       'param_biometric_disabled': 'Acceso biométrico desactivado',
       'param_biometric_failed': 'Error en la autenticación biométrica',
-      'param_biometric_re_enable': 'Se borraron las credenciales biométricas. Vuelve a activar el acceso biométrico.',
+      'param_biometric_re_enable':
+          'Se borraron las credenciales biométricas. Vuelve a activar el acceso biométrico.',
       'param_btn_save': 'Guardar',
       'param_danger_zone': 'Zona de peligro',
       'param_delete_account': 'Eliminar cuenta',
-      'param_delete_account_desc': 'Elimina permanentemente tu cuenta y todos sus datos.',
+      'param_delete_account_desc':
+          'Elimina permanentemente tu cuenta y todos sus datos.',
       'param_delete_confirm': 'Eliminar cuenta',
-      'param_delete_warning': 'Esta acción es permanente y no se puede deshacer.',
+      'param_delete_warning':
+          'Esta acción es permanente y no se puede deshacer.',
       'param_delete_password_prompt': 'Introduce tu contraseña para confirmar:',
       'param_privacy_policy': 'Política de privacidad',
       'param_feedback': 'Comentarios',
-      'param_feedback_text': '¿Un problema que informar o un comentario general?',
+      'param_feedback_text':
+          '¿Un problema que informar o un comentario general?',
       'param_feedback_mail_me': 'Escríbeme',
-      'param_feedback_no_mail_app': 'No se encontró ninguna app de correo. Dirección copiada al portapapeles: peadra@arthurfert.com',
+      'param_feedback_no_mail_app':
+          'No se encontró ninguna app de correo. Dirección copiada al portapapeles: peadra@arthurfert.com',
       'param_link_open_failed': 'No se pudo abrir el enlace',
       'param_delete_password_required': 'Se requiere contraseña',
       'param_delete_password_incorrect': 'Contraseña incorrecta',
       'sync_title': 'Sincronizar',
       'sync_pair': 'Vincular un dispositivo',
-      'sync_pair_desc': 'Muestra un código QR que otro dispositivo puede escanear para vincularse.',
+      'sync_pair_desc':
+          'Muestra un código QR que otro dispositivo puede escanear para vincularse.',
       'sync_scan': 'Escanear un código QR',
-      'sync_scan_desc': 'Escanea el código QR de otro dispositivo para vincularte con él.',
+      'sync_scan_desc':
+          'Escanea el código QR de otro dispositivo para vincularte con él.',
       'sync_manage': 'Gestionar dispositivos',
-      'sync_manage_desc': 'Consulta, sincroniza o elimina tus dispositivos vinculados.',
-      'sync_peers_empty': 'Aún no hay dispositivos vinculados.\nVincula un dispositivo para mantener tus datos sincronizados entre dispositivos.',
-      'sync_peers_load_failed': 'No se pudieron cargar los dispositivos vinculados.',
+      'sync_manage_desc':
+          'Consulta, sincroniza o elimina tus dispositivos vinculados.',
+      'sync_peers_empty':
+          'Aún no hay dispositivos vinculados.\nVincula un dispositivo para mantener tus datos sincronizados entre dispositivos.',
+      'sync_peers_load_failed':
+          'No se pudieron cargar los dispositivos vinculados.',
       'sync_retry': 'Reintentar',
-      'sync_peers_reset_notice': 'Los dispositivos guardados no se pudieron leer y se restablecieron.\nVuelve a vincular tus dispositivos.',
+      'sync_peers_reset_notice':
+          'Los dispositivos guardados no se pudieron leer y se restablecieron.\nVuelve a vincular tus dispositivos.',
       'sync_last_seen': 'Visto {time}',
       'sync_never_synced': 'Nunca sincronizado',
       'sync_sync_now': 'Sincronizar ahora',
       'sync_forget': 'Olvidar',
-      'sync_forget_confirm': '¿Eliminar "{name}" de tus dispositivos vinculados?',
+      'sync_forget_confirm':
+          '¿Eliminar "{name}" de tus dispositivos vinculados?',
       'sync_reshare': 'Reenviar clave',
       'sync_reshare_success': 'Clave de cifrado reenviada',
       'sync_reshare_failed': 'Error al reenviar la clave',
       'sync_qr_title': 'Vincular este dispositivo',
       'sync_qr_device': 'Dispositivo: {name}',
-      'sync_qr_instructions': 'En otro dispositivo, abre Ajustes > Sincronizar y escanea este código QR.\nAmbos dispositivos deben estar en la misma red.',
+      'sync_qr_instructions':
+          'En otro dispositivo, abre Ajustes > Sincronizar y escanea este código QR.\nAmbos dispositivos deben estar en la misma red.',
       'sync_qr_waiting': 'Esperando al otro dispositivo...',
       'sync_qr_paired': '¡Vinculación completa!',
       'sync_qr_connecting': 'El otro dispositivo se está conectando...',
@@ -1457,17 +1711,20 @@ class Translator {
       'sync_step_users': 'Conciliando cuentas...',
       'sync_step_sync': 'Sincronizando datos...',
       'sync_scan_title': 'Escanear el QR de un dispositivo',
-      'sync_scan_prompt': 'Apunta la cámara al código QR mostrado en el otro dispositivo.',
+      'sync_scan_prompt':
+          'Apunta la cámara al código QR mostrado en el otro dispositivo.',
       'sync_scan_discovering': 'Buscando este dispositivo en la red...',
       'sync_scan_pairing': 'Vinculando y sincronizando...',
       'sync_scan_retry': 'Escanear de nuevo',
       'sync_scan_no_camera': 'No hay cámara disponible en este dispositivo.',
-      'sync_scan_timeout': 'No se encontró el dispositivo en la red. Asegúrate de que esté encendido y en la misma red.',
+      'sync_scan_timeout':
+          'No se encontró el dispositivo en la red. Asegúrate de que esté encendido y en la misma red.',
       'sync_pair_success': 'Vinculado con {name}',
       'sync_pair_failed': 'Error de vinculación',
       'sync_sync_success': 'Sincronización completa',
       'sync_sync_failed': 'Error de sincronización',
-      'sync_unreachable': 'No se pudo contactar con "{name}". Asegúrate de que esté encendido y en la misma red.',
+      'sync_unreachable':
+          'No se pudo contactar con "{name}". Asegúrate de que esté encendido y en la misma red.',
       'sync_peer_forgotten': 'Dispositivo eliminado',
       'msg_confirm_delete': '¿Seguro que quieres eliminarlo?',
       'msg_transaction_deleted': 'Transacción eliminada correctamente',
@@ -1485,8 +1742,10 @@ class Translator {
       'import_csv_hint': 'Formato admitido: archivos CSV con cabeceras',
       'import_select_file': 'Selecciona un archivo CSV para importar',
       'import_column_mapping': 'Asignación de columnas',
-      'import_mapping_hint': 'Relaciona cada columna del CSV con el campo de transacción correspondiente.',
-      'import_type_hint': 'El tipo debe ser: income, expense o transfer. Columna de importe positiva = income, negativa = expense.',
+      'import_mapping_hint':
+          'Relaciona cada columna del CSV con el campo de transacción correspondiente.',
+      'import_type_hint':
+          'El tipo debe ser: income, expense o transfer. Columna de importe positiva = income, negativa = expense.',
       'import_mapping_target': 'Destino',
       'import_separator': 'Separador CSV',
       'import_separator_auto': 'Detección automática',
@@ -1499,10 +1758,13 @@ class Translator {
       'msg_export_error': 'Error durante la exportación',
       'msg_password_required': 'Se requiere contraseña.',
       'msg_user_select_required': 'Selecciona un usuario.',
-      'msg_username_min_length': 'El nombre de usuario debe tener al menos 3 caracteres.',
-      'msg_password_min_length': 'La contraseña debe tener al menos 6 caracteres.',
+      'msg_username_min_length':
+          'El nombre de usuario debe tener al menos 3 caracteres.',
+      'msg_password_min_length':
+          'La contraseña debe tener al menos 6 caracteres.',
       'msg_passwords_not_match': 'Las contraseñas no coinciden.',
-      'msg_incorrect_credentials': 'Nombre de usuario o contraseña incorrectos.',
+      'msg_incorrect_credentials':
+          'Nombre de usuario o contraseña incorrectos.',
       'chart_expenses': 'Gastos',
       'chart_incomes': 'Ingresos',
       'btn_export': 'Exportar',
@@ -1544,15 +1806,20 @@ class Translator {
       'tag_manage': 'Gestionar etiquetas',
       'tag_delete': 'Eliminar etiqueta',
       'tag_untagged': 'Sin etiquetar',
-      'tag_delete_confirm': '¿Eliminar la etiqueta "{name}"? Las transacciones se conservarán sin etiqueta.',
+      'tag_delete_confirm':
+          '¿Eliminar la etiqueta "{name}"? Las transacciones se conservarán sin etiqueta.',
       'tag_delete_success': 'Etiqueta eliminada',
       'tag_no_tags': 'Aún no hay etiquetas.',
       'param_categories_view': 'Vista de categorías',
-      'param_categories_view_desc': 'Elige qué mostrar en la vista de categorías',
+      'param_categories_view_desc':
+          'Elige qué mostrar en la vista de categorías',
       'param_categories_descriptions': 'Descripciones',
       'param_categories_tags': 'Etiquetas',
       'param_dashboard_pie_view': 'Gráficos circulares del panel',
-      'param_dashboard_pie_view_desc': 'Elige qué mostrar en los gráficos de distribución del panel',
+      'param_dashboard_pie_view_desc':
+          'Elige qué mostrar en los gráficos de distribución del panel',
+      'period_1w': '1S',
+      'period_1m': '1M',
       'period_3m': '3M',
       'period_6m': '6M',
       'period_1y': '1A',
@@ -1566,7 +1833,8 @@ class Translator {
       'budget_set_goal': 'Fijar un objetivo',
       'budget_new_goal': 'Nuevo objetivo',
       'budget_edit_goal': 'Editar objetivo',
-      'budget_no_goals': 'Aún no hay objetivos.\nFija un objetivo para seguir tu progreso.',
+      'budget_no_goals':
+          'Aún no hay objetivos.\nFija un objetivo para seguir tu progreso.',
       'budget_goal_type': 'Tipo de objetivo',
       'budget_type_total': 'Patrimonio total',
       'budget_type_account': 'Cuenta',
@@ -1578,7 +1846,8 @@ class Translator {
       'budget_currency': 'Moneda',
       'budget_period': 'Período',
       'budget_monthly': 'Mensual',
-      'budget_monthly_hint': 'Se reinicia cada mes. Los objetivos de etiqueta cuentan este mes, los saldos muestran el valor actual.',
+      'budget_monthly_hint':
+          'Se reinicia cada mes. Los objetivos de etiqueta cuentan este mes, los saldos muestran el valor actual.',
       'budget_custom': 'Fecha límite personalizada',
       'budget_pick_date': 'Elegir fecha',
       'budget_target_invalid': 'Introduce una cantidad mayor que 0',
@@ -1619,8 +1888,10 @@ class Translator {
       _language = lang;
     }
   }
+
   static String t(String key, {Map<String, String>? params}) {
-    final text = _translations[_language]?[key] ?? _translations['en']?[key] ?? key;
+    final text =
+        _translations[_language]?[key] ?? _translations['en']?[key] ?? key;
     if (params != null) {
       var result = text;
       for (final entry in params.entries) {
@@ -1630,16 +1901,36 @@ class Translator {
     }
     return text;
   }
+
   static const _monthKeys = [
-    'month_jan', 'month_feb', 'month_mar', 'month_apr',
-    'month_may', 'month_jun', 'month_jul', 'month_aug',
-    'month_sep', 'month_oct', 'month_nov', 'month_dec',
+    'month_jan',
+    'month_feb',
+    'month_mar',
+    'month_apr',
+    'month_may',
+    'month_jun',
+    'month_jul',
+    'month_aug',
+    'month_sep',
+    'month_oct',
+    'month_nov',
+    'month_dec',
   ];
   static const _monthAbbrKeys = [
-    'month_jan_abbr', 'month_feb_abbr', 'month_mar_abbr', 'month_apr_abbr',
-    'month_may_abbr', 'month_jun_abbr', 'month_jul_abbr', 'month_aug_abbr',
-    'month_sep_abbr', 'month_oct_abbr', 'month_nov_abbr', 'month_dec_abbr',
+    'month_jan_abbr',
+    'month_feb_abbr',
+    'month_mar_abbr',
+    'month_apr_abbr',
+    'month_may_abbr',
+    'month_jun_abbr',
+    'month_jul_abbr',
+    'month_aug_abbr',
+    'month_sep_abbr',
+    'month_oct_abbr',
+    'month_nov_abbr',
+    'month_dec_abbr',
   ];
+
   /// Formats a "YYYY-MM-DD" date string to a localized human-readable form
   /// such as "12 August 2026" or "12 août 2026".
   /// With [compact] true, uses abbreviated months: "12 Aug 2026".
@@ -1653,9 +1944,10 @@ class Translator {
     final monthName = t(keys[(month - 1).clamp(0, 11)]);
     return '$day $monthName $year';
   }
+
   static Map<String, String> get availableLanguages => {
-        'en': t('param_language_en'),
-        'fr': t('param_language_fr'),
-        'es': t('param_language_es'),
-      };
+    'en': t('param_language_en'),
+    'fr': t('param_language_fr'),
+    'es': t('param_language_es'),
+  };
 }

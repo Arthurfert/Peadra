@@ -23,6 +23,7 @@ class Account {
 
   bool get isChecking => type == 'checking';
   bool get isSavings => type == 'savings';
+  bool get isStock => type == 'stock';
 
   static Decimal parseDecimal(dynamic value) {
     if (value == null) return Decimal.zero;

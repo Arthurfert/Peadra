@@ -18,7 +18,7 @@ Peadra ("*wealth*" in Breton) is a free, secure, privacy-focused cross-platform 
 
 Built with **Flutter & Dart**, it runs natively on **Linux, Windows and Android**.  
 Your financial data stays **100% local**.  
-Track your assets, manage transactions across multiple accounts and currencies, and keep full control of your finances.
+Track your assets, from the daily expense to the stock market shares, and keep full control of your finances.
 
 ## Features
 
@@ -31,7 +31,7 @@ Track your assets, manage transactions across multiple accounts and currencies, 
 * Start budgeting by setting savings and spending goals.
 * Interactive bar charts, pie charts, and line graphs to decode your spending habits.
 * Dynamic categories: easily rename, merge, and organize your categories.
-* Set up recurring transactions to automate your monthly budgeting.
+* Keep track with your stock market shares.
 
 **Multi-Account & Multi-Currency Management**
 * Manage distinct accounts with custom color-coding and independent tracking.

@@ -355,8 +355,8 @@ class _TransactionsViewState extends State<TransactionsView> {
     final limit = loadAll
         ? null
         : (loadMore
-            ? _displayLimit
-            : max(_displayLimit, sameFilters ? _loadedRowCount : 0));
+              ? _displayLimit
+              : max(_displayLimit, sameFilters ? _loadedRowCount : 0));
     var txns = await _db.getTransactions(
       limit: limit,
       offset: fetchOffset,
@@ -494,10 +494,13 @@ class _TransactionsViewState extends State<TransactionsView> {
     RecurringTransactionWithDetails? editRecurring,
   }) async {
     final accounts = await _db.getAllAccounts();
+    final stock = await _db.getStockAccount();
+    final transferAccounts = [...accounts, ?stock];
     if (!mounted) return;
 
     final modal = TransactionModal(
       accounts: accounts,
+      transferAccounts: transferAccounts,
       onSave: (data) => _handleSave(
         data,
         editTxn: editTxn,
@@ -1331,10 +1334,7 @@ class _TransactionsViewState extends State<TransactionsView> {
           ),
         ),
         child: switch (_pinnedFilter) {
-          _PinnedFilter.all => Icon(
-            Icons.push_pin_outlined,
-            color: iconColor,
-          ),
+          _PinnedFilter.all => Icon(Icons.push_pin_outlined, color: iconColor),
           _PinnedFilter.only => Icon(Icons.push_pin, color: iconColor),
           _PinnedFilter.except => _pinOffIcon(iconColor),
         },
@@ -1556,25 +1556,25 @@ class _TransactionsViewState extends State<TransactionsView> {
   /// Memoized tag filter bar: chip colors come from [_tagColors] (parsed
   /// once when the tag list loads), so builds do no parsing.
   Widget _buildTagBar() => _buildChipBar(
-        items: [
-          for (final tag in _tags)
-            if (tag.id != null) (id: tag.id!, name: tag.name),
-        ],
-        colors: _tagColors,
-        selected: _selectedTagIds,
-        controller: _tagScrollController,
-      );
+    items: [
+      for (final tag in _tags)
+        if (tag.id != null) (id: tag.id!, name: tag.name),
+    ],
+    colors: _tagColors,
+    selected: _selectedTagIds,
+    controller: _tagScrollController,
+  );
 
   /// Memoized account filter bar: chip colors come from [_accountColors].
   Widget _buildAccountBar() => _buildChipBar(
-        items: [
-          for (final acct in _accounts)
-            if (acct.id != null) (id: acct.id!, name: acct.name),
-        ],
-        colors: _accountColors,
-        selected: _selectedAccountIds,
-        controller: _accountScrollController,
-      );
+    items: [
+      for (final acct in _accounts)
+        if (acct.id != null) (id: acct.id!, name: acct.name),
+    ],
+    colors: _accountColors,
+    selected: _selectedAccountIds,
+    controller: _accountScrollController,
+  );
 
   Widget _buildTransactionList(PeadraColors colors, String defaultCurrency) {
     final upcomingItems = _upcoming;

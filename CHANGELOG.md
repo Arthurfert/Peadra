@@ -4,10 +4,11 @@
 
 ### New
 
-- Transactions : Filter by all, pinned or all transactions but pinned
+**Stock Market account:**
+- A new account type with it's own view :
+- It show your stocks, their values and percentages, your total stocks assets and growth, and a history line graph.
+- Quotes are fetch from TradingView
 
 ### Fixes
 
-- Transactions : the search bar tried to open the keyboard infinitely on phones
-- Dashboard : The total assets evolution percentage now compares 30 days before instead of last month last day
-- General optimization and enhanced security
+- Category view could display charts with only one point, now filtered until there is at least 2 data points.

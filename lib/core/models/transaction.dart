@@ -16,6 +16,10 @@ class Transaction {
   final String? updatedAt;
   final bool pinned;
 
+  /// Internal stock rows (realized gains/losses) are kept out of the normal
+  /// transaction list while still counting in dashboard income/expense.
+  final bool isHidden;
+
   Transaction({
     this.id,
     required this.userId,
@@ -31,6 +35,7 @@ class Transaction {
     this.createdAt,
     this.updatedAt,
     this.pinned = false,
+    this.isHidden = false,
   });
 }
 
@@ -58,6 +63,7 @@ class TransactionWithDetails extends Transaction {
     super.createdAt,
     super.updatedAt,
     super.pinned,
+    super.isHidden,
     this.accountName,
     this.accountColor,
     this.accountCurrency,

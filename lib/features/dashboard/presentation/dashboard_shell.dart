@@ -22,6 +22,7 @@ import '../../accounts/presentation/accounts_view.dart';
 import '../../budgets/presentation/budgets_view.dart';
 import '../../categories/presentation/categories_view.dart';
 import '../../parameters/presentation/parameters_view.dart';
+import '../../stocks/presentation/stock_view.dart';
 import '../../tools/presentation/tools_view.dart';
 import 'dashboard_view.dart';
 import 'dashboard_shell_desktop.dart';
@@ -47,7 +48,7 @@ class LazyKeepAliveStack extends StatefulWidget {
   /// listen to their slot to replay entrance animations on refocus without
   /// remounting (mounted views play their animation once, on first build).
   static final List<ValueNotifier<int>> activationSignals = List.generate(
-    7,
+    8,
     (_) => ValueNotifier<int>(0),
   );
 
@@ -113,6 +114,7 @@ class _DashboardShellState extends State<DashboardShell> {
     const CategoriesView(),
     const ParametersView(showBackButton: false),
     const ToolsView(),
+    const StockView(),
   ];
 
   List<Widget>? _viewsCache;
@@ -173,8 +175,8 @@ class _DashboardShellState extends State<DashboardShell> {
 
   void _onNavTap(int index) {
     // 0 dashboard, 1 transactions, 2 budgets, 3 accounts, 4 categories,
-    // 5 settings (via menu on phones, gear button on desktop), 6 tools.
-    // Index 5 renders inline on both phone and desktop so _views[5]
+    // 5 settings (via menu on phones, gear button on desktop), 6 tools,
+    // 7 stock. Index 5 renders inline on both phone and desktop so _views[5]
     // stays reachable in content.
     if (index == 5) {
       setState(() => _selectedIndex = 5);

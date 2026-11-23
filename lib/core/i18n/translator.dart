@@ -246,8 +246,10 @@ class Translator {
       'stock_info_broker':
           'Values may differ from your broker: fees, dividends, splits, exchange rates and market delays are not all reflected.',
       'stock_total_value': 'Portfolio value',
+      'stock_value_short': 'Value',
       'stock_total_change': 'Total gain/loss',
       'stock_evolution': 'Portfolio evolution',
+      'stock_chart_title': 'Evolution',
       'stock_amount_required': 'Enter an amount',
       'stock_name_required': 'Select a ticker',
       'stock_delete_confirm': 'Remove this holding?',
@@ -856,8 +858,10 @@ class Translator {
       'stock_info_broker':
           'Les valeurs peuvent diff\u00e9rer de celles de votre courtier : frais, dividendes, splits, taux de change et d\u00e9lais de march\u00e9 ne sont pas tous pris en compte.',
       'stock_total_value': 'Valeur du portefeuille',
+      'stock_value_short': 'Valeur',
       'stock_total_change': 'Gain/perte total',
       'stock_evolution': '\u00c9volution du portefeuille',
+      'stock_chart_title': '\u00c9volution',
       'stock_amount_required': 'Entrez un montant',
       'stock_name_required': 'S\u00e9lectionnez un symbole',
       'stock_delete_confirm': 'Supprimer cette position ?',
@@ -1492,8 +1496,10 @@ class Translator {
       'stock_info_broker':
           'Los valores pueden diferir de los de tu bróker: no se reflejan necesariamente comisiones, dividendos, splits, tipos de cambio ni retrasos del mercado.',
       'stock_total_value': 'Valor de la cartera',
+      'stock_value_short': 'Valor',
       'stock_total_change': 'Ganancia/pérdida total',
       'stock_evolution': 'Evolución de la cartera',
+      'stock_chart_title': 'Evolución',
       'stock_amount_required': 'Introduce un importe',
       'stock_name_required': 'Selecciona un símbolo',
       'stock_delete_confirm': '¿Eliminar esta posición?',

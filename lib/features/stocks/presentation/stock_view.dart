@@ -166,6 +166,77 @@ class _StockViewState extends State<StockView> {
     );
   }
 
+  Widget _buildTitleText(PeadraColors colors) {
+    return Text(
+      Translator.t('stock_title'),
+      style: TextStyle(
+        fontSize: 28,
+        fontWeight: FontWeight.bold,
+        color: colors.text,
+      ),
+    );
+  }
+
+  Widget _buildInfoButton(PeadraColors colors) {
+    return IconButton(
+      tooltip: Translator.t('stock_info_title'),
+      onPressed: () => _showInfoDialog(colors),
+      icon: Icon(Icons.info_outline, color: colors.textSecondary),
+    );
+  }
+
+  Widget _buildRefreshButton(PeadraColors colors) {
+    return IconButton(
+      tooltip: Translator.t('stock_refresh'),
+      onPressed: _refreshing ? null : () => _refreshQuotes(force: true),
+      icon: _refreshing
+          ? SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: colors.accent,
+              ),
+            )
+          : Icon(Icons.refresh, color: colors.textSecondary),
+    );
+  }
+
+  Widget _buildTitleRow(PeadraColors colors) {
+    return Row(
+      children: [
+        Expanded(child: _buildTitleText(colors)),
+        _buildInfoButton(colors),
+        if (_account != null) _buildRefreshButton(colors),
+      ],
+    );
+  }
+
+  Widget _buildDesktopHeaderLeft(
+    PeadraColors colors, {
+    required bool showPeriod,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        _buildTitleText(colors),
+        Row(
+          children: [
+            if (showPeriod) ...[
+              _buildPeriodSelector(colors, scrollable: false),
+              const Spacer(),
+              const SizedBox(width: 16),
+            ] else
+              const Spacer(),
+            _buildInfoButton(colors),
+            if (_account != null) _buildRefreshButton(colors),
+          ],
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeName = context.watch<ThemeProvider>().themeName;
@@ -173,93 +244,198 @@ class _StockViewState extends State<StockView> {
     final currency = context.read<SettingsProvider>().currency;
     final showDots = context.read<SettingsProvider>().lineChartDots;
 
-    return Padding(
-      padding: ResponsiveLayout.pagePaddingAll(context).copyWith(bottom: 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth > 800;
+        final snapshot = _snapshot;
+        final showHeaderCard =
+            isWide && !_loading && _account != null && snapshot != null;
+        final showPeriod =
+            isWide &&
+            _account != null &&
+            snapshot != null &&
+            snapshot.history.length > 1;
+        return Padding(
+          padding: ResponsiveLayout.pagePaddingAll(context).copyWith(bottom: 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Text(
-                  Translator.t('stock_title'),
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: colors.text,
-                  ),
-                ),
-              ),
-              IconButton(
-                tooltip: Translator.t('stock_info_title'),
-                onPressed: () => _showInfoDialog(colors),
-                icon: Icon(Icons.info_outline, color: colors.textSecondary),
-              ),
-              if (_account != null)
-                IconButton(
-                  tooltip: Translator.t('stock_refresh'),
-                  onPressed: _refreshing
-                      ? null
-                      : () => _refreshQuotes(force: true),
-                  icon: _refreshing
-                      ? SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: colors.accent,
+              if (isWide)
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: _buildDesktopHeaderLeft(
+                          colors,
+                          showPeriod: showPeriod,
+                        ),
+                      ),
+                      if (showHeaderCard) ...[
+                        const SizedBox(width: 24),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(
+                            minWidth: 280,
+                            maxWidth: 380,
                           ),
-                        )
-                      : Icon(Icons.refresh, color: colors.textSecondary),
+                          child: _buildSummaryCard(colors, currency, snapshot),
+                        ),
+                      ],
+                    ],
+                  ),
+                )
+              else
+                _buildTitleRow(colors),
+              SizedBox(height: isWide ? 24 : 12),
+              if (_loading)
+                Expanded(
+                  child: Center(
+                    child: CircularProgressIndicator(color: colors.accent),
+                  ),
+                )
+              else if (_account == null)
+                Expanded(
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.show_chart,
+                          size: 48,
+                          color: colors.placeholderColor,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          Translator.t('stock_no_account'),
+                          style: TextStyle(color: colors.textSecondary),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: colors.accent,
+                          ),
+                          onPressed: () => _createAccount(currency),
+                          child: Text(
+                            Translator.t('stock_create_account'),
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                Expanded(
+                  child: _buildContent(
+                    colors,
+                    currency,
+                    showDots,
+                    showSummary: !isWide,
+                    showPeriodSelector: !isWide,
+                  ),
                 ),
             ],
           ),
-          const SizedBox(height: 12),
-          if (_loading)
-            Expanded(
-              child: Center(
-                child: CircularProgressIndicator(color: colors.accent),
+        );
+      },
+    );
+  }
+
+  Widget _buildSummaryCard(
+    PeadraColors colors,
+    String currency,
+    StockSnapshot snapshot,
+  ) {
+    final gain = snapshot.total - snapshot.netDeposits;
+    final gainPct = snapshot.netDeposits > Decimal.zero
+        ? gain.toDouble() / snapshot.netDeposits.toDouble() * 100
+        : null;
+    final gainColor = gain >= Decimal.zero ? colors.success : colors.error;
+    return Card(
+      color: colors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              Translator.t('stock_total_value'),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                color: colors.textSecondary,
+                fontWeight: FontWeight.w500,
               ),
-            )
-          else if (_account == null)
-            Expanded(
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.show_chart,
-                      size: 48,
-                      color: colors.placeholderColor,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      Translator.t('stock_no_account'),
-                      style: TextStyle(color: colors.textSecondary),
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: colors.accent,
-                      ),
-                      onPressed: () => _createAccount(currency),
-                      child: Text(
-                        Translator.t('stock_create_account'),
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                    ),
-                  ],
+            ),
+            const SizedBox(height: 6),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                CurrencyService.formatAmount(snapshot.total, currency),
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: colors.accent,
                 ),
               ),
-            )
-          else
-            Expanded(child: _buildContent(colors, currency, showDots)),
-        ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (gainPct != null) ...[
+                  Icon(
+                    gain >= Decimal.zero
+                        ? Icons.arrow_upward
+                        : Icons.arrow_downward,
+                    size: 14,
+                    color: gainColor,
+                  ),
+                  Text(
+                    '${gainPct >= 0 ? '+' : ''}'
+                    '${gainPct.toStringAsFixed(1)}%',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: gainColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                Text(
+                  CurrencyService.formatAmount(gain, currency),
+                  style: TextStyle(
+                    color: gainColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            if (_refreshFailed)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  Translator.t('stock_quotes_stale'),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: colors.textSecondary, fontSize: 11),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildContent(PeadraColors colors, String currency, bool showDots) {
+  Widget _buildContent(
+    PeadraColors colors,
+    String currency,
+    bool showDots, {
+    required bool showSummary,
+    required bool showPeriodSelector,
+  }) {
     final snapshot = _snapshot;
     if (snapshot == null) {
       return Center(
@@ -270,110 +446,16 @@ class _StockViewState extends State<StockView> {
         ),
       );
     }
-    final gain = snapshot.total - snapshot.netDeposits;
-    final gainPct = snapshot.netDeposits > Decimal.zero
-        ? gain.toDouble() / snapshot.netDeposits.toDouble() * 100
-        : null;
-    final gainColor = gain >= Decimal.zero ? colors.success : colors.error;
-
     return ListView(
       padding: const EdgeInsets.only(bottom: 24),
       children: [
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final width = constraints.maxWidth > 600
-                ? 340.0
-                : constraints.maxWidth;
-            return Align(
-              alignment: Alignment.centerLeft,
-              child: SizedBox(
-                width: width,
-                child: Card(
-                  color: colors.surface,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          Translator.t('stock_total_value'),
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: colors.textSecondary,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            CurrencyService.formatAmount(
-                              snapshot.total,
-                              currency,
-                            ),
-                            style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                              color: colors.text,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            Icon(
-                              gain >= Decimal.zero
-                                  ? Icons.arrow_upward
-                                  : Icons.arrow_downward,
-                              size: 14,
-                              color: gainColor,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              CurrencyService.formatAmount(gain, currency),
-                              style: TextStyle(
-                                color: gainColor,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            if (gainPct != null) ...[
-                              const SizedBox(width: 6),
-                              Text(
-                                '(${gainPct >= 0 ? '+' : ''}'
-                                '${gainPct.toStringAsFixed(1)}%)',
-                                style: TextStyle(
-                                  color: gainColor,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                        if (_refreshFailed)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: Text(
-                              Translator.t('stock_quotes_stale'),
-                              style: TextStyle(
-                                color: colors.textSecondary,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
+        if (showSummary) _buildSummaryCard(colors, currency, snapshot),
         if (snapshot.history.length > 1) ...[
-          const SizedBox(height: 8),
-          _buildPeriodSelector(colors),
-          const SizedBox(height: 8),
+          if (showPeriodSelector) ...[
+            const SizedBox(height: 8),
+            _buildPeriodSelector(colors),
+            const SizedBox(height: 8),
+          ],
           Builder(
             builder: (context) {
               final chartHistory = _filterHistory(snapshot.history);
@@ -385,8 +467,8 @@ class _StockViewState extends State<StockView> {
                 assetsHistory: chartHistory,
                 cache: cache,
                 showLineDots: showDots,
-                title: Translator.t('stock_evolution'),
-                legendLabel: Translator.t('stock_total_value'),
+                title: Translator.t('stock_chart_title'),
+                legendLabel: Translator.t('stock_value_short'),
               );
             },
           ),
@@ -434,43 +516,42 @@ class _StockViewState extends State<StockView> {
     );
   }
 
-  Widget _buildPeriodSelector(PeadraColors colors) {
+  Widget _buildPeriodSelector(PeadraColors colors, {bool scrollable = true}) {
     const options = ['1W', '1M', '3M', '1Y', 'all'];
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Container(
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: options.map((period) {
-            final selected = _period == period;
-            return GestureDetector(
-              onTap: () => setState(() => _period = period),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: selected ? colors.accent : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  Translator.t(_periodLabelKey(period)),
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                    color: selected ? Colors.white : colors.textSecondary,
-                  ),
+    final selector = Container(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: options.map((period) {
+          final selected = _period == period;
+          return GestureDetector(
+            onTap: () => setState(() => _period = period),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: selected ? colors.accent : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                Translator.t(_periodLabelKey(period)),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                  color: selected ? Colors.white : colors.textSecondary,
                 ),
               ),
-            );
-          }).toList(),
-        ),
+            ),
+          );
+        }).toList(),
       ),
+    );
+    if (!scrollable) return selector;
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: selector,
     );
   }
 
